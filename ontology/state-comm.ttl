@@ -1,0 +1,69 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix state: <https://w3id.org/seams/state#> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
+
+#################################################################
+# Statecharts (entity lifecycles) — SCXML-shaped, deliberately flat for v1
+#################################################################
+
+<https://w3id.org/seams/state> a owl:Ontology ;
+    rdfs:label "Seams Statechart Vocabulary" ;
+    rdfs:comment "Entity lifecycles as state machines. Hierarchical/parallel states deferred until a dogfood model needs them." .
+
+state:StateMachine a rdfs:Class .
+
+state:State a rdfs:Class .
+
+state:Transition a rdfs:Class .
+
+state:hasState a rdf:Property ;
+    rdfs:domain state:StateMachine ; rdfs:range state:State .
+
+state:initial a rdf:Property ;
+    rdfs:domain state:StateMachine ; rdfs:range state:State .
+
+state:final a rdf:Property ;
+    rdfs:domain state:StateMachine ; rdfs:range state:State .
+
+state:hasTransition a rdf:Property ;
+    rdfs:domain state:StateMachine ; rdfs:range state:Transition .
+
+state:from a rdf:Property ;
+    rdfs:domain state:Transition ; rdfs:range state:State .
+
+state:to a rdf:Property ;
+    rdfs:domain state:Transition ; rdfs:range state:State .
+
+state:trigger a rdf:Property ;
+    rdfs:domain state:Transition ;
+    rdfs:comment "Human-readable trigger label. Which process tasks may fire it lives on the seam (seam:fires)." .
+
+#################################################################
+# Communication — Hydra supplies operations/links; comm adds channels + endpoints
+#################################################################
+
+<https://w3id.org/seams/comm> a owl:Ontology ;
+    rdfs:label "Seams Communication Vocabulary" ;
+    rdfs:comment """Request/response communication is described with Hydra
+(hydra:Operation, hydra:method, etc.). This module only adds what Hydra lacks:
+asynchronous channels, and QUERY as a first-class read method. Payload contracts
+are SHACL shapes via seam:acceptsShape / seam:returnsShape; the fragment-vs-data
+distinction is seam:mediaKind.""" .
+
+comm:Channel a rdfs:Class ;
+    rdfs:comment "An async topic/queue/webhook target. Events published here are named-graph payloads whose shape is the channel's seam:acceptsShape." .
+
+comm:Endpoint a rdfs:Class ;
+    rdfs:comment "A network-addressable base a container seam:exposes; groups hydra:Operations and comm:Channels." .
+
+comm:hasOperation a rdf:Property ;
+    rdfs:domain comm:Endpoint ; rdfs:range hydra:Operation .
+
+comm:hasChannel a rdf:Property ;
+    rdfs:domain comm:Endpoint ; rdfs:range comm:Channel .
+
+comm:QUERY a rdfs:Resource ;
+    rdfs:comment "The HTTP QUERY method (RFC 10008): safe, idempotent, body-carrying. Use as the value of hydra:method for graph reads." .

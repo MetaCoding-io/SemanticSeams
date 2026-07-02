@@ -1,0 +1,56 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix arch:  <https://w3id.org/seams/arch#> .
+
+<https://w3id.org/seams/arch> a owl:Ontology ;
+    rdfs:label "Seams Architecture Vocabulary" ;
+    rdfs:comment """A deliberately small C4-inspired vocabulary. Unlike C4 proper,
+the containment hierarchy is user-definable (LikeC4-style): arch:contains nests
+any Element in any Element, and views are projections, not fixed levels.
+Deployment topology is included because 'where things run' is distinct from
+'what they are'.""" .
+
+#################################################################
+# Classes
+#################################################################
+
+arch:Element a rdfs:Class ;
+    rdfs:comment "Abstract superclass of everything in the architecture layer." .
+
+arch:Person a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "A human actor / role interacting with the system." .
+
+arch:System a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "Highest-level unit delivering value; often owned by one team." .
+
+arch:Container a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "A running application or data store (C4 sense, not Docker sense — though often both)." .
+
+arch:Component a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "A structural building block inside a container. Profiles subtype this (e.g. idesign:Manager)." .
+
+arch:DeploymentNode a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "Infrastructure a container runs on: host, VM, cluster, region. Nestable via arch:contains." .
+
+arch:Environment a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "A deployment environment (prod, demo/dv, staging) grouping deployment nodes." .
+
+#################################################################
+# Properties
+#################################################################
+
+arch:contains a rdf:Property ;
+    rdfs:domain arch:Element ; rdfs:range arch:Element ;
+    rdfs:comment "Generic nesting: system contains containers, container contains components, node contains nodes." .
+
+arch:dependsOn a rdf:Property ;
+    rdfs:domain arch:Element ; rdfs:range arch:Element ;
+    rdfs:comment "Coarse dependency for sketching; refine with seam:consumes/seam:exposes when contracts are modeled." .
+
+arch:technology a rdf:Property ;
+    rdfs:domain arch:Element ;
+    rdfs:comment "Free-text technology label (e.g. 'FastAPI', 'MySQL 8 async replica')." .
+
+arch:description a rdf:Property ;
+    rdfs:domain arch:Element .

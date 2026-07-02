@@ -1,0 +1,99 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix ifml:  <https://w3id.org/seams/ifml#> .
+
+<https://w3id.org/seams/ifml> a owl:Ontology ;
+    rdfs:label "Seams IFML-lite Vocabulary" ;
+    rdfs:comment """A pragmatic lift of the core of OMG IFML (formal/2015-02-05) into RDF.
+Covers what is needed to render interaction models and wire them into the seam graph;
+omits the extension machinery that makes up the bulk of the standard. Data bindings
+use seam:reads/seam:writes to SHACL shapes rather than IFML DataBinding to UML classes.
+Action references use seam:triggers rather than IFML's opaque Action pointer.
+
+Rendering conventions (for the viewer): ViewContainers are boxes-in-boxes;
+ViewComponents are typed inner boxes; Events are circles on borders;
+InteractionFlows are arrows. XOR containers render with the [XOR] tag;
+landmark containers are reachable from anywhere (navigation menu).""" .
+
+#################################################################
+# View structure
+#################################################################
+
+ifml:InteractionModel a rdfs:Class ;
+    rdfs:comment "Root of one IFML model; the thing a seam:Model with seam:notation seam:IFML points at (or is)." .
+
+ifml:ViewElement a rdfs:Class .
+
+ifml:ViewContainer a rdfs:Class ; rdfs:subClassOf ifml:ViewElement ;
+    rdfs:comment "Window, page, area, or pane. Nestable." .
+
+ifml:ViewComponent a rdfs:Class ; rdfs:subClassOf ifml:ViewElement ;
+    rdfs:comment "Content unit inside a container." .
+
+ifml:List    a rdfs:Class ; rdfs:subClassOf ifml:ViewComponent ;
+    rdfs:comment "Publishes a set of instances." .
+ifml:Details a rdfs:Class ; rdfs:subClassOf ifml:ViewComponent ;
+    rdfs:comment "Publishes one instance." .
+ifml:Form    a rdfs:Class ; rdfs:subClassOf ifml:ViewComponent ;
+    rdfs:comment "Collects input. Its fields can be generated from the shape it seam:writes (SHACL 1.2 UI / DASH)." .
+
+ifml:contains a rdf:Property ;
+    rdfs:domain ifml:ViewElement ; rdfs:range ifml:ViewElement ;
+    rdfs:comment "Container nesting and container->component placement." .
+
+ifml:isLandmark a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "Reachable from any other container (global navigation)." .
+ifml:isDefault  a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "Shown by default among XOR siblings." .
+ifml:isXOR      a rdf:Property ; rdfs:range xsd:boolean ;
+    rdfs:comment "Children are mutually exclusive (tabs, wizard steps)." .
+
+#################################################################
+# Events and flows
+#################################################################
+
+ifml:Event a rdfs:Class ;
+    rdfs:comment "User interaction (click, select, submit), system event, or action-completion event." .
+
+ifml:hasEvent a rdf:Property ;
+    rdfs:domain ifml:ViewElement ; rdfs:range ifml:Event .
+
+ifml:InteractionFlow a rdfs:Class .
+
+ifml:NavigationFlow a rdfs:Class ; rdfs:subClassOf ifml:InteractionFlow ;
+    rdfs:comment "Event -> target view element or action; moves the user. Maps to hx-get/hx-post + hx-target swap." .
+
+ifml:DataFlow a rdfs:Class ; rdfs:subClassOf ifml:InteractionFlow ;
+    rdfs:comment "Pure parameter passing between components; no navigation." .
+
+ifml:source a rdf:Property ;
+    rdfs:domain ifml:InteractionFlow ;
+    rdfs:comment "Event (navigation) or view component (data flow)." .
+
+ifml:target a rdf:Property ;
+    rdfs:domain ifml:InteractionFlow ;
+    rdfs:comment "View element, or — via the seam — a process/decision the event seam:triggers." .
+
+#################################################################
+# Parameters
+#################################################################
+
+ifml:Parameter a rdfs:Class ;
+    rdfs:comment "Named typed value exposed or expected by a view element / action." .
+
+ifml:hasParameter a rdf:Property ;
+    rdfs:range ifml:Parameter .
+
+ifml:ParameterBinding a rdfs:Class ;
+    rdfs:comment "sourceParameter -> targetParameter along a flow. Maps to htmx params/vals." .
+
+ifml:binds a rdf:Property ;
+    rdfs:domain ifml:InteractionFlow ; rdfs:range ifml:ParameterBinding .
+
+ifml:sourceParameter a rdf:Property ;
+    rdfs:domain ifml:ParameterBinding ; rdfs:range ifml:Parameter .
+
+ifml:targetParameter a rdf:Property ;
+    rdfs:domain ifml:ParameterBinding ; rdfs:range ifml:Parameter .

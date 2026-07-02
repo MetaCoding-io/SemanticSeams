@@ -1,0 +1,150 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix seam:  <https://w3id.org/seams/seam#> .
+
+<https://w3id.org/seams/seam> a owl:Ontology ;
+    rdfs:label "Seams Bridging Ontology" ;
+    rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
+decision, state, data, communication, authorization, and planning models into one
+navigable graph. Design rules: (1) few and generic beats many and precise;
+(2) every predicate must earn a cross-layer query; (3) reuse existing vocabularies
+inside layers, mint here only where layers meet; (4) the navigation backbone stays
+notation-agnostic.""" .
+
+#################################################################
+# Navigation backbone
+#################################################################
+
+seam:Model a rdfs:Class ;
+    rdfs:label "Model" ;
+    rdfs:comment "A diagram/model in some notation; typically stored as its own named graph." .
+
+seam:detailedBy a rdf:Property ;
+    rdfs:label "detailed by" ;
+    rdfs:range seam:Model ;
+    rdfs:comment "Focus element -> model that elaborates it. Traversing this edge is 'zooming in'." .
+
+seam:notation a rdf:Property ;
+    rdfs:label "notation" ;
+    rdfs:domain seam:Model ;
+    rdfs:comment "Which renderer the shell mounts for this model." .
+
+seam:C4         a seam:Notation ; rdfs:label "C4-style architecture view" .
+seam:IFML       a seam:Notation ; rdfs:label "IFML interaction model" .
+seam:BPMN       a seam:Notation ; rdfs:label "BPMN 2.0 process diagram" .
+seam:DMN        a seam:Notation ; rdfs:label "DMN decision model" .
+seam:Statechart a seam:Notation ; rdfs:label "Harel statechart" .
+seam:ShapeGraph a seam:Notation ; rdfs:label "RDF/SHACL data-model view" .
+
+seam:Notation a rdfs:Class ;
+    rdfs:label "Notation" .
+
+seam:renderPayload a rdf:Property ;
+    rdfs:domain seam:Model ;
+    rdfs:comment """Link to (or literal containing) the native serialization used for
+rendering, e.g. BPMN 2.0 XML or DMN XML. Native payloads are kept as-is; only
+seam-participating elements are lifted to IRIs. Convention: native element IDs
+become IRI fragments on the model IRI, e.g. :order_bpmn#persist_task.""" .
+
+#################################################################
+# Architecture <-> everything
+#################################################################
+
+seam:presents a rdf:Property ;
+    rdfs:comment "arch:Component -> IFML seam:Model. The component's user-facing surface." .
+
+seam:exposes a rdf:Property ;
+    rdfs:comment "arch:Container -> comm:Operation | comm:Channel." .
+
+seam:consumes a rdf:Property ;
+    rdfs:comment "arch:Container -> comm:Operation | comm:Channel. The dependency edge." .
+
+seam:deployedTo a rdf:Property ;
+    rdfs:comment "arch:Container -> arch:DeploymentNode. Enables 'what breaks if db02 goes away'." .
+
+#################################################################
+# UI <-> process
+#################################################################
+
+seam:triggers a rdf:Property ;
+    rdfs:comment "ifml:Event -> proc:Process | dec:Decision. IFML's action-reference extension point, made concrete." .
+
+seam:visibleWhen a rdf:Property ;
+    rdfs:comment "ifml:ViewComponent -> state:State. Conditional rendering as a graph edge." .
+
+#################################################################
+# Process <-> decisions, communication, data
+#################################################################
+
+seam:decidedBy a rdf:Property ;
+    rdfs:comment "proc business-rule task -> dec:Decision." .
+
+seam:invokes a rdf:Property ;
+    rdfs:comment "proc service task -> comm:Operation." .
+
+seam:publishesTo a rdf:Property ;
+    rdfs:comment "proc message throw event -> comm:Channel." .
+
+seam:subscribesTo a rdf:Property ;
+    rdfs:comment "proc message catch event -> comm:Channel." .
+
+seam:reads a rdf:Property ;
+    rdfs:range sh:NodeShape ;
+    rdfs:comment "task | view component | decision -> shape it reads. Workhorse of impact analysis." .
+
+seam:writes a rdf:Property ;
+    rdfs:range sh:NodeShape ;
+    rdfs:comment "task | ui event -> shape it writes. Workhorse of impact analysis." .
+
+#################################################################
+# Data <-> lifecycle
+#################################################################
+
+seam:lifecycle a rdf:Property ;
+    rdfs:domain sh:NodeShape ;
+    rdfs:comment "shape -> state:StateMachine governing instances of the shape." .
+
+seam:fires a rdf:Property ;
+    rdfs:comment "proc task -> state:Transition. Inverse view: which tasks may move an Order out of 'submitted'?" .
+
+#################################################################
+# Communication contracts
+#################################################################
+
+seam:acceptsShape a rdf:Property ;
+    rdfs:range sh:NodeShape ;
+    rdfs:comment "operation | channel -> request / event payload shape." .
+
+seam:returnsShape a rdf:Property ;
+    rdfs:range sh:NodeShape ;
+    rdfs:comment "operation -> response payload shape." .
+
+seam:mediaKind a rdf:Property ;
+    rdfs:comment "operation -> seam:UIFragment | seam:Data. The htmx two-kinds-of-API distinction." .
+
+seam:UIFragment a rdfs:Resource ; rdfs:label "hypermedia / UI fragment response" .
+seam:Data       a rdfs:Resource ; rdfs:label "pure data (JSON-LD) response" .
+
+#################################################################
+# Authorization (cross-cutting by design)
+#################################################################
+
+seam:governedBy a rdf:Property ;
+    rdfs:range odrl:Policy ;
+    rdfs:comment "ANY element -> policy. Deliberately broad domain: attaches to events, tasks, operations, shapes, transitions alike." .
+
+#################################################################
+# Profiles and planning (reserved seams)
+#################################################################
+
+seam:Profile a rdfs:Class ;
+    rdfs:comment "A methodology profile: a component taxonomy plus a SHACL shapes library validating the model graph itself (e.g. IDesign)." .
+
+seam:conformsTo a rdf:Property ;
+    rdfs:range seam:Profile .
+
+seam:realizes a rdf:Property ;
+    rdfs:comment "plan:Activity -> ANY element. The single edge the Gantt projection needs." .

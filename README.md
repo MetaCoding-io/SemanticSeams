@@ -21,6 +21,7 @@ ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             ifml.ttl        — IFML-inspired interaction vocabulary (documented correspondence + deviations vs OMG IFML)
             proc.ttl        — process/decision index types (NOT a BPMN ontology; see file header)
             state-comm.ttl  — statechart lifecycle + communication (channels; Hydra fills the rest)
+            deploy.ttl      — deployment stub: artifact/config/placement; desired-state half of a GitOps loop
 examples/   checkout.ttl    — worked example exercising every seam edge; the v1 acceptance test
 viewer/     (empty) the read-only multi-layer browser — v1 target
 ```
@@ -40,7 +41,7 @@ Milestone 1: load `examples/checkout.ttl` + a hand-drawn `order_process.bpmn`, a
 
 ## Roadmap (after v1)
 
-Editing (embed modelers read-write) → SHACL-driven form generation → IFML→htmx generation → BPMN interpretation (SpiffWorkflow) → methodology profiles as SHACL-shapes-over-the-model (IDesign first) → project-design projection (activities/Gantt derived from architecture, Löwy-style).
+Editing (embed modelers read-write) → SHACL-driven form generation → IFML→htmx generation → BPMN interpretation (SpiffWorkflow) → deployment generation (compose/Ansible from deploy: + drift detection as named-graph SPARQL diff) → methodology profiles as SHACL-shapes-over-the-model (IDesign first) → project-design projection (activities/Gantt derived from architecture, Löwy-style).
 
 ## License
 

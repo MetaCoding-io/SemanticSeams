@@ -18,6 +18,7 @@
 @prefix ifml:  <https://w3id.org/seams/ifml#> .
 @prefix state: <https://w3id.org/seams/state#> .
 @prefix comm:  <https://w3id.org/seams/comm#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
 @prefix proc:  <https://w3id.org/seams/proc#> .
 @prefix dec:   <https://w3id.org/seams/dec#> .
 @prefix :      <https://example.org/shop/> .
@@ -38,7 +39,17 @@
 :order_api a arch:Container ; rdfs:label "Order API" ;
     arch:technology "FastAPI, JSON-LD" ;
     seam:exposes :submit_order_op , :order_events ;
-    seam:deployedTo :app01 .
+    deploy:artifact [ a deploy:Artifact ;
+                      deploy:reference "ghcr.io/example/order-api" ;
+                      deploy:version "1.4.2" ] ;
+    deploy:configuration [ a deploy:Configuration ;
+                           deploy:binding [ deploy:key "DB_URL" ;
+                                            deploy:secretRef <https://secrets.example.org/shop/prod/db-url> ] ] ;
+    deploy:replicas 2 ;
+    deploy:dependsOn :order_db ;
+    deploy:placement [ a deploy:PlacementPolicy ;
+                       deploy:targetEnvironment :prod ] ;
+    seam:deployedTo :app01 .   # resolved output of the placement policy
 
 :order_db a arch:Container ; rdfs:label "Order Store" ;
     arch:technology "RDF triplestore" ;

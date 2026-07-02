@@ -1,0 +1,96 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+
+<https://w3id.org/seams/deploy> a owl:Ontology ;
+    rdfs:label "Seams Deployment Vocabulary (stub)" ;
+    rdfs:comment """The VERB side of infrastructure. arch: describes what runs where
+(nouns); deploy: describes how a container comes into existence: artifact, config,
+resources, ordering, and placement policy. This graph does not launch anything —
+deployment artifacts (docker-compose, Ansible inventory/plays, k8s manifests) are
+GENERATED projections of it, exactly as a Gantt chart is a projection of plan:.
+
+Prior art: TOSCA (heavyweight standard for topology + orchestration templates,
+read but not adopted); BESSER's deployment modeling extension (same gap, same fix).
+
+GitOps loop: the as-designed named graph is desired state; a generator/reconciler
+emits and applies artifacts; an observer writes actual state into an as-deployed
+named graph (Zabbix/monitoring as data source). Drift detection = SPARQL diff
+between the two graphs — with semantics ('order_api violates its placement
+policy'), not textual YAML diffs.
+
+Design rule inherited from seam.ttl: few and generic. Values that are secrets are
+referenced by IRI (e.g. into a secret manager), never inlined as literals.""" .
+
+#################################################################
+# Artifact and configuration
+#################################################################
+
+deploy:Artifact a rdfs:Class ;
+    rdfs:comment "A launchable unit: OCI image, package, VM template. Identified by reference + version." .
+
+deploy:artifact a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:range deploy:Artifact .
+
+deploy:reference a rdf:Property ;
+    rdfs:domain deploy:Artifact ;
+    rdfs:comment "Image/package reference, e.g. 'ghcr.io/org/order-api'." .
+
+deploy:version a rdf:Property ;
+    rdfs:domain deploy:Artifact .
+
+deploy:Configuration a rdfs:Class ;
+    rdfs:comment "A set of environment bindings for a container in an environment." .
+
+deploy:configuration a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:range deploy:Configuration .
+
+deploy:binding a rdf:Property ;
+    rdfs:domain deploy:Configuration ;
+    rdfs:comment "A key/value pair (blank node with deploy:key, deploy:value or deploy:secretRef)." .
+
+deploy:key a rdf:Property .
+deploy:value a rdf:Property .
+deploy:secretRef a rdf:Property ;
+    rdfs:comment "IRI into a secret manager (e.g. an Infisical path). NEVER inline secret literals." .
+
+#################################################################
+# Resources, replication, ordering
+#################################################################
+
+deploy:cpu a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:comment "Requested CPU (free-form for v1, e.g. '2')." .
+
+deploy:memory a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:comment "Requested memory (e.g. '4Gi')." .
+
+deploy:replicas a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:range xsd:integer .
+
+deploy:dependsOn a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:range arch:Container ;
+    rdfs:comment "Startup ordering, distinct from arch:dependsOn (design-time dependency)." .
+
+#################################################################
+# Placement: policy in, resolved fact out
+#################################################################
+
+deploy:PlacementPolicy a rdfs:Class ;
+    rdfs:comment "WHY a container lands where it does: affinity to an Environment or node class, hardware requirements, anti-affinity. seam:deployedTo becomes the RESOLVED OUTPUT of applying this policy, not a hand-asserted fact." .
+
+deploy:placement a rdf:Property ;
+    rdfs:domain arch:Container ; rdfs:range deploy:PlacementPolicy .
+
+deploy:targetEnvironment a rdf:Property ;
+    rdfs:domain deploy:PlacementPolicy ; rdfs:range arch:Environment .
+
+deploy:requires a rdf:Property ;
+    rdfs:domain deploy:PlacementPolicy ;
+    rdfs:comment "Free-form capability requirement for v1 (e.g. 'fast-disks', 'gpu'). Nodes advertise capabilities with the same property." .
+
+deploy:antiAffinity a rdf:Property ;
+    rdfs:domain deploy:PlacementPolicy ; rdfs:range arch:Container ;
+    rdfs:comment "Must not co-locate with the referenced container." .

@@ -48,11 +48,14 @@ Computation decomposes into five concerns, each with a home notation and vocabul
 | **Process** | BPMN 2.0, plus DMN for decision logic and Harel statecharts (SCXML-ish) for entity lifecycles | Executable via open engines (see §5); rendered via bpmn-js / dmn-js |
 | **Data** | RDF / OWL / SHACL | Shapes do triple duty: validation, form generation (SHACL 1.2 UI / DASH), API contracts |
 | **Architecture** | C4-style hierarchy plus deployment topology (containers → deployment nodes → environments) | Custom vocabulary; C4 deployment diagrams as prior art; TOSCA if heavyweight needs emerge |
+| *Deployment (verb side of architecture)* | `deploy:` module: artifact, configuration (secrets by IRI), resources, replicas, startup ordering, placement policy | Nothing here launches anything: compose files / Ansible inventories / k8s manifests are **generated projections** of the graph. `seam:deployedTo` becomes the resolved output of a placement policy. As-designed vs. as-deployed named graphs make **drift detection a SPARQL diff with semantics** — monitoring (e.g. Zabbix host/VM mapping) feeds the as-deployed graph |
 | **Communication** | Hydra (JSON-LD hypermedia) for request/response; channels-as-resources for async | Async events are named-graph payloads whose shape is a SHACL shape on a channel resource (avoids importing the AsyncAPI/JSON-schema world) |
 | **UI** | IFML | Rendered to htmx; custom editor on diagram-js |
 | *Authorization (5th pillar)* | Policy over resources | WebACL / ACP (Solid), ODRL for rich policy (permissions, prohibitions, duties) |
 
 **Annotation vocabularies** (not layers): non-functional requirements (SLOs, latency budgets attached to components and flows), test specifications (examples attached to decisions and shapes; DMN has built-in test cases), provenance/versioning (nearly free via event-sourced model changes + named graphs; enables as-designed vs. as-deployed snapshots).
+
+**Execution boundary (decided):** the BPMN engine never learns about seams. It executes native XML; a single *generic graph-literate worker* registered for all service tasks resolves each task's fragment IRI, follows `seam:invokes` to the operation and its SHACL contracts, dispatches, validates, and enforces `seam:governedBy` policies at the one choke point every cross-component call transits. The XML stays vendor-extension-free and engine-portable; the graph doubles as the runtime service registry.
 
 **Deliberately deferred:** CMMN (least adopted of the OMG trio; Flowable covers it if case management ever becomes necessary).
 

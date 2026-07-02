@@ -1,0 +1,58 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix proc:  <https://w3id.org/seams/proc#> .
+@prefix dec:   <https://w3id.org/seams/dec#> .
+
+<https://w3id.org/seams/proc> a owl:Ontology ;
+    rdfs:label "Seams Process/Decision Index Vocabulary" ;
+    rdfs:comment """NOT a BPMN ontology, on purpose. BPMN 2.0 XML remains the language
+and the render payload (seam:renderPayload); bpmn-js renders it natively, and full
+metamodel lifts (BBO, Rospocher/Ghidini) are a swamp that buys nothing for navigation.
+
+This file only provides rdf:type terms for the *index*: the handful of elements that
+participate in seam edges. Types exist so that (a) SHACL shapes over the seams have
+class targets ('seam:decidedBy connects only BusinessRuleTasks to Decisions'),
+(b) cross-layer queries read as class matches rather than label heuristics, and
+(c) the shell knows what an IRI is before fetching a payload.
+
+Each term mirrors exactly one BPMN/DMN metaclass; nothing about control flow,
+gateways, sequence flows, or lanes is modeled here — that all stays in the XML.
+Minimalist escape hatch: shapes can instead use sh:targetSubjectsOf on seam
+predicates, making these types optional; decide when the first validation
+shapes are written.""" .
+
+#################################################################
+# BPMN index types
+#################################################################
+
+proc:Process a rdfs:Class ;
+    rdfs:comment "Mirrors bpmn:process. The node an ifml:Event seam:triggers and that seam:detailedBy a BPMN seam:Model." .
+
+proc:Task a rdfs:Class ;
+    rdfs:comment "Mirrors bpmn:task (and serves as the superclass for typed tasks below)." .
+
+proc:ServiceTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
+    rdfs:comment "Mirrors bpmn:serviceTask. The type that seam:invokes a comm operation." .
+
+proc:UserTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
+    rdfs:comment "Mirrors bpmn:userTask. Human work item; the type most likely to seam:governedBy a policy and to surface in generated UIs later." .
+
+proc:BusinessRuleTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
+    rdfs:comment "Mirrors bpmn:businessRuleTask. The only legal subject of seam:decidedBy." .
+
+proc:MessageThrowEvent a rdfs:Class ;
+    rdfs:comment "Mirrors bpmn:intermediateThrowEvent / endEvent with messageEventDefinition. Subject of seam:publishesTo." .
+
+proc:MessageCatchEvent a rdfs:Class ;
+    rdfs:comment "Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo." .
+
+#################################################################
+# DMN index types
+#################################################################
+
+dec:DecisionModel a rdfs:Class ;
+    rdfs:comment "Mirrors dmn:definitions. The seam:Model-typed node whose seam:renderPayload is DMN XML." .
+
+dec:Decision a rdfs:Class ;
+    rdfs:comment "Mirrors dmn:decision. Object of seam:decidedBy; subject of seam:reads on its input data shapes." .

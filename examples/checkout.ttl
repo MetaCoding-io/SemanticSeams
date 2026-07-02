@@ -18,7 +18,8 @@
 @prefix ifml:  <https://w3id.org/seams/ifml#> .
 @prefix state: <https://w3id.org/seams/state#> .
 @prefix comm:  <https://w3id.org/seams/comm#> .
-@prefix proc:  <https://w3id.org/seams/proc#> .   # thin BPMN/DMN index vocabulary, see README
+@prefix proc:  <https://w3id.org/seams/proc#> .
+@prefix dec:   <https://w3id.org/seams/dec#> .
 @prefix :      <https://example.org/shop/> .
 
 #################################################################
@@ -96,16 +97,16 @@
     seam:notation seam:BPMN ;
     seam:renderPayload <order_process.bpmn> .   # relative: file alongside this one, TBD
 
-<https://example.org/shop/order_bpmn#price_task> rdfs:label "Price Order" ;
+<https://example.org/shop/order_bpmn#price_task> a proc:BusinessRuleTask ; rdfs:label "Price Order" ;
     seam:decidedBy :pricing_decision ;
     seam:reads :OrderShape .
 
-<https://example.org/shop/order_bpmn#persist_task> rdfs:label "Persist Order" ;
+<https://example.org/shop/order_bpmn#persist_task> a proc:ServiceTask ; rdfs:label "Persist Order" ;
     seam:invokes :submit_order_op ;
     seam:writes :OrderShape ;
     seam:fires :t_submit .
 
-<https://example.org/shop/order_bpmn#order_placed_event> rdfs:label "Order Placed" ;
+<https://example.org/shop/order_bpmn#order_placed_event> a proc:MessageThrowEvent ; rdfs:label "Order Placed" ;
     seam:publishesTo :order_events .
 
 
@@ -113,11 +114,11 @@
 # Decision layer (DMN)
 #################################################################
 
-:pricing_decision a proc:Decision ; rdfs:label "Pricing" ;
+:pricing_decision a dec:Decision ; rdfs:label "Pricing" ;
     seam:detailedBy :pricing_dmn ;
     seam:reads :OrderShape .
 
-:pricing_dmn a seam:Model ;
+:pricing_dmn a seam:Model , dec:DecisionModel ;
     seam:notation seam:DMN ;
     seam:renderPayload <pricing.dmn> .          # TBD, as above
 

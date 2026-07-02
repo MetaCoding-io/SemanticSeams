@@ -2,15 +2,29 @@
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
 @prefix ifml:  <https://w3id.org/seams/ifml#> .
 
 <https://w3id.org/seams/ifml> a owl:Ontology ;
-    rdfs:label "Seams IFML-lite Vocabulary" ;
-    rdfs:comment """A pragmatic lift of the core of OMG IFML (formal/2015-02-05) into RDF.
-Covers what is needed to render interaction models and wire them into the seam graph;
-omits the extension machinery that makes up the bulk of the standard. Data bindings
-use seam:reads/seam:writes to SHACL shapes rather than IFML DataBinding to UML classes.
-Action references use seam:triggers rather than IFML's opaque Action pointer.
+    rdfs:label "Seams IFML-inspired Interaction Vocabulary" ;
+    dct:source <https://www.omg.org/spec/IFML/1.0/> ;
+    rdfs:comment """HONEST SCOPE STATEMENT. This is *our* vocabulary, inspired by and
+correspondent with OMG IFML 1.0 (formal/2015-02-05) — it is not a proper subset and
+cannot be: OMG publishes IFML as a MOF metamodel with XMI interchange, and no official
+RDF/OWL rendering exists, so any RDF lift is somebody's interpretation. Ours makes
+three kinds of departure:
+
+1. CORRESPONDENCE: each class below names the IFML metaclass it corresponds to
+   (see the 'Corresponds to' notes). For that overlap, mechanical XMI round-tripping
+   is feasible. List/Details/Form come from the IFML Extensions package, not Core.
+2. DEVIATION: data binding uses seam:reads/seam:writes to SHACL shapes instead of
+   IFML DataBinding -> UML classifier machinery; action invocation uses seam:triggers
+   instead of the opaque Action/DynamicBehavior reference.
+3. OMISSION: ActivationExpressions, ViewComponentParts, Modules, Context/Viewpoint,
+   and the full event taxonomy are deliberately out of scope for v1.
+
+Consequence: WebRatio/IFMLEdit models do not import losslessly, and ours do not
+export losslessly. This is a living-system-model vocabulary, not an interchange tool.
 
 Rendering conventions (for the viewer): ViewContainers are boxes-in-boxes;
 ViewComponents are typed inner boxes; Events are circles on borders;
@@ -22,75 +36,80 @@ landmark containers are reachable from anywhere (navigation menu).""" .
 #################################################################
 
 ifml:InteractionModel a rdfs:Class ;
-    rdfs:comment "Root of one IFML model; the thing a seam:Model with seam:notation seam:IFML points at (or is)." .
+    rdfs:comment "Root of one interaction model. Corresponds to: IFMLModel/InteractionFlowModel." .
 
-ifml:ViewElement a rdfs:Class .
+ifml:ViewElement a rdfs:Class ;
+    rdfs:comment "Corresponds to: ViewElement (abstract)." .
 
 ifml:ViewContainer a rdfs:Class ; rdfs:subClassOf ifml:ViewElement ;
-    rdfs:comment "Window, page, area, or pane. Nestable." .
+    rdfs:comment "Window, page, area, or pane. Nestable. Corresponds to: ViewContainer." .
 
 ifml:ViewComponent a rdfs:Class ; rdfs:subClassOf ifml:ViewElement ;
-    rdfs:comment "Content unit inside a container." .
+    rdfs:comment "Content unit inside a container. Corresponds to: ViewComponent." .
 
 ifml:List    a rdfs:Class ; rdfs:subClassOf ifml:ViewComponent ;
-    rdfs:comment "Publishes a set of instances." .
+    rdfs:comment "Publishes a set of instances. Corresponds to: List (IFML Extensions)." .
 ifml:Details a rdfs:Class ; rdfs:subClassOf ifml:ViewComponent ;
-    rdfs:comment "Publishes one instance." .
+    rdfs:comment "Publishes one instance. Corresponds to: Details (IFML Extensions)." .
 ifml:Form    a rdfs:Class ; rdfs:subClassOf ifml:ViewComponent ;
-    rdfs:comment "Collects input. Its fields can be generated from the shape it seam:writes (SHACL 1.2 UI / DASH)." .
+    rdfs:comment "Collects input; fields generatable from the shape it seam:writes (SHACL 1.2 UI / DASH). Corresponds to: Form (IFML Extensions)." .
 
 ifml:contains a rdf:Property ;
     rdfs:domain ifml:ViewElement ; rdfs:range ifml:ViewElement ;
-    rdfs:comment "Container nesting and container->component placement." .
+    rdfs:comment "Container nesting and container->component placement. Corresponds to: ViewContainer.viewElements." .
 
 ifml:isLandmark a rdf:Property ; rdfs:range xsd:boolean ;
-    rdfs:comment "Reachable from any other container (global navigation)." .
+    rdfs:comment "Reachable from any container (global navigation). Corresponds to: ViewContainer.isLandmark." .
 ifml:isDefault  a rdf:Property ; rdfs:range xsd:boolean ;
-    rdfs:comment "Shown by default among XOR siblings." .
+    rdfs:comment "Shown by default among XOR siblings. Corresponds to: ViewContainer.isDefault." .
 ifml:isXOR      a rdf:Property ; rdfs:range xsd:boolean ;
-    rdfs:comment "Children are mutually exclusive (tabs, wizard steps)." .
+    rdfs:comment "Children are mutually exclusive (tabs, wizard steps). Corresponds to: ViewContainer.isXOR." .
 
 #################################################################
 # Events and flows
 #################################################################
 
 ifml:Event a rdfs:Class ;
-    rdfs:comment "User interaction (click, select, submit), system event, or action-completion event." .
+    rdfs:comment "User interaction, system event, or action-completion. Corresponds to: Event (collapsing the ViewElementEvent/ActionEvent/SystemEvent taxonomy — see OMISSION note)." .
 
 ifml:hasEvent a rdf:Property ;
-    rdfs:domain ifml:ViewElement ; rdfs:range ifml:Event .
+    rdfs:domain ifml:ViewElement ; rdfs:range ifml:Event ;
+    rdfs:comment "Corresponds to: InteractionFlowElement.events." .
 
-ifml:InteractionFlow a rdfs:Class .
+ifml:InteractionFlow a rdfs:Class ;
+    rdfs:comment "Corresponds to: InteractionFlow (abstract)." .
 
 ifml:NavigationFlow a rdfs:Class ; rdfs:subClassOf ifml:InteractionFlow ;
-    rdfs:comment "Event -> target view element or action; moves the user. Maps to hx-get/hx-post + hx-target swap." .
+    rdfs:comment "Event -> target; moves the user. Maps to hx-get/hx-post + hx-target swap. Corresponds to: NavigationFlow." .
 
 ifml:DataFlow a rdfs:Class ; rdfs:subClassOf ifml:InteractionFlow ;
-    rdfs:comment "Pure parameter passing between components; no navigation." .
+    rdfs:comment "Pure parameter passing; no navigation. Corresponds to: DataFlow." .
 
 ifml:source a rdf:Property ;
     rdfs:domain ifml:InteractionFlow ;
-    rdfs:comment "Event (navigation) or view component (data flow)." .
+    rdfs:comment "Event (navigation) or view component (data flow). Corresponds to: InteractionFlow.srcInteractionFlowElement." .
 
 ifml:target a rdf:Property ;
     rdfs:domain ifml:InteractionFlow ;
-    rdfs:comment "View element, or — via the seam — a process/decision the event seam:triggers." .
+    rdfs:comment "View element, or — via the seam — a process/decision the event seam:triggers. Corresponds to: InteractionFlow.trgtInteractionFlowElement." .
 
 #################################################################
 # Parameters
 #################################################################
 
 ifml:Parameter a rdfs:Class ;
-    rdfs:comment "Named typed value exposed or expected by a view element / action." .
+    rdfs:comment "Named typed value exposed or expected by a view element / action. Corresponds to: Parameter." .
 
 ifml:hasParameter a rdf:Property ;
-    rdfs:range ifml:Parameter .
+    rdfs:range ifml:Parameter ;
+    rdfs:comment "Corresponds to: InteractionFlowElement.parameters." .
 
 ifml:ParameterBinding a rdfs:Class ;
-    rdfs:comment "sourceParameter -> targetParameter along a flow. Maps to htmx params/vals." .
+    rdfs:comment "sourceParameter -> targetParameter along a flow. Maps to htmx params/vals. Corresponds to: ParameterBinding." .
 
 ifml:binds a rdf:Property ;
-    rdfs:domain ifml:InteractionFlow ; rdfs:range ifml:ParameterBinding .
+    rdfs:domain ifml:InteractionFlow ; rdfs:range ifml:ParameterBinding ;
+    rdfs:comment "Corresponds to: InteractionFlow.parameterBindingGroup." .
 
 ifml:sourceParameter a rdf:Property ;
     rdfs:domain ifml:ParameterBinding ; rdfs:range ifml:Parameter .

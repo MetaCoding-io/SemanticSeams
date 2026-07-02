@@ -18,13 +18,14 @@ Full motivation, landscape survey, and design: [`docs/project-outline.md`](docs/
 docs/       project outline (vision, pillars, landscape, stack, seam design rules)
 ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             arch.ttl        — minimal C4-style architecture vocabulary
-            ifml.ttl        — IFML-lite (the ~10-class renderable core of OMG IFML)
+            ifml.ttl        — IFML-inspired interaction vocabulary (documented correspondence + deviations vs OMG IFML)
+            proc.ttl        — process/decision index types (NOT a BPMN ontology; see file header)
             state-comm.ttl  — statechart lifecycle + communication (channels; Hydra fills the rest)
 examples/   checkout.ttl    — worked example exercising every seam edge; the v1 acceptance test
 viewer/     (empty) the read-only multi-layer browser — v1 target
 ```
 
-Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. A thin `proc:` index vocabulary (Process, Task, Decision…) will be added when the viewer needs it. The data layer needs no vocabulary at all — SHACL *is* the vocabulary.
+Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. The thin `proc:`/`dec:` index vocabulary types only these seam-participating elements. The data layer needs no vocabulary at all — SHACL *is* the vocabulary.
 
 ## v1: the viewer
 

@@ -1,6 +1,6 @@
 # Project Outline: A Zoomable, Multi-Notation Application Graph
 
-*Working title candidates: **Seams** (the load-bearing novelty is the cross-notation edges), or something in the esoteric.ai namespace. TBD.*
+*Name: **Seams** (settled — the load-bearing novelty is the cross-notation edges). Namespace: `https://w3id.org/seams/` (w3id registration pending).*
 
 *Status: concept / research phase — July 2026*
 
@@ -113,6 +113,14 @@ Then, in order: editing (embed the modelers read-write), SHACL-driven form gener
 ---
 
 ## 8. Sketch: the seam edges (bridging ontology)
+
+> **Historical sketch.** This section predates the shipped ontologies and is kept
+> for the design rationale. The namespaces (`example.org/ns/...`, the `ui:`
+> prefix), the "~15 predicates" count, and some domain notes are stale — the
+> authoritative, tested vocabulary lives in [`ontology/seam.ttl`](../ontology/seam.ttl)
+> (`https://w3id.org/seams/seam#`, currently 25 predicates, including
+> `seam:inModel` for membership and `seam:executes` for container→process),
+> with constraints in [`ontology/shapes/seam-shapes.ttl`](../ontology/shapes/seam-shapes.ttl).
 
 The bridging ontology's only job is to define the **seams** — the cross-layer predicates everything hangs off. Inside each layer we lean on existing vocabularies (SHACL, ODRL, Hydra, SCXML-ish states). The seams are where the novelty and the value live; the layers are mostly solved.
 

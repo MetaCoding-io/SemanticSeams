@@ -1,0 +1,195 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix ifml:   <https://w3id.org/seams/ifml#> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix dec:    <https://w3id.org/seams/dec#> .
+@prefix state:  <https://w3id.org/seams/state#> .
+@prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix seamsh: <https://w3id.org/seams/shapes#> .
+
+<https://w3id.org/seams/shapes> a owl:Ontology ;
+    rdfs:label "Seam Validation Shapes" ;
+    rdfs:comment """The project's own methodology applied to itself: constraints on
+the seam predicates live HERE, as SHACL shapes over the model graph — not as
+rdfs:domain/range in seam.ttl, because RDFS ranges infer types onto violators
+instead of rejecting them. Every shape below encodes a claim the prose ontology
+comments were already making; validating a model against this file is what turns
+'we follow the seam design rules' into a machine-verifiable statement.
+
+Validate with the ontology files merged into the data graph: sh:class checks
+subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data.""" ;
+    sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] .
+
+#################################################################
+# Navigation backbone
+#################################################################
+
+seamsh:ModelShape a sh:NodeShape ;
+    sh:targetClass seam:Model ;
+    sh:property [
+        sh:path seam:notation ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class seam:Notation ;
+        sh:message "Every seam:Model has exactly one seam:notation, and it is a seam:Notation." ;
+    ] ;
+    sh:sparql [
+        sh:message "BPMN and DMN models must carry a seam:renderPayload (the native XML is the render source)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this seam:notation ?n .
+                FILTER(?n IN (seam:BPMN, seam:DMN))
+                FILTER NOT EXISTS { $this seam:renderPayload ?p }
+            }""" ;
+    ] .
+
+seamsh:DetailedByShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:detailedBy ;
+    sh:class seam:Model ;
+    sh:message "seam:detailedBy points at a seam:Model." .
+
+seamsh:InModelShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:inModel ;
+    sh:class seam:Model ;
+    sh:message "seam:inModel points at a seam:Model." .
+
+#################################################################
+# Architecture <-> everything
+#################################################################
+
+seamsh:PresentsShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:presents ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:presents ; sh:class seam:Model ;
+        sh:message "seam:presents points at a seam:Model (an IFML surface)." ] ;
+    sh:message "Only an arch:Container seam:presents a UI surface." .
+
+seamsh:ExposesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:exposes ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:exposes ;
+        sh:or ( [ sh:class hydra:Operation ] [ sh:class comm:Channel ] ) ;
+        sh:message "seam:exposes points at an operation or a channel." ] .
+
+seamsh:ConsumesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:consumes ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:consumes ;
+        sh:or ( [ sh:class hydra:Operation ] [ sh:class comm:Channel ] ) ;
+        sh:message "seam:consumes points at an operation or a channel." ] .
+
+seamsh:DeployedToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:deployedTo ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:deployedTo ; sh:class arch:DeploymentNode ;
+        sh:message "seam:deployedTo points at an arch:DeploymentNode." ] .
+
+seamsh:ExecutesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:executes ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:executes ; sh:class proc:Process ;
+        sh:message "seam:executes points at a proc:Process." ] .
+
+#################################################################
+# UI <-> process
+#################################################################
+
+seamsh:TriggersShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:triggers ;
+    sh:class ifml:Event ;
+    sh:property [ sh:path seam:triggers ;
+        sh:or ( [ sh:class proc:Process ] [ sh:class dec:Decision ] ) ;
+        sh:message "seam:triggers points at a process or a decision." ] ;
+    sh:message "Only an ifml:Event seam:triggers behavior." .
+
+seamsh:VisibleWhenShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:visibleWhen ;
+    sh:class ifml:ViewComponent ;
+    sh:property [ sh:path seam:visibleWhen ; sh:class state:State ;
+        sh:message "seam:visibleWhen points at a state:State." ] .
+
+#################################################################
+# Process <-> decisions, communication, data
+#################################################################
+
+seamsh:DecidedByShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:decidedBy ;
+    sh:class proc:BusinessRuleTask ;
+    sh:property [ sh:path seam:decidedBy ; sh:class dec:Decision ;
+        sh:message "seam:decidedBy points at a dec:Decision." ] ;
+    sh:message "seam:decidedBy connects only business-rule tasks to decisions." .
+
+seamsh:InvokesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:invokes ;
+    sh:class proc:ServiceTask ;
+    sh:property [ sh:path seam:invokes ; sh:class hydra:Operation ;
+        sh:message "seam:invokes points at a hydra:Operation." ] ;
+    sh:message "Only a proc:ServiceTask seam:invokes an operation." .
+
+seamsh:PublishesToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:publishesTo ;
+    sh:class proc:MessageThrowEvent ;
+    sh:property [ sh:path seam:publishesTo ; sh:class comm:Channel ;
+        sh:message "seam:publishesTo points at a comm:Channel." ] .
+
+seamsh:SubscribesToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:subscribesTo ;
+    sh:class proc:MessageCatchEvent ;
+    sh:property [ sh:path seam:subscribesTo ; sh:class comm:Channel ;
+        sh:message "seam:subscribesTo points at a comm:Channel." ] .
+
+seamsh:ReadsShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:reads ;
+    sh:class sh:NodeShape ;
+    sh:message "seam:reads points at a sh:NodeShape." .
+
+seamsh:WritesShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:writes ;
+    sh:class sh:NodeShape ;
+    sh:message "seam:writes points at a sh:NodeShape." .
+
+#################################################################
+# Data <-> lifecycle
+#################################################################
+
+seamsh:LifecycleShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:lifecycle ;
+    sh:class sh:NodeShape ;
+    sh:property [ sh:path seam:lifecycle ; sh:class state:StateMachine ;
+        sh:message "seam:lifecycle points at a state:StateMachine." ] ;
+    sh:message "Only a sh:NodeShape carries a seam:lifecycle." .
+
+seamsh:FiresShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:fires ;
+    sh:class proc:Task ;
+    sh:property [ sh:path seam:fires ; sh:class state:Transition ;
+        sh:message "seam:fires points at a state:Transition." ] ;
+    sh:message "Only a proc:Task seam:fires a transition." .
+
+#################################################################
+# Communication contracts
+#################################################################
+
+seamsh:AcceptsShapeShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:acceptsShape ;
+    sh:or ( [ sh:class hydra:Operation ] [ sh:class comm:Channel ] ) ;
+    sh:property [ sh:path seam:acceptsShape ; sh:class sh:NodeShape ;
+        sh:message "seam:acceptsShape points at a sh:NodeShape." ] ;
+    sh:message "Only operations and channels declare seam:acceptsShape." .
+
+seamsh:ReturnsShapeShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:returnsShape ;
+    sh:class hydra:Operation ;
+    sh:property [ sh:path seam:returnsShape ; sh:class sh:NodeShape ;
+        sh:message "seam:returnsShape points at a sh:NodeShape." ] .
+
+seamsh:MediaKindShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:mediaKind ;
+    sh:class seam:MediaKind ;
+    sh:message "seam:mediaKind takes a seam:MediaKind (seam:UIFragment or seam:Data)." .

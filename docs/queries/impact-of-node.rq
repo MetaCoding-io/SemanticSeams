@@ -1,0 +1,21 @@
+# What breaks if ?node goes away?
+#
+# Returns everything that transitively depends on a container deployed to the
+# node — including the deployed containers themselves (path length 0) and the
+# processes they execute. Dependency edges walked:
+#   - arch:dependsOn               : design-time dependency
+#   - seam:consumes/^seam:exposes  : contract-level dependency via an operation/channel
+#   - ^seam:executes               : a process depends on the container that runs it
+#
+# Bind ?node to an arch:DeploymentNode.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX arch: <https://w3id.org/seams/arch#>
+
+SELECT DISTINCT ?impacted WHERE {
+  ?container seam:deployedTo ?node .
+  ?impacted ( arch:dependsOn
+            | (seam:consumes/^seam:exposes)
+            | ^seam:executes
+            )* ?container .
+}

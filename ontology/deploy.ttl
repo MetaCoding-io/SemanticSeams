@@ -68,7 +68,8 @@ deploy:memory a rdf:Property ;
     rdfs:domain arch:Container ; rdfs:comment "Requested memory (e.g. '4Gi')." .
 
 deploy:replicas a rdf:Property ;
-    rdfs:domain arch:Container ; rdfs:range xsd:integer .
+    rdfs:domain arch:Container ; rdfs:range xsd:integer ;
+    rdfs:comment "Requested number of running INSTANCES of the container, not a node count." .
 
 deploy:dependsOn a rdf:Property ;
     rdfs:domain arch:Container ; rdfs:range arch:Container ;
@@ -89,7 +90,11 @@ deploy:targetEnvironment a rdf:Property ;
 
 deploy:requires a rdf:Property ;
     rdfs:domain deploy:PlacementPolicy ;
-    rdfs:comment "Free-form capability requirement for v1 (e.g. 'fast-disks', 'gpu'). Nodes advertise capabilities with the same property." .
+    rdfs:comment "Free-form capability requirement for v1 (e.g. 'fast-disks', 'gpu'). Matched against deploy:capability advertised by nodes." .
+
+deploy:capability a rdf:Property ;
+    rdfs:domain arch:DeploymentNode ;
+    rdfs:comment "Free-form capability a deployment node advertises (e.g. 'fast-disks', 'gpu'); matched by deploy:requires. Split from deploy:requires so neither property violates its own domain." .
 
 deploy:antiAffinity a rdf:Property ;
     rdfs:domain deploy:PlacementPolicy ; rdfs:range arch:Container ;

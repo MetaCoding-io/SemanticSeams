@@ -1,0 +1,24 @@
+# Which UI events can eventually write ?shape, and through which task?
+#
+# Walks the seam backbone from an IFML event into behavior:
+#   - triggers/detailedBy/^inModel : into the elements of the triggered process
+#   - decidedBy, invokes           : deeper behavioral hops
+#   - publishesTo/^subscribesTo/inModel/^inModel : the async hop — from a
+#     message-throw event through the channel into the subscribing process's
+#     elements (control flow stays in the BPMN XML, so model-siblings is the
+#     honest approximation of "downstream in that process")
+#
+# Bind ?shape to a sh:NodeShape; leave unbound to list every event->shape pair.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX ifml: <https://w3id.org/seams/ifml#>
+
+SELECT DISTINCT ?event ?writer WHERE {
+  ?event a ifml:Event .
+  ?event ( (seam:triggers/seam:detailedBy/^seam:inModel)
+         | seam:decidedBy
+         | seam:invokes
+         | (seam:publishesTo/^seam:subscribesTo/seam:inModel/^seam:inModel)
+         )+ ?writer .
+  ?writer seam:writes ?shape .
+}

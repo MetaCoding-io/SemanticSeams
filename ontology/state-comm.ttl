@@ -65,5 +65,7 @@ comm:hasOperation a rdf:Property ;
 comm:hasChannel a rdf:Property ;
     rdfs:domain comm:Endpoint ; rdfs:range comm:Channel .
 
-comm:QUERY a rdfs:Resource ;
-    rdfs:comment "The HTTP QUERY method (RFC 10008): safe, idempotent, body-carrying. Use as the value of hydra:method for graph reads." .
+# The HTTP QUERY method (RFC 10008): safe, idempotent, body-carrying — the natural
+# read method for graph queries. Convention: use the string literal "QUERY" as the
+# value of hydra:method, exactly like "GET"/"POST". (A comm:QUERY resource would
+# type-clash: hydra:method takes literals.)

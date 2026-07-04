@@ -1,0 +1,293 @@
+# TriG conversion of checkout.ttl with named-graph partitioning per ADR-0001.
+# Each seam:Model gets its own named graph; cross-layer seam predicates live in
+# the dedicated seams graph. Ontology graphs are loaded separately from .ttl files.
+
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix arch:  <https://w3id.org/seams/arch#> .
+@prefix ifml:  <https://w3id.org/seams/ifml#> .
+@prefix state: <https://w3id.org/seams/state#> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix proc:  <https://w3id.org/seams/proc#> .
+@prefix dec:   <https://w3id.org/seams/dec#> .
+@prefix :      <https://example.org/shop/> .
+
+#################################################################
+# Architecture model graph
+#################################################################
+
+<urn:seams:graph:model:checkout_architecture> {
+
+    :checkout_architecture a seam:Model ;
+        rdfs:label "Checkout Architecture" .
+
+    :shop a arch:System ; rdfs:label "Shop" ;
+        arch:contains :web_ui , :order_api , :order_db ;
+        seam:inModel :checkout_architecture .
+
+    :web_ui a arch:Container ; rdfs:label "Client Web Interface" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :order_api ;
+        seam:inModel :checkout_architecture .
+
+    :order_api a arch:Container ; rdfs:label "Order API" ;
+        arch:technology "FastAPI, JSON-LD" ;
+        arch:dependsOn :order_db ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/order-api" ;
+                          deploy:version "1.4.2" ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "DB_URL" ;
+                                                deploy:secretRef <https://secrets.example.org/shop/prod/db-url> ] ] ;
+        deploy:replicas 2 ;
+        deploy:dependsOn :order_db ;
+        deploy:placement [ a deploy:PlacementPolicy ;
+                           deploy:targetEnvironment :prod ] ;
+        seam:inModel :checkout_architecture .
+
+    :order_db a arch:Container ; rdfs:label "Order Store" ;
+        arch:technology "RDF triplestore" ;
+        seam:inModel :checkout_architecture .
+
+    :prod a arch:Environment ; rdfs:label "Production" ;
+        arch:contains :web01 , :app01 , :db01 ;
+        seam:inModel :checkout_architecture .
+
+    :web01 a arch:DeploymentNode ; rdfs:label "web01" ;
+        seam:inModel :checkout_architecture .
+    :app01 a arch:DeploymentNode ; rdfs:label "app01" ;
+        seam:inModel :checkout_architecture .
+    :db01  a arch:DeploymentNode ; rdfs:label "db01" ;
+        seam:inModel :checkout_architecture .
+}
+
+#################################################################
+# UI layer (IFML) model graph
+#################################################################
+
+<urn:seams:graph:model:checkout_ifml> {
+
+    :checkout_ifml a seam:Model , ifml:InteractionModel ;
+        rdfs:label "Checkout" ;
+        ifml:contains :checkout_page .
+
+    :checkout_page a ifml:ViewContainer ; rdfs:label "Checkout Page" ;
+        ifml:isLandmark true ;
+        ifml:contains :cart_list , :order_form , :order_status ;
+        seam:inModel :checkout_ifml .
+
+    :cart_list a ifml:List ; rdfs:label "Cart Items" ;
+        ifml:hasParameter :selected_items ;
+        seam:inModel :checkout_ifml .
+
+    :order_form a ifml:Form ; rdfs:label "Order Details" ;
+        ifml:hasEvent :submit_order ;
+        ifml:hasParameter :order_input ;
+        seam:inModel :checkout_ifml .
+
+    :order_status a ifml:Details ; rdfs:label "Order Status" ;
+        seam:inModel :checkout_ifml .
+
+    :selected_items a ifml:Parameter ; rdfs:label "selected items" ;
+        seam:inModel :checkout_ifml .
+    :order_input    a ifml:Parameter ; rdfs:label "order input" ;
+        seam:inModel :checkout_ifml .
+
+    :submit_order a ifml:Event ; rdfs:label "Submit Order" ;
+        seam:inModel :checkout_ifml .
+
+    :cart_to_form a ifml:DataFlow ;
+        ifml:source :cart_list ; ifml:target :order_form ;
+        ifml:binds [ a ifml:ParameterBinding ;
+                     ifml:sourceParameter :selected_items ;
+                     ifml:targetParameter :order_input ] ;
+        seam:inModel :checkout_ifml .
+}
+
+#################################################################
+# Order process (BPMN) model graph
+#################################################################
+
+<urn:seams:graph:model:order_bpmn> {
+
+    :order_bpmn a seam:Model ; rdfs:label "Order Process (BPMN)" .
+
+    :order_process a proc:Process ; rdfs:label "Order Process" ;
+        seam:inModel :order_bpmn .
+
+    <https://example.org/shop/order_bpmn#price_task> a proc:BusinessRuleTask ;
+        rdfs:label "Price Order" ;
+        seam:inModel :order_bpmn .
+
+    <https://example.org/shop/order_bpmn#persist_task> a proc:ServiceTask ;
+        rdfs:label "Persist Order" ;
+        seam:inModel :order_bpmn .
+
+    <https://example.org/shop/order_bpmn#order_placed_event> a proc:MessageThrowEvent ;
+        rdfs:label "Order Placed" ;
+        seam:inModel :order_bpmn .
+}
+
+#################################################################
+# Fulfillment process (BPMN) model graph
+#################################################################
+
+<urn:seams:graph:model:fulfillment_bpmn> {
+
+    :fulfillment_bpmn a seam:Model ; rdfs:label "Fulfillment (BPMN)" .
+
+    :fulfillment_process a proc:Process ; rdfs:label "Fulfillment Process" ;
+        seam:inModel :fulfillment_bpmn .
+
+    <https://example.org/shop/fulfillment_bpmn#order_placed_catch> a proc:MessageCatchEvent ;
+        rdfs:label "Order Placed (catch)" ;
+        seam:inModel :fulfillment_bpmn .
+
+    <https://example.org/shop/fulfillment_bpmn#fulfill_task> a proc:Task ;
+        rdfs:label "Fulfill Order" ;
+        seam:inModel :fulfillment_bpmn .
+}
+
+#################################################################
+# Decision layer (DMN) model graph
+#################################################################
+
+<urn:seams:graph:model:pricing_dmn> {
+
+    :pricing_dmn a seam:Model , dec:DecisionModel ;
+        rdfs:label "Pricing (DMN)" .
+
+    <https://example.org/shop/pricing_dmn#pricing_decision> a dec:Decision ;
+        rdfs:label "Pricing" ;
+        seam:inModel :pricing_dmn .
+}
+
+#################################################################
+# Data layer (SHACL shape graph) model graph
+#################################################################
+
+<urn:seams:graph:model:order_shape_graph> {
+
+    :order_shape_graph a seam:Model ; rdfs:label "Order Data Model" .
+
+    :OrderShape a sh:NodeShape ; rdfs:label "Order" ;
+        sh:property [ sh:path :orderTotal ; sh:datatype xsd:decimal ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :status ; sh:maxCount 1 ] ;
+        seam:inModel :order_shape_graph .
+}
+
+#################################################################
+# Order lifecycle (Statechart) model graph
+#################################################################
+
+<urn:seams:graph:model:order_lifecycle> {
+
+    :order_lifecycle a state:StateMachine , seam:Model ;
+        rdfs:label "Order Lifecycle" ;
+        state:initial :s_draft ;
+        state:hasState :s_draft , :s_submitted , :s_fulfilled , :s_cancelled ;
+        state:final :s_fulfilled , :s_cancelled ;
+        state:hasTransition :t_submit , :t_fulfill , :t_cancel .
+
+    :s_draft     a state:State ; rdfs:label "draft"     ; seam:inModel :order_lifecycle .
+    :s_submitted a state:State ; rdfs:label "submitted" ; seam:inModel :order_lifecycle .
+    :s_fulfilled a state:State ; rdfs:label "fulfilled" ; seam:inModel :order_lifecycle .
+    :s_cancelled a state:State ; rdfs:label "cancelled" ; seam:inModel :order_lifecycle .
+
+    :t_submit  a state:Transition ; state:from :s_draft ;     state:to :s_submitted ; state:trigger "submit"  ; seam:inModel :order_lifecycle .
+    :t_fulfill a state:Transition ; state:from :s_submitted ; state:to :s_fulfilled ; state:trigger "fulfill" ; seam:inModel :order_lifecycle .
+    :t_cancel  a state:Transition ; state:from :s_submitted ; state:to :s_cancelled ; state:trigger "cancel"  ; seam:inModel :order_lifecycle .
+}
+
+#################################################################
+# Seams graph — all cross-layer relationships, contract elements,
+# navigation predicates (notation, renderPayload), and authorization
+#################################################################
+
+<urn:seams:graph:seams> {
+
+    # Architecture → UI/Process seam edges
+    :web_ui seam:presents :checkout_ifml ;
+        seam:consumes :submit_order_op ;
+        seam:deployedTo :web01 .
+
+    :order_api seam:exposes :submit_order_op , :order_events ;
+        seam:executes :order_process , :fulfillment_process ;
+        seam:deployedTo :app01 .
+
+    :order_db seam:deployedTo :db01 .
+
+    # UI → Process seam edges
+    :submit_order seam:triggers :order_process ;
+        seam:governedBy :customer_policy .
+
+    :cart_list seam:reads :OrderShape .
+    :order_form seam:writes :OrderShape .
+    :order_status seam:reads :OrderShape ;
+        seam:visibleWhen :s_submitted .
+
+    # Process → Decision/Data seam edges
+    :order_process seam:detailedBy :order_bpmn .
+
+    <https://example.org/shop/order_bpmn#price_task>
+        seam:decidedBy <https://example.org/shop/pricing_dmn#pricing_decision> ;
+        seam:reads :OrderShape .
+
+    <https://example.org/shop/order_bpmn#persist_task>
+        seam:invokes :submit_order_op ;
+        seam:writes :OrderShape ;
+        seam:fires :t_submit .
+
+    <https://example.org/shop/order_bpmn#order_placed_event>
+        seam:publishesTo :order_events .
+
+    # Fulfillment seam edges
+    :fulfillment_process seam:detailedBy :fulfillment_bpmn .
+
+    <https://example.org/shop/fulfillment_bpmn#order_placed_catch>
+        seam:subscribesTo :order_events .
+
+    <https://example.org/shop/fulfillment_bpmn#fulfill_task>
+        seam:reads :OrderShape ;
+        seam:writes :OrderShape ;
+        seam:fires :t_fulfill .
+
+    # Decision seam edges
+    <https://example.org/shop/pricing_dmn#pricing_decision>
+        seam:reads :OrderShape .
+
+    # Data/lifecycle seam edges
+    :OrderShape seam:lifecycle :order_lifecycle ;
+        seam:detailedBy :order_shape_graph .
+
+    # Navigation predicates (serve renderer dispatch)
+    :checkout_ifml seam:notation seam:IFML .
+    :order_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <order_process.bpmn> .
+    :fulfillment_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <fulfillment_process.bpmn> .
+    :pricing_dmn seam:notation seam:DMN ;
+        seam:renderPayload <pricing.dmn> .
+    :order_shape_graph seam:notation seam:ShapeGraph .
+    :order_lifecycle seam:notation seam:Statechart .
+    :checkout_architecture seam:notation seam:C4 .
+
+    # Communication layer contract elements
+    :submit_order_op a hydra:Operation ; rdfs:label "Submit Order" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :OrderShape ;
+        seam:returnsShape :OrderShape ;
+        seam:mediaKind seam:UIFragment .
+
+    :order_events a comm:Channel ; rdfs:label "order.events" ;
+        seam:acceptsShape :OrderShape .
+
+    # Authorization
+    :customer_policy a odrl:Policy ; rdfs:label "Customers may submit their own orders" .
+}

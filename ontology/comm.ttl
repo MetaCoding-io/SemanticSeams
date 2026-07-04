@@ -1,0 +1,34 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
+
+#################################################################
+# Communication — Hydra supplies operations/links; comm adds channels + endpoints
+#################################################################
+
+<https://w3id.org/seams/comm> a owl:Ontology ;
+    rdfs:label "Seams Communication Vocabulary" ;
+    rdfs:comment """Request/response communication is described with Hydra
+(hydra:Operation, hydra:method, etc.). This module only adds what Hydra lacks:
+asynchronous channels, and QUERY as a first-class read method. Payload contracts
+are SHACL shapes via seam:acceptsShape / seam:returnsShape; the fragment-vs-data
+distinction is seam:mediaKind.""" .
+
+comm:Channel a rdfs:Class ;
+    rdfs:comment "An async topic/queue/webhook target. Events published here are named-graph payloads whose shape is the channel's seam:acceptsShape." .
+
+comm:Endpoint a rdfs:Class ;
+    rdfs:comment "A network-addressable base a container seam:exposes; groups hydra:Operations and comm:Channels." .
+
+comm:hasOperation a rdf:Property ;
+    rdfs:domain comm:Endpoint ; rdfs:range hydra:Operation .
+
+comm:hasChannel a rdf:Property ;
+    rdfs:domain comm:Endpoint ; rdfs:range comm:Channel .
+
+# The HTTP QUERY method (RFC 10008): safe, idempotent, body-carrying — the natural
+# read method for graph queries. Convention: use the string literal "QUERY" as the
+# value of hydra:method, exactly like "GET"/"POST". (A comm:QUERY resource would
+# type-clash: hydra:method takes literals.)

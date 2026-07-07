@@ -27,9 +27,15 @@ QUERIES_DIR = ROOT / "docs" / "queries"
 
 SEAM = Namespace("https://w3id.org/seams/seam#")
 SHOP = Namespace("https://example.org/shop/")
+CHAT = Namespace("https://example.org/chat/")
 
 PERSIST_TASK = URIRef("https://example.org/shop/order_bpmn#persist_task")
 FULFILL_TASK = URIRef("https://example.org/shop/fulfillment_bpmn#fulfill_task")
+
+CHAT_PERSIST_USER_MSG = URIRef("https://example.org/chat/chat_bpmn#persist_user_msg")
+CHAT_PERSIST_RESPONSE = URIRef("https://example.org/chat/chat_bpmn#persist_response")
+
+CHAT_APP_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 
@@ -246,3 +252,92 @@ def test_no_triple_loss_trig_vs_turtle():
         f"TriG bnode triples ({trig_bnode_count}) fewer than "
         f"flat Turtle ({flat_bnode_count})"
     )
+
+
+# --- Chat-app model tests ---
+
+
+@pytest.fixture(scope="session")
+def chat_dataset() -> rdflib.Dataset:
+    """Ontologies + chat-app TriG loaded into a Dataset."""
+    return load_dataset(*ONTOLOGY_FILES, trig_path=CHAT_APP_TRIG)
+
+
+@pytest.fixture(scope="session")
+def chat_model(chat_dataset: rdflib.Dataset) -> rdflib.Graph:
+    """Union graph for chat-app SPARQL queries."""
+    g = rdflib.Graph()
+    for s, p, o, _ctx in chat_dataset.quads((None, None, None, None)):
+        g.add((s, p, o))
+    return g
+
+
+def test_chat_app_trig_parses():
+    """Chat-app TriG parses into a Dataset with exactly 6 named graphs."""
+    ds = rdflib.Dataset()
+    ds.parse(CHAT_APP_TRIG, format="trig")
+    graph_ids = {
+        g.identifier
+        for g in ds.graphs()
+        if str(g.identifier) != "urn:x-rdflib:default"
+    }
+    assert len(graph_ids) == 6, f"Expected 6 named graphs, got {len(graph_ids)}: {graph_ids}"
+
+
+def test_chat_app_conforms_to_seam_shapes(chat_model):
+    conforms, _, report = pyshacl.validate(
+        chat_model, shacl_graph=str(SHAPES_FILE), inference="none"
+    )
+    assert conforms, report
+
+
+def test_chat_app_seam_predicates_isolated(chat_dataset):
+    """Cross-layer seam predicates in chat-app must only appear in the seams graph."""
+    ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
+    leaked = []
+    for s, p, o, ctx in chat_dataset.quads((None, None, None, None)):
+        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
+        if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
+            if graph_id != SEAMS_GRAPH:
+                leaked.append((graph_id, s, p, o))
+    assert not leaked, (
+        f"seam predicates leaked into model graphs:\n"
+        + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
+    )
+
+
+def test_chat_app_what_writes_shape(chat_model):
+    """send_message event reaches MessageShape through persist_user_msg and persist_response."""
+    rows = chat_model.query(
+        canned("what-writes-shape.rq"),
+        initBindings={"shape": CHAT.MessageShape},
+    )
+    assert {(r.event, r.writer) for r in rows} == {
+        (CHAT.send_message, CHAT_PERSIST_USER_MSG),
+        (CHAT.send_message, CHAT_PERSIST_RESPONSE),
+    }
+
+
+def test_chat_app_impact_of_node(chat_model):
+    """'What breaks if db01 goes away' — must reach message_db, chat_api, chat_ui,
+    and the send_message_process."""
+    rows = chat_model.query(
+        canned("impact-of-node.rq"), initBindings={"node": CHAT.db01}
+    )
+    assert {r.impacted for r in rows} == {
+        CHAT.message_db,
+        CHAT.chat_api,
+        CHAT.chat_ui,
+        CHAT.send_message_process,
+    }
+
+
+def test_chat_app_what_moves_state(chat_model):
+    """persist_user_msg fires t_send, moving message from composing to sending."""
+    rows = chat_model.query(
+        canned("what-moves-state.rq"),
+        initBindings={"state": CHAT.s_composing},
+    )
+    assert {(r.task, r.transition, r.toState) for r in rows} == {
+        (CHAT_PERSIST_USER_MSG, CHAT.t_send, CHAT.s_sending),
+    }

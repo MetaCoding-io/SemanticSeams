@@ -1,0 +1,302 @@
+# TriG model of an LLM chat application with named-graph partitioning per ADR-0001.
+# Each seam:Model gets its own named graph; cross-layer seam predicates live in
+# the dedicated seams graph. Ontology graphs are loaded separately from .ttl files.
+#
+# 5 pillars modeled:
+#   1. Data shapes     — MessageShape, ConversationShape (SHACL)
+#   2. Message lifecycle — composing → sending → streaming → complete | failed
+#   3. IFML screens    — chat UI with conversation list, thread, compose form
+#   4. BPMN workflow   — message processing: persist, route, invoke LLM, stream response
+#   5. Architecture    — web UI, chat API, LLM gateway, message store + deployment
+
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
+@prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix ifml:   <https://w3id.org/seams/ifml#> .
+@prefix state:  <https://w3id.org/seams/state#> .
+@prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix dec:    <https://w3id.org/seams/dec#> .
+@prefix :       <https://example.org/chat/> .
+
+#################################################################
+# Architecture model graph
+#################################################################
+
+<urn:seams:graph:model:chat_architecture> {
+
+    :chat_architecture a seam:Model ;
+        rdfs:label "Chat Architecture" .
+
+    :chat_system a arch:System ; rdfs:label "LLM Chat App" ;
+        arch:contains :chat_ui , :chat_api , :llm_gateway , :message_db ;
+        seam:inModel :chat_architecture .
+
+    :chat_ui a arch:Container ; rdfs:label "Chat Web Interface" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :chat_api ;
+        seam:inModel :chat_architecture .
+
+    :chat_api a arch:Container ; rdfs:label "Chat API" ;
+        arch:technology "FastAPI, SSE streaming" ;
+        arch:dependsOn :message_db , :llm_gateway ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/chat-api" ;
+                          deploy:version "0.3.1" ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "DB_URL" ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ] ;
+                               deploy:binding [ deploy:key "LLM_API_KEY" ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ] ] ;
+        deploy:replicas 3 ;
+        deploy:dependsOn :message_db ;
+        deploy:placement [ a deploy:PlacementPolicy ;
+                           deploy:targetEnvironment :prod ] ;
+        seam:inModel :chat_architecture .
+
+    :llm_gateway a arch:Container ; rdfs:label "LLM Provider Gateway" ;
+        arch:technology "OpenAI-compatible API proxy" ;
+        seam:inModel :chat_architecture .
+
+    :message_db a arch:Container ; rdfs:label "Message Store" ;
+        arch:technology "PostgreSQL" ;
+        seam:inModel :chat_architecture .
+
+    :prod a arch:Environment ; rdfs:label "Production" ;
+        arch:contains :web01 , :app01 , :db01 ;
+        seam:inModel :chat_architecture .
+
+    :web01 a arch:DeploymentNode ; rdfs:label "web01" ;
+        seam:inModel :chat_architecture .
+    :app01 a arch:DeploymentNode ; rdfs:label "app01" ;
+        seam:inModel :chat_architecture .
+    :db01  a arch:DeploymentNode ; rdfs:label "db01" ;
+        seam:inModel :chat_architecture .
+}
+
+#################################################################
+# UI layer (IFML) model graph
+#################################################################
+
+<urn:seams:graph:model:chat_ifml> {
+
+    :chat_ifml a seam:Model , ifml:InteractionModel ;
+        rdfs:label "Chat Interface" ;
+        ifml:contains :chat_page .
+
+    :chat_page a ifml:ViewContainer ; rdfs:label "Chat Page" ;
+        ifml:isLandmark true ;
+        ifml:contains :conversation_list , :message_thread , :compose_form ;
+        seam:inModel :chat_ifml .
+
+    :conversation_list a ifml:List ; rdfs:label "Conversations" ;
+        ifml:hasParameter :selected_conversation ;
+        ifml:hasEvent :select_conversation ;
+        seam:inModel :chat_ifml .
+
+    :message_thread a ifml:Details ; rdfs:label "Message Thread" ;
+        seam:inModel :chat_ifml .
+
+    :compose_form a ifml:Form ; rdfs:label "Compose Message" ;
+        ifml:hasEvent :send_message ;
+        ifml:hasParameter :message_input ;
+        seam:inModel :chat_ifml .
+
+    :selected_conversation a ifml:Parameter ; rdfs:label "selected conversation" ;
+        seam:inModel :chat_ifml .
+    :message_input a ifml:Parameter ; rdfs:label "message input" ;
+        seam:inModel :chat_ifml .
+
+    :send_message a ifml:Event ; rdfs:label "Send Message" ;
+        seam:inModel :chat_ifml .
+    :select_conversation a ifml:Event ; rdfs:label "Select Conversation" ;
+        seam:inModel :chat_ifml .
+
+    :list_to_thread a ifml:DataFlow ;
+        ifml:source :conversation_list ; ifml:target :message_thread ;
+        ifml:binds [ a ifml:ParameterBinding ;
+                     ifml:sourceParameter :selected_conversation ;
+                     ifml:targetParameter :message_input ] ;
+        seam:inModel :chat_ifml .
+}
+
+#################################################################
+# Message processing (BPMN) model graph
+# Combines send-message and stream-response into one process model
+#################################################################
+
+<urn:seams:graph:model:chat_bpmn> {
+
+    :chat_bpmn a seam:Model ; rdfs:label "Message Processing (BPMN)" .
+
+    :send_message_process a proc:Process ; rdfs:label "Send Message Process" ;
+        seam:inModel :chat_bpmn .
+
+    <https://example.org/chat/chat_bpmn#persist_user_msg> a proc:ServiceTask ;
+        rdfs:label "Persist User Message" ;
+        seam:inModel :chat_bpmn .
+
+    <https://example.org/chat/chat_bpmn#route_to_provider> a proc:BusinessRuleTask ;
+        rdfs:label "Route to Provider" ;
+        seam:inModel :chat_bpmn .
+
+    <https://example.org/chat/chat_bpmn#invoke_llm> a proc:ServiceTask ;
+        rdfs:label "Invoke LLM" ;
+        seam:inModel :chat_bpmn .
+
+    <https://example.org/chat/chat_bpmn#persist_response> a proc:ServiceTask ;
+        rdfs:label "Persist Assistant Response" ;
+        seam:inModel :chat_bpmn .
+
+    <https://example.org/chat/chat_bpmn#stream_complete_event> a proc:MessageThrowEvent ;
+        rdfs:label "Stream Complete" ;
+        seam:inModel :chat_bpmn .
+}
+
+#################################################################
+# Data layer (SHACL shape graph) model graph
+#################################################################
+
+<urn:seams:graph:model:chat_data_shapes> {
+
+    :chat_data_shapes a seam:Model ; rdfs:label "Chat Data Model" .
+
+    :MessageShape a sh:NodeShape ; rdfs:label "Message" ;
+        sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :status ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :timestamp ; sh:datatype xsd:dateTime ; sh:maxCount 1 ] ;
+        seam:inModel :chat_data_shapes .
+
+    :ConversationShape a sh:NodeShape ; rdfs:label "Conversation" ;
+        sh:property [ sh:path :title ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :hasMessage ; sh:class :MessageShape ] ;
+        seam:inModel :chat_data_shapes .
+}
+
+#################################################################
+# Message lifecycle (Statechart) model graph
+#################################################################
+
+<urn:seams:graph:model:message_lifecycle> {
+
+    :message_lifecycle a state:StateMachine , seam:Model ;
+        rdfs:label "Message Lifecycle" ;
+        state:initial :s_composing ;
+        state:hasState :s_composing , :s_sending , :s_streaming , :s_complete , :s_failed ;
+        state:final :s_complete , :s_failed ;
+        state:hasTransition :t_send , :t_stream , :t_finish , :t_fail_send , :t_fail_stream .
+
+    :s_composing a state:State ; rdfs:label "composing" ; seam:inModel :message_lifecycle .
+    :s_sending   a state:State ; rdfs:label "sending"   ; seam:inModel :message_lifecycle .
+    :s_streaming a state:State ; rdfs:label "streaming" ; seam:inModel :message_lifecycle .
+    :s_complete  a state:State ; rdfs:label "complete"  ; seam:inModel :message_lifecycle .
+    :s_failed    a state:State ; rdfs:label "failed"    ; seam:inModel :message_lifecycle .
+
+    :t_send        a state:Transition ; state:from :s_composing ; state:to :s_sending   ; state:trigger "send"         ; seam:inModel :message_lifecycle .
+    :t_stream      a state:Transition ; state:from :s_sending   ; state:to :s_streaming ; state:trigger "stream_start" ; seam:inModel :message_lifecycle .
+    :t_finish      a state:Transition ; state:from :s_streaming ; state:to :s_complete  ; state:trigger "finish"       ; seam:inModel :message_lifecycle .
+    :t_fail_send   a state:Transition ; state:from :s_sending   ; state:to :s_failed    ; state:trigger "error"        ; seam:inModel :message_lifecycle .
+    :t_fail_stream a state:Transition ; state:from :s_streaming ; state:to :s_failed    ; state:trigger "error"        ; seam:inModel :message_lifecycle .
+}
+
+#################################################################
+# Seams graph — all cross-layer relationships, contract elements,
+# navigation predicates (notation, renderPayload), and authorization
+#################################################################
+
+<urn:seams:graph:seams> {
+
+    # Architecture → UI/Process seam edges
+    :chat_ui seam:presents :chat_ifml ;
+        seam:consumes :send_message_op ;
+        seam:deployedTo :web01 .
+
+    :chat_api seam:exposes :send_message_op , :stream_events ;
+        seam:executes :send_message_process ;
+        seam:deployedTo :app01 .
+
+    :llm_gateway seam:exposes :completion_op ;
+        seam:deployedTo :app01 .
+
+    :message_db seam:deployedTo :db01 .
+
+    # UI → Process seam edges
+    :send_message seam:triggers :send_message_process ;
+        seam:governedBy :user_send_policy .
+
+    :conversation_list seam:reads :ConversationShape .
+    :compose_form seam:writes :MessageShape .
+    :message_thread seam:reads :MessageShape ;
+        seam:visibleWhen :s_composing .
+
+    # Process → Decision/Data seam edges
+    :send_message_process seam:detailedBy :chat_bpmn .
+
+    <https://example.org/chat/chat_bpmn#persist_user_msg>
+        seam:invokes :send_message_op ;
+        seam:writes :MessageShape ;
+        seam:fires :t_send .
+
+    <https://example.org/chat/chat_bpmn#route_to_provider>
+        seam:decidedBy :routing_decision ;
+        seam:reads :MessageShape .
+
+    <https://example.org/chat/chat_bpmn#invoke_llm>
+        seam:invokes :completion_op ;
+        seam:reads :MessageShape ;
+        seam:fires :t_stream .
+
+    <https://example.org/chat/chat_bpmn#persist_response>
+        seam:reads :MessageShape ;
+        seam:writes :MessageShape ;
+        seam:fires :t_finish .
+
+    <https://example.org/chat/chat_bpmn#stream_complete_event>
+        seam:publishesTo :stream_events .
+
+    # Decision model + seam edges (DMN model in seams graph for economy)
+    :routing_dmn a seam:Model , dec:DecisionModel ;
+        rdfs:label "Provider Routing (DMN)" .
+    :routing_decision a dec:Decision ; rdfs:label "Route to Provider" .
+    :routing_decision seam:reads :MessageShape .
+    :routing_dmn seam:notation seam:DMN ;
+        seam:renderPayload <routing.dmn> .
+
+    # Data/lifecycle seam edges
+    :MessageShape seam:lifecycle :message_lifecycle ;
+        seam:detailedBy :chat_data_shapes .
+
+    # Navigation predicates (serve renderer dispatch)
+    :chat_ifml seam:notation seam:IFML .
+    :chat_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <chat_process.bpmn> .
+    :chat_data_shapes seam:notation seam:ShapeGraph .
+    :message_lifecycle seam:notation seam:Statechart .
+    :chat_architecture seam:notation seam:C4 .
+
+    # Communication layer contract elements
+    :send_message_op a hydra:Operation ; rdfs:label "Send Message" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :MessageShape ;
+        seam:returnsShape :MessageShape ;
+        seam:mediaKind seam:UIFragment .
+
+    :completion_op a hydra:Operation ; rdfs:label "LLM Completion" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :MessageShape ;
+        seam:returnsShape :MessageShape ;
+        seam:mediaKind seam:Data .
+
+    :stream_events a comm:Channel ; rdfs:label "stream.events" ;
+        seam:acceptsShape :MessageShape .
+
+    # Authorization
+    :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" .
+}

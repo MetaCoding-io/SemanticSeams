@@ -1,8 +1,8 @@
 """Executable acceptance test for the Seams ontologies + checkout example.
 
-The CI form of the prose claims in README.md and examples/checkout.ttl:
+The CI form of the prose claims in README.md and examples/checkout.trig:
 
-1. every Turtle file parses;
+1. every Turtle/TriG file parses;
 2. the checkout model conforms to ontology/shapes/seam-shapes.ttl;
 3. the shapes actually reject bad seams (a vacuously-green shapes file is
    exactly the silent regression this suite exists to prevent);
@@ -21,32 +21,58 @@ from rdflib import RDF, Namespace, URIRef
 ROOT = Path(__file__).resolve().parents[1]
 ONTOLOGY_FILES = sorted((ROOT / "ontology").glob("*.ttl"))
 SHAPES_FILE = ROOT / "ontology" / "shapes" / "seam-shapes.ttl"
-EXAMPLE_FILE = ROOT / "examples" / "checkout.ttl"
+EXAMPLE_TTL = ROOT / "examples" / "checkout.ttl"
+EXAMPLE_TRIG = ROOT / "examples" / "checkout.trig"
 QUERIES_DIR = ROOT / "docs" / "queries"
 
 SEAM = Namespace("https://w3id.org/seams/seam#")
 SHOP = Namespace("https://example.org/shop/")
 
-# Fragment-IRI elements (Turtle prefixes cannot abbreviate a '#' in a local name)
 PERSIST_TASK = URIRef("https://example.org/shop/order_bpmn#persist_task")
 FULFILL_TASK = URIRef("https://example.org/shop/fulfillment_bpmn#fulfill_task")
 
-# Reserved for profiles/planning; deliberately unexercised until those land.
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 
 
 def load(*paths: Path) -> rdflib.Graph:
+    """Load one or more Turtle files into a single Graph."""
     g = rdflib.Graph()
     for p in paths:
         g.parse(p, format="turtle")
     return g
 
 
+def load_dataset(*ttl_paths: Path, trig_path: Path | None = None) -> rdflib.Dataset:
+    """Load ontology Turtle files and a TriG example into a Dataset.
+
+    Turtle files are parsed into the default graph. The TriG file populates
+    named graphs. Queries against the Dataset's union graph see all triples.
+    """
+    ds = rdflib.Dataset()
+    for p in ttl_paths:
+        ds.default_graph.parse(p, format="turtle")
+    if trig_path:
+        ds.parse(trig_path, format="trig")
+    return ds
+
+
 @pytest.fixture(scope="session")
-def model() -> rdflib.Graph:
-    """Ontologies merged with the example: sh:class and the queries need the
-    rdfs:subClassOf triples (e.g. proc:ServiceTask -> proc:Task) in the data."""
-    return load(*ONTOLOGY_FILES, EXAMPLE_FILE)
+def dataset() -> rdflib.Dataset:
+    """Ontologies + TriG example loaded into a Dataset for named-graph-aware tests."""
+    return load_dataset(*ONTOLOGY_FILES, trig_path=EXAMPLE_TRIG)
+
+
+@pytest.fixture(scope="session")
+def model(dataset: rdflib.Dataset) -> rdflib.Graph:
+    """Union graph view for backward-compatible SPARQL queries.
+
+    rdflib.Dataset exposes a union of all graphs when queried directly,
+    maintaining compatibility with existing tests that expect a flat Graph interface.
+    """
+    g = rdflib.Graph()
+    for s, p, o, _ctx in dataset.quads((None, None, None, None)):
+        g.add((s, p, o))
+    return g
 
 
 def canned(name: str) -> str:
@@ -54,10 +80,18 @@ def canned(name: str) -> str:
 
 
 @pytest.mark.parametrize(
-    "path", [*ONTOLOGY_FILES, SHAPES_FILE, EXAMPLE_FILE], ids=lambda p: p.name
+    "path", [*ONTOLOGY_FILES, SHAPES_FILE, EXAMPLE_TTL], ids=lambda p: p.name
 )
 def test_turtle_parses(path):
     load(path)
+
+
+def test_trig_parses():
+    """TriG file parses into a Dataset with named graphs."""
+    ds = rdflib.Dataset()
+    ds.parse(EXAMPLE_TRIG, format="trig")
+    graphs = [g.identifier for g in ds.contexts()]
+    assert len(graphs) >= 8, f"Expected 8+ graphs, got {len(graphs)}"
 
 
 def test_model_conforms_to_seam_shapes(model):
@@ -87,18 +121,20 @@ def test_seam_shapes_have_teeth():
     assert not conforms, "shapes accepted a Model without notation and a ServiceTask with seam:decidedBy"
 
 
-def test_every_nonreserved_seam_predicate_is_exercised():
+def test_every_nonreserved_seam_predicate_is_exercised(dataset):
+    """Verify all declared seam predicates appear in the TriG dataset."""
     declared = {
         p
         for p in load(ROOT / "ontology" / "seam.ttl").subjects(RDF.type, RDF.Property)
         if str(p).startswith(str(SEAM))
     }
-    used = {
-        p for p in load(EXAMPLE_FILE).predicates() if str(p).startswith(str(SEAM))
-    }
+    used = set()
+    for _s, p, _o, _g in dataset.quads((None, None, None, None)):
+        if str(p).startswith(str(SEAM)):
+            used.add(p)
     missing = declared - RESERVED_PREDICATES - used
     assert not missing, (
-        f"seam predicates never exercised by checkout.ttl: {sorted(missing)}"
+        f"seam predicates never exercised by checkout.trig: {sorted(missing)}"
     )
 
 
@@ -138,3 +174,75 @@ def test_what_moves_state(model):
     assert {(r.task, r.transition, r.toState) for r in rows} == {
         (FULFILL_TASK, SHOP.t_fulfill, SHOP.s_fulfilled),
     }
+
+
+# --- Named-graph verification (ADR-0001) ---
+
+SEAMS_GRAPH = URIRef("urn:seams:graph:seams")
+
+
+def test_seam_predicates_isolated_to_seams_graph(dataset):
+    """Cross-layer seam predicates must only appear in the seams graph.
+
+    seam:inModel is the sole seam predicate allowed in model graphs (it anchors
+    resources to their owning model). Every other seam: predicate must live in
+    the dedicated seams graph per ADR-0001.
+    """
+    ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
+    leaked = []
+    for s, p, o, ctx in dataset.quads((None, None, None, None)):
+        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
+        if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
+            if graph_id != SEAMS_GRAPH:
+                leaked.append((graph_id, s, p, o))
+    assert not leaked, (
+        f"seam predicates leaked into model graphs:\n"
+        + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
+    )
+
+
+def _ground_triples(graph_or_quads, is_quads=False):
+    """Return the set of triples that contain no blank nodes (ground triples)
+    and a count of triples involving at least one blank node."""
+    ground = set()
+    bnode_count = 0
+    items = graph_or_quads if is_quads else graph_or_quads
+    for item in items:
+        s, p, o = item[:3]
+        if isinstance(s, rdflib.BNode) or isinstance(o, rdflib.BNode):
+            bnode_count += 1
+        else:
+            ground.add((s, p, o))
+    return ground, bnode_count
+
+
+def test_no_triple_loss_trig_vs_turtle():
+    """Union of TriG quads must contain at least as many unique triples as the
+    flat Turtle file, proving the named-graph conversion lost nothing.
+
+    Blank nodes get fresh identifiers per parse, so we compare ground triples
+    (no blank nodes) exactly and verify bnode-bearing triple counts match.
+    """
+    flat = rdflib.Graph()
+    flat.parse(EXAMPLE_TTL, format="turtle")
+    flat_ground, flat_bnode_count = _ground_triples(flat)
+
+    ds = rdflib.Dataset()
+    ds.parse(EXAMPLE_TRIG, format="trig")
+    trig_ground, trig_bnode_count = _ground_triples(
+        ds.quads((None, None, None, None))
+    )
+
+    missing = flat_ground - trig_ground
+    assert not missing, (
+        f"{len(missing)} ground triples in checkout.ttl missing from checkout.trig:\n"
+        + "\n".join(f"  {s} {p} {o}" for s, p, o in sorted(missing, key=str))
+    )
+    assert len(trig_ground) >= len(flat_ground), (
+        f"TriG ground triples ({len(trig_ground)}) fewer than "
+        f"flat Turtle ({len(flat_ground)})"
+    )
+    assert trig_bnode_count >= flat_bnode_count, (
+        f"TriG bnode triples ({trig_bnode_count}) fewer than "
+        f"flat Turtle ({flat_bnode_count})"
+    )

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Seams Viewer — {{ label }}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/diagram-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/bpmn-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/diagram-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-shared.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-drd.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-decision-table.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-literal-expression.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-font/css/dmn.css">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    header { padding: 0.75rem 1.5rem; background: #14213d; color: #fff; font-weight: 600; }
+    .breadcrumbs { padding: 0.75rem 1.5rem; background: #f4f5f7; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+    .breadcrumbs a { color: #14213d; text-decoration: none; }
+    .breadcrumbs a:hover { text-decoration: underline; }
+    main { padding: 1.5rem; }
+    #network { background: #fff; }
+    #payload-canvas { background: #fff; }
+    .inspector { margin-top: 1.5rem; border-top: 1px solid #ddd; padding-top: 1rem; }
+    .inspector ul { list-style: none; padding-left: 0; }
+    .inspector li { padding: 0.25rem 0; }
+    .warning { color: #8a5300; background: #fff3cd; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; }
+    code { background: #f0f0f0; padding: 0.1rem 0.3rem; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <script src="https://unpkg.com/bpmn-js@17/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <script src="https://unpkg.com/dmn-js@16/dist/dmn-navigated-viewer.production.min.js"></script>
+  <script>
+    // Shared by every renderer's click handler (vis-network, bpmn-js, dmn-js).
+    // Defined once here so it survives htmx swaps of #view-content.
+    window.seamsNavigate = function (iri, pathQs) {
+      var url = "/view/" + encodeURIComponent(iri) + "?path=" + pathQs;
+      htmx.ajax("GET", url, { target: "#view-content", swap: "innerHTML" }).then(function () {
+        history.pushState({}, "", url);
+      });
+    };
+  </script>
+  <header>Seams Viewer</header>
+  <div id="view-content">
+    {% include "fragment.html" %}
+  </div>
+</body>
+</html>

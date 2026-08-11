@@ -265,7 +265,9 @@
     :routing_dmn a seam:Model , dec:DecisionModel ;
         rdfs:label "Provider Routing (DMN)" .
     :routing_decision a dec:Decision ; rdfs:label "Route to Provider" .
-    :routing_decision seam:reads :MessageShape .
+    :routing_decision seam:reads :MessageShape ;
+        seam:detailedBy :routing_dmn ;
+        seam:inModel :routing_dmn .
     :routing_dmn seam:notation seam:DMN ;
         seam:renderPayload <routing.dmn> .
 

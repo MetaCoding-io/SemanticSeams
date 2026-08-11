@@ -1,0 +1,120 @@
+<nav class="breadcrumbs">
+  <a href="{{ root_href }}" hx-get="{{ root_href }}" hx-target="#view-content" hx-push-url="true">Architecture</a>
+  {% for c in breadcrumbs %}
+    &raquo; <a href="{{ c.href }}" hx-get="{{ c.href }}" hx-target="#view-content" hx-push-url="true">{{ c.label }}</a>
+  {% endfor %}
+  &raquo; <strong>{{ label }}</strong>
+</nav>
+
+<main>
+  <h2>{{ label }} <small>({{ notation }})</small></h2>
+
+  {% for w in warnings %}
+    <div class="warning">{{ w.message }}</div>
+  {% endfor %}
+
+  {% if render_kind in ("c4", "ifml", "statechart") %}
+    <div id="network" style="height:480px;border:1px solid #ccc;"></div>
+    <script>
+      (function () {
+        var nodes = new vis.DataSet({{ nodes | tojson }});
+        var edges = new vis.DataSet({{ edges | tojson }});
+        var container = document.getElementById("network");
+        var network = new vis.Network(container, { nodes: nodes, edges: edges }, {
+          nodes: { shape: "box", margin: 10, font: { multi: false } },
+          edges: { arrows: "to", font: { align: "middle" } },
+          physics: { stabilization: true },
+        });
+        network.on("click", function (params) {
+          if (params.nodes.length) {
+            window.seamsNavigate(params.nodes[0], "{{ next_path_qs }}");
+          }
+        });
+      })();
+    </script>
+  {% elif render_kind == "bpmn" %}
+    <div id="payload-canvas" style="height:480px;border:1px solid #ccc;"></div>
+    <script>
+      (function () {
+        var elementMap = {{ element_map | tojson }};
+        var viewer = new BpmnJS({ container: "#payload-canvas" });
+        fetch("{{ payload_url }}")
+          .then(function (res) { return res.text(); })
+          .then(function (xml) { return viewer.importXML(xml); })
+          .then(function () {
+            viewer.get("canvas").zoom("fit-viewport");
+            viewer.get("eventBus").on("element.click", function (e) {
+              var iri = elementMap[e.element.id];
+              if (iri) {
+                window.seamsNavigate(iri, "{{ next_path_qs }}");
+              }
+            });
+          })
+          .catch(function (err) { console.error("bpmn-js render failed:", err); });
+      })();
+    </script>
+  {% elif render_kind == "dmn" %}
+    <div id="payload-canvas" style="height:480px;border:1px solid #ccc;"></div>
+    <script>
+      (function () {
+        var elementMap = {{ element_map | tojson }};
+        var viewer = new DmnJS({ container: "#payload-canvas" });
+        fetch("{{ payload_url }}")
+          .then(function (res) { return res.text(); })
+          .then(function (xml) { return viewer.importXML(xml); })
+          .then(function () {
+            var activeView = viewer.getActiveView();
+            if (activeView && activeView.type === "drd") {
+              var activeViewer = viewer.getActiveViewer();
+              activeViewer.get("canvas").zoom("fit-viewport");
+              activeViewer.get("eventBus").on("element.click", function (e) {
+                var iri = elementMap[e.element.id];
+                if (iri) {
+                  window.seamsNavigate(iri, "{{ next_path_qs }}");
+                }
+              });
+            }
+          })
+          .catch(function (err) { console.error("dmn-js render failed:", err); });
+      })();
+    </script>
+  {% else %}
+    <p><em>No renderer yet for notation "{{ notation }}" — showing inspector only.</em></p>
+  {% endif %}
+
+  <section class="inspector">
+    <h3>Details</h3>
+    <p><strong>IRI:</strong> <code>{{ focus_iri }}</code></p>
+    <p><strong>Type:</strong> {{ types_str }}</p>
+    {% if native_element_id %}<p><strong>Native ID:</strong> {{ native_element_id }}</p>{% endif %}
+    {% if render_payload %}<p><strong>Payload:</strong> <code>{{ render_payload }}</code></p>{% endif %}
+
+    {% if outgoing %}
+      <h4>Outgoing seam edges</h4>
+      <ul>
+        {% for e in outgoing %}
+          <li>
+            <code>{{ e.predicate }}</code> &rarr;
+            {% if e.navigational %}
+              <a href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true">{{ e.targetLabel }}</a>
+            {% else %}
+              {{ e.targetLabel }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if incoming %}
+      <h4>Incoming seam edges</h4>
+      <ul>
+        {% for e in incoming %}
+          <li>
+            <a href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true">{{ e.sourceLabel }}</a>
+            &rarr; <code>{{ e.predicate }}</code>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+</main>

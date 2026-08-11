@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="chat_bpmn_defs"
+                   targetNamespace="https://example.org/chat/chat_bpmn">
+  <bpmn:process id="send_message_process" name="Send Message Process" isExecutable="false">
+    <bpmn:startEvent id="start" name="Message Submitted">
+      <bpmn:outgoing>flow_to_persist</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="persist_user_msg" name="Persist User Message">
+      <bpmn:incoming>flow_to_persist</bpmn:incoming>
+      <bpmn:outgoing>flow_to_route</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:businessRuleTask id="route_to_provider" name="Route to Provider">
+      <bpmn:incoming>flow_to_route</bpmn:incoming>
+      <bpmn:outgoing>flow_to_invoke</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:serviceTask id="invoke_llm" name="Invoke LLM">
+      <bpmn:incoming>flow_to_invoke</bpmn:incoming>
+      <bpmn:outgoing>flow_to_persist_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="persist_response" name="Persist Assistant Response">
+      <bpmn:incoming>flow_to_persist_response</bpmn:incoming>
+      <bpmn:outgoing>flow_to_stream_complete</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:intermediateThrowEvent id="stream_complete_event" name="Stream Complete">
+      <bpmn:incoming>flow_to_stream_complete</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="stream_complete_msg" />
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:endEvent id="end" name="Done">
+      <bpmn:incoming>flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_persist" sourceRef="start" targetRef="persist_user_msg" />
+    <bpmn:sequenceFlow id="flow_to_route" sourceRef="persist_user_msg" targetRef="route_to_provider" />
+    <bpmn:sequenceFlow id="flow_to_invoke" sourceRef="route_to_provider" targetRef="invoke_llm" />
+    <bpmn:sequenceFlow id="flow_to_persist_response" sourceRef="invoke_llm" targetRef="persist_response" />
+    <bpmn:sequenceFlow id="flow_to_stream_complete" sourceRef="persist_response" targetRef="stream_complete_event" />
+    <bpmn:sequenceFlow id="flow_to_end" sourceRef="stream_complete_event" targetRef="end" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="diagram">
+    <bpmndi:BPMNPlane id="plane" bpmnElement="send_message_process">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="60" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="persist_user_msg_di" bpmnElement="persist_user_msg">
+        <dc:Bounds x="150" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="route_to_provider_di" bpmnElement="route_to_provider">
+        <dc:Bounds x="300" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="invoke_llm_di" bpmnElement="invoke_llm">
+        <dc:Bounds x="450" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="persist_response_di" bpmnElement="persist_response">
+        <dc:Bounds x="600" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="stream_complete_event_di" bpmnElement="stream_complete_event">
+        <dc:Bounds x="752" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_di" bpmnElement="end">
+        <dc:Bounds x="840" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="flow_to_persist_di" bpmnElement="flow_to_persist">
+        <di:waypoint x="96" y="138" />
+        <di:waypoint x="150" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_route_di" bpmnElement="flow_to_route">
+        <di:waypoint x="250" y="138" />
+        <di:waypoint x="300" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_invoke_di" bpmnElement="flow_to_invoke">
+        <di:waypoint x="400" y="138" />
+        <di:waypoint x="450" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_persist_response_di" bpmnElement="flow_to_persist_response">
+        <di:waypoint x="550" y="138" />
+        <di:waypoint x="600" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_stream_complete_di" bpmnElement="flow_to_stream_complete">
+        <di:waypoint x="700" y="138" />
+        <di:waypoint x="752" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_end_di" bpmnElement="flow_to_end">
+        <di:waypoint x="788" y="138" />
+        <di:waypoint x="840" y="138" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

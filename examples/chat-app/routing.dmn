@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="https://www.omg.org/spec/DMN/20191111/DI/"
+             id="routing_dmn_defs"
+             name="Provider Routing"
+             namespace="https://example.org/chat/routing_dmn">
+
+  <inputData id="message_role" name="Message Role">
+    <variable id="message_role_var" name="Message Role" typeRef="string" />
+  </inputData>
+
+  <inputData id="message_length" name="Message Length">
+    <variable id="message_length_var" name="Message Length" typeRef="number" />
+  </inputData>
+
+  <decision id="routing_decision" name="Route to Provider">
+    <variable id="routing_decision_var" name="Provider" typeRef="string" />
+    <informationRequirement id="ir_role">
+      <requiredInput href="#message_role" />
+    </informationRequirement>
+    <informationRequirement id="ir_length">
+      <requiredInput href="#message_length" />
+    </informationRequirement>
+    <decisionTable id="routing_table" hitPolicy="FIRST">
+      <input id="input_role" label="Message Role">
+        <inputExpression id="input_role_expr" typeRef="string">
+          <text>message_role</text>
+        </inputExpression>
+      </input>
+      <input id="input_length" label="Message Length">
+        <inputExpression id="input_length_expr" typeRef="number">
+          <text>message_length</text>
+        </inputExpression>
+      </input>
+      <output id="output_provider" label="Provider" typeRef="string" />
+
+      <rule id="rule_long">
+        <inputEntry id="rule_long_role"><text>"user"</text></inputEntry>
+        <inputEntry id="rule_long_length"><text>&gt; 4000</text></inputEntry>
+        <outputEntry id="rule_long_out"><text>"long-context-provider"</text></outputEntry>
+      </rule>
+      <rule id="rule_default">
+        <inputEntry id="rule_default_role"><text>-</text></inputEntry>
+        <inputEntry id="rule_default_length"><text>-</text></inputEntry>
+        <outputEntry id="rule_default_out"><text>"default-provider"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="diagram">
+      <dmndi:DMNShape id="routing_decision_di" dmnElementRef="routing_decision">
+        <dc:Bounds x="260" y="120" width="140" height="80" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="message_role_di" dmnElementRef="message_role">
+        <dc:Bounds x="60" y="60" width="120" height="60" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="message_length_di" dmnElementRef="message_length">
+        <dc:Bounds x="60" y="180" width="120" height="60" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="ir_role_di" dmnElementRef="ir_role">
+        <di:waypoint x="180" y="90" />
+        <di:waypoint x="260" y="150" />
+      </dmndi:DMNEdge>
+      <dmndi:DMNEdge id="ir_length_di" dmnElementRef="ir_length">
+        <di:waypoint x="180" y="210" />
+        <di:waypoint x="260" y="170" />
+      </dmndi:DMNEdge>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

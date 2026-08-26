@@ -266,7 +266,9 @@
         rdfs:label "Provider Routing (DMN)" .
     :routing_decision a dec:Decision ; rdfs:label "Route to Provider" .
     :routing_decision seam:reads :MessageShape ;
-        seam:detailedBy :routing_dmn ;
+        # ADR-0005 §6: two detailedBy targets on purpose, to exercise the
+        # disambiguation popover (decision table vs. the data shape it reads).
+        seam:detailedBy :routing_dmn , :chat_data_shapes ;
         seam:inModel :routing_dmn .
     :routing_dmn seam:notation seam:DMN ;
         seam:renderPayload <routing.dmn> .

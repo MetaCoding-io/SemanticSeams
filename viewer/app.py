@@ -174,24 +174,52 @@ def seam_edges(iri: str) -> dict:
     return {"outgoing": outgoing, "incoming": incoming}
 
 
-def resolve_render_target(iri: str) -> str | None:
-    """ADR-0005 resolution algorithm: detailedBy first, then one navigational hop."""
+def detailedby_targets(iri: str) -> list[str]:
+    """seam:detailedBy targets of iri that are themselves renderable models."""
+    graph = get_graph()
+    return [str(t) for t in graph.objects(URIRef(iri), SEAM.detailedBy) if is_model(str(t))]
+
+
+def candidate_info(iri: str) -> dict:
+    return {"iri": iri, "label": label(iri), "notation": notation_of(iri)}
+
+
+def resolve_navigation(iri: str) -> dict:
+    """ADR-0005 resolution algorithm, extended for section 6 disambiguation.
+
+    Returns a dict with:
+      - target: the iri to auto-navigate to, or None when ambiguous / unresolved.
+      - landing: the iri whose view should be rendered for this request — the
+        auto-navigate target when unambiguous, otherwise the element that
+        carries the 2+ detailedBy candidates (iri itself for a direct match,
+        or the one-hop navigational target for the hop case).
+      - candidates: list of {iri, label, notation} when 2+ detailedBy targets
+        were found at `landing`, else None.
+    """
     if is_model(iri):
-        return iri
+        return {"target": iri, "landing": iri, "candidates": None}
+
     graph = get_graph()
     subj = URIRef(iri)
-    for target in graph.objects(subj, SEAM.detailedBy):
-        if is_model(str(target)):
-            return str(target)
+
+    direct = detailedby_targets(iri)
+    if len(direct) > 1:
+        return {"target": None, "landing": iri, "candidates": [candidate_info(t) for t in direct]}
+    if direct:
+        return {"target": direct[0], "landing": direct[0], "candidates": None}
+
     for pred in (SEAM.triggers, SEAM.presents, SEAM.decidedBy):
         for target in graph.objects(subj, pred):
             target = str(target)
             if is_model(target):
-                return target
-            for hop in graph.objects(URIRef(target), SEAM.detailedBy):
-                if is_model(str(hop)):
-                    return str(hop)
-    return None
+                return {"target": target, "landing": target, "candidates": None}
+            hops = detailedby_targets(target)
+            if len(hops) > 1:
+                return {"target": None, "landing": target, "candidates": [candidate_info(t) for t in hops]}
+            if hops:
+                return {"target": hops[0], "landing": hops[0], "candidates": None}
+
+    return {"target": None, "landing": iri, "candidates": None}
 
 
 def model_members(model_iri: str) -> list[str]:
@@ -271,7 +299,7 @@ GRAPH_BUILDERS = {
 }
 
 
-def build_view(iri: str, breadcrumb_trail: list[str]) -> dict:
+def build_view(iri: str, breadcrumb_trail: list[str], detailed_by_candidates: list[dict] | None = None) -> dict:
     warnings = []
     payload = render_payload_of(iri)
     return {
@@ -285,6 +313,7 @@ def build_view(iri: str, breadcrumb_trail: list[str]) -> dict:
         "renderPayload": payload,
         "seamEdges": seam_edges(iri),
         "breadcrumbs": [{"iri": a, "label": label(a)} for a in breadcrumb_trail],
+        "detailedByCandidates": detailed_by_candidates or [],
         "warnings": warnings,
     }
 
@@ -326,8 +355,9 @@ def view_endpoint(request: Request, iri: str, path: str = ""):
     clicked = unquote(iri)
     incoming_trail = [p for p in unquote(path).split(",") if p]
 
-    focus = resolve_render_target(clicked) or clicked
-    view = build_view(focus, incoming_trail)
+    nav = resolve_navigation(clicked)
+    focus = nav["landing"] if nav["candidates"] else (nav["target"] or clicked)
+    view = build_view(focus, incoming_trail, detailed_by_candidates=nav["candidates"])
 
     if wants_json(request):
         return JSONResponse(view)
@@ -372,6 +402,10 @@ def view_endpoint(request: Request, iri: str, path: str = ""):
         e["href"] = link(e["target"])
     for e in ctx["incoming"]:
         e["href"] = link(e["source"])
+
+    ctx["detailed_by_candidates"] = [
+        {**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]
+    ]
 
     template = "fragment.html" if request.headers.get("hx-request") == "true" else "page.html"
     return templates.TemplateResponse(request, template, ctx)

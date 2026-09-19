@@ -104,6 +104,37 @@ def label(iri: str) -> str:
     return str(val) if val is not None else short_name(iri)
 
 
+# D004 keeps the ModelStore Dataset model-only (ontology triples would pollute
+# canned SPARQL queries and seam_edges), so predicate labels come from a
+# side lookup parsed straight from ontology/*.ttl on first use.
+_ontology_labels: dict[str, str] | None = None
+
+
+def ontology_labels() -> dict[str, str]:
+    global _ontology_labels
+    if _ontology_labels is None:
+        from rdflib import Graph
+
+        g = Graph()
+        for p in sorted((BASE_DIR.parent / "ontology").glob("*.ttl")):
+            g.parse(p, format="turtle")
+        _ontology_labels = {str(s): str(o) for s, o in g.subject_objects(RDFS.label)}
+    return _ontology_labels
+
+
+def predicate_label(p) -> str:
+    """Friendly label for a predicate: model-local rdfs:label wins, then the
+    ontology lookup, then the qname fallback."""
+    pref = URIRef(str(p))
+    val = get_graph().value(pref, RDFS.label)
+    if val is not None:
+        return str(val)
+    onto = ontology_labels().get(str(pref))
+    if onto is not None:
+        return onto
+    return qname(pref)
+
+
 def types_of(iri: str) -> list[str]:
     return [qname(t) for t in get_graph().objects(URIRef(iri), RDF.type)]
 
@@ -158,6 +189,7 @@ def seam_edges(iri: str) -> dict:
             outgoing.append(
                 {
                     "predicate": qname(p),
+                    "predicateLabel": predicate_label(p),
                     "target": str(o),
                     "targetLabel": label(str(o)),
                     "navigational": p in NAVIGATIONAL_PREDICATES,
@@ -169,6 +201,7 @@ def seam_edges(iri: str) -> dict:
             incoming.append(
                 {
                     "predicate": qname(p),
+                    "predicateLabel": predicate_label(p),
                     "source": str(s),
                     "sourceLabel": label(str(s)),
                     "navigational": p in NAVIGATIONAL_PREDICATES,

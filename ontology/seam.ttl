@@ -53,6 +53,7 @@ seam:Notation a rdfs:Class ;
     rdfs:label "Notation" .
 
 seam:renderPayload a rdf:Property ;
+    rdfs:label "render payload" ;
     rdfs:domain seam:Model ;
     rdfs:comment """Link to (or literal containing) the native serialization used for
 rendering, e.g. BPMN 2.0 XML or DMN XML. Native payloads are kept as-is; only
@@ -64,18 +65,23 @@ become IRI fragments on the model IRI, e.g. :order_bpmn#persist_task.""" .
 #################################################################
 
 seam:presents a rdf:Property ;
+    rdfs:label "presents" ;
     rdfs:comment "arch:Container -> IFML seam:Model. The container's user-facing surface. (Resolved Container per review triage; a Component variant can wait.)" .
 
 seam:exposes a rdf:Property ;
+    rdfs:label "exposes" ;
     rdfs:comment "arch:Container -> comm:Operation | comm:Channel." .
 
 seam:consumes a rdf:Property ;
+    rdfs:label "consumes" ;
     rdfs:comment "arch:Container -> comm:Operation | comm:Channel. The dependency edge." .
 
 seam:deployedTo a rdf:Property ;
+    rdfs:label "deployed to" ;
     rdfs:comment "arch:Container -> arch:DeploymentNode. Enables 'what breaks if db02 goes away'." .
 
 seam:executes a rdf:Property ;
+    rdfs:label "executes" ;
     rdfs:comment "arch:Container -> proc:Process it runs. Completes impact analysis: 'what breaks if node X dies' must reach the process layer, and the generic graph-literate worker needs to know where a task's process lives." .
 
 #################################################################
@@ -83,9 +89,11 @@ seam:executes a rdf:Property ;
 #################################################################
 
 seam:triggers a rdf:Property ;
+    rdfs:label "triggers" ;
     rdfs:comment "ifml:Event -> proc:Process | dec:Decision. IFML's action-reference extension point, made concrete." .
 
 seam:visibleWhen a rdf:Property ;
+    rdfs:label "visible when" ;
     rdfs:comment "ifml:ViewComponent -> state:State. Conditional rendering as a graph edge." .
 
 #################################################################
@@ -93,21 +101,27 @@ seam:visibleWhen a rdf:Property ;
 #################################################################
 
 seam:decidedBy a rdf:Property ;
+    rdfs:label "decided by" ;
     rdfs:comment "proc business-rule task -> dec:Decision." .
 
 seam:invokes a rdf:Property ;
+    rdfs:label "invokes" ;
     rdfs:comment "proc service task -> comm:Operation." .
 
 seam:publishesTo a rdf:Property ;
+    rdfs:label "publishes to" ;
     rdfs:comment "proc message throw event -> comm:Channel." .
 
 seam:subscribesTo a rdf:Property ;
+    rdfs:label "subscribes to" ;
     rdfs:comment "proc message catch event -> comm:Channel." .
 
 seam:reads a rdf:Property ;
+    rdfs:label "reads" ;
     rdfs:comment "task | view component | decision -> sh:NodeShape it reads. Workhorse of impact analysis. (Constraint lives in shapes/seam-shapes.ttl, not rdfs:range: RDFS ranges infer, they don't reject.)" .
 
 seam:writes a rdf:Property ;
+    rdfs:label "writes" ;
     rdfs:comment "task | ui event -> sh:NodeShape it writes. Workhorse of impact analysis. (Constraint in shapes/seam-shapes.ttl.)" .
 
 #################################################################
@@ -115,9 +129,11 @@ seam:writes a rdf:Property ;
 #################################################################
 
 seam:lifecycle a rdf:Property ;
+    rdfs:label "lifecycle" ;
     rdfs:comment "sh:NodeShape -> state:StateMachine governing instances of the shape. (Constraint in shapes/seam-shapes.ttl.)" .
 
 seam:fires a rdf:Property ;
+    rdfs:label "fires" ;
     rdfs:comment "proc task -> state:Transition. Inverse view: which tasks may move an Order out of 'submitted'?" .
 
 #################################################################
@@ -125,14 +141,17 @@ seam:fires a rdf:Property ;
 #################################################################
 
 seam:acceptsShape a rdf:Property ;
+    rdfs:label "accepts shape" ;
     rdfs:comment "operation | channel -> request / event payload sh:NodeShape. (Constraint in shapes/seam-shapes.ttl.)" .
 
 seam:returnsShape a rdf:Property ;
+    rdfs:label "returns shape" ;
     rdfs:comment """operation -> response payload sh:NodeShape. For operations whose
 seam:mediaKind is seam:UIFragment, this describes the shape of the DATA the fragment
 renders, not the HTTP body (which is HTML). (Constraint in shapes/seam-shapes.ttl.)""" .
 
 seam:mediaKind a rdf:Property ;
+    rdfs:label "media kind" ;
     rdfs:range seam:MediaKind ;
     rdfs:comment "operation -> seam:UIFragment | seam:Data. The htmx two-kinds-of-API distinction." .
 
@@ -146,6 +165,7 @@ seam:Data       a seam:MediaKind ; rdfs:label "pure data (JSON-LD) response" .
 #################################################################
 
 seam:governedBy a rdf:Property ;
+    rdfs:label "governed by" ;
     rdfs:comment """ANY element -> policy (odrl:Policy, or an ACP/WebACL resource —
 hence no rdfs:range, which would wrongly INFER odrl:Policy on a WebACL resource).
 Deliberately broad domain: attaches to events, tasks, operations, shapes,
@@ -161,7 +181,9 @@ seam:Profile a rdfs:Class ;
     rdfs:comment "A methodology profile: a component taxonomy plus a SHACL shapes library validating the model graph itself (e.g. IDesign)." .
 
 seam:conformsTo a rdf:Property ;
+    rdfs:label "conforms to" ;
     rdfs:range seam:Profile .
 
 seam:realizes a rdf:Property ;
+    rdfs:label "realizes" ;
     rdfs:comment "plan:Activity -> ANY element. The single edge the Gantt projection needs." .

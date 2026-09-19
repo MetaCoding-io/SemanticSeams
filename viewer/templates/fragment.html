@@ -122,7 +122,7 @@
       <ul>
         {% for e in outgoing %}
           <li>
-            <code>{{ e.predicate }}</code> &rarr;
+            <code class="predicate-label" data-predicate="{{ e.predicate }}">{{ e.predicateLabel }}</code> &rarr;
             {% if e.navigational %}
               <a href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true">{{ e.targetLabel }}</a>
             {% else %}
@@ -139,7 +139,7 @@
         {% for e in incoming %}
           <li>
             <a href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true">{{ e.sourceLabel }}</a>
-            &rarr; <code>{{ e.predicate }}</code>
+            &rarr; <code class="predicate-label" data-predicate="{{ e.predicate }}">{{ e.predicateLabel }}</code>
           </li>
         {% endfor %}
       </ul>

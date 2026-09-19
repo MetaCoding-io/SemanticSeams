@@ -75,6 +75,39 @@ def test_view_json_incoming_edges_carry_predicate_label():
         assert e["predicateLabel"] == "deployed to"
 
 
+def test_fragment_outgoing_edge_shows_friendly_label_with_qname_data_attr():
+    """htmx fragment for routing_decision renders 'detailed by' as the visible
+    predicate text while preserving the qname in data-predicate for debugging."""
+    client = TestClient(viewer_app.app)
+    resp = client.get(f"/view/{ROUTING_DECISION}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert "detailed by" in html
+    assert 'data-predicate="seam:detailedBy"' in html
+
+
+def test_fragment_incoming_edge_shows_friendly_label_with_qname_data_attr():
+    """db01 self-lands (MEM012); its incoming seam:deployedTo edge renders as
+    'deployed to' with the raw qname kept as data-predicate."""
+    client = TestClient(viewer_app.app)
+    resp = client.get(f"/view/{DB01}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert "deployed to" in html
+    assert 'data-predicate="seam:deployedTo"' in html
+
+
+def test_fragment_no_longer_shows_raw_qname_as_visible_text():
+    """The raw qname must survive only inside data-predicate, never as the
+    visible <code> text of an edge's predicate label."""
+    client = TestClient(viewer_app.app)
+    resp = client.get(f"/view/{ROUTING_DECISION}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert '<code class="predicate-label"' in html
+    assert ">seam:detailedBy</code>" not in html
+
+
 def test_every_seam_edge_has_predicate_label_key():
     """Contract completeness: every outgoing and incoming entry carries a
     non-empty predicateLabel, on both fixtures exercised above."""

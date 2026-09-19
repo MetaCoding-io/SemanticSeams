@@ -130,3 +130,28 @@ def test_disambiguation_response_also_carries_model_conformance():
     mc = body["modelConformance"]
     assert mc["conforms"] is True
     assert mc["violationCount"] == 0
+
+
+# --- HTML shell tests (S02 T03): health panel renders in page.html only ---
+
+
+def test_full_page_renders_health_panel():
+    """A full-page HTML render carries the health panel with the green
+    Conforms badge for the (conforming) chat-app model."""
+    resp = _client().get(f"/view/{ROOT_IRI}", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'class="health-panel"' in html
+    assert "Conforms" in html
+    assert 'data-conforms="true"' in html
+
+
+def test_fragment_response_omits_health_panel():
+    """The htmx fragment path (hx-request: true) swaps only #view-content;
+    the health panel lives in the shell and must not re-render there."""
+    resp = _client().get(
+        f"/view/{ROOT_IRI}",
+        headers={"Accept": "text/html", "hx-request": "true"},
+    )
+    assert resp.status_code == 200
+    assert "health-panel" not in resp.text

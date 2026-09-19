@@ -34,6 +34,15 @@
     .disambiguation-options { list-style: none; padding: 0; margin: 0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .disambiguation-option { display: inline-block; padding: 0.4rem 0.8rem; background: #14213d; color: #fff; border-radius: 4px; text-decoration: none; }
     .disambiguation-option:hover { background: #1f3260; }
+    .health-panel { padding: 0.5rem 1.5rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+    .health-panel[data-conforms="true"] { background: #e8f5e9; border-bottom-color: #a5d6a7; }
+    .health-panel[data-conforms="false"] { background: #fdecea; border-bottom-color: #ef9a9a; }
+    .health-panel .health-badge { font-weight: 600; }
+    .health-panel[data-conforms="true"] .health-badge { color: #1b5e20; }
+    .health-panel[data-conforms="false"] .health-badge { color: #b71c1c; }
+    .health-panel details { margin-top: 0.35rem; }
+    .health-panel summary { cursor: pointer; }
+    .health-panel ul { margin: 0.35rem 0 0 0; padding-left: 1.25rem; }
   </style>
 </head>
 <body>
@@ -50,6 +59,23 @@
     };
   </script>
   <header>Seams Viewer</header>
+  <div class="health-panel" data-conforms="{{ 'true' if model_conformance.conforms else 'false' }}">
+    {% if model_conformance.conforms %}
+    <span class="health-badge">&#10003; Conforms</span>
+    {% else %}
+    <span class="health-badge">&#10007; {{ model_conformance.violationCount }} violation(s)</span>
+    {% endif %}
+    {% if model_conformance.violations %}
+    <details>
+      <summary>Violations</summary>
+      <ul>
+        {% for v in model_conformance.violations %}
+        <li>{{ v.message }} — <code>{{ v.focusNode }}</code></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
   <div id="view-content">
     {% include "fragment.html" %}
   </div>

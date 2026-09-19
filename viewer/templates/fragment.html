@@ -13,6 +13,22 @@
     <div class="warning">{{ w.message }}</div>
   {% endfor %}
 
+  {% if detailed_by_candidates and detailed_by_candidates | length > 1 %}
+    {# ADR-0005 §6: 2+ seam:detailedBy targets — ask instead of auto-navigating. #}
+    <div class="disambiguation" id="disambiguation" role="dialog" aria-labelledby="disambiguation-title" data-candidate-count="{{ detailed_by_candidates | length }}">
+      <h3 id="disambiguation-title">Multiple detail views for {{ label }}</h3>
+      <p>This element is detailed by {{ detailed_by_candidates | length }} models. Choose one to descend into:</p>
+      <ul class="disambiguation-options">
+        {% for c in detailed_by_candidates %}
+          <li>
+            <a class="disambiguation-option" data-iri="{{ c.iri }}" href="{{ c.href }}" hx-get="{{ c.href }}" hx-target="#view-content" hx-push-url="true">{{ c.label }}</a>
+            <small>({{ c.notation }})</small>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
   {% if render_kind in ("c4", "ifml", "statechart") %}
     <div id="network" style="height:480px;border:1px solid #ccc;"></div>
     <script>

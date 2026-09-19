@@ -92,3 +92,50 @@ def test_view_endpoint_json_single_target_auto_navigates():
     body = resp.json()
     assert body["@id"] == CHAT_BPMN
     assert body["detailedByCandidates"] == []
+
+
+def test_view_endpoint_html_renders_disambiguation_popover():
+    """T03: the HTML fragment for a multi-detailedBy element renders the
+    ADR-0005 §6 disambiguation popover with one htmx-navigable option per
+    candidate, each carrying the candidate's friendly label."""
+    from fastapi.testclient import TestClient
+
+    client = TestClient(viewer_app.app)
+    resp = client.get(f"/view/{ROUTING_DECISION}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="disambiguation"' in html
+    assert 'data-candidate-count="2"' in html
+    assert html.count('class="disambiguation-option"') == 2
+    assert f'data-iri="{ROUTING_DMN}"' in html
+    assert f'data-iri="{CHAT_DATA_SHAPES}"' in html
+    assert "Provider Routing (DMN)" in html
+    assert "Chat Data Model" in html
+    # Options navigate through the existing htmx swap into #view-content.
+    assert html.count('class="disambiguation-option" data-iri=') == 2
+    assert 'hx-target="#view-content"' in html
+
+
+def test_view_endpoint_html_single_target_has_no_popover():
+    """Negative: a single-detailedBy element auto-navigates and its HTML must
+    not contain the disambiguation popover at all."""
+    from fastapi.testclient import TestClient
+
+    client = TestClient(viewer_app.app)
+    for iri in (SEND_MESSAGE_PROCESS, MESSAGE_SHAPE):
+        resp = client.get(f"/view/{iri}", headers={"hx-request": "true"})
+        assert resp.status_code == 200
+        assert 'id="disambiguation"' not in resp.text
+        assert "disambiguation-option" not in resp.text
+
+
+def test_view_endpoint_full_page_renders_popover_for_multi_detailedby():
+    """Non-htmx (full page) load of the ambiguous element also renders the
+    popover, and the page ships the popover styles."""
+    from fastapi.testclient import TestClient
+
+    client = TestClient(viewer_app.app)
+    resp = client.get(f"/view/{ROUTING_DECISION}")
+    assert resp.status_code == 200
+    assert 'id="disambiguation"' in resp.text
+    assert ".disambiguation-option" in resp.text

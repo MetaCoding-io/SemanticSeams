@@ -82,3 +82,51 @@ def test_clear_cache_forces_revalidation():
     second = validation.get_model_conformance(ds)
     assert first is not second
     assert first == second
+
+
+# --- HTTP-level contract tests (S02 T02): modelConformance in /view/{iri} ---
+
+ROOT_IRI = "https://example.org/chat/chat_architecture"
+ROUTING_DECISION = "https://example.org/chat/routing_decision"
+
+
+def _client():
+    from fastapi.testclient import TestClient
+
+    return TestClient(viewer_app.app)
+
+
+def test_view_json_contains_model_conformance():
+    """GET /view/{root}?format=json carries the additive modelConformance
+    field with the loaded (conforming) model's summary."""
+    resp = _client().get(f"/view/{ROOT_IRI}", params={"format": "json"})
+    assert resp.status_code == 200
+    mc = resp.json()["modelConformance"]
+    assert mc["conforms"] is True
+    assert mc["violationCount"] == 0
+    assert mc["violations"] == []
+
+
+def test_view_json_preexisting_contract_fields_unbroken():
+    """Regression guard: adding modelConformance must not disturb the
+    ADR-0004 response contract fields."""
+    resp = _client().get(f"/view/{ROOT_IRI}", params={"format": "json"})
+    assert resp.status_code == 200
+    body = resp.json()
+    for field in ("@id", "label", "seamEdges", "breadcrumbs", "detailedByCandidates", "warnings"):
+        assert field in body, f"missing pre-existing contract field {field}"
+    assert body["@id"] == ROOT_IRI
+
+
+def test_disambiguation_response_also_carries_model_conformance():
+    """The S01 multi-detailedBy fixture (routing_decision) renders a
+    disambiguation response, not an auto-navigation — modelConformance must
+    be present on that response shape too."""
+    resp = _client().get(f"/view/{ROUTING_DECISION}", params={"format": "json"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["@id"] == ROUTING_DECISION
+    assert len(body["detailedByCandidates"]) == 2
+    mc = body["modelConformance"]
+    assert mc["conforms"] is True
+    assert mc["violationCount"] == 0

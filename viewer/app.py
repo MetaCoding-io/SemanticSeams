@@ -16,6 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 
+from viewer.validation import get_model_conformance
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR.parent / "examples" / "chat-app"
 DATA_PATH = DATA_DIR / "chat-app.trig"
@@ -315,6 +317,7 @@ def build_view(iri: str, breadcrumb_trail: list[str], detailed_by_candidates: li
         "breadcrumbs": [{"iri": a, "label": label(a)} for a in breadcrumb_trail],
         "detailedByCandidates": detailed_by_candidates or [],
         "warnings": warnings,
+        "modelConformance": get_model_conformance(get_graph()),
     }
 
 
@@ -376,6 +379,7 @@ def view_endpoint(request: Request, iri: str, path: str = ""):
         "native_element_id": view["nativeElementId"],
         "render_payload": view["renderPayload"],
         "warnings": view["warnings"],
+        "model_conformance": view["modelConformance"],
         "outgoing": view["seamEdges"]["outgoing"],
         "incoming": view["seamEdges"]["incoming"],
         "breadcrumbs": [

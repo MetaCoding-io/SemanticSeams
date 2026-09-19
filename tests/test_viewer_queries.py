@@ -192,6 +192,79 @@ def test_query_endpoint_reports_bindings_metadata():
     assert isinstance(body["durationMs"], (int, float))
 
 
+# --- T03: HTML fragment tests (catalog buttons + results table) ------------
+
+# MessageShape carries seam:detailedBy chat_data_shapes, so /view/{MessageShape}
+# auto-navigates into the shapes model (ADR-0005) and never lands on the shape
+# itself. ConversationShape is a sh:NodeShape with no navigation edges — it
+# self-lands, so it carries the catalog-button assertions.
+CONVERSATION_SHAPE = CHAT + "ConversationShape"
+ROOT_MODEL = CHAT + "chat_architecture"
+
+
+def _view_fragment(iri: str):
+    return _client().get(
+        f"/view/{quote(iri, safe='')}", headers={"hx-request": "true"}
+    )
+
+
+def test_fragment_shows_query_buttons_for_shape():
+    resp = _view_fragment(CONVERSATION_SHAPE)
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="query-catalog"' in html
+    assert 'data-query-name="what-writes-shape"' in html
+    assert 'hx-target="#query-results"' in html
+    assert '<div id="query-results"></div>' in html
+
+
+def test_fragment_hides_inapplicable_queries():
+    html = _view_fragment(CONVERSATION_SHAPE).text
+    assert 'data-query-name="impact-of-node"' not in html
+    assert 'data-query-name="what-moves-state"' not in html
+
+
+def test_fragment_no_catalog_for_untyped_element():
+    # The root C4 model is a seam:Model — none of the three focus types apply.
+    html = _view_fragment(ROOT_MODEL).text
+    assert 'id="query-catalog"' not in html
+    assert 'id="query-results"' not in html
+
+
+def test_query_results_fragment_renders_table():
+    from viewer.app import label as iri_label
+
+    resp = _client().get(
+        _query_url("what-writes-shape", MESSAGE_SHAPE),
+        headers={"hx-request": "true"},
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="query-results-table"' in html
+    assert "<th>event</th>" in html
+    assert "<th>writer</th>" in html
+    # Cells show human-readable labels; raw IRIs appear only in href attributes.
+    assert ">" + iri_label(CHAT + "send_message") + "<" in html
+    assert ">" + iri_label(CHAT + "chat_bpmn#persist_user_msg") + "<" in html
+    assert ">" + CHAT + "send_message<" not in html
+    # ?format=html must reach the same HTML branch as the hx-request header.
+    html_via_param = _client().get(
+        _query_url("what-writes-shape", MESSAGE_SHAPE) + "?format=html"
+    ).text
+    assert 'id="query-results-table"' in html_via_param
+
+
+def test_query_results_fragment_empty_state():
+    resp = _client().get(
+        _query_url("what-moves-state", MESSAGE_SHAPE),
+        headers={"hx-request": "true"},
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "No results" in html
+    assert "query-results-table" not in html
+
+
 def test_focus_types_match_model_declarations():
     """The catalog's focusType constants are the exact rdf:type declarations
     the chat-app model uses — guards against ontology-IRI drift."""

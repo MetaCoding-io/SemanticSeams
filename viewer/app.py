@@ -372,14 +372,44 @@ def queries_catalog() -> JSONResponse:
     )
 
 
+def result_cell(value: str) -> dict:
+    """Enrich a query result cell for HTML rendering: IRI values become
+    labeled links into /view/, everything else renders as plain text."""
+    is_iri = value.startswith(("http://", "https://", "urn:"))
+    return {
+        "value": value,
+        "label": label(value) if is_iri else value,
+        "href": f"/view/{quote(value, safe='')}" if is_iri else None,
+        "isIri": is_iri,
+    }
+
+
 @app.get("/queries/{query_name}/{focus_iri:path}")
-def query_endpoint(query_name: str, focus_iri: str) -> JSONResponse:
+def query_endpoint(request: Request, query_name: str, focus_iri: str):
     focus = unquote(focus_iri)
     if query_name not in canned_queries.QUERIES:
         raise HTTPException(status_code=404, detail=f"unknown canned query: {query_name}")
     # Non-applicable or unknown focus IRIs are not errors: an empty result set
     # (resultCount 0) is meaningful feedback, so execute unconditionally.
-    return JSONResponse(canned_queries.execute_query(get_graph(), query_name, focus))
+    result = canned_queries.execute_query(get_graph(), query_name, focus)
+    wants_html = (
+        request.headers.get("hx-request") == "true"
+        or request.query_params.get("format") == "html"
+    )
+    if not wants_html:
+        return JSONResponse(result)
+    query = canned_queries.QUERIES[query_name]
+    ctx = {
+        "request": request,
+        "query_label": query.label,
+        "query_question": query.question,
+        "result": result,
+        "cell_rows": [
+            [result_cell(row[col]) for col in result["columns"]]
+            for row in result["rows"]
+        ],
+    }
+    return templates.TemplateResponse(request, "query-results.html", ctx)
 
 
 @app.get("/view/{iri:path}")
@@ -418,6 +448,15 @@ def view_endpoint(request: Request, iri: str, path: str = ""):
         ],
         "root_href": href_for(ROOT_IRI, []),
         "next_path_qs": quote(",".join(outgoing_trail), safe=""),
+        "applicable_queries": [
+            {
+                "name": q.name,
+                "label": q.label,
+                "href": f"/queries/{q.name}/{quote(focus, safe='')}?format=html",
+            }
+            for q in canned_queries.QUERIES.values()
+            if canned_queries.is_applicable(get_graph(), focus, q)
+        ],
     }
 
     if render_kind in GRAPH_BUILDERS:

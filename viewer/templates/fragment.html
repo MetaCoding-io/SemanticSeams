@@ -98,6 +98,18 @@
     <p><em>No renderer yet for notation "{{ notation }}" — showing inspector only.</em></p>
   {% endif %}
 
+  {% if applicable_queries %}
+    {# Canned-question catalog (S03 T03): per-view UI — applicability depends
+       on the focused element's rdf:type, so it lives in the fragment. #}
+    <section id="query-catalog">
+      <h3>Questions</h3>
+      {% for q in applicable_queries %}
+        <a class="query-button" data-query-name="{{ q.name }}" href="{{ q.href }}" hx-get="{{ q.href }}" hx-target="#query-results">{{ q.label }}</a>
+      {% endfor %}
+    </section>
+    <div id="query-results"></div>
+  {% endif %}
+
   <section class="inspector">
     <h3>Details</h3>
     <p><strong>IRI:</strong> <code>{{ focus_iri }}</code></p>

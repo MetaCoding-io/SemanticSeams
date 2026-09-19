@@ -1,0 +1,36 @@
+{# Canned-query results fragment (S03 T03). Standalone — no page shell.
+   Swapped into #query-results by the catalog buttons (hx-get), also served
+   directly via ?format=html. Cells arrive pre-enriched from viewer/app.py
+   (value/label/href/isIri) — no label or href computation happens here. #}
+<section class="query-results">
+  <h3>{{ query_label }}</h3>
+  <p class="query-question">{{ query_question }}</p>
+  <p class="query-meta">
+    {{ result.resultCount }} result{{ "" if result.resultCount == 1 else "s" }},
+    {{ result.durationMs }} ms{% if result.truncated %} (truncated at row cap){% endif %}
+  </p>
+  {% if result.rows %}
+    <table id="query-results-table">
+      <thead>
+        <tr>{% for col in result.columns %}<th>{{ col }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in cell_rows %}
+          <tr>
+            {% for cell in row %}
+              <td>
+                {% if cell.isIri %}
+                  <a href="{{ cell.href }}" hx-get="{{ cell.href }}" hx-target="#view-content" hx-push-url="true">{{ cell.label }}</a>
+                {% else %}
+                  {{ cell.value }}
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="query-empty">No results for this element.</p>
+  {% endif %}
+</section>

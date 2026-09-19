@@ -8,6 +8,7 @@ proving the instance-level property paths need no ontology union.
 
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from rdflib import RDF, URIRef
@@ -103,6 +104,92 @@ def test_is_applicable_type_rules():
         DB01: ["impact-of-node"],
         S_COMPOSING: ["what-moves-state"],
     }
+
+
+# --- T02: JSON endpoint tests (TestClient over viewer.app) -----------------
+
+
+def _client():
+    from fastapi.testclient import TestClient
+
+    from viewer.app import app
+
+    return TestClient(app)
+
+
+def _query_url(query_name: str, focus_iri: str) -> str:
+    # Same encoding convention as href_for() in viewer/app.py.
+    return f"/queries/{query_name}/{quote(focus_iri, safe='')}"
+
+
+def test_queries_endpoint_lists_catalog():
+    resp = _client().get("/queries")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [entry["name"] for entry in body] == EXPECTED_NAMES
+    for entry in body:
+        assert set(entry) == {"name", "label", "question", "focusVariable", "focusType"}
+        assert all(entry[k] for k in entry)
+        q = queries.QUERIES[entry["name"]]
+        assert entry["focusType"] == str(q.focusType)
+
+
+def test_query_endpoint_what_writes_shape():
+    resp = _client().get(_query_url("what-writes-shape", MESSAGE_SHAPE))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["queryName"] == "what-writes-shape"
+    assert body["focusIri"] == MESSAGE_SHAPE
+    assert body["resultCount"] == 2
+    assert {(r["event"], r["writer"]) for r in body["rows"]} == {
+        (CHAT + "send_message", CHAT + "chat_bpmn#persist_user_msg"),
+        (CHAT + "send_message", CHAT + "chat_bpmn#persist_response"),
+    }
+
+
+def test_query_endpoint_impact_of_node():
+    resp = _client().get(_query_url("impact-of-node", DB01))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resultCount"] == 4
+    assert {r["impacted"] for r in body["rows"]} == {
+        CHAT + "message_db",
+        CHAT + "chat_api",
+        CHAT + "chat_ui",
+        CHAT + "send_message_process",
+    }
+
+
+def test_query_endpoint_what_moves_state():
+    resp = _client().get(_query_url("what-moves-state", S_COMPOSING))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resultCount"] == 1
+    assert {(r["task"], r["transition"], r["toState"]) for r in body["rows"]} == {
+        (CHAT + "chat_bpmn#persist_user_msg", CHAT + "t_send", CHAT + "s_sending"),
+    }
+
+
+def test_query_endpoint_unknown_query_404():
+    resp = _client().get(_query_url("no-such-query", MESSAGE_SHAPE))
+    assert resp.status_code == 404
+
+
+def test_query_endpoint_non_applicable_focus_empty():
+    resp = _client().get(_query_url("what-moves-state", MESSAGE_SHAPE))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resultCount"] == 0
+    assert body["rows"] == []
+
+
+def test_query_endpoint_reports_bindings_metadata():
+    resp = _client().get(_query_url("what-writes-shape", MESSAGE_SHAPE))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["bindings"] == {"shape": MESSAGE_SHAPE}
+    assert body["columns"] == ["event", "writer"]
+    assert isinstance(body["durationMs"], (int, float))
 
 
 def test_focus_types_match_model_declarations():

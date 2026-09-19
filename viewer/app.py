@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 
+from viewer import queries as canned_queries
 from viewer.validation import get_model_conformance
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -351,6 +352,34 @@ def payload_endpoint(iri: str):
     path = resolve_payload_path(payload_iri)
     media_type = PAYLOAD_MEDIA_TYPES.get(path.suffix, "application/octet-stream")
     return FileResponse(path, media_type=media_type)
+
+
+# Declared before the parameterized route below — FastAPI matches in
+# declaration order, so /queries must not be swallowed by /queries/{...}.
+@app.get("/queries")
+def queries_catalog() -> JSONResponse:
+    return JSONResponse(
+        [
+            {
+                "name": q.name,
+                "label": q.label,
+                "question": q.question,
+                "focusVariable": q.focusVariable,
+                "focusType": str(q.focusType),
+            }
+            for q in canned_queries.QUERIES.values()
+        ]
+    )
+
+
+@app.get("/queries/{query_name}/{focus_iri:path}")
+def query_endpoint(query_name: str, focus_iri: str) -> JSONResponse:
+    focus = unquote(focus_iri)
+    if query_name not in canned_queries.QUERIES:
+        raise HTTPException(status_code=404, detail=f"unknown canned query: {query_name}")
+    # Non-applicable or unknown focus IRIs are not errors: an empty result set
+    # (resultCount 0) is meaningful feedback, so execute unconditionally.
+    return JSONResponse(canned_queries.execute_query(get_graph(), query_name, focus))
 
 
 @app.get("/view/{iri:path}")

@@ -8,7 +8,7 @@
 
 ## Context
 
-Seams models reference native-notation files (BPMN XML, DMN XML, etc.) via payload IRIs. The viewer must resolve these IRIs to actual file content for rendering. Without an explicit resolution mechanism:
+SemanticSeams models reference native-notation files (BPMN XML, DMN XML, etc.) via payload IRIs. The viewer must resolve these IRIs to actual file content for rendering. Without an explicit resolution mechanism:
 
 - The viewer would need ad-hoc logic to locate files on disk.
 - Payload references could silently point to missing or stale files.

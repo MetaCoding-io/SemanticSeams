@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SemanticSeams · one RDF graph, every diagram a view · MetaCoding</title>
+<meta name="description" content="SemanticSeams is a zoomable, multi-notation application graph: C4 architecture, IFML interaction, BPMN process, DMN decisions and SHACL data in one RDF graph, navigated by clicking and queried across layers with SPARQL. A MetaCoding project.">
+<link rel="canonical" href="https://metacoding-io.github.io/SemanticSeams/">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SemanticSeams · MetaCoding">
+<meta property="og:url" content="https://metacoding-io.github.io/SemanticSeams/">
+<meta property="og:title" content="SemanticSeams · one RDF graph, every diagram a view">
+<meta property="og:description" content="C4, IFML, BPMN, DMN and SHACL in one RDF graph, navigated by clicking and queried across layers. A MetaCoding project.">
+<meta property="og:image" content="https://metacoding-io.github.io/SemanticSeams/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SemanticSeams: diagrams are views, the graph is the source of truth. A MetaCoding project.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SemanticSeams · one RDF graph, every diagram a view">
+<meta name="twitter:description" content="C4, IFML, BPMN, DMN and SHACL in one RDF graph, navigated by clicking and queried across layers.">
+<meta name="twitter:image" content="https://metacoding-io.github.io/SemanticSeams/og-image.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"SemanticSeams","description":"A zoomable, multi-notation application graph. One RDF graph is the source of truth; diagrams are views.","codeRepository":"https://github.com/MetaCoding-io/SemanticSeams","license":"https://www.apache.org/licenses/LICENSE-2.0","programmingLanguage":["Turtle","SPARQL","Python"],"author":{"@type":"Organization","name":"MetaCoding Solutions LLC","url":"https://metacoding.io"}}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f1ea; --surface:#fffdf8; --surface-2:#ebe6db; --ink:#1d2a35; --ink-dim:#5b6b78; --ink-faint:#8795a0;
+    --line:#d6cfc2; --line-strong:#b9b0a0; --seam:#b4532a; --seam-soft:#f3e2d8; --view:#1f6f8b; --view-soft:#dcebf0;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace; --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --radius:4px; color-scheme:light dark;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#121a20; --surface:#192329; --surface-2:#212d35; --ink:#e8ece9; --ink-dim:#a3b0b8; --ink-faint:#6f7f89;
+      --line:#2c3a43; --line-strong:#43545f; --seam:#e8865c; --seam-soft:#3a2418; --view:#5fb9d3; --view-soft:#15303a;
+    }
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--view)} a:hover{text-decoration-thickness:2px}
+  code{font-family:var(--mono);font-size:.92em;background:var(--surface-2);padding:.08em .35em;border-radius:3px}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 clamp(16px,4vw,32px)}
+  nav{border-bottom:1px solid var(--line);background:var(--surface)}
+  .navrow{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+  .mark{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:600;color:var(--ink);text-decoration:none}
+  .mark svg{width:26px;height:26px}
+  .navlinks{display:flex;gap:18px;flex-wrap:wrap;font-size:14px} .navlinks a{color:var(--ink-dim);text-decoration:none} .navlinks a:hover{color:var(--ink)}
+  .hero{padding:clamp(40px,8vw,88px) 0 clamp(32px,5vw,56px)}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--seam);margin:0 0 14px}
+  h1{font-size:clamp(34px,5.6vw,58px);line-height:1.08;letter-spacing:-.02em;margin:0 0 18px;font-weight:600;max-width:17ch}
+  h1 em{font-style:normal;color:var(--view)}
+  .lede{font-size:clamp(17px,2vw,20px);color:var(--ink-dim);max-width:62ch;margin:0 0 26px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{display:inline-block;padding:10px 16px;border-radius:var(--radius);border:1px solid var(--line-strong);text-decoration:none;color:var(--ink);font-family:var(--mono);font-size:14px;background:var(--surface)}
+  .btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  section{padding:clamp(32px,5vw,56px) 0;border-top:1px solid var(--line)}
+  h2{font-size:clamp(22px,3vw,30px);letter-spacing:-.015em;margin:0 0 8px;font-weight:600}
+  .sub{color:var(--ink-dim);margin:0 0 24px;max-width:66ch}
+  .descent{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
+  @media (max-width:760px){.descent{grid-template-columns:1fr}}
+  .descent svg{width:100%;height:auto;display:block}
+  .steps{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+  .steps li{display:grid;grid-template-columns:36px 1fr;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .steps b{font-family:var(--mono);font-size:13px;color:var(--seam);padding-top:2px}
+  .steps span{display:block;font-size:12.5px;color:var(--ink-faint);font-family:var(--mono);margin-top:4px}
+  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  @media (max-width:760px){.grid3{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .card h3{margin:0 0 8px;font-size:16px;font-weight:600}
+  .card p{margin:0;color:var(--ink-dim);font-size:15px}
+  .card .q{font-style:italic;color:var(--ink);margin-bottom:10px}
+  pre{margin:0;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;font-family:var(--mono);font-size:12.5px;line-height:1.5;overflow:auto;color:var(--ink)}
+  pre .k{color:var(--view)} pre .s{color:var(--seam)}
+  .status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  @media (max-width:760px){.status{grid-template-columns:1fr 1fr}}
+  .status div{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .status .k{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--ink)}
+  .status .l{font-size:13.5px;color:var(--ink-dim);margin-top:4px}
+  footer{border-top:1px solid var(--line);padding:28px 0 40px;font-size:14px;color:var(--ink-dim)}
+  .footrow{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .footrow a{color:var(--ink-dim)} .footrow nav{border:0;background:none;display:flex;gap:16px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap navrow">
+    <a class="mark" href="./"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="26" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M3 12h26M12 3v26" stroke="#b4532a" stroke-width="2.5"/><circle cx="12" cy="12" r="3" fill="#1f6f8b"/></svg>SemanticSeams</a>
+    <div class="navlinks">
+      <a href="#descent">The descent</a>
+      <a href="#seams">The seams</a>
+      <a href="#queries">Cross-layer queries</a>
+      <a href="#status">Status</a>
+      <a href="https://github.com/MetaCoding-io/SemanticSeams">Repository ↗</a>
+      <a href="https://metacoding.io">MetaCoding ↗</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <p class="eyebrow">One RDF graph · four notations · one traversal</p>
+  <h1>Diagrams are <em>views</em>. The graph is the <em>source of truth</em>.</h1>
+  <p class="lede">Every tool that draws software draws one layer. C4 tools stop at a link to the repository. BPMN modelers never see the screen that fires a process. IFML never wired its hooks to data. SHACL lives in its own silo. SemanticSeams puts every element of every layer in one RDF graph, as a resource with an IRI, and treats each diagram as a view over it.</p>
+  <div class="actions">
+    <a class="btn primary" href="https://github.com/MetaCoding-io/SemanticSeams">Read the code ↗</a>
+    <a class="btn" href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/project-outline.md">The project outline ↗</a>
+    <a class="btn" href="https://github.com/MetaCoding-io/SemanticSeams/tree/main/docs/adr">Decision records ↗</a>
+  </div>
+</header>
+
+<section id="descent">
+  <div class="wrap">
+    <h2>Zooming in is a graph traversal</h2>
+    <p class="sub">Click a node and the renderer switches with the node's notation. The descent below is the canonical one, and the viewer completes it over a hand-authored model today.</p>
+    <div class="descent">
+      <svg viewBox="0 0 480 400" role="img" aria-label="Four stacked layers, architecture, interaction, process and decision or data, joined by seam edges">
+        <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="#b4532a"/></marker></defs>
+        <g font-family="IBM Plex Mono,ui-monospace,Menlo,monospace" font-size="12" fill="currentColor">
+          <rect x="20" y="20" width="300" height="64" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="34" y="44" font-weight="600">C4 · architecture</text><text x="34" y="66" fill="var(--ink-dim)">system → container → component</text>
+          <rect x="60" y="116" width="300" height="64" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="74" y="140" font-weight="600">IFML · interaction</text><text x="74" y="162" fill="var(--ink-dim)">page → view component → event</text>
+          <rect x="100" y="212" width="300" height="64" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="114" y="236" font-weight="600">BPMN · process</text><text x="114" y="258" fill="var(--ink-dim)">task → data object → business rule</text>
+          <rect x="140" y="308" width="300" height="64" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="154" y="332" font-weight="600">DMN · decision / SHACL · data</text><text x="154" y="354" fill="var(--ink-dim)">decision table · shape graph</text>
+        </g>
+        <g stroke="#b4532a" stroke-width="2" fill="none" marker-end="url(#arr)">
+          <path d="M170 84 L210 114"/><path d="M210 180 L250 210"/><path d="M250 276 L290 306"/>
+        </g>
+        <g font-family="IBM Plex Mono,ui-monospace,Menlo,monospace" font-size="11" fill="#b4532a">
+          <text x="215" y="96">seam:detailedBy</text><text x="255" y="192">seam:triggers</text><text x="295" y="288">seam:decidedBy · seam:writes</text>
+        </g>
+      </svg>
+      <ol class="steps">
+        <li><b>01</b><div>Open the C4 container view: the navigation shell.<span>click <code>client web interface</code></span></div></li>
+        <li><b>02</b><div>Land on its IFML surface: pages, view components, events, flows.<span>click an event's action</span></div></li>
+        <li><b>03</b><div>Land on the BPMN diagram behind that action, rendered by bpmn-js from the native XML.<span>click a business-rule task or a data object</span></div></li>
+        <li><b>04</b><div>Land on the DMN decision table, or the SHACL shape of the data itself.<span>same graph, different renderer</span></div></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section id="seams">
+  <div class="wrap">
+    <h2>The seams are the product</h2>
+    <p class="sub">There is no BPMN ontology here and no DMN ontology. Native XML stays native and is rendered by the stock viewers. Only the elements that participate in a cross-layer edge get an IRI, and the edges come from one small bridging ontology, built to four rules.</p>
+    <div class="grid3">
+      <div class="card"><h3>Few and generic beats many and precise</h3><p>Twenty-five predicates. Each one must earn a cross-layer query or it does not exist.</p></div>
+      <div class="card"><h3>Reuse inside layers, mint where layers meet</h3><p>C4, IFML, BPMN, DMN and SHACL keep their own vocabularies. The seam ontology only names the joins.</p></div>
+      <div class="card"><h3>The method applied to itself</h3><p>SHACL shapes constrain the seams. CI parses every file, validates the examples, proves the shapes reject bad seams, and checks every predicate is exercised.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="queries">
+  <div class="wrap">
+    <h2>Questions no single-notation tool can answer</h2>
+    <p class="sub">Because everything is one graph, cross-layer questions are SPARQL. Three ship as canned queries with exact expected rows asserted in CI, and they are buttons on the viewer's inspector, not SPARQL a user sees.</p>
+    <div class="grid3">
+      <div class="card"><p class="q">Which UI events can eventually write to this data shape, and through which task?</p><p><code>what-writes-shape.rq</code> · compliance and security review</p></div>
+      <div class="card"><p class="q">What breaks, containers and processes both, if this deployment node goes away?</p><p><code>impact-of-node.rq</code> · impact analysis and drift</p></div>
+      <div class="card"><p class="q">Which process tasks may move an entity out of this state?</p><p><code>what-moves-state.rq</code> · lifecycle audit</p></div>
+    </div>
+    <p class="sub" style="margin:22px 0 10px">The first one, as it ships in <code>docs/queries/what-writes-shape.rq</code>: a property path from an IFML event through the seams to whatever writes the shape, including the async hop through a channel.</p>
+<pre><span class="k">SELECT DISTINCT</span> ?event ?writer <span class="k">WHERE</span> {
+  ?event a ifml:Event .
+  ?event ( (<span class="s">seam:triggers</span>/<span class="s">seam:detailedBy</span>/^<span class="s">seam:inModel</span>)
+         | <span class="s">seam:decidedBy</span>
+         | <span class="s">seam:invokes</span>
+         | (<span class="s">seam:publishesTo</span>/^<span class="s">seam:subscribesTo</span>/<span class="s">seam:inModel</span>/^<span class="s">seam:inModel</span>)
+         )+ ?writer .
+  ?writer <span class="s">seam:writes</span> ?shape .
+}</pre>
+  </div>
+</section>
+
+<section id="status">
+  <div class="wrap">
+    <h2>Where it is</h2>
+    <p class="sub">Concept and proof of concept, July to September 2026. The pieces below exist and are under test; editing, SHACL-driven forms, IFML to htmx generation and deployment generation come after.</p>
+    <div class="status">
+      <div><div class="k">25</div><div class="l">bridging predicates in <code>seam.ttl</code>, with SHACL shapes over them</div></div>
+      <div><div class="k">2</div><div class="l">worked examples: a checkout flow and a chat app, with native BPMN and DMN payloads</div></div>
+      <div><div class="k">3</div><div class="l">canned cross-layer queries, exact rows asserted in CI</div></div>
+      <div><div class="k">1</div><div class="l">read-only viewer (FastAPI, htmx, bpmn-js, dmn-js) that completes the descent by clicking</div></div>
+    </div>
+    <p class="sub" style="margin-top:22px">Developed against <a href="https://github.com/MetaCoding-io/semantic-stack">semantic-stack</a>, the Docker stack of triple stores and RDF tooling, and released under Apache-2.0.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footrow">
+    <div>SemanticSeams · a <a href="https://metacoding.io">MetaCoding</a> project. One RDF graph is the source of truth; diagrams are views.</div>
+    <nav>
+      <a href="https://metacoding.io">MetaCoding ↗</a>
+      <a href="https://github.com/MetaCoding-io/SemanticSeams">Repository ↗</a>
+      <a href="https://github.com/MetaCoding-io/semantic-stack">semantic-stack ↗</a>
+      <a href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/LICENSE">Apache-2.0</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

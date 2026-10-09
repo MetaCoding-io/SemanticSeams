@@ -1,6 +1,8 @@
-# Project Outline: A Zoomable, Multi-Notation Application Graph
+# SemanticSeams: Project Outline
 
-*Name: **Seams** (settled — the load-bearing novelty is the cross-notation edges). Namespace: `https://w3id.org/seams/` (w3id registration pending).*
+*A zoomable, multi-notation application graph. A [MetaCoding](https://metacoding.io) project.*
+
+*Name: **SemanticSeams** (settled — the load-bearing novelty is the cross-notation edges). Namespace: `https://w3id.org/seams/` (w3id registration pending).*
 
 *Status: concept / research phase — July 2026*
 

@@ -8,7 +8,7 @@
 
 ## Context
 
-The Seams model maintains a dual representation: RDF index graphs describe elements and their relationships, while native payload files (BPMN XML, DMN XML, etc.) carry the renderable notation content. Two invariants bind these representations together:
+The SemanticSeams model maintains a dual representation: RDF index graphs describe elements and their relationships, while native payload files (BPMN XML, DMN XML, etc.) carry the renderable notation content. Two invariants bind these representations together:
 
 1. **Fragment IRI ↔ element ID correspondence** (ADR-0002, rule 4): every `modelIRI#nativeElementId` fragment in the RDF index must have a matching `id` attribute in the corresponding payload file, and vice versa for seam-worthy elements.
 2. **Manifest ↔ filesystem correspondence** (ADR-0003): every payload IRI in the manifest graph must resolve to a file that actually exists at the declared `seam:filePath`.

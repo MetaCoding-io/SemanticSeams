@@ -8,7 +8,7 @@
 
 ## Context
 
-The `/view/{iri}` endpoint is the primary API surface for the Seams viewer shell. It returns everything the frontend needs to render a focused element: its label, type, related seam edges, navigation aids, and native-notation metadata. Without a defined response contract:
+The `/view/{iri}` endpoint is the primary API surface for the SemanticSeams viewer shell. It returns everything the frontend needs to render a focused element: its label, type, related seam edges, navigation aids, and native-notation metadata. Without a defined response contract:
 
 - Frontend and backend evolve independently with silent breakage.
 - There is no specification for what a renderer can rely on.

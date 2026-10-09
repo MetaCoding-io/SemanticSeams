@@ -1,4 +1,4 @@
-"""Seams viewer — Phase A POC.
+"""SemanticSeams viewer — Phase A POC.
 
 FastAPI server implementing the /view/{iri} contract (ADR-0004) over an
 in-process rdflib graph loaded from examples/chat-app/chat-app.trig. The
@@ -58,7 +58,7 @@ SEAM_ADMIN_PREDICATES = {SEAM.inModel, SEAM.notation, SEAM.renderPayload}
 RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn"}
 PAYLOAD_RENDERERS = {"bpmn", "dmn"}
 
-app = FastAPI(title="Seams Viewer")
+app = FastAPI(title="SemanticSeams Viewer")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 

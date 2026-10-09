@@ -8,7 +8,7 @@
 
 ## Context
 
-The Seams model is a multi-layer RDF graph spanning architecture, UI, process, data, communication, deployment, and authorization concerns. Turtle (the initial serialization) cannot express named graphs, so there was no defined partitioning strategy — all triples lived in a single default graph.
+The SemanticSeams model is a multi-layer RDF graph spanning architecture, UI, process, data, communication, deployment, and authorization concerns. Turtle (the initial serialization) cannot express named graphs, so there was no defined partitioning strategy — all triples lived in a single default graph.
 
 Named graphs are essential for:
 

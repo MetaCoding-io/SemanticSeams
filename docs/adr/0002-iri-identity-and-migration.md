@@ -8,7 +8,7 @@
 
 ## Context
 
-Every element in the Seams model — a C4 container, a BPMN task, a SHACL shape, an IFML view component — is an RDF resource identified by an IRI. The project had no explicit rules for how IRIs are minted, how they relate to native element IDs (e.g., BPMN XML `id` attributes), or what happens when an element is renamed.
+Every element in the SemanticSeams model — a C4 container, a BPMN task, a SHACL shape, an IFML view component — is an RDF resource identified by an IRI. The project had no explicit rules for how IRIs are minted, how they relate to native element IDs (e.g., BPMN XML `id` attributes), or what happens when an element is renamed.
 
 Without identity rules:
 

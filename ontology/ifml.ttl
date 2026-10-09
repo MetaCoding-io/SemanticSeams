@@ -6,7 +6,7 @@
 @prefix ifml:  <https://w3id.org/seams/ifml#> .
 
 <https://w3id.org/seams/ifml> a owl:Ontology ;
-    rdfs:label "Seams IFML-inspired Interaction Vocabulary" ;
+    rdfs:label "SemanticSeams IFML-inspired Interaction Vocabulary" ;
     dct:source <https://www.omg.org/spec/IFML/1.0/> ;
     rdfs:comment """HONEST SCOPE STATEMENT. This is *our* vocabulary, inspired by and
 correspondent with OMG IFML 1.0 (formal/2015-02-05) — it is not a proper subset and

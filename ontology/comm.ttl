@@ -9,7 +9,7 @@
 #################################################################
 
 <https://w3id.org/seams/comm> a owl:Ontology ;
-    rdfs:label "Seams Communication Vocabulary" ;
+    rdfs:label "SemanticSeams Communication Vocabulary" ;
     rdfs:comment """Request/response communication is described with Hydra
 (hydra:Operation, hydra:method, etc.). This module only adds what Hydra lacks:
 asynchronous channels, and QUERY as a first-class read method. Payload contracts

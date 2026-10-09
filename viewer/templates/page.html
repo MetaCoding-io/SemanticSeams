@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Seams Viewer — {{ label }}</title>
+  <title>SemanticSeams Viewer — {{ label }}</title>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/diagram-js.css">
@@ -58,7 +58,7 @@
       });
     };
   </script>
-  <header>Seams Viewer</header>
+  <header>SemanticSeams Viewer</header>
   <div class="health-panel" data-conforms="{{ 'true' if model_conformance.conforms else 'false' }}">
     {% if model_conformance.conforms %}
     <span class="health-badge">&#10003; Conforms</span>

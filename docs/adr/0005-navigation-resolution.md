@@ -8,7 +8,7 @@
 
 ## Context
 
-The Seams viewer shell must decide what happens when a user clicks on a seam edge or a related element. Navigation in a graph is not "follow one edge" — it may require multi-hop resolution (e.g., an event triggers a process, which is detailed by a model, which is the actual render target). Without a principled rule:
+The SemanticSeams viewer shell must decide what happens when a user clicks on a seam edge or a related element. Navigation in a graph is not "follow one edge" — it may require multi-hop resolution (e.g., an event triggers a process, which is detailed by a model, which is the actual render target). Without a principled rule:
 
 - The shell becomes a growing switch statement over predicate types.
 - Click behavior is unpredictable to users.

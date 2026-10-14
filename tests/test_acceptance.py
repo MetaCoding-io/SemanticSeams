@@ -1,4 +1,4 @@
-"""Executable acceptance test for the Seams ontologies + checkout example.
+"""Executable acceptance test for the SemanticSeams ontologies + checkout example.
 
 The CI form of the prose claims in README.md and examples/checkout.trig:
 

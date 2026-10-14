@@ -14,6 +14,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
+          cache-dependency-path: |
+            requirements-dev.txt
+            viewer/requirements.txt
+      # The viewer tests import the FastAPI app, so the viewer's dependencies are needed too.
+      - run: pip install -r requirements-dev.txt -r viewer/requirements.txt
       - run: pytest -q

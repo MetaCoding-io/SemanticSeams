@@ -4,7 +4,7 @@
 @prefix seam:  <https://w3id.org/seams/seam#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
-    rdfs:label "Seams Bridging Ontology" ;
+    rdfs:label "SemanticSeams Bridging Ontology" ;
     rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
 decision, state, data, communication, authorization, and planning models into one
 navigable graph. Design rules: (1) few and generic beats many and precise;

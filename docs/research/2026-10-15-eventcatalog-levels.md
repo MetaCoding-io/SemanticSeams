@@ -236,6 +236,49 @@ diagram read as a product rather than a debug view.
   already have with vis-network, and it is the view they are moving *away*
   from with Levels. Treat our current C4 renderer as the same dead end.
 
+## The viewer as it stands today (walkthrough, 2026-10-15)
+
+To ground the comparison, the viewer was run locally against
+`examples/chat-app` (uvicorn, headless Chromium at 1440×900) and driven through
+the full descent. Observations, in the order a first-time user meets them:
+
+- **The descent works end to end.** Root C4 → click the Chat Web Interface
+  container → IFML model (via `seam:presents`) → click the Send Message event →
+  BPMN diagram (via `seam:triggers` plus the one-hop `seam:detailedBy`) → click
+  the Route to Provider task → disambiguation between the DMN model and the data
+  model → DMN. Breadcrumbs record the trail and click back correctly. The SHACL
+  health panel reads "Conforms" throughout.
+- **Questions land well.** On `db01` the single applicable question, "What
+  breaks if this node goes away?", answers inline with four linked rows,
+  including the Send Message process, in about 5 ms. On the `composing` state
+  the answer names the task, the transition and the target state. This is the
+  feature that already feels unlike anything else, and it is currently only
+  reachable from leaf elements that have no renderer.
+- **The C4 view is the weak point**, exactly where EventCatalog's Levels are
+  strong. Containment is drawn as "contains" arrows, so the system and its
+  four containers form a star next to a second star for the production
+  environment and its three nodes. Nothing distinguishes a container that
+  can be descended into from one that cannot. The physics layout settles
+  differently on every load, and the mouse wheel over the canvas zooms the
+  diagram instead of scrolling the page, which traps the inspector below it.
+- **IFML reads as a generic graph.** Pages, components, events, parameters and
+  flows all get the same box shape with a different colour; the flow
+  `list_to_thread` appears as a node with "flow source" and "flow target" edges,
+  which is the RDF showing through rather than IFML's notation.
+- **BPMN and DMN are the best-looking views**, because bpmn-js and dmn-js bring
+  their notation with them. The DMN DRD overlaps dmn-js's own title overlay with
+  the first input node, and the decision table itself is one click further in.
+- **The data layer has no view.** Navigating to a shape resolves straight to
+  the "Chat Data Model" and shows "No renderer yet for notation shapegraph".
+- **No type legend, no counts, no descriptions on nodes, no search.** Every
+  item in the EventCatalog node card (type pill, version, description, owner)
+  is absent even though the data for most of it is in the graph.
+
+Net: the cross-layer mechanics (resolution, disambiguation, breadcrumbs,
+questions) are solid and are the differentiator. The within-layer presentation
+is where the EventCatalog borrowings in the previous section apply, and the C4
+view should be the first renderer to receive them.
+
 ## Open questions for the design
 
 1. Is L4 (seam portals) a level, or an overlay toggle orthogonal to L1–L3?

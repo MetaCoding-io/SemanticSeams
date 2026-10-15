@@ -128,6 +128,10 @@ nests the BPMN model, a «DataBinding» strip opens or layers the shape.
 ## Order of work
 
 1. Fix the two model gaps in `examples/chat-app` that the notation exposes.
+   Done: `select_to_thread` is a navigation flow from the event to the
+   thread, and `list_to_thread` now binds the selection to the thread's own
+   `conversation` parameter, per the IFML rule that a data flow is triggered
+   by a navigation flow and carries parameters only.
 2. Server-side SVG IFML renderer (option C), driven by a canned SPARQL
    projection of the model graph plus the seams, with the derivations above.
 3. Seam dots and the activation and binding notes as part of that SVG.

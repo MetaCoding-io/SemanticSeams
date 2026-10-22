@@ -32,6 +32,7 @@ examples/   checkout.ttl    — worked example exercising every non-reserved sea
 tests/      executable acceptance test: parse everything, validate against the shapes, assert the canned queries' rows
 site/       the public project page (GitHub Pages, no build step)
 viewer/     the read-only multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js)
+research/   reading notes on single sources that bear on the design, each with a todos.md
 ```
 
 Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. Fragment naming serves renderer dispatch only — membership is data: every lifted element carries `seam:inModel`, the edge cross-layer SPARQL actually traverses. The thin `proc:`/`dec:` index vocabulary types only these seam-participating elements. The data layer needs no vocabulary at all — SHACL *is* the vocabulary.

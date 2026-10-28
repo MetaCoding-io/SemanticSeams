@@ -278,3 +278,117 @@ def test_view_json_ifml_is_null_for_other_notations(client):
     assert resp.status_code == 200
     body = resp.json()
     assert "ifml" in body and body["ifml"] is None
+
+
+# --- HTML: the IFML notation drawn as server-side SVG (T02) ---------------
+
+
+def _fragment(client, iri):
+    resp = client.get(f"/view/{quote(iri, safe='')}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    return resp.text
+
+
+@pytest.fixture(scope="module")
+def ifml_html():
+    return _fragment(TestClient(viewer_app.app), CHAT_IFML)
+
+
+def test_fragment_draws_ifml_svg(ifml_html):
+    assert 'class="ifml-diagram"' in ifml_html
+    assert "new vis.Network" not in ifml_html
+    assert 'viewBox="0 0 ' in ifml_html
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "«Form»",
+        "«List»",
+        "«Details»",
+        "«SimpleField» content",
+        "«SimpleField» role",
+        "«SimpleField» status",
+        "«SimpleField» timestamp",
+        "«DataBinding» Message",
+        "«DataBinding» Conversation",
+        "[L] Chat Page",
+        "[state = composing]",
+        "«ParamBindingGroup» selected conversation → conversation",
+        "Send Message Process",
+    ],
+)
+def test_fragment_shows_ifml_text(ifml_html, text):
+    # Jinja autoescape leaves «, » and → alone (they are not HTML specials).
+    assert text in ifml_html
+
+
+def test_fragment_action_is_hexagon_for_send_process(ifml_html):
+    import re
+
+    m = re.search(r'<g [^>]*data-iri="' + re.escape(SEND_PROCESS) + r'" data-kind="action"[^>]*>(.*?)</g>', ifml_html, re.S)
+    assert m, "send_message_process action group missing"
+    assert 'data-layer="process"' in m.group(0)
+    points = re.search(r'<polygon class="ifml-action" points="([^"]+)"', m.group(1))
+    assert points and len(points.group(1).split()) == 6
+
+
+def test_fragment_groups_carry_kind_and_layer(ifml_html):
+    import re
+
+    groups = re.findall(r'<g class="ifml-[^"]*" data-iri="([^"]+)" data-kind="([a-z]+)"[^>]*data-layer="([a-z]+)"', ifml_html)
+    kinds = {k for _, k, _ in groups}
+    assert kinds == {"container", "component", "event", "action", "note", "flow"}
+    layers = {layer for _, _, layer in groups}
+    assert layers <= {"architecture", "interaction", "process", "decision", "data", "lifecycle", "other"}
+    by_iri = {(iri, k) for iri, k, _ in groups}
+    assert (CHAT_PAGE, "container") in by_iri
+    assert (SEND_MESSAGE, "event") in by_iri
+    assert (SELECT_CONVERSATION, "event") in by_iri
+    # Activation note descends to the state; it takes the state's layer.
+    assert re.search(r'data-iri="https://example.org/chat/s_composing" data-kind="note"[^>]*data-layer="lifecycle"', ifml_html)
+
+
+def test_fragment_flows_solid_and_dashed(ifml_html):
+    import re
+
+    nav = re.search(r'data-flow-kind="navigation".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
+    assert "stroke-dasharray" not in nav and "marker-end" in nav
+    data = re.search(r'data-flow-kind="data".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
+    assert "stroke-dasharray" in data
+    action = re.search(r'data-flow-kind="action".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
+    assert "stroke-dasharray" not in action and "marker-end" in action
+
+
+def test_fragment_events_white_for_user(ifml_html):
+    assert ifml_html.count('class="ifml-event ifml-event-user"') == 2
+    assert "ifml-event-system" not in ifml_html
+
+
+def test_fragment_seam_dots_use_layer_tokens(ifml_html):
+    assert 'style="fill: var(--layer-data)"' in ifml_html
+    assert 'style="fill: var(--layer-lifecycle)"' in ifml_html
+    assert 'style="fill: var(--layer-process)"' in ifml_html
+
+
+def test_fragment_script_delegates_click_and_never_traps_wheel(ifml_html):
+    assert 'closest("[data-iri]")' in ifml_html
+    assert "window.seamsNavigate(" in ifml_html
+    assert "container.seamsIfml = " in ifml_html
+    assert '"wheel"' not in ifml_html
+
+
+def test_full_page_renders_ifml(client):
+    resp = client.get(f"/view/{quote(CHAT_IFML, safe='')}")
+    assert resp.status_code == 200
+    assert 'class="ifml-diagram"' in resp.text
+    assert ".ifml-action {" in resp.text  # IFML CSS lives in page.html
+
+
+def test_ifml_css_not_in_fragment(ifml_html):
+    assert ".ifml-action {" not in ifml_html
+
+
+def test_non_ifml_model_has_no_ifml_svg(client):
+    html = _fragment(client, f"{CHAT}chat_architecture")
+    assert 'class="ifml-diagram"' not in html

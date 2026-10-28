@@ -312,7 +312,13 @@
         }).catch(function (err) { console.error("C4 render failed:", err); });
       })();
     </script>
-  {% elif render_kind in ("ifml", "statechart") %}
+  {% elif render_kind == "ifml" %}
+    {% if ifml %}
+    {% include "ifml.html" %}
+    {% else %}
+    <p class="warning">No IFML diagram could be derived for this model.</p>
+    {% endif %}
+  {% elif render_kind == "statechart" %}
     <div id="network" style="height:480px;border:1px solid #ccc;"></div>
     <script>
       (function () {

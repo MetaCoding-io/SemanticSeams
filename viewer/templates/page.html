@@ -116,6 +116,40 @@
     .c4-legend-count { color: #666; font-variant-numeric: tabular-nums; }
     .c4-legend-item[aria-pressed="true"] { opacity: 0.5; background: #f4f5f7; }
     .c4-legend-item[aria-pressed="true"] .c4-legend-label { text-decoration: line-through; }
+    /* IFML drawn as IFML (M006/S05, D011): server-side SVG from viewer/ifml.py.
+       Chrome uses the interaction layer token, like the S01 cards. */
+    .ifml-canvas { overflow: auto; border: 1px solid #ccc; background: #fff; }
+    .ifml-diagram { display: block; max-width: 100%; height: auto; font-family: system-ui, sans-serif; }
+    .ifml-diagram [data-iri] { cursor: pointer; }
+    .ifml-container-bg { fill: #fffaf2; stroke: var(--layer-interaction); stroke-width: 1.5; }
+    .ifml-container-title { fill: var(--layer-interaction); fill-opacity: 0.15; stroke: var(--layer-interaction); stroke-width: 1.5; }
+    .ifml-container-name { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
+    .ifml-container:hover > .ifml-container-bg { stroke-width: 2.5; }
+    .ifml-component-bg { fill: #fff; stroke: var(--layer-interaction); stroke-width: 1.5; }
+    .ifml-component:hover > .ifml-component-bg { stroke: #555; stroke-width: 2; }
+    .ifml-stereotype { fill: #555; font: 11px system-ui, sans-serif; }
+    .ifml-name { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
+    .ifml-binding-bg { fill: var(--layer-data); fill-opacity: 0.12; stroke: var(--layer-data); stroke-width: 1; }
+    .ifml-binding-text { fill: #1a1a1a; font: 10px system-ui, sans-serif; }
+    .ifml-field-bg { fill: #f8f9fb; stroke: #d5d9df; stroke-width: 1; }
+    .ifml-field-text { fill: #1a1a1a; font: 10px system-ui, sans-serif; }
+    .ifml-field-kind { fill: #888; font: italic 9px system-ui, sans-serif; }
+    .ifml-event-circle { stroke: #1a1a1a; stroke-width: 1.5; }
+    .ifml-event-user .ifml-event-circle { fill: #fff; }
+    .ifml-event-system .ifml-event-circle { fill: #1a1a1a; }
+    .ifml-event:hover .ifml-event-circle { stroke-width: 2.5; }
+    .ifml-event-label { fill: #1a1a1a; font: 10px system-ui, sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+    .ifml-action { fill: var(--layer-process); fill-opacity: 0.1; stroke: var(--layer-process); stroke-width: 1.5; }
+    .ifml-action-group:hover .ifml-action { stroke-width: 2.5; }
+    .ifml-action-label { fill: #1a1a1a; font: 600 12px system-ui, sans-serif; }
+    .ifml-flow-line { fill: none; stroke: #555; stroke-width: 1.5; }
+    .ifml-flow:hover .ifml-flow-line { stroke: #1a1a1a; stroke-width: 2.5; }
+    .ifml-arrowhead { fill: #555; }
+    .ifml-note-bg { fill: #fffbe6; stroke: #b8a76a; stroke-width: 1; }
+    .ifml-note-fold { fill: none; stroke: #b8a76a; stroke-width: 1; }
+    .ifml-note-connector { fill: none; stroke: #b8a76a; stroke-width: 1; }
+    .ifml-note-text { fill: #1a1a1a; font: 11px system-ui, sans-serif; }
+    .ifml-seam-dot { stroke: #fff; stroke-width: 1; }
   </style>
 </head>
 <body>

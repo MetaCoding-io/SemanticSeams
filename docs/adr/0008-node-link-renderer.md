@@ -35,6 +35,10 @@ System-to-system edges at L1 come from `docs/queries/c4-l1-rollup.rq`, which rol
 
 The C4 view has a legend with one entry per node type (the node's `type` qname) and its count at the current level. Clicking an entry toggles that type in a `?hide=` query parameter, so a filtered view is a shareable URL, like `?level=`. Hiding is server-side in `viewer/legend.py` (decision D010). A hidden node with a visible ancestor is collapsed into that ancestor. A hidden node with no visible ancestor is contracted, so its visible predecessors connect to its visible successors. Rerouted edges carry kind `contracted` and are drawn dashed. The level toggle and legend links carry `hide`; descent links do not.
 
+### IFML
+
+M006/S05 draws IFML as IFML, not as a node-link graph (decision D011). `viewer/ifml.py` derives the IFML elements from the graph (containers with `[L]`/`[XOR]`/`[D]` markers, «List»/«Details»/«Form» components with «DataBinding» strips and «SimpleField» rows from the bound SHACL shape, events on component borders, Process Action hexagons, navigation/data/action flows, «ParamBindingGroup» and activation notes) and works out integer geometry in Python. `viewer/templates/ifml.html` only draws that dict as SVG. There is no client-side layout and no ELK for IFML, so the picture is deterministic and pytest can check both geometry and markup. Clicks delegate through `window.seamsNavigate` like every other renderer. The statechart stays on vis-network with the S01 card. The follow-up, if IFML needs editing or richer pan and zoom, is diagram-js with ELK ports for events.
+
 ## Alternatives Considered
 
 - **(a) elkjs + hand-rolled SVG — chosen.**
@@ -52,5 +56,5 @@ The C4 view has a legend with one entry per node type (the node's `type` qname) 
 - **Positive:** The renderer is plain DOM, so htmx navigation, `data-iri` hooks and the shared card all carry over.
 - **Positive:** Levels and the L1 rollup are server-side and tested in pytest; the level is in the URL from the start.
 - **Negative:** The project owns pan and zoom. v1 is drag to pan plus +, − and fit buttons. There is no wheel listener, so the diagram never traps page scroll.
-- **Negative:** Two renderers live side by side for a while. C4 moves first; IFML and the statechart stay on vis-network until S05 and later.
+- **Negative:** Several renderers live side by side for a while: C4 on elkjs + SVG, IFML on server-side SVG (M006/S05, see "IFML" below), and the statechart still on vis-network.
 - **Follow-up:** If pan, zoom and editing needs grow (backlog item 10), move the SVG drawing onto diagram-js and keep the ELK geometry.

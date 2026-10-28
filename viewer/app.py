@@ -722,6 +722,10 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         nodes, edges = GRAPH_BUILDERS[render_kind](focus)
         ctx["nodes"] = nodes
         ctx["edges"] = edges
+        if render_kind == "ifml":
+            # IFML is drawn as IFML from viewer/ifml.py (M006/S05, D011);
+            # nodes/edges are still built, but the ifml template does not use them.
+            ctx["ifml"] = view["ifml"]
     elif render_kind in PAYLOAD_RENDERERS and view["renderPayload"]:
         ctx["payload_url"] = f"/payload/{quote(view['renderPayload'], safe='')}"
         ctx["element_map"] = payload_element_map(focus)

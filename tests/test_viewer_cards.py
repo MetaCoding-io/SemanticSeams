@@ -177,16 +177,22 @@ def test_c4_fragment_layout_and_card_renderer(client):
     assert html.index('class="view-canvas"') < html.index('<aside class="inspector">')
 
 
-def test_ifml_fragment_keeps_vis_card_renderer(client):
-    # IFML stays on vis-network until S05 (ADR-0008).
+def test_ifml_fragment_is_not_vis_network(client):
+    # IFML is drawn as IFML in server-side SVG (M006/S05, D011, ADR-0008).
     html = _fragment(client, f"{CHAT}chat_ifml")
-    assert "new vis.Network" in html
-    assert "zoomView: false" in html
-    assert 'shape: "custom"' in html
-    assert "ctxRenderer" in html
-    assert '"typeLabel":' in html
+    assert "new vis.Network" not in html
+    assert 'class="ifml-diagram"' in html
     assert 'class="level-toggle"' not in html
     assert "new ELK()" not in html
+
+
+def test_statechart_fragment_keeps_vis_card_renderer(client):
+    # The statechart stays on vis-network with the S01 card (ADR-0008).
+    html = _fragment(client, MESSAGE_LIFECYCLE)
+    assert "new vis.Network" in html
+    assert 'shape: "custom"' in html
+    assert "ctxRenderer" in html
+    assert 'class="ifml-diagram"' not in html
 
 
 def test_inspector_seam_dots_carry_layers(client):

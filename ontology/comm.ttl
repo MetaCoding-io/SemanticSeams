@@ -14,7 +14,25 @@
 (hydra:Operation, hydra:method, etc.). This module only adds what Hydra lacks:
 asynchronous channels, and QUERY as a first-class read method. Payload contracts
 are SHACL shapes via seam:acceptsShape / seam:returnsShape; the fragment-vs-data
-distinction is seam:mediaKind.""" .
+distinction is seam:mediaKind.
+
+Addressing reuses Hydra: comm:path points at a hydra:IriTemplate whose
+hydra:template is the URL and whose hydra:mapping entries name, per variable,
+the shape path (hydra:property) that supplies the value. comm:transport and
+comm:eventName say how a channel reaches a client; comm:requestMediaType says
+how an operation's request body is encoded.
+
+Handler-name rule (no term): the code identifier of an operation or channel is
+its IRI local name with a trailing "_op" removed (:send_message_op ->
+send_message, :stream_events -> stream_events).
+
+Token-stream rule (no term): a service task streams when it seam:invokes an
+operation that a container other than its process's executor seam:exposes (an
+outbound call, such as invoke_llm -> :completion_op on :llm_gateway). The
+runtime worker publishes that task's output, token by token, onto the channel
+that the same process's throw event seam:publishesTo, as events named by the
+channel's comm:eventName; the throw event itself, on the same channel, ends the
+stream (ADR-0007 spike finding 2).""" .
 
 comm:Channel a rdfs:Class ;
     rdfs:comment "An async topic/queue/webhook target. Events published here are named-graph payloads whose shape is the channel's seam:acceptsShape." .
@@ -32,3 +50,41 @@ comm:hasChannel a rdf:Property ;
 # read method for graph queries. Convention: use the string literal "QUERY" as the
 # value of hydra:method, exactly like "GET"/"POST". (A comm:QUERY resource would
 # type-clash: hydra:method takes literals.)
+
+#################################################################
+# Addressing, transport and encoding (M004 golden gaps GAP-08/15/18)
+#################################################################
+
+comm:path a rdf:Property ;
+    rdfs:label "path" ;
+    rdfs:range hydra:IriTemplate ;
+    rdfs:comment """The URL of a hydra:Operation or comm:Channel, relative to the exposing
+container: a hydra:IriTemplate with hydra:template "/conversations/{conversation}/messages"
+and one hydra:mapping [ hydra:variable ; hydra:property ] per variable. hydra:property
+names the shape path whose value fills the variable.""" .
+
+comm:Transport a rdfs:Class ;
+    rdfs:comment "How a comm:Channel's events reach a subscriber." .
+
+comm:SSE a comm:Transport ;
+    rdfs:label "Server-Sent Events" .
+
+comm:WebSocket a comm:Transport ;
+    rdfs:label "WebSocket" .
+
+comm:transport a rdf:Property ;
+    rdfs:label "transport" ;
+    rdfs:domain comm:Channel ; rdfs:range comm:Transport .
+
+comm:eventName a rdf:Property ;
+    rdfs:label "event name" ;
+    rdfs:domain comm:Channel ;
+    rdfs:comment "The event type a subscriber listens for (SSE `event:` field, htmx sse-swap)." .
+
+comm:requestMediaType a rdf:Property ;
+    rdfs:label "request media type" ;
+    rdfs:domain hydra:Operation ;
+    rdfs:comment """Literal media type of the request body, e.g.
+"application/x-www-form-urlencoded" for an htmx form post or "application/json"
+for a seam:Data operation. seam:acceptsShape says what the body holds; this says
+how it is encoded.""" .

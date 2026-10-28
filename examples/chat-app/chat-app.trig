@@ -212,7 +212,10 @@
         sh:property [ sh:path :timestamp ; sh:datatype xsd:dateTime ; sh:maxCount 1 ] ;
         seam:inModel :chat_data_shapes .
 
+    # Identifier convention: a shape that is addressed in a URL carries exactly
+    # one string :id; comm:path templates map their variables to it.
     :ConversationShape a sh:NodeShape ; rdfs:label "Conversation" ;
+        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
         sh:property [ sh:path :title ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
         sh:property [ sh:path :hasMessage ; sh:class :MessageShape ] ;
         seam:inModel :chat_data_shapes .
@@ -253,10 +256,12 @@
 
     # Architecture → UI/Process seam edges
     :chat_ui seam:presents :chat_ifml ;
-        seam:consumes :send_message_op ;
+        seam:consumes :send_message_op , :list_conversations_op , :message_thread_op ,
+                      :stream_events ;
         seam:deployedTo :web01 .
 
-    :chat_api seam:exposes :send_message_op , :stream_events ;
+    :chat_api seam:exposes :send_message_op , :list_conversations_op , :message_thread_op ,
+                           :stream_events ;
         seam:executes :send_message_process ;
         seam:deployedTo :app01 .
 
@@ -328,16 +333,49 @@
         hydra:method "POST" ;
         seam:acceptsShape :MessageShape ;
         seam:returnsShape :MessageShape ;
-        seam:mediaKind seam:UIFragment .
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations/{conversation}/messages" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "conversation" ;
+                                    hydra:property :id ] ] .
+
+    :list_conversations_op a hydra:Operation ; rdfs:label "List Conversations" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ConversationShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations" ] .
+
+    :message_thread_op a hydra:Operation ; rdfs:label "Message Thread" ;
+        hydra:method "GET" ;
+        seam:returnsShape :MessageShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations/{conversation}/messages" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "conversation" ;
+                                    hydra:property :id ] ] .
 
     :completion_op a hydra:Operation ; rdfs:label "LLM Completion" ;
         hydra:method "POST" ;
         seam:acceptsShape :MessageShape ;
         seam:returnsShape :MessageShape ;
-        seam:mediaKind seam:Data .
+        seam:mediaKind seam:Data ;
+        comm:requestMediaType "application/json" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/v1/chat/completions" ] .
 
     :stream_events a comm:Channel ; rdfs:label "stream.events" ;
-        seam:acceptsShape :MessageShape .
+        seam:acceptsShape :MessageShape ;
+        comm:transport comm:SSE ;
+        comm:eventName "token" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations/{conversation}/stream" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "conversation" ;
+                                    hydra:property :id ] ] .
 
     # Authorization
     :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" .

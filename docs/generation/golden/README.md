@@ -64,14 +64,14 @@ no golden file and are exempt from the citation check.
 
 ## Producibility summary
 
-Counts of non-blank lines per marker. M004 drives the gap column toward zero.
+Counts of non-blank lines per marker, updated as gap rows close. M004 drives the gap column toward zero.
 
 | Artifact | graph | fixed | gap |
 |----------|------:|------:|----:|
-| compose.yaml | 20 | 7 | 42 |
-| chat_page.html | 39 | 18 | 21 |
-| chat_api.py | 16 | 13 | 16 |
-| **total** | **75** | **38** | **79** |
+| compose.yaml | 62 | 7 | 0 |
+| chat_page.html | 43 | 18 | 17 |
+| chat_api.py | 28 | 14 | 5 |
+| **total** | **133** | **39** | **22** |
 
 ## Feeding M004
 

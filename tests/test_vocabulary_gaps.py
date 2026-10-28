@@ -9,6 +9,7 @@ exact-row SPARQL query over the ontologies plus examples/chat-app/chat-app.trig
 test_gap_NN_<topic>.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,8 @@ def test_fixture_loads_ontology_and_chat_app(chat_model):
     assert ask(chat_model, "ASK { seam:exposes a rdf:Property }"), "ontology/*.ttl not loaded"
     assert select(chat_model, "SELECT ?op WHERE { :chat_api seam:exposes ?op }") == {
         (rdflib.URIRef("https://example.org/chat/send_message_op"),),
+        (rdflib.URIRef("https://example.org/chat/list_conversations_op"),),
+        (rdflib.URIRef("https://example.org/chat/message_thread_op"),),
         (rdflib.URIRef("https://example.org/chat/stream_events"),),
     }
 
@@ -281,3 +284,111 @@ def test_deploy_shapes_have_teeth(facts, message):
         data.parse(path, format="turtle")
     data.parse(data=f"{BAD_PREFIXES}\n:svc a arch:Container ; {facts} .", format="turtle")
     assert shacl_messages(data) == {message}
+
+
+# --- GAP-08/11/15/18/21: communication contract for the route and page goldens
+
+
+def test_gap_08_paths(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?op ?method ?template ?variable ?property WHERE {
+               ?op comm:path ?t . ?t a hydra:IriTemplate ; hydra:template ?template .
+               OPTIONAL { ?op hydra:method ?method }
+               OPTIONAL { ?t hydra:mapping ?m . ?m a hydra:IriTemplateMapping ;
+                             hydra:variable ?variable ; hydra:property ?property }
+           }""",
+    )
+    messages = "/conversations/{conversation}/messages"
+    assert rows == {
+        (CHAT.send_message_op, lit("POST"), lit(messages), lit("conversation"), CHAT.id),
+        (CHAT.message_thread_op, lit("GET"), lit(messages), lit("conversation"), CHAT.id),
+        (CHAT.list_conversations_op, lit("GET"), lit("/conversations"), None, None),
+        (CHAT.completion_op, lit("POST"), lit("/v1/chat/completions"), None, None),
+        (CHAT.stream_events, None, lit("/conversations/{conversation}/stream"), lit("conversation"), CHAT.id),
+    }
+    # Every template variable is mapped: no {name} in a template lacks a hydra:variable.
+    for _op, _method, template, variable, _prop in rows:
+        names = set(re.findall(r"{(\w+)}", str(template)))
+        assert names == ({str(variable)} if variable else set()), template
+
+
+def test_gap_11_read_operations(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?op ?shape ?kind WHERE {
+               :chat_api seam:exposes ?op . :chat_ui seam:consumes ?op .
+               ?op a hydra:Operation ; hydra:method "GET" ;
+                   seam:returnsShape ?shape ; seam:mediaKind ?kind .
+           }""",
+    )
+    assert rows == {
+        (CHAT.list_conversations_op, CHAT.ConversationShape, rdflib.URIRef("https://w3id.org/seams/seam#UIFragment")),
+        (CHAT.message_thread_op, CHAT.MessageShape, rdflib.URIRef("https://w3id.org/seams/seam#UIFragment")),
+    }
+    # Identifier convention: the shape addressed in the URL has exactly one string :id.
+    ident = select(
+        chat_model,
+        """SELECT ?shape ?dt ?min ?max WHERE {
+               ?shape sh:property ?p . ?p sh:path :id ; sh:datatype ?dt ;
+                      sh:minCount ?min ; sh:maxCount ?max .
+           }""",
+    )
+    assert ident == {(CHAT.ConversationShape, rdflib.XSD.string, lit(1), lit(1))}
+    # The component -> read-operation link is seam:rendersComponent (T04), not a new term.
+    assert not ask(chat_model, "ASK { ?c seam:readsVia ?op }")
+
+
+def test_gap_15_channel_transport(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?ch ?transport ?event ?template WHERE {
+               :chat_api seam:exposes ?ch . :chat_ui seam:consumes ?ch .
+               ?ch a comm:Channel ; comm:transport ?transport ; comm:eventName ?event ;
+                   comm:path/hydra:template ?template .
+               ?transport a comm:Transport .
+           }""",
+    )
+    comm = rdflib.Namespace("https://w3id.org/seams/comm#")
+    assert rows == {(CHAT.stream_events, comm.SSE, lit("token"), lit("/conversations/{conversation}/stream"))}
+    # Token-event rule (comm.ttl): a service task whose invoked operation is
+    # exposed by another container than the process's executor streams onto the
+    # channel the same process's throw event publishes to.
+    streamed = select(
+        chat_model,
+        """SELECT ?task ?ch WHERE {
+               ?exec seam:executes ?proc . ?proc seam:detailedBy ?m .
+               ?task a proc:ServiceTask ; seam:invokes ?op ; seam:inModel ?m .
+               ?other seam:exposes ?op FILTER(?other != ?exec)
+               ?throw a proc:MessageThrowEvent ; seam:publishesTo ?ch ; seam:inModel ?m .
+           }""",
+    )
+    bpmn = rdflib.Namespace("https://example.org/chat/chat_bpmn#")
+    # persist_user_msg invokes :chat_api's own :send_message_op, so it does not stream.
+    assert streamed == {(bpmn.invoke_llm, CHAT.stream_events)}
+
+
+def test_gap_18_request_encoding(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?op ?method ?media WHERE {
+               ?op a hydra:Operation ; hydra:method ?method .
+               OPTIONAL { ?op comm:requestMediaType ?media }
+           }""",
+    )
+    assert rows == {
+        (CHAT.send_message_op, lit("POST"), lit("application/x-www-form-urlencoded")),
+        (CHAT.completion_op, lit("POST"), lit("application/json")),
+        (CHAT.list_conversations_op, lit("GET"), None),
+        (CHAT.message_thread_op, lit("GET"), None),
+    }
+
+
+def test_gap_21_handler_names(chat_model):
+    """Rule (comm.ttl comment): identifier = IRI local name minus a trailing _op."""
+    exposed = select(chat_model, "SELECT ?x WHERE { :chat_api seam:exposes ?x }")
+    names = {re.sub(r"_op$", "", str(x).removeprefix(str(CHAT))) for (x,) in exposed}
+    assert names == {"send_message", "list_conversations", "message_thread", "stream_events"}
+    assert all(n.isidentifier() for n in names)
+    # The rule needs no term.
+    assert not ask(chat_model, "ASK { ?x seam:codeName ?name }")

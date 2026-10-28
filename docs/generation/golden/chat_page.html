@@ -8,7 +8,7 @@
   <meta charset="utf-8">  {# [fixed] #}
   <title>Chat</title>  {# [gap: GAP-17] #}
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>  {# [fixed] #}
-  <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>  {# [gap: GAP-15] #}
+  <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>  {# [graph: :chat_ui seam:consumes :stream_events comm:transport comm:SSE] #}
 </head>  {# [fixed] #}
 <body>  {# [fixed] #}
 <main id="chat_page" data-seam=":chat_page">  {# [graph: :chat_page ifml:ViewContainer] #}
@@ -19,7 +19,7 @@
       {% for item in conversations %}  {# [graph: :conversation_list ifml:List seam:reads :ConversationShape] #}
       <li>  {# [graph: :conversation_list ifml:List] #}
         <a href="#message_thread"  {# [graph: :select_to_thread ifml:target :message_thread] #}
-           hx-get="/conversations/{{ item.id }}/messages"  {# [gap: GAP-11] #}
+           hx-get="/conversations/{{ item.id }}/messages"  {# [gap: GAP-19] #}
            hx-trigger="click"  {# [gap: GAP-10] #}
            hx-target="#message_thread"  {# [graph: :conversation_list ifml:hasEvent :select_conversation -> :select_to_thread ifml:source ifml:NavigationFlow ifml:target :message_thread] #}
            hx-swap="outerHTML"  {# [gap: GAP-10] #}
@@ -48,9 +48,9 @@
     </ol>  {# [fixed] #}
     {# token stream: :stream_complete_event seam:publishesTo :stream_events comm:Channel [graph: :chat_bpmn#stream_complete_event seam:publishesTo :stream_events comm:Channel] #}
     <div id="stream_events"  {# [graph: :stream_events comm:Channel] #}
-         hx-ext="sse"  {# [gap: GAP-15] #}
-         sse-connect="/conversations/{{ conversation }}/stream"  {# [gap: GAP-15] #}
-         sse-swap="token"  {# [gap: GAP-15] #}
+         hx-ext="sse"  {# [graph: :chat_ui seam:consumes :stream_events comm:transport comm:SSE] #}
+         sse-connect="/conversations/{{ conversation }}/stream"  {# [graph: :stream_events comm:path hydra:template hydra:mapping hydra:property :id] #}
+         sse-swap="token"  {# [graph: :stream_events comm:eventName] #}
          hx-swap="beforeend">  {# [gap: GAP-10] #}
     </div>  {# [fixed] #}
   </section>  {# [fixed] #}
@@ -63,7 +63,7 @@
   {# POST, UIFragment response: :chat_ui seam:consumes :send_message_op [graph: :chat_ui seam:consumes :send_message_op hydra:method seam:mediaKind seam:UIFragment] #}
   {# :send_message -> :send_message_op is assumed: nothing links the event to the operation it calls [gap: GAP-09] #}
   <form id="compose_form" aria-label="Compose Message"  {# [graph: :compose_form ifml:Form rdfs:label] #}
-        hx-post="/conversations/{{ conversation }}/messages"  {# [gap: GAP-08] #}
+        hx-post="/conversations/{{ conversation }}/messages"  {# [gap: GAP-09] #}
         hx-target="#message_thread_items"  {# [gap: GAP-10] #}
         hx-swap="beforeend">  {# [gap: GAP-10] #}
     <label for="compose_content">content</label>  {# [graph: :MessageShape sh:property sh:path :content] #}

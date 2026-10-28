@@ -211,7 +211,8 @@ def test_resolver_rejects_invented_terms(model_terms):
     assert resolve("deploy:Artifact", model_terms)[1]
     assert resolve(":chat_bpmn#invoke_llm", model_terms)[1]
     assert not resolve(":no_such_container", model_terms)[1]
-    assert not resolve("deploy:port", model_terms)[1]
+    assert resolve("deploy:port", model_terms)[1]
+    assert not resolve("deploy:nodeSelector", model_terms)[1]
     assert not resolve("nope:thing", model_terms)[1]
     assert resolve("->", model_terms) is None
     assert resolve("image", model_terms) is None

@@ -11,6 +11,7 @@
 @prefix dec:    <https://w3id.org/seams/dec#> .
 @prefix state:  <https://w3id.org/seams/state#> .
 @prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
 
 <https://w3id.org/seams/shapes> a owl:Ontology ;
@@ -193,3 +194,52 @@ seamsh:MediaKindShape a sh:NodeShape ;
     sh:targetObjectsOf seam:mediaKind ;
     sh:class seam:MediaKind ;
     sh:message "seam:mediaKind takes a seam:MediaKind (seam:UIFragment or seam:Data)." .
+
+#################################################################
+# Deployment facts the generators read
+#################################################################
+
+seamsh:ArtifactShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:artifact ;
+    sh:property [ sh:path deploy:reference ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:artifact has exactly one string deploy:reference." ] ;
+    sh:property [ sh:path deploy:version ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:artifact has at most one string deploy:version." ] .
+
+seamsh:PortShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:port ;
+    sh:property [ sh:path deploy:containerPort ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 1 ; sh:maxInclusive 65535 ;
+        sh:message "A deploy:port has exactly one integer deploy:containerPort in 1..65535." ] ;
+    sh:property [ sh:path deploy:publishedPort ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 1 ; sh:maxInclusive 65535 ;
+        sh:message "deploy:publishedPort is at most one integer in 1..65535." ] .
+
+seamsh:VolumeShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:volume ;
+    sh:property [ sh:path deploy:volumeName ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:volume has exactly one string deploy:volumeName." ] ;
+    sh:property [ sh:path deploy:mountPath ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^/" ;
+        sh:message "A deploy:volume has exactly one absolute deploy:mountPath." ] .
+
+seamsh:HealthcheckShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:healthcheck ;
+    sh:property [ sh:path deploy:probe ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:healthcheck has exactly one string deploy:probe." ] .
+
+seamsh:BindingShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:binding ;
+    sh:property [ sh:path deploy:key ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A deploy:binding has exactly one deploy:key." ] ;
+    sh:xone ( [ sh:path deploy:value ; sh:minCount 1 ]
+              [ sh:path deploy:secretRef ; sh:minCount 1 ]
+              [ sh:path deploy:serviceOf ; sh:minCount 1 ] ) ;
+    sh:property [ sh:path deploy:serviceOf ; sh:class arch:Container ;
+        sh:message "deploy:serviceOf points at an arch:Container." ] ;
+    sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef or deploy:serviceOf." .
+
+seamsh:SecretNameShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:secretName ;
+    sh:property [ sh:path deploy:secretRef ; sh:minCount 1 ;
+        sh:message "deploy:secretName names the platform secret for a deploy:secretRef binding; a binding with a secretName must carry a secretRef." ] .

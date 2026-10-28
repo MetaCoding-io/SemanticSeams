@@ -41,6 +41,11 @@
     :chat_ui a arch:Container ; rdfs:label "Chat Web Interface" ;
         arch:technology "htmx + server-rendered fragments" ;
         arch:dependsOn :chat_api ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/chat-ui" ;
+                          deploy:version "latest" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
+        deploy:dependsOn :chat_api ;
         seam:inModel :chat_architecture .
 
     :chat_api a arch:Container ; rdfs:label "Chat API" ;
@@ -51,9 +56,14 @@
                           deploy:version "0.3.1" ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "DB_URL" ;
-                                                deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ] ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ;
+                                                deploy:secretName "chat-prod-db-url" ] ;
                                deploy:binding [ deploy:key "LLM_API_KEY" ;
-                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ] ] ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ;
+                                                deploy:secretName "chat-prod-llm-key" ] ;
+                               deploy:binding [ deploy:key "LLM_GATEWAY_URL" ;
+                                                deploy:serviceOf :llm_gateway ] ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
         deploy:replicas 3 ;
         deploy:dependsOn :message_db ;
         deploy:placement [ a deploy:PlacementPolicy ;
@@ -62,10 +72,29 @@
 
     :llm_gateway a arch:Container ; rdfs:label "LLM Provider Gateway" ;
         arch:technology "OpenAI-compatible API proxy" ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/llm-gateway" ;
+                          deploy:version "latest" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "UPSTREAM_BASE_URL" ;
+                                                deploy:value "https://api.openai.com/v1" ] ] ;
         seam:inModel :chat_architecture .
 
     :message_db a arch:Container ; rdfs:label "Message Store" ;
         arch:technology "PostgreSQL" ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "postgres" ;
+                          deploy:version "16" ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "POSTGRES_DB" ;
+                                                deploy:value "chat" ] ] ;
+        deploy:volume [ a deploy:Volume ;
+                        deploy:volumeName "message_db_data" ;
+                        deploy:mountPath "/var/lib/postgresql/data" ] ;
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "pg_isready -U postgres" ;
+                             deploy:interval "5s" ] ;
         seam:inModel :chat_architecture .
 
     :prod a arch:Environment ; rdfs:label "Production" ;

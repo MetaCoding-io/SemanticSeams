@@ -57,6 +57,73 @@ deploy:value a rdf:Property .
 deploy:secretRef a rdf:Property ;
     rdfs:comment "IRI into a secret manager (e.g. an Infisical path). NEVER inline secret literals." .
 
+deploy:secretName a rdf:Property ;
+    rdfs:label "secret name" ;
+    rdfs:comment "Name of the secret in the target platform's secret store (e.g. a compose/swarm external secret), on a binding that carries a deploy:secretRef. The secret value never enters the graph; generators render the name as an external secret source." .
+
+deploy:serviceOf a rdf:Property ;
+    rdfs:label "service of" ;
+    rdfs:range arch:Container ;
+    rdfs:comment "Derived binding: the binding's value is the in-network URL of the referenced container, rendered as http://<service name>:<deploy:containerPort>. Use instead of a literal deploy:value so the URL follows the target's name and port." .
+
+#################################################################
+# Network, storage, readiness
+#################################################################
+
+deploy:Port a rdfs:Class ;
+    rdfs:label "Port" ;
+    rdfs:comment "A port a container listens on. Without deploy:publishedPort it is internal to the deployment network (compose 'expose'); with one it is published to the host (compose 'ports')." .
+
+deploy:port a rdf:Property ;
+    rdfs:label "port" ;
+    rdfs:domain arch:Container ; rdfs:range deploy:Port .
+
+deploy:containerPort a rdf:Property ;
+    rdfs:label "container port" ;
+    rdfs:domain deploy:Port ; rdfs:range xsd:integer ;
+    rdfs:comment "Port number the container listens on." .
+
+deploy:publishedPort a rdf:Property ;
+    rdfs:label "published port" ;
+    rdfs:domain deploy:Port ; rdfs:range xsd:integer ;
+    rdfs:comment "Host port the container port is published on. Absent means internal only." .
+
+deploy:Volume a rdfs:Class ;
+    rdfs:label "Volume" ;
+    rdfs:comment "Named persistent storage that outlives a container, mounted into it at deploy:mountPath." .
+
+deploy:volume a rdf:Property ;
+    rdfs:label "volume" ;
+    rdfs:domain arch:Container ; rdfs:range deploy:Volume .
+
+deploy:volumeName a rdf:Property ;
+    rdfs:label "volume name" ;
+    rdfs:domain deploy:Volume ;
+    rdfs:comment "Name of the volume resource (compose top-level 'volumes' key)." .
+
+deploy:mountPath a rdf:Property ;
+    rdfs:label "mount path" ;
+    rdfs:domain deploy:Volume ;
+    rdfs:comment "Absolute path inside the container where the volume is mounted." .
+
+deploy:Healthcheck a rdfs:Class ;
+    rdfs:label "Healthcheck" ;
+    rdfs:comment "How the platform decides a container is ready: a probe command run on an interval." .
+
+deploy:healthcheck a rdf:Property ;
+    rdfs:label "healthcheck" ;
+    rdfs:domain arch:Container ; rdfs:range deploy:Healthcheck .
+
+deploy:probe a rdf:Property ;
+    rdfs:label "probe" ;
+    rdfs:domain deploy:Healthcheck ;
+    rdfs:comment "Shell command whose exit status 0 means ready (compose renders it as CMD-SHELL)." .
+
+deploy:interval a rdf:Property ;
+    rdfs:label "interval" ;
+    rdfs:domain deploy:Healthcheck ;
+    rdfs:comment "Time between probes, as a duration string (e.g. '5s')." .
+
 #################################################################
 # Resources, replication, ordering
 #################################################################
@@ -83,7 +150,8 @@ deploy:PlacementPolicy a rdfs:Class ;
     rdfs:comment "WHY a container lands where it does: affinity to an Environment or node class, hardware requirements, anti-affinity. seam:deployedTo becomes the RESOLVED OUTPUT of applying this policy, not a hand-asserted fact." .
 
 deploy:placement a rdf:Property ;
-    rdfs:domain arch:Container ; rdfs:range deploy:PlacementPolicy .
+    rdfs:domain arch:Container ; rdfs:range deploy:PlacementPolicy ;
+    rdfs:comment "Placement policy of the container. Generator rule: the RESOLVED placement, the container's seam:deployedTo node, renders as the swarm constraint 'node.labels.seams.node == <node rdfs:label>' whether or not a policy is asserted; the policy explains the choice, the deployedTo fact drives the output." .
 
 deploy:targetEnvironment a rdf:Property ;
     rdfs:domain deploy:PlacementPolicy ; rdfs:range arch:Environment .

@@ -30,6 +30,7 @@
   :root{
     --bg:#f4f1ea; --surface:#fffdf8; --surface-2:#ebe6db; --ink:#1d2a35; --ink-dim:#5b6b78; --ink-faint:#8795a0;
     --line:#d6cfc2; --line-strong:#b9b0a0; --seam:#b4532a; --seam-soft:#f3e2d8; --view:#1f6f8b; --view-soft:#dcebf0;
+    --ok:#2f7a4c; --ok-soft:#e0eee4;
     --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace; --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
     --radius:4px; color-scheme:light dark;
   }
@@ -37,6 +38,7 @@
     :root:not([data-theme="light"]){
       --bg:#121a20; --surface:#192329; --surface-2:#212d35; --ink:#e8ece9; --ink-dim:#a3b0b8; --ink-faint:#6f7f89;
       --line:#2c3a43; --line-strong:#43545f; --seam:#e8865c; --seam-soft:#3a2418; --view:#5fb9d3; --view-soft:#15303a;
+      --ok:#6cc08f; --ok-soft:#16301f;
     }
   }
   *{box-sizing:border-box} html,body{margin:0;padding:0}
@@ -77,9 +79,31 @@
   pre .k{color:var(--view)} pre .s{color:var(--seam)}
   .status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
   @media (max-width:760px){.status{grid-template-columns:1fr 1fr}}
-  .status div{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .status > div{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .status .k{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--ink)}
   .status .l{font-size:13.5px;color:var(--ink-dim);margin-top:4px}
+  h3.part{font-size:19px;letter-spacing:-.01em;margin:40px 0 6px;font-weight:600}
+  .miles{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  .miles li{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;align-items:start;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  @media (max-width:560px){.miles li{grid-template-columns:1fr;gap:6px}}
+  .miles b{display:block;font-weight:600}
+  .miles p{margin:2px 0 0;color:var(--ink-dim);font-size:15px}
+  .pill{display:inline-block;font-family:var(--mono);font-size:12px;line-height:1.6;padding:1px 9px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .pill.done{color:var(--ok);background:var(--ok-soft);border-color:var(--ok)}
+  .pill.design{color:var(--view);background:var(--view-soft);border-color:var(--view)}
+  .pill.planned{color:var(--ink-dim);background:var(--surface-2);border-color:var(--line-strong)}
+  .gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media (max-width:640px){.gallery{grid-template-columns:1fr}}
+  .soon{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
+  .soon .wide{grid-column:1 / -1}
+  @media (max-width:760px){.soon{grid-template-columns:1fr}}
+  figure.shot{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  figure.shot > a{display:block;line-height:0;border-bottom:1px solid var(--line)}
+  figure.shot > a:focus-visible{outline:2px solid var(--view);outline-offset:-2px}
+  figure.shot img{display:block;width:100%;height:auto}
+  figure.shot figcaption{padding:10px 12px 12px;font-size:14px;color:var(--ink-dim)}
+  figure.shot figcaption b{display:block;color:var(--ink);font-weight:600;margin-bottom:2px}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--seam);display:block;margin-bottom:4px}
   footer{border-top:1px solid var(--line);padding:28px 0 40px;font-size:14px;color:var(--ink-dim)}
   .footrow{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .footrow a{color:var(--ink-dim)} .footrow nav{border:0;background:none;display:flex;gap:16px;flex-wrap:wrap}
@@ -115,7 +139,7 @@
 <section id="descent">
   <div class="wrap">
     <h2>Zooming in is a graph traversal</h2>
-    <p class="sub">Click a node and the renderer switches with the node's notation. The descent below is the canonical one, and the viewer completes it over a hand-authored model today.</p>
+    <p class="sub">Click a node and the renderer switches with the node's notation. The descent below is the canonical one, and the viewer completes it over a hand-authored model today: <a href="#viewer-today">see the screenshots</a>.</p>
     <div class="descent">
       <svg viewBox="0 0 480 400" role="img" aria-label="Four stacked layers, architecture, interaction, process and decision or data, joined by seam edges">
         <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="#b4532a"/></marker></defs>
@@ -183,14 +207,42 @@
 <section id="status">
   <div class="wrap">
     <h2>Where it is</h2>
-    <p class="sub">Concept and proof of concept, July to September 2026. The pieces below exist and are under test; editing, SHACL-driven forms, IFML to htmx generation and deployment generation come after.</p>
+    <p class="sub">Proof of concept, July to October 2026. A read-only viewer completes the descent from architecture to decision table by clicking, and everything below runs under test in CI. A shared visual language for the viewer comes next, then generating the application from the model.</p>
     <div class="status">
       <div><div class="k">25</div><div class="l">bridging predicates in <code>seam.ttl</code>, with SHACL shapes over them</div></div>
       <div><div class="k">2</div><div class="l">worked examples: a checkout flow and a chat app, with native BPMN and DMN payloads</div></div>
       <div><div class="k">3</div><div class="l">canned cross-layer queries, exact rows asserted in CI</div></div>
-      <div><div class="k">1</div><div class="l">read-only viewer (FastAPI, htmx, bpmn-js, dmn-js) that completes the descent by clicking</div></div>
+      <div><div class="k">83</div><div class="l">acceptance and viewer tests, run on every push</div></div>
     </div>
-    <p class="sub" style="margin-top:22px">Developed against <a href="https://github.com/MetaCoding-io/semantic-stack">semantic-stack</a>, the Docker stack of triple stores and RDF tooling, and released under Apache-2.0.</p>
+
+    <h3 class="part">Milestones</h3>
+    <ol class="miles">
+      <li><span><span class="pill done">Done</span></span><div><b>The descent</b><p>Architecture, then interface, then process, then decision, by clicking. Breadcrumbs record the path, an element with two detail views asks which to open, and DMN decision tables click through.</p></div></li>
+      <li><span><span class="pill done">Done</span></span><div><b>Trust and questions</b><p>A SHACL model-health badge on every view, and canned cross-layer questions on the inspector, answered inline with their exact rows asserted in CI.</p></div></li>
+      <li><span><span class="pill design">In design</span></span><div><b>One visual language</b><p>A single node card with a dot for every seam, containers opened in place on a deterministic layout, and IFML drawn in its own notation. See <a href="#coming-soon">coming soon</a> and the <a href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/backlog.md">backlog</a>.</p></div></li>
+      <li><span><span class="pill planned">Planned</span></span><div><b>Generation</b><p>htmx pages, a FastAPI route module and a docker-compose file generated from the model, with the BPMN and DMN executed by SpiffWorkflow rather than generated. Proposed in <a href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/adr/0007-execution-strategy.md">ADR-0007</a>.</p></div></li>
+    </ol>
+
+    <h3 class="part" id="viewer-today">The viewer today</h3>
+    <p class="sub">The running viewer on the chat-app example, captured in October 2026. Each step follows one seam. Select an image to open it full size.</p>
+    <div class="gallery">
+      <figure class="shot"><a href="img/viewer-architecture.webp"><img src="img/viewer-architecture.webp" width="1280" height="710" loading="lazy" alt="The chat app's architecture view: a system containing four containers and a production environment with three nodes, under a green Conforms badge"></a><figcaption><b>Architecture</b>The entry point: the chat app's C4 view, with the model-health badge above it.</figcaption></figure>
+      <figure class="shot"><a href="img/viewer-interaction.webp"><img src="img/viewer-interaction.webp" width="1280" height="710" loading="lazy" alt="The chat interface's IFML model drawn as a node-link graph of the page, its components, events, parameters and flows"></a><figcaption><b>Interface</b>Clicking the web interface lands on the IFML model it presents.</figcaption></figure>
+      <figure class="shot"><a href="img/viewer-process.webp"><img src="img/viewer-process.webp" width="1280" height="710" loading="lazy" alt="The message-processing BPMN diagram: persist the user message, route to provider, invoke the LLM, persist the response, signal stream complete"></a><figcaption><b>Process</b>Clicking Send Message lands on the BPMN process it triggers, drawn by bpmn-js from the native XML.</figcaption></figure>
+      <figure class="shot"><a href="img/viewer-disambiguation.webp"><img src="img/viewer-disambiguation.webp" width="1280" height="710" loading="lazy" alt="A chooser for Route to Provider offering two detail views: the DMN decision model and the chat data model"></a><figcaption><b>A choice</b>The rule task's decision is detailed by two models, so the viewer asks which to open.</figcaption></figure>
+      <figure class="shot"><a href="img/viewer-decision-table.webp"><img src="img/viewer-decision-table.webp" width="1280" height="710" loading="lazy" alt="The Route to Provider decision table, hit policy First: long user messages go to a long-context provider, everything else to the default provider"></a><figcaption><b>Decision</b>The DMN decision table behind the rule task, drawn by dmn-js.</figcaption></figure>
+      <figure class="shot"><a href="img/viewer-impact-question.webp"><img src="img/viewer-impact-question.webp" width="1280" height="710" loading="lazy" alt="The db01 deployment node with its question answered: four impacted results, the message store, chat API, web interface and send-message process"></a><figcaption><b>A question</b>What breaks if db01 goes away: containers and a process, answered inline from one SPARQL query.</figcaption></figure>
+    </div>
+
+    <h3 class="part" id="coming-soon">Coming soon</h3>
+    <p class="sub">Design mocks drawn over the same chat-app model. None of this is in the viewer yet. The first two are the next viewer work in the backlog; the third is further out.</p>
+    <div class="soon">
+      <figure class="shot wide"><a href="img/mock-ifml-notation.webp"><img src="img/mock-ifml-notation.webp" width="1308" height="728" loading="lazy" alt="The chat interface drawn in IFML notation: a landmark page box holding a List, a Details and a Form component, events as circles on their borders, a dashed data flow with its parameter binding, and the Send Message process as an Action hexagon"></a><figcaption><span class="tag">Design mock · next</span><b>IFML in its own notation</b>The same triples drawn the way IFML tools draw them. Data bindings and form fields come from the SHACL shapes, and the process a button triggers appears as an action you can click into. <a href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/research/2026-10-15-ifml-notation.md">Design note</a></figcaption></figure>
+      <figure class="shot"><a href="img/mock-nest-mode.webp"><img src="img/mock-nest-mode.webp" width="1600" height="885" loading="lazy" alt="The architecture view with the web interface and chat API containers opened in place, showing the IFML model and the BPMN process scaled down inside them"></a><figcaption><span class="tag">Design mock · next</span><b>Open it in place</b>Containers open inside the architecture view instead of leaving it: the interface a container presents and the process it executes, scaled down inside the card. <a href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/research/2026-10-15-reveal-modes.md">Design note</a></figcaption></figure>
+      <figure class="shot"><a href="img/mock-layer-mode.webp"><img src="img/mock-layer-mode.webp" width="1200" height="1544" loading="lazy" alt="All six layers stacked as planes, with one process task's seams traced as dashed lines to the operation it invokes, the shape it writes and the state it fires"></a><figcaption><span class="tag">Design mock · later</span><b>See the layers at once</b>Every layer on its own plane, with one task's seams traced across them. <a href="https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/research/2026-10-15-reveal-modes.md">Design note</a></figcaption></figure>
+    </div>
+
+    <p class="sub" style="margin-top:28px">Developed against <a href="https://github.com/MetaCoding-io/semantic-stack">semantic-stack</a>, the Docker stack of triple stores and RDF tooling, and released under Apache-2.0.</p>
   </div>
 </section>
 

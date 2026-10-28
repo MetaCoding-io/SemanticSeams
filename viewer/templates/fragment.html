@@ -31,7 +31,272 @@
 
   <div class="view-layout">
   <div class="view-canvas">
-  {% if render_kind in ("c4", "ifml", "statechart") %}
+  {% if render_kind == "c4" %}
+    {# C4 on ELK + hand-rolled SVG (M006/S02, ADR-0008): nested frames,
+       deterministic positions, L1/L2/L3 from viewer/levels.py. #}
+    <nav class="level-toggle" aria-label="C4 level">
+      {% for lv in levels %}
+        <a href="{{ lv.href }}" hx-get="{{ lv.href }}" hx-target="#view-content" hx-push-url="true" data-level="{{ lv.id }}" title="{{ lv.title }}"{% if lv.active %} aria-current="true"{% endif %}>{{ lv.id }} {{ lv.title }}</a>
+      {% endfor %}
+    </nav>
+    <div id="c4-canvas" class="c4-canvas" data-level="{{ level }}">
+      <div class="c4-controls">
+        <button type="button" data-zoom="in" title="Zoom in">+</button>
+        <button type="button" data-zoom="out" title="Zoom out">&minus;</button>
+        <button type="button" data-zoom="fit" title="Fit">&#9634;</button>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var SVG_NS = "http://www.w3.org/2000/svg";
+        var colours = window.seamsLayerColours || {};
+        function layerColour(layer) {
+          return colours[layer] || colours.other || "#9ca3af";
+        }
+        // Same card geometry as the S01 vis-network card.
+        var CARD_W = 200, CARD_H = 70, CARD_H_SHORT = 54, PAD = 10, DOT = 8, DOT_GAP = 4;
+        var FRAME_TITLE = 34;
+        var measureCtx = document.createElement("canvas").getContext("2d");
+        function ellipsize(font, text, maxWidth) {
+          measureCtx.font = font;
+          if (measureCtx.measureText(text).width <= maxWidth) return text;
+          var lo = 0, hi = text.length;
+          while (lo < hi) {
+            var mid = Math.ceil((lo + hi) / 2);
+            if (measureCtx.measureText(text.slice(0, mid) + "…").width <= maxWidth) lo = mid; else hi = mid - 1;
+          }
+          return text.slice(0, lo) + "…";
+        }
+        function textWidth(font, text) {
+          measureCtx.font = font;
+          return measureCtx.measureText(text).width;
+        }
+        function el(name, attrs, parent) {
+          var e = document.createElementNS(SVG_NS, name);
+          Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+          if (parent) parent.appendChild(e);
+          return e;
+        }
+        function text(parent, cls, x, y, content) {
+          var t = el("text", { "class": cls, x: x, y: y, "dominant-baseline": "middle" }, parent);
+          t.textContent = content;
+          return t;
+        }
+        var FONT_PILL = "600 10px system-ui, sans-serif";
+        var FONT_LABEL = "600 13px system-ui, sans-serif";
+        var FONT_DESC = "11px system-ui, sans-serif";
+        var FONT_EDGE = "10px system-ui, sans-serif";
+
+        var nodeData = {{ nodes | tojson }};
+        var edgeData = {{ edges | tojson }};
+        var byId = {};
+        nodeData.forEach(function (n) { byId[n.id] = n; });
+        var childrenOf = {};
+        nodeData.forEach(function (n) {
+          var p = n.parent && byId[n.parent] ? n.parent : "";
+          (childrenOf[p] = childrenOf[p] || []).push(n);
+        });
+
+        // Flat nodes with parent -> nested ELK children. Input order is the
+        // server's sorted order, so the layout is the same on every load.
+        function elkNode(n) {
+          var kids = childrenOf[n.id] || [];
+          if (kids.length) {
+            return {
+              id: n.id,
+              layoutOptions: { "elk.padding": "[top=" + (FRAME_TITLE + 12) + ",left=16,bottom=16,right=16]" },
+              children: kids.map(elkNode),
+            };
+          }
+          return { id: n.id, width: CARD_W, height: n.description ? CARD_H : CARD_H_SHORT };
+        }
+        var graph = {
+          id: "root",
+          layoutOptions: {
+            "elk.algorithm": "layered",
+            "elk.direction": "DOWN",
+            "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+            "elk.randomSeed": "1",
+            "elk.spacing.nodeNode": "40",
+            "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+            "elk.edgeLabels.placement": "CENTER",
+            "elk.padding": "[top=20,left=20,bottom=20,right=20]",
+          },
+          children: (childrenOf[""] || []).map(elkNode),
+          // Edges sit on the root; INCLUDE_CHILDREN routes them across frames.
+          edges: edgeData.map(function (e, i) {
+            return {
+              id: "e" + i,
+              sources: [e.from],
+              targets: [e.to],
+              labels: e.label ? [{ text: e.label, width: textWidth(FONT_EDGE, e.label) + 4, height: 12 }] : [],
+            };
+          }),
+        };
+
+        var container = document.getElementById("c4-canvas");
+        var svg = el("svg", { "aria-label": "C4 diagram" });
+        container.insertBefore(svg, container.firstChild);
+        var defs = el("defs", {}, svg);
+        var marker = el("marker", { id: "c4-arrow", viewBox: "0 0 10 10", refX: "10", refY: "5", markerWidth: "8", markerHeight: "8", orient: "auto-start-reverse" }, defs);
+        el("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#9aa0a8" }, marker);
+        var world = el("g", { "class": "c4-world" }, svg);
+
+        function drawPill(g, x, y, label, maxWidth) {
+          var pill = ellipsize(FONT_PILL, label, maxWidth);
+          var w = textWidth(FONT_PILL, pill) + 12;
+          el("rect", { "class": "c4-pill-bg", x: x, y: y, width: w, height: 15, rx: 7 }, g);
+          text(g, "c4-pill", x + 6, y + 8, pill);
+          return w;
+        }
+        function drawSeamDots(g, n, right) {
+          var seams = n.seams || [];
+          var dx = right - PAD - DOT / 2;
+          for (var i = seams.length - 1; i >= 0; i--) {
+            var c = el("circle", { "class": "c4-seam", cx: dx, cy: 14, r: DOT / 2, fill: layerColour(seams[i].targetLayer) }, g);
+            el("title", {}, c).textContent = seams[i].predicateLabel + " → " + seams[i].targetLabel;
+            dx -= DOT + DOT_GAP;
+          }
+          return seams.length ? seams.length * (DOT + DOT_GAP) : 0;
+        }
+        function nodeGroup(n, x, y, cls) {
+          var g = el("g", {
+            "class": cls,
+            transform: "translate(" + x + "," + y + ")",
+            "data-iri": n.id,
+            "data-layer": n.layer || "other",
+            "data-parent": n.parent || "",
+          }, world);
+          el("title", {}, g).textContent = n.label + (n.typeLabel ? " (" + n.typeLabel + ")" : "");
+          g.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            if (moved) return;
+            window.seamsNavigate(n.id, "{{ next_path_qs }}");
+          });
+          return g;
+        }
+        function drawFrame(n, x, y, w, h) {
+          var g = nodeGroup(n, x, y, "c4-frame");
+          el("rect", { "class": "c4-frame-bg", width: w, height: h, rx: 8 }, g);
+          el("rect", { "class": "c4-accent", x: 1, y: 1, width: w - 2, height: 4, rx: 2, fill: layerColour(n.layer) }, g);
+          var dots = drawSeamDots(g, n, w);
+          var pillW = drawPill(g, PAD + 4, 10, n.typeLabel || "Element", 120);
+          text(g, "c4-label", PAD + 4 + pillW + 8, 18, ellipsize(FONT_LABEL, n.label || "", w - pillW - dots - PAD * 2 - 16));
+        }
+        function drawCard(n, x, y, w, h) {
+          var g = nodeGroup(n, x, y, "c4-card");
+          el("rect", { "class": "c4-card-bg", width: w, height: h, rx: 6 }, g);
+          // Left accent bar in the node's own layer colour.
+          el("rect", { "class": "c4-accent", x: 1, y: 4, width: 4, height: h - 8, fill: layerColour(n.layer) }, g);
+          var textLeft = PAD + 4, textMax = w - PAD * 2 - 4;
+          var dots = drawSeamDots(g, n, w);
+          drawPill(g, textLeft, 7, n.typeLabel || "Element", textMax - dots - 12);
+          text(g, "c4-label", textLeft, 36, ellipsize(FONT_LABEL, n.label || "", textMax));
+          if (n.description) {
+            text(g, "c4-desc", textLeft, 55, ellipsize(FONT_DESC, n.description, textMax));
+          }
+        }
+
+        // Absolute positions: ELK child coordinates are relative to the parent.
+        var absolute = {};
+        function place(elkN, ox, oy) {
+          var x = ox + (elkN.x || 0), y = oy + (elkN.y || 0);
+          absolute[elkN.id] = { x: x, y: y, width: elkN.width, height: elkN.height };
+          var n = byId[elkN.id];
+          if (elkN.children && elkN.children.length) {
+            drawFrame(n, x, y, elkN.width, elkN.height);
+            elkN.children.forEach(function (c) { place(c, x, y); });
+          } else {
+            drawCard(n, x, y, elkN.width, elkN.height);
+          }
+        }
+        function drawEdges(layout) {
+          var edgeLayer = el("g", { "class": "c4-edges" }, world);
+          (layout.edges || []).forEach(function (e) {
+            // Section coordinates are relative to the edge's container.
+            var off = (e.container && absolute[e.container]) || { x: 0, y: 0 };
+            var src = edgeData[Number(e.id.slice(1))];
+            var g = el("g", { "class": "c4-edge-group", "data-from": src.from, "data-to": src.to, "data-kind": src.kind || "" }, edgeLayer);
+            (e.sections || []).forEach(function (s) {
+              var pts = [s.startPoint].concat(s.bendPoints || [], [s.endPoint]);
+              el("polyline", {
+                "class": "c4-edge",
+                points: pts.map(function (p) { return (p.x + off.x) + "," + (p.y + off.y); }).join(" "),
+                "marker-end": "url(#c4-arrow)",
+              }, g);
+            });
+            (e.labels || []).forEach(function (l) {
+              text(g, "c4-edge-label", l.x + off.x + 2, l.y + off.y + l.height / 2, l.text);
+            });
+          });
+        }
+
+        // Pan and zoom on the wrapper <g>: drag to pan, buttons to zoom.
+        // No wheel listener, so the wheel always scrolls the page.
+        var view = { x: 0, y: 0, k: 1 }, size = { width: 0, height: 0 };
+        function apply() {
+          world.setAttribute("transform", "translate(" + view.x + "," + view.y + ") scale(" + view.k + ")");
+        }
+        function fit() {
+          var cw = container.clientWidth, ch = container.clientHeight;
+          if (!size.width || !size.height) return;
+          view.k = Math.min(cw / size.width, ch / size.height, 1);
+          view.x = (cw - size.width * view.k) / 2;
+          view.y = (ch - size.height * view.k) / 2;
+          apply();
+        }
+        function zoomBy(factor) {
+          var cx = container.clientWidth / 2, cy = container.clientHeight / 2;
+          var k = Math.max(0.2, Math.min(3, view.k * factor));
+          view.x = cx - (cx - view.x) * (k / view.k);
+          view.y = cy - (cy - view.y) * (k / view.k);
+          view.k = k;
+          apply();
+        }
+        container.querySelectorAll(".c4-controls button").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var z = b.getAttribute("data-zoom");
+            if (z === "in") zoomBy(1.25); else if (z === "out") zoomBy(0.8); else fit();
+          });
+        });
+        var drag = null, moved = false;
+        svg.addEventListener("pointerdown", function (ev) {
+          if (ev.button !== 0) return;
+          drag = { x: ev.clientX, y: ev.clientY, vx: view.x, vy: view.y };
+          moved = false;
+        });
+        window.addEventListener("pointermove", function (ev) {
+          if (!drag) return;
+          var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+          if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+          moved = true;
+          container.classList.add("dragging");
+          view.x = drag.vx + dx;
+          view.y = drag.vy + dy;
+          apply();
+        });
+        window.addEventListener("pointerup", function () {
+          drag = null;
+          container.classList.remove("dragging");
+        });
+
+        if (typeof ELK === "undefined") {
+          console.error("C4 render failed: elkjs did not load");
+          return;
+        }
+        new ELK().layout(graph).then(function (layout) {
+          (layout.children || []).forEach(function (c) { place(c, 0, 0); });
+          drawEdges(layout);
+          size = { width: layout.width, height: layout.height };
+          // Diagnostic hook: the ELK result plus absolute node positions,
+          // so browser checks can compare layouts across loads.
+          container.seamsLayout = layout;
+          container.seamsPositions = absolute;
+          fit();
+        }).catch(function (err) { console.error("C4 render failed:", err); });
+      })();
+    </script>
+  {% elif render_kind in ("ifml", "statechart") %}
     <div id="network" style="height:480px;border:1px solid #ccc;"></div>
     <script>
       (function () {

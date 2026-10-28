@@ -167,13 +167,26 @@ def test_c4_fragment_layout_and_card_renderer(client):
     assert 'class="view-canvas"' in html
     assert '<aside class="inspector">' in html
     assert '<section class="inspector">' not in html
-    assert "zoomView: false" in html
-    assert 'shape: "custom"' in html
-    assert "ctxRenderer" in html
+    # C4 draws on ELK + SVG (ADR-0008), with the shared card data.
+    assert "new ELK()" in html
+    assert '"data-iri": n.id' in html
+    assert 'class="level-toggle"' in html
     assert '"seams":' in html
     assert '"typeLabel":' in html
     # The inspector sits after the canvas column, inside the layout.
     assert html.index('class="view-canvas"') < html.index('<aside class="inspector">')
+
+
+def test_ifml_fragment_keeps_vis_card_renderer(client):
+    # IFML stays on vis-network until S05 (ADR-0008).
+    html = _fragment(client, f"{CHAT}chat_ifml")
+    assert "new vis.Network" in html
+    assert "zoomView: false" in html
+    assert 'shape: "custom"' in html
+    assert "ctxRenderer" in html
+    assert '"typeLabel":' in html
+    assert 'class="level-toggle"' not in html
+    assert "new ELK()" not in html
 
 
 def test_inspector_seam_dots_carry_layers(client):

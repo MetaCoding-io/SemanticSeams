@@ -5,6 +5,7 @@
   <title>SemanticSeams Viewer — {{ label }}</title>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/diagram-js.css">
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/bpmn-js.css">
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css">
@@ -72,13 +73,36 @@
     .health-panel details { margin-top: 0.35rem; }
     .health-panel summary { cursor: pointer; }
     .health-panel ul { margin: 0.35rem 0 0 0; padding-left: 1.25rem; }
+    /* C4 node-link view (M006/S02, ADR-0008): ELK layout drawn as SVG. */
+    .level-toggle { display: inline-flex; border: 1px solid #c7ccd4; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .level-toggle a { padding: 0.3rem 0.75rem; color: #14213d; text-decoration: none; background: #fff; border-right: 1px solid #c7ccd4; }
+    .level-toggle a:last-child { border-right: none; }
+    .level-toggle a:hover { background: #f4f5f7; }
+    .level-toggle a[aria-current="true"] { background: #14213d; color: #fff; font-weight: 600; }
+    .c4-canvas { position: relative; height: 520px; overflow: hidden; border: 1px solid #ccc; background: #fff; cursor: grab; user-select: none; }
+    .c4-canvas.dragging { cursor: grabbing; }
+    .c4-canvas svg { display: block; width: 100%; height: 100%; }
+    .c4-controls { position: absolute; right: 0.5rem; bottom: 0.5rem; display: flex; gap: 0.25rem; }
+    .c4-controls button { width: 2rem; height: 2rem; border: 1px solid #c7ccd4; border-radius: 4px; background: #fff; cursor: pointer; font-size: 1rem; }
+    .c4-controls button:hover { background: #f4f5f7; }
+    .c4-card, .c4-frame { cursor: pointer; }
+    .c4-card .c4-card-bg { fill: #fff; stroke: #c7ccd4; stroke-width: 1; }
+    .c4-card:hover .c4-card-bg { stroke: #555; stroke-width: 2; }
+    .c4-frame > .c4-frame-bg { fill: #f8f9fb; stroke: #9aa0a8; stroke-width: 1; stroke-dasharray: 6 3; }
+    .c4-frame:hover > .c4-frame-bg { stroke: #555; }
+    .c4-pill-bg { fill: #eef0f3; }
+    .c4-pill { fill: #444; font: 600 10px system-ui, sans-serif; }
+    .c4-label { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
+    .c4-desc { fill: #555; font: 11px system-ui, sans-serif; }
+    .c4-edge { fill: none; stroke: #9aa0a8; stroke-width: 1.5; }
+    .c4-edge-label { fill: #555; font: 10px system-ui, sans-serif; }
   </style>
 </head>
 <body>
   <script src="https://unpkg.com/bpmn-js@17/dist/bpmn-navigated-viewer.production.min.js"></script>
   <script src="https://unpkg.com/dmn-js@16/dist/dmn-navigated-viewer.production.min.js"></script>
   <script>
-    // Shared by every renderer's click handler (vis-network, bpmn-js, dmn-js).
+    // Shared by every renderer's click handler (ELK/SVG, vis-network, bpmn-js, dmn-js).
     // Defined once here so it survives htmx swaps of #view-content.
     // Layer palette for canvas renderers, read from the :root --layer-*
     // tokens so CSS and canvas share one source of colours.

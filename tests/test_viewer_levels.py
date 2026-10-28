@@ -165,3 +165,57 @@ def test_non_c4_view_has_no_level(client):
     body = _view_json(client, f"{CHAT}ConversationShape", "&level=L1")
     assert body["level"] is None
     assert body["warnings"] == []
+
+
+# --- T03: ELK + SVG renderer and the level toggle ---
+
+
+def _fragment(client, iri, query=""):
+    resp = client.get(f"/view/{quote(iri, safe='')}{query}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    return resp.text
+
+
+def test_c4_fragment_uses_elk(client):
+    html = _fragment(client, CHAT_ARCHITECTURE)
+    assert "ELK" in html
+    assert "INCLUDE_CHILDREN" in html
+    assert '"elk.randomSeed"' in html
+    assert "container.seamsLayout" in html
+    assert "new vis.Network" not in html
+    # Pan/zoom is buttons + drag only; the wheel must keep scrolling the page.
+    assert 'addEventListener("wheel"' not in html
+    assert "addEventListener('wheel'" not in html
+
+
+def test_c4_fragment_level_toggle(client):
+    import re
+
+    html = _fragment(client, CHAT_ARCHITECTURE, "?level=L3")
+    nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
+    links = re.findall(r'<a href="([^"]*)" hx-get="([^"]*)"', nav)
+    assert [h for h, _ in links] == [g for _, g in links]
+    assert [h.rsplit("level=", 1)[1] for h, _ in links] == ["L1", "L2", "L3"]
+    assert nav.count('hx-target="#view-content"') == 3
+    assert nav.count('hx-push-url="true"') == 3
+    current = re.findall(r'data-level="(L\d)"[^>]*aria-current="true"', nav)
+    assert current == ["L3"]
+
+
+def test_c4_fragment_unknown_level_marks_default_active(client):
+    import re
+
+    html = _fragment(client, CHAT_ARCHITECTURE, "?level=bogus")
+    assert re.findall(r'data-level="(L\d)"[^>]*aria-current="true"', html) == ["L2"]
+
+
+def test_non_c4_fragment_has_no_level_toggle(client):
+    html = _fragment(client, f"{CHAT}message_lifecycle", "?level=L1")
+    assert 'class="level-toggle"' not in html
+    assert "new vis.Network" in html
+
+
+def test_full_page_loads_elkjs(client):
+    resp = client.get(f"/view/{quote(CHAT_ARCHITECTURE, safe='')}", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    assert '<script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>' in resp.text

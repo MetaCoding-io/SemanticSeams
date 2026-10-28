@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 
 from viewer import queries as canned_queries
+from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.validation import get_model_conformance
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -364,10 +365,48 @@ def edges_for_predicates(members: set[str], preds: list[tuple]) -> list[dict]:
     return edges
 
 
-def c4_graph_data(model_iri: str) -> tuple[list[dict], list[dict]]:
-    members = set(model_members(model_iri))
-    nodes = nodes_for(members)
-    edges = edges_for_predicates(members, [(ARCH.contains, "contains"), (ARCH.dependsOn, "depends on")])
+def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict], list[dict]]:
+    """Compound C4 graph at one zoom level (ADR-0008, viewer/levels.py).
+
+    Nodes carry a "parent" (the visible node that arch:contains them, or at L3
+    seam:exposes them) instead of contains edges, so the renderer can nest.
+    Output is sorted so repeated calls and processes give identical JSON.
+    """
+    graph = get_graph()
+    spec = C4_LEVELS[level]
+    visible = {
+        m
+        for m in model_members(model_iri)
+        if any(t in spec.classes for t in graph.objects(URIRef(m), RDF.type))
+    }
+
+    parents: dict[str, str] = {}
+    for s, o in graph.subject_objects(ARCH.contains):
+        if str(s) in visible and str(o) in visible:
+            # min() keeps the choice stable if an element has two containers.
+            parents[str(o)] = min(parents.get(str(o), str(s)), str(s))
+    if spec.exposed_elements:
+        for s, o in graph.subject_objects(SEAM.exposes):
+            if str(s) in visible and str(o) not in visible:
+                parents[str(o)] = min(parents.get(str(o), str(s)), str(s))
+        visible |= {o for o, p in parents.items() if p in visible}
+
+    nodes = [{**n, "parent": parents.get(n["id"])} for n in nodes_for(visible)]
+    nodes.sort(key=lambda n: (n["parent"] or "", n["id"]))
+
+    if spec.rollup:
+        edges = [
+            {"from": frm, "to": to, "label": kind, "kind": "rollup"}
+            for frm, to, kind in load_rollup(graph)
+            if frm in visible and to in visible
+        ]
+    else:
+        edges = [
+            {**e, "kind": qname(pred)}
+            for pred, kind in spec.edge_rules
+            for e in edges_for_predicates(visible, [(pred, kind)])
+        ]
+    edges.sort(key=lambda e: (e["from"], e["to"], e["label"]))
     return nodes, edges
 
 
@@ -413,8 +452,25 @@ GRAPH_BUILDERS = {
 }
 
 
-def build_view(iri: str, breadcrumb_trail: list[str], detailed_by_candidates: list[dict] | None = None) -> dict:
-    warnings = []
+def resolve_level(notation: str, requested: str) -> tuple[str | None, list[dict]]:
+    """Effective C4 level and any warnings; None for non-C4 notations."""
+    if notation != "c4":
+        return None, []
+    if not requested:
+        return DEFAULT_LEVEL, []
+    if requested not in C4_LEVELS:
+        return DEFAULT_LEVEL, [{"message": f"Unknown level '{requested}'; showing {DEFAULT_LEVEL}"}]
+    return requested, []
+
+
+def build_view(
+    iri: str,
+    breadcrumb_trail: list[str],
+    detailed_by_candidates: list[dict] | None = None,
+    level: str = "",
+) -> dict:
+    notation = notation_of(iri)
+    effective_level, warnings = resolve_level(notation, level)
     payload = render_payload_of(iri)
     return {
         "@context": "https://w3id.org/seams/context.jsonld",
@@ -422,7 +478,8 @@ def build_view(iri: str, breadcrumb_trail: list[str], detailed_by_candidates: li
         "label": label(iri),
         "types": types_of(iri),
         "focusedModel": focused_model(iri),
-        "notation": notation_of(iri),
+        "notation": notation,
+        "level": effective_level,
         "layer": layer_of(iri),
         "nativeElementId": native_element_id(iri),
         "renderPayload": payload,
@@ -525,13 +582,13 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
 
 
 @app.get("/view/{iri:path}")
-def view_endpoint(request: Request, iri: str, path: str = ""):
+def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
     clicked = unquote(iri)
     incoming_trail = [p for p in unquote(path).split(",") if p]
 
     nav = resolve_navigation(clicked)
     focus = nav["landing"] if nav["candidates"] else (nav["target"] or clicked)
-    view = build_view(focus, incoming_trail, detailed_by_candidates=nav["candidates"])
+    view = build_view(focus, incoming_trail, detailed_by_candidates=nav["candidates"], level=level)
 
     if wants_json(request):
         return JSONResponse(view)
@@ -550,6 +607,18 @@ def view_endpoint(request: Request, iri: str, path: str = ""):
         "native_element_id": view["nativeElementId"],
         "render_payload": view["renderPayload"],
         "warnings": view["warnings"],
+        "level": view["level"],
+        "levels": [
+            {
+                "id": lv.id,
+                "title": lv.title,
+                "href": f"{href_for(focus, incoming_trail)}&level={lv.id}",
+                "active": lv.id == view["level"],
+            }
+            for lv in C4_LEVELS.values()
+        ]
+        if view["level"]
+        else [],
         "model_conformance": view["modelConformance"],
         "outgoing": view["seamEdges"]["outgoing"],
         "incoming": view["seamEdges"]["incoming"],
@@ -571,7 +640,11 @@ def view_endpoint(request: Request, iri: str, path: str = ""):
         ],
     }
 
-    if render_kind in GRAPH_BUILDERS:
+    if render_kind == "c4":
+        nodes, edges = c4_graph_data(focus, view["level"])
+        ctx["nodes"] = nodes
+        ctx["edges"] = edges
+    elif render_kind in GRAPH_BUILDERS:
         nodes, edges = GRAPH_BUILDERS[render_kind](focus)
         ctx["nodes"] = nodes
         ctx["edges"] = edges

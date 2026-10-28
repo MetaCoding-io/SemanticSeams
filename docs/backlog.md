@@ -84,7 +84,7 @@ rather than a stub.
 
 | # | Item | Size | Output |
 |---|---|---|---|
-| G1 | **ADR-0007, execution strategy.** Record the hybrid: interpret BPMN/DMN with SpiffWorkflow, validate with pySHACL, generate templates, routes and compose. Amend M3 accordingly. | S | `docs/adr/0007-execution-strategy.md` |
+| G1 | **ADR-0007, execution strategy.** Record the hybrid: interpret BPMN/DMN with SpiffWorkflow, validate with pySHACL, generate templates, routes and compose. Amend M3 accordingly. | S | Drafted, status Proposed: [ADR-0007](adr/0007-execution-strategy.md). Its open items are a spike before M3 starts. |
 | G2 | **Golden-output dry run.** Hand-write the three target artifacts for the chat app (the htmx page, the FastAPI module, the compose file), then walk the model and mark every line the graph can and cannot produce. The cannot list becomes the vocabulary additions (operation paths, event-to-operation binding, form fields or their SHACL derivation, SSE and channel transport, artifacts for the other three containers, ports) and the generators get a test to pass before they exist. | M | `docs/generation/golden/` plus a gap table |
 
 G2 is a documentation exercise that can run in parallel with P0 and should,
@@ -93,7 +93,7 @@ around it. The generators themselves come after G2 and are M3.
 
 ## Suggested sequence
 
-1. P0 items 1 and 6 (one PR), G1 (one ADR).
+1. P0 items 1 and 6 (one PR); accept or amend ADR-0007 (G1).
 2. P0 item 2 and G2 in parallel.
 3. P0 items 3, 4, 5.
 4. P1 items 8, 7, 9, then the M3 generators against the golden outputs.

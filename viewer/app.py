@@ -38,6 +38,7 @@ SEAM = Namespace("https://w3id.org/seams/seam#")
 ARCH = Namespace("https://w3id.org/seams/arch#")
 IFML = Namespace("https://w3id.org/seams/ifml#")
 STATE = Namespace("https://w3id.org/seams/state#")
+DEPLOY = Namespace("https://w3id.org/seams/deploy#")
 
 NOTATION_LABELS = {
     SEAM.C4: "c4",
@@ -54,6 +55,17 @@ NAVIGATIONAL_PREDICATES = {SEAM.detailedBy, SEAM.triggers, SEAM.presents, SEAM.d
 # Administrative seam predicates excluded from the seamEdges inspector list —
 # they drive rendering/dispatch rather than representing a cross-layer edge.
 SEAM_ADMIN_PREDICATES = {SEAM.inModel, SEAM.notation, SEAM.renderPayload}
+
+# Reveal-modes card (docs/research/2026-10-15-reveal-modes.md §1): each
+# notation maps to one of six layers, which drives the layer colour tokens.
+LAYER_BY_NOTATION = {
+    "c4": "architecture",
+    "ifml": "interaction",
+    "bpmn": "process",
+    "dmn": "decision",
+    "shapegraph": "data",
+    "statechart": "lifecycle",
+}
 
 RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn"}
 PAYLOAD_RENDERERS = {"bpmn", "dmn"}
@@ -157,6 +169,39 @@ def focused_model(iri: str) -> str | None:
     return str(val) if val is not None else None
 
 
+def layer_of(iri: str) -> str:
+    """Layer of the model iri lives in (or is) — "other" when it is in no model."""
+    model = focused_model(iri)
+    return LAYER_BY_NOTATION.get(notation_of(model), "other") if model else "other"
+
+
+def type_label(iri: str) -> str:
+    """Friendly label of the element's primary rdf:type for the card's type pill.
+    Picks deterministically, preferring a domain type over the generic seam:Model."""
+    types = sorted(str(t) for t in get_graph().objects(URIRef(iri), RDF.type))
+    if not types:
+        return "Element"
+    domain = [t for t in types if t != str(SEAM.Model)]
+    t = (domain or types)[0]
+    return ontology_labels().get(t, short_name(t))
+
+
+def description_of(iri: str) -> str | None:
+    """One-line card description: rdfs:comment, arch:technology, deploy:version,
+    then the version on a deploy:artifact; None when there is none."""
+    graph = get_graph()
+    subj = URIRef(iri)
+    for pred in (RDFS.comment, ARCH.technology, DEPLOY.version):
+        val = graph.value(subj, pred)
+        if val is not None:
+            return str(val)
+    for artifact in graph.objects(subj, DEPLOY.artifact):
+        val = graph.value(artifact, DEPLOY.version)
+        if val is not None:
+            return str(val)
+    return None
+
+
 def render_payload_of(iri: str) -> str | None:
     val = get_graph().value(URIRef(iri), SEAM.renderPayload)
     return str(val) if val is not None else None
@@ -180,30 +225,36 @@ def native_element_id(iri: str) -> str | None:
     return iri.rsplit("#", 1)[1] if "#" in iri else None
 
 
+def is_seam_predicate(p) -> bool:
+    return str(p).startswith(str(SEAM)) and p not in SEAM_ADMIN_PREDICATES
+
+
 def seam_edges(iri: str) -> dict:
     graph = get_graph()
     subj = URIRef(iri)
     outgoing = []
     for p, o in graph.predicate_objects(subj):
-        if str(p).startswith(str(SEAM)) and p not in SEAM_ADMIN_PREDICATES:
+        if is_seam_predicate(p):
             outgoing.append(
                 {
                     "predicate": qname(p),
                     "predicateLabel": predicate_label(p),
                     "target": str(o),
                     "targetLabel": label(str(o)),
+                    "targetLayer": layer_of(str(o)),
                     "navigational": p in NAVIGATIONAL_PREDICATES,
                 }
             )
     incoming = []
     for s, p in graph.subject_predicates(subj):
-        if str(p).startswith(str(SEAM)) and p not in SEAM_ADMIN_PREDICATES:
+        if is_seam_predicate(p):
             incoming.append(
                 {
                     "predicate": qname(p),
                     "predicateLabel": predicate_label(p),
                     "source": str(s),
                     "sourceLabel": label(str(s)),
+                    "sourceLayer": layer_of(str(s)),
                     "navigational": p in NAVIGATIONAL_PREDICATES,
                 }
             )
@@ -269,9 +320,36 @@ def payload_element_map(model_iri: str) -> dict:
     return {short_name(m): m for m in model_members(model_iri)}
 
 
+def card_seams(iri: str) -> list[dict]:
+    """Outgoing seam edges of iri as card dots, sorted by predicate then target."""
+    edges = [
+        (p, str(o))
+        for p, o in get_graph().predicate_objects(URIRef(iri))
+        if is_seam_predicate(p)
+    ]
+    return [
+        {
+            "predicate": qname(p),
+            "predicateLabel": predicate_label(p),
+            "target": o,
+            "targetLabel": label(o),
+            "targetLayer": layer_of(o),
+        }
+        for p, o in sorted(edges, key=lambda e: (str(e[0]), e[1]))
+    ]
+
+
 def nodes_for(members: set[str]) -> list[dict]:
     return [
-        {"id": m, "label": label(m), "group": (types_of(m) or ["Element"])[0]}
+        {
+            "id": m,
+            "label": label(m),
+            "group": (types_of(m) or ["Element"])[0],
+            "typeLabel": type_label(m),
+            "description": description_of(m),
+            "layer": layer_of(m),
+            "seams": card_seams(m),
+        }
         for m in members
     ]
 
@@ -345,6 +423,7 @@ def build_view(iri: str, breadcrumb_trail: list[str], detailed_by_candidates: li
         "types": types_of(iri),
         "focusedModel": focused_model(iri),
         "notation": notation_of(iri),
+        "layer": layer_of(iri),
         "nativeElementId": native_element_id(iri),
         "renderPayload": payload,
         "seamEdges": seam_edges(iri),

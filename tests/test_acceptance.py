@@ -16,7 +16,7 @@ from pathlib import Path
 import pyshacl
 import pytest
 import rdflib
-from rdflib import RDF, Namespace, URIRef
+from rdflib import RDF, Literal, Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 ONTOLOGY_FILES = sorted((ROOT / "ontology").glob("*.ttl"))
@@ -341,3 +341,46 @@ def test_chat_app_what_moves_state(chat_model):
     assert {(r.task, r.transition, r.toState) for r in rows} == {
         (CHAT_PERSIST_USER_MSG, CHAT.t_send, CHAT.s_sending),
     }
+
+
+# --- C4 L1 rollup projection query (ADR-0008) ---
+
+ARCH = Namespace("https://w3id.org/seams/arch#")
+
+
+def _rollup_rows(graph: rdflib.Graph) -> set[tuple]:
+    return {(r["from"], r.to, r.kind) for r in graph.query(canned("c4-l1-rollup.rq"))}
+
+
+def test_chat_app_c4_l1_rollup(chat_model):
+    """Chat app has one system and one environment: the only rolled-up edge is
+    'deployed to'. Container dependsOn edges stay inside chat_system, so they
+    produce no 'depends on' self-edge."""
+    assert _rollup_rows(chat_model) == {
+        (CHAT.chat_system, CHAT.prod, Literal("deployed to")),
+    }
+
+
+def test_checkout_c4_l1_rollup(model):
+    """Checkout: shop's containers deploy to web01/app01/db01, all in :prod."""
+    assert _rollup_rows(model) == {
+        (SHOP.shop, SHOP.prod, Literal("deployed to")),
+    }
+
+
+def test_c4_l1_rollup_depends_on_branch():
+    """A dependsOn between containers of different systems rolls up to a
+    system edge; one between containers of the same system does not."""
+    ex = Namespace("https://example.org/rollup/")
+    g = rdflib.Graph()
+    for system, parts in ((ex.sysA, (ex.a1, ex.a2)), (ex.sysB, (ex.b1,))):
+        g.add((system, RDF.type, ARCH.System))
+        for part in parts:
+            g.add((part, RDF.type, ARCH.Container))
+            g.add((system, ARCH.contains, part))
+    g.add((ex.a1, ARCH.dependsOn, ex.b1))
+    g.add((ex.a1, ARCH.dependsOn, ex.a2))  # intra-system: must not roll up
+
+    rows = _rollup_rows(g)
+    assert rows == {(ex.sysA, ex.sysB, Literal("depends on"))}
+    assert not any(frm == to for frm, to, _ in rows)

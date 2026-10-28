@@ -93,8 +93,15 @@ around it. The generators themselves come after G2 and are M3.
 
 ## Suggested sequence
 
-1. P0 items 1 and 6 (one PR); accept or amend ADR-0007 (G1).
+*Revised 2026-10-28: the generators now come straight after P0, ahead of P1.
+The earlier order put P1 first, which contradicted the guiding call above that
+UI work must not eat M3.*
+
+1. P0 items 1 and 6 (one PR).
 2. P0 item 2 and G2 in parallel.
-3. P0 items 3, 4, 5.
-4. P1 items 8, 7, 9, then the M3 generators against the golden outputs.
-5. P1 item 10 and the P2 list as the second worked example demands.
+3. P0 items 4, 5, 3.
+4. M3, opening with the ADR-0007 spike (its open items). ADR-0007 moves to
+   Accepted only if the spike holds; then the vocabulary additions from G2's
+   gap list, the worker, and the three generators against the golden outputs.
+5. P1 items 8, 7, 9, 10 and the P2 list, re-triaged once M3 lands and as the
+   second worked example demands.

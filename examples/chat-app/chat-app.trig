@@ -101,6 +101,7 @@
         seam:inModel :chat_ifml .
 
     :message_thread a ifml:Details ; rdfs:label "Message Thread" ;
+        ifml:hasParameter :conversation ;
         seam:inModel :chat_ifml .
 
     :compose_form a ifml:Form ; rdfs:label "Compose Message" ;
@@ -110,6 +111,8 @@
 
     :selected_conversation a ifml:Parameter ; rdfs:label "selected conversation" ;
         seam:inModel :chat_ifml .
+    :conversation a ifml:Parameter ; rdfs:label "conversation" ;
+        seam:inModel :chat_ifml .
     :message_input a ifml:Parameter ; rdfs:label "message input" ;
         seam:inModel :chat_ifml .
 
@@ -118,11 +121,17 @@
     :select_conversation a ifml:Event ; rdfs:label "Select Conversation" ;
         seam:inModel :chat_ifml .
 
+    # Selecting a conversation navigates to (refreshes) the thread; the data flow
+    # it triggers carries the selection into the thread's own parameter.
+    :select_to_thread a ifml:NavigationFlow ;
+        ifml:source :select_conversation ; ifml:target :message_thread ;
+        seam:inModel :chat_ifml .
+
     :list_to_thread a ifml:DataFlow ;
         ifml:source :conversation_list ; ifml:target :message_thread ;
         ifml:binds [ a ifml:ParameterBinding ;
                      ifml:sourceParameter :selected_conversation ;
-                     ifml:targetParameter :message_input ] ;
+                     ifml:targetParameter :conversation ] ;
         seam:inModel :chat_ifml .
 }
 

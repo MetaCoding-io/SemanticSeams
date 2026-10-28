@@ -37,6 +37,8 @@ class C4Level:
     # L3 only: comm elements a visible container seam:exposes become nodes
     # nested inside that container.
     exposed_elements: bool = False
+    # The question this level answers, shown on its level card (M006/S03).
+    question: str = ""
 
 
 _L1_CLASSES = frozenset({ARCH.System, ARCH.Person, ARCH.Environment})
@@ -44,14 +46,27 @@ _L2_CLASSES = _L1_CLASSES | {ARCH.Container, ARCH.Component, ARCH.DeploymentNode
 _L2_EDGES = ((ARCH.dependsOn, "depends on"), (SEAM.deployedTo, "deployed to"))
 
 C4_LEVELS: dict[str, C4Level] = {
-    "L1": C4Level(id="L1", title="System context", classes=_L1_CLASSES, rollup=True),
-    "L2": C4Level(id="L2", title="Containers", classes=_L2_CLASSES, edge_rules=_L2_EDGES),
+    "L1": C4Level(
+        id="L1",
+        title="System context",
+        classes=_L1_CLASSES,
+        rollup=True,
+        question="Which systems talk to each other, and where do they run?",
+    ),
+    "L2": C4Level(
+        id="L2",
+        title="Containers",
+        classes=_L2_CLASSES,
+        edge_rules=_L2_EDGES,
+        question="Which containers make up the system, and where are they deployed?",
+    ),
     "L3": C4Level(
         id="L3",
         title="Components and operations",
         classes=_L2_CLASSES,
         edge_rules=_L2_EDGES + ((SEAM.consumes, "consumes"),),
         exposed_elements=True,
+        question="Which operations does each container expose and consume?",
     ),
 }
 

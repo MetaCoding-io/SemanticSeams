@@ -463,6 +463,34 @@ def resolve_level(notation: str, requested: str) -> tuple[str | None, list[dict]
     return requested, []
 
 
+def level_summaries(model_iri: str) -> list[dict]:
+    """Per-level node/edge counts for a C4 model, in C4_LEVELS order.
+
+    A level is empty when it draws nothing, or when it draws exactly what the
+    previous level drew (same node ids and same (from, to, label) edges), so
+    switching to it would add nothing for this model.
+    """
+    summaries = []
+    prev: tuple[set, set] | None = None
+    for lv in C4_LEVELS.values():
+        nodes, edges = c4_graph_data(model_iri, lv.id)
+        node_ids = {n["id"] for n in nodes}
+        edge_keys = {(e["from"], e["to"], e["label"]) for e in edges}
+        empty = not node_ids or (prev is not None and prev == (node_ids, edge_keys))
+        summaries.append(
+            {
+                "id": lv.id,
+                "title": lv.title,
+                "question": lv.question,
+                "nodeCount": len(node_ids),
+                "edgeCount": len(edge_keys),
+                "empty": empty,
+            }
+        )
+        prev = (node_ids, edge_keys)
+    return summaries
+
+
 def build_view(
     iri: str,
     breadcrumb_trail: list[str],
@@ -480,6 +508,7 @@ def build_view(
         "focusedModel": focused_model(iri),
         "notation": notation,
         "level": effective_level,
+        "levels": level_summaries(iri) if effective_level else [],
         "layer": layer_of(iri),
         "nativeElementId": native_element_id(iri),
         "renderPayload": payload,
@@ -500,9 +529,13 @@ def wants_json(request: Request) -> bool:
     return "application/ld+json" in accept or "application/json" in accept
 
 
-def href_for(iri: str, trail: list[str]) -> str:
+def href_for(iri: str, trail: list[str], level: str = "") -> str:
     qs = quote(",".join(trail), safe="")
-    return f"/view/{quote(iri, safe='')}?path={qs}"
+    href = f"/view/{quote(iri, safe='')}?path={qs}"
+    # Only known level ids are ever carried into a link.
+    if level in C4_LEVELS:
+        href += f"&level={level}"
+    return href
 
 
 @app.on_event("startup")
@@ -594,6 +627,9 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
         return JSONResponse(view)
 
     outgoing_trail = incoming_trail + [focus] if focus not in incoming_trail else incoming_trail
+    # The C4 level rides along every link (M006/S03) so a descent into a
+    # non-C4 view and the way back keep it. Only validated ids are carried.
+    carried_level = view["level"] or (level if level in C4_LEVELS else "")
     notation = view["notation"]
     render_kind = notation if notation in RENDERERS_IMPLEMENTED else "none"
 
@@ -608,26 +644,24 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
         "render_payload": view["renderPayload"],
         "warnings": view["warnings"],
         "level": view["level"],
+        "carried_level": carried_level,
         "levels": [
             {
-                "id": lv.id,
-                "title": lv.title,
-                "href": f"{href_for(focus, incoming_trail)}&level={lv.id}",
-                "active": lv.id == view["level"],
+                **summary,
+                "href": href_for(focus, incoming_trail, summary["id"]),
+                "active": summary["id"] == view["level"],
             }
-            for lv in C4_LEVELS.values()
-        ]
-        if view["level"]
-        else [],
+            for summary in view["levels"]
+        ],
         "model_conformance": view["modelConformance"],
         "outgoing": view["seamEdges"]["outgoing"],
         "incoming": view["seamEdges"]["incoming"],
         "breadcrumbs": [
-            {"label": c["label"], "href": href_for(c["iri"], incoming_trail[:i])}
+            {"label": c["label"], "href": href_for(c["iri"], incoming_trail[:i], carried_level)}
             for i, c in enumerate(view["breadcrumbs"])
             if c["iri"] != ROOT_IRI
         ],
-        "root_href": href_for(ROOT_IRI, []),
+        "root_href": href_for(ROOT_IRI, [], carried_level),
         "next_path_qs": quote(",".join(outgoing_trail), safe=""),
         "applicable_queries": [
             {
@@ -653,7 +687,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
         ctx["element_map"] = payload_element_map(focus)
 
     def link(iri_str: str) -> str:
-        return href_for(iri_str, outgoing_trail)
+        return href_for(iri_str, outgoing_trail, carried_level)
 
     for e in ctx["outgoing"]:
         e["href"] = link(e["target"])

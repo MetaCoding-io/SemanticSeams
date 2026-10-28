@@ -2,7 +2,9 @@
 every non-blank line of a golden artifact carries exactly one producibility
 marker, every `[graph: ...]` claim cites model terms that resolve in
 examples/chat-app/chat-app.trig, every `[gap: GAP-NN]` names a gaps.md row,
-and each artifact still parses in its own syntax.
+and each artifact still parses in its own syntax. The gaps.md Status column is
+linted too: closed rows must not be cited, open or deferred golden rows must be,
+and `runtime (ADR-0007)` rows are exempt from citation.
 """
 
 import ast
@@ -49,6 +51,10 @@ TERM = re.compile(r"^(?P<prefix>[a-z]*):(?P<local>[A-Za-z_][\w.#-]*)$")
 IRI = re.compile(r"^<(?P<iri>[^>\s]+)>$")
 GAP_ROW = re.compile(r"^\|\s*(GAP-\d{2})\s*\|", re.MULTILINE)
 COMMENT_END = {".yaml": "#", ".py": "#", ".html": "{#"}
+# ID | Artifact | What the graph cannot say | Proposed addition | Layer | Status
+GAP_COLUMNS = 6
+STATUS_FORMS = ("open", "closed (vocabulary)", "closed (rule)", "deferred: <reason>")
+STATUS = re.compile(r"^(open|closed \((vocabulary|rule)\)|deferred:.*)$")
 
 
 @pytest.fixture(scope="module")
@@ -67,6 +73,19 @@ def model_terms():
 
 def gap_ids():
     return GAP_ROW.findall(GAPS.read_text())
+
+
+def gap_rows():
+    """{id: (artifact, status)} for every GAP-NN row; Status is the last column."""
+    rows = {}
+    for line in GAPS.read_text().splitlines():
+        if not GAP_ROW.match(line):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != GAP_COLUMNS:
+            continue
+        rows[cells[0]] = (cells[1], cells[-1])
+    return rows
 
 
 def numbered_lines(path):
@@ -198,15 +217,68 @@ def test_resolver_rejects_invented_terms(model_terms):
     assert resolve("image", model_terms) is None
 
 
-def test_every_gap_row_is_referenced():
-    referenced = {
+def _cited_gaps():
+    return {
         marker[len("gap: "):]
         for path in ARTIFACTS
         for _, marker in markers(path)
         if marker.startswith("gap: ")
     }
-    orphans = [gap for gap in gap_ids() if gap not in referenced]
-    assert not orphans, f"gaps.md: rows not referenced by any golden artifact line: {orphans}"
+
+
+def test_gap_statuses_are_well_formed():
+    problems = []
+    for gap, (_, status) in gap_rows().items():
+        if not STATUS.match(status):
+            problems.append(f"{gap}: status {status!r} is not one of {STATUS_FORMS}")
+        elif status.startswith("deferred") and not status[len("deferred:"):].strip():
+            problems.append(f"{gap}: deferred status has no reason")
+    assert not problems, "gaps.md:\n" + "\n".join(problems)
+
+
+def test_every_gap_row_has_a_status():
+    rows = gap_rows()
+    assert list(rows) == gap_ids(), "gaps.md: some GAP rows could not be parsed into ID/Artifact/Status"
+
+
+def test_closed_gap_rows_are_not_cited():
+    cited = _cited_gaps()
+    stale = [gap for gap, (_, status) in gap_rows().items() if status.startswith("closed") and gap in cited]
+    assert not stale, f"gaps.md: closed rows still cited by a golden [gap: ...] marker: {stale}"
+
+
+def test_open_gap_rows_for_golden_files_are_cited():
+    cited = _cited_gaps()
+    orphans = [
+        gap
+        for gap, (artifact, status) in gap_rows().items()
+        if not artifact.startswith("runtime")
+        and not status.startswith("closed")
+        and gap not in cited
+    ]
+    assert not orphans, f"gaps.md: open/deferred rows not referenced by any golden artifact line: {orphans}"
+
+
+def test_gap_rows_name_a_golden_file_or_runtime():
+    problems = [
+        f"{gap}: Artifact {artifact!r} is neither a golden file nor runtime"
+        for gap, (artifact, _) in gap_rows().items()
+        if artifact not in ARTIFACT_NAMES and not artifact.startswith("runtime")
+    ]
+    assert not problems, "gaps.md:\n" + "\n".join(problems)
+
+
+def test_status_parser_rejects_malformed_statuses():
+    assert STATUS.match("open")
+    assert STATUS.match("closed (vocabulary)")
+    assert STATUS.match("closed (rule)")
+    assert STATUS.match("deferred: needs an auth ADR")
+    assert not STATUS.match("closed")
+    assert not STATUS.match("closed (vocab)")
+    assert not STATUS.match("done")
+    assert not STATUS.match("")
+    # "deferred:" with no reason matches the form; the reason check catches it.
+    assert not "deferred:   "[len("deferred:"):].strip()
 
 
 def test_gap_table_covers_backlog_g2_list():

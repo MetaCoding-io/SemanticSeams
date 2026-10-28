@@ -54,6 +54,14 @@ Evidence is a whitespace-separated list of model terms:
 Do not invent model terms. If a line needs a term that is not in the trig, the
 line is a gap, and the proposed term goes in the gap table.
 
+Each gap row has a `Status`: `open`, `closed (vocabulary)`, `closed (rule)` or
+`deferred: <reason>`. When a row closes, the lines that cited it become
+`[graph: ...]` markers and the row stays in the table as history. The doc-lint
+checks that no golden marker cites a closed row, that every open or deferred
+row for a golden file is still cited, and that a deferred row gives a reason.
+Rows whose Artifact starts with `runtime` (the ADR-0007 spike gaps) belong to
+no golden file and are exempt from the citation check.
+
 ## Producibility summary
 
 Counts of non-blank lines per marker. M004 drives the gap column toward zero.
@@ -67,8 +75,10 @@ Counts of non-blank lines per marker. M004 drives the gap column toward zero.
 
 ## Feeding M004
 
-The 22 gaps in [`gaps.md`](gaps.md), grouped by the vocabulary namespace that
-would close them (a gap that spans two layers is listed under both):
+The 27 gaps in [`gaps.md`](gaps.md): GAP-01..GAP-22 from the golden dry run
+and GAP-23..GAP-27 from the ADR-0007 spike. M004 closes them row by row and
+records the outcome in the `Status` column. Grouped by the vocabulary namespace
+that would close them (a gap that spans two layers is listed under both):
 
 - **`deploy:`**: container images (GAP-01), ports (GAP-02), volumes (GAP-03),
   placement meaning (GAP-04), secret resolution (GAP-05), non-secret config
@@ -85,7 +95,10 @@ would close them (a gap that spans two layers is listed under both):
 - **Data shapes (`sh:`)**: the identifier convention (GAP-11), user-entered
   fields and required-ness (GAP-12), field order and widget (GAP-13) and the
   `:status` value set (GAP-14, with `state:`).
-- **`proc:`**: the process correlation key (GAP-22).
+- **`proc:`**: the process correlation key (GAP-22), the BPMN message
+  reference (GAP-26) and the implementation binding (GAP-27).
+- **`dec:`**: the decision-id join (GAP-23), DMN input binding (GAP-24) and
+  DMN output key (GAP-25).
 - **`odrl:` / `arch:`**: evaluable policy rules and the auth scheme (GAP-20),
   plus the `arch:dependsOn` startup rule (GAP-07) and node selectors (GAP-04).
 

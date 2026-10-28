@@ -1,8 +1,10 @@
 # ADR-0007: Execution Strategy — Interpret Where an Engine Exists, Generate Where None Does
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Date:** 2026-10-28
+
+**Accepted:** 2026-10-28, after the M004/S01 spike (see [Spike Findings](#spike-findings))
 
 **Source:** [backlog](../backlog.md) item G1; project outline §3 (execution boundary) and §6 ("interpret or generate"); product brief M3; tutorial step 8
 
@@ -58,12 +60,37 @@ The tutorial text in `orig_convo/` is the original brief and is left as written;
 - **Interpret everything, including IFML.** A generic htmx renderer reading the interaction model at request time (LinkedDataHub-style) is attractive and stays a candidate post-v1. Rejected for v1: no existing engine, it is the larger build, and generated templates are inspectable and diffable for the tutorial persona. Compose must be generated regardless.
 - **A JVM engine (Operaton, Flowable).** Mature, and Flowable covers CMMN. Rejected for v1: a second runtime stack beside a Python model toolchain, for a tutorial whose process has five tasks.
 
-## Open Items (spike before M3 work starts)
+## Open Items (resolved by the spike; see Spike Findings)
+
+*Original text, kept for history. It was written as "spike before M3 work starts".*
 
 1. **Decision resolution without extensions.** Confirm SpiffWorkflow can be told which DMN decision a business-rule task evaluates from outside the XML (a custom task spec or parser hook fed by `seam:decidedBy`). Fallback if not: the build step writes the extension attribute into a *derived copy* of the payload for the engine, never into the source payload, and the drift lint (ADR-0006) checks the copy.
 2. **Streaming.** `invoke_llm` streams tokens over SSE; a service task is synchronous from the engine's view. Proposed: the worker completes the task when the stream ends and publishes stream events to the `stream.events` channel the model already declares. Validate in the spike.
 3. **Process state.** SpiffWorkflow serialises workflow state to JSON. v1 stores it in the app's own database (SQLite in the tutorial); the as-deployed graph does not hold runtime state.
 4. **Licence.** Check SpiffWorkflow's licence (LGPL-3.0 at the time of writing) at adoption; use as an unmodified library dependency is compatible with an Apache-2.0 project.
+
+## Spike Findings
+
+Evidence: [`spikes/adr0007/spike.py`](../../spikes/adr0007/spike.py) (throwaway, run with `.venv/bin/python spikes/adr0007/spike.py [--long]`) and [`tests/test_adr0007_spike.py`](../../tests/test_adr0007_spike.py) (20 tests, part of the CI suite). The spike runs the real `examples/chat-app/chat_process.bpmn` and `routing.dmn` in SpiffWorkflow 3.2.0, wired from `chat-app.trig`. The four open items, in order:
+
+1. **Decision resolution without extensions: holds, using a parser hook. The derived-copy fallback is not needed.** `GraphBoundBusinessRuleTaskParser` subclasses `SpiffWorkflow.bpmn.parser.TaskParser.TaskParser` and is registered for `bpmn:businessRuleTask` in `OVERRIDE_PARSER_CLASSES` on a subclass of `SpiffWorkflow.dmn.parser.BpmnDmnParser.BpmnDmnParser`. Its `get_decision_ref` must be a **classmethod**, because `BpmnDmnParser._find_dependencies` calls it on the class. It resolves the task's fragment IRI through `seam:decidedBy` → `seam:inModel` → `seam:renderPayload`, and the DMN file the parser loads is the graph-resolved path. The task spec is a vendor-neutral `BusinessRuleTask(BusinessRuleTaskMixin, BpmnSpecMixin)`. Both payloads are parsed from disk untouched. Tests show that pointing `seam:decidedBy` elsewhere in the graph changes the binding. A task with a missing hop (no `seam:decidedBy`, or no `seam:renderPayload`) fails with an error that names the task IRI and the missing predicate. Short messages route to `default-provider`. A user message over 4000 characters routes to `long-context-provider`. Since the fallback was not adopted, there is no derived copy for the drift lint (ADR-0006) to check.
+2. **Streaming: holds.** Spiff's stock `ServiceTask` returns `None` from its run hook, which leaves the task `STARTED`. The worker picks up started service tasks, dispatches them by bpmn id, and calls `task.complete()` only when the handler returns. `invoke_llm` publishes each simulated token, in order, to the `comm:Channel` that `stream_complete_event` `seam:publishesTo` (`stream.events`, resolved from the graph). Every token event records the task as still `STARTED`, so the task completes only after the last token. The stream-complete throw event is then published on the same channel. Keeping the stock spec means the worker, not a custom spec, owns completion, which matches this ADR's worker model.
+3. **Process state: holds.** After `route_to_provider`, `BpmnWorkflowSerializer` serialises the workflow to JSON, which is stored in a stdlib SQLite table `workflow_state(instance_id TEXT PRIMARY KEY, state TEXT)`. The in-memory workflow is dropped, restored from that row in a fresh driver with no parser, and run to the end event. The final data matches an uninterrupted run. Spiff 3.2's `DEFAULT_CONFIG` needs two extra converters: `BaseBusinessRuleTaskConverter` for the business-rule spec, and `BpmnTaskSpecConverter` for the plain bpmn `ServiceTask`. Without the second, serialisation fails with "ServiceTask is not JSON serializable". The S03 worker must register both.
+4. **Licence: compatible.** `pip show SpiffWorkflow` reports Version 3.2.0, License `lGPLv3`, author Sartography, classifier "OSI Approved :: GNU Library or Lesser General Public License (LGPL)". The project uses it as an unmodified library dependency (`SpiffWorkflow>=3.0` in `requirements-dev.txt`), and that is compatible with an Apache-2.0 project. Re-check if we ever vendor or patch it.
+
+### Payload edits
+
+- `chat_process.bpmn`: `isExecutable="false"` → `isExecutable="true"`, the standard attribute sanctioned by rule 3. This is the only edit.
+- `routing.dmn`: none. Its `<output>` has no `name`, and Spiff 3.2 falls back to the `label` (`Provider`). Spiff also handles the FEEL `-` wildcard natively as "no input specification".
+- No vendor namespace (`camunda`, `spiffworkflow`, `zeebe`) appears in either payload. A test pins this, and another checks that the file bytes are identical before and after a run.
+
+### Vocabulary gaps for S02
+
+- **Decision-id join.** `:routing_decision` is not a fragment IRI of `routing.dmn`, so the worker joins on the IRI's local name (`routing_decision`) and checks that the DMN declares that id. This is a convention, not a graph fact. S02 should mint the decision as a fragment IRI of the payload, as BPMN task IRIs already are, or add a `seam:payloadElement` link.
+- **DMN input binding.** The DMN inputs `message_role` and `message_length` have no graph binding to `MessageShape` paths. The spike's `persist_user_msg` handler derives them by hand. S02 needs a way to bind a decision input to a shape path or expression.
+- **DMN output key.** The result key is the output label (`Provider`) because the output has no `name`. Either the vocabulary records which output feeds the process variable, or the payload adds the standard `name` attribute.
+- **Message reference.** `stream_complete_event`'s `messageEventDefinition` has no `messageRef`, so Spiff names the event after the element ("Stream Complete"). The link to the channel exists only in the graph (`seam:publishesTo`).
+- **Implementation binding.** Service-task handlers are keyed on bpmn id and only cross-checked against `seam:invokes` / `seam:fires`. The graph says *what* a task invokes, but not which runtime implementation serves that operation. The S03 worker needs that binding.
 
 ## Consequences
 

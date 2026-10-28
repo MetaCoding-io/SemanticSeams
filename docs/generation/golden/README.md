@@ -8,7 +8,7 @@ written by hand before any generator code exists:
 | Artifact | Generated from | Target |
 |----------|----------------|--------|
 | [`compose.yaml`](compose.yaml) | `deploy:` / `arch:` on the containers | docker-compose for the whole system |
-| `chat_page.html` | `ifml:` on `:chat_page` plus the seams it touches | htmx / Jinja2 page |
+| [`chat_page.html`](chat_page.html) | `ifml:` on `:chat_page` plus the seams it touches | htmx / Jinja2 page |
 | `chat_api.py` | `seam:exposes` on `:chat_api` plus the hydra/comm contract | thin FastAPI route module |
 
 They follow ADR-0007: handlers stay thin and the runtime interprets the
@@ -61,5 +61,5 @@ Counts of non-blank lines per marker. M004 drives the gap column toward zero.
 | Artifact | graph | fixed | gap |
 |----------|------:|------:|----:|
 | compose.yaml | 20 | 7 | 42 |
-| chat_page.html | | | |
+| chat_page.html | 39 | 18 | 21 |
 | chat_api.py | | | |

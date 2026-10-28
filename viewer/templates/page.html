@@ -15,6 +15,18 @@
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-literal-expression.css">
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-font/css/dmn.css">
   <style>
+    /* One layer palette shared by CSS (seam dots, pills) and canvas drawing
+       (window.seamsLayerColours below). Hues follow
+       docs/research/2026-10-15-reveal-modes.md section 1. */
+    :root {
+      --layer-architecture: #2563eb;
+      --layer-interaction: #d97706;
+      --layer-process: #7c3aed;
+      --layer-decision: #e11d48;
+      --layer-data: #16a34a;
+      --layer-lifecycle: #0d9488;
+      --layer-other: #9ca3af;
+    }
     body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a; }
     header { padding: 0.75rem 1.5rem; background: #14213d; color: #fff; font-weight: 600; }
     .breadcrumbs { padding: 0.75rem 1.5rem; background: #f4f5f7; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
@@ -24,9 +36,25 @@
     #network { background: #fff; }
     #payload-canvas { background: #fff; }
     #payload-canvas .decision-table-name { cursor: pointer; }
-    .inspector { margin-top: 1.5rem; border-top: 1px solid #ddd; padding-top: 1rem; }
+    .view-layout { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.5rem; align-items: start; }
+    .view-canvas { min-width: 0; }
+    .inspector { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem 1rem; background: #fafbfc; font-size: 0.9rem; overflow-wrap: anywhere; }
+    .inspector h3 { margin-top: 0; }
     .inspector ul { list-style: none; padding-left: 0; }
     .inspector li { padding: 0.25rem 0; }
+    @media (max-width: 900px) {
+      .view-layout { grid-template-columns: minmax(0, 1fr); }
+      .inspector { position: static; max-height: none; }
+    }
+    .seam-dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: middle; background: var(--layer-other); }
+    .seam-dot[data-layer="architecture"] { background: var(--layer-architecture); }
+    .seam-dot[data-layer="interaction"] { background: var(--layer-interaction); }
+    .seam-dot[data-layer="process"] { background: var(--layer-process); }
+    .seam-dot[data-layer="decision"] { background: var(--layer-decision); }
+    .seam-dot[data-layer="data"] { background: var(--layer-data); }
+    .seam-dot[data-layer="lifecycle"] { background: var(--layer-lifecycle); }
+    .seam-dot[data-layer="other"] { background: var(--layer-other); }
+    .type-pill { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; background: #eef0f3; color: #444; font-size: 0.75rem; font-weight: 600; }
     .warning { color: #8a5300; background: #fff3cd; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; }
     code { background: #f0f0f0; padding: 0.1rem 0.3rem; border-radius: 3px; }
     .disambiguation { border: 2px solid #14213d; background: #eef2fb; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
@@ -52,6 +80,16 @@
   <script>
     // Shared by every renderer's click handler (vis-network, bpmn-js, dmn-js).
     // Defined once here so it survives htmx swaps of #view-content.
+    // Layer palette for canvas renderers, read from the :root --layer-*
+    // tokens so CSS and canvas share one source of colours.
+    window.seamsLayerColours = (function () {
+      var css = getComputedStyle(document.documentElement);
+      var colours = {};
+      ["architecture", "interaction", "process", "decision", "data", "lifecycle", "other"].forEach(function (layer) {
+        colours[layer] = css.getPropertyValue("--layer-" + layer).trim() || "#9ca3af";
+      });
+      return colours;
+    })();
     window.seamsNavigate = function (iri, pathQs) {
       var url = "/view/" + encodeURIComponent(iri) + "?path=" + pathQs;
       htmx.ajax("GET", url, { target: "#view-content", swap: "innerHTML" }).then(function () {

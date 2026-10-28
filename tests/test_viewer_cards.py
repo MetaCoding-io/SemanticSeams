@@ -134,3 +134,79 @@ def test_unknown_iri_does_not_error():
     assert viewer_app.type_label(iri) == "Element"
     assert viewer_app.description_of(iri) is None
     assert viewer_app.card_seams(iri) == []
+
+
+# --- T02: card renderer, layer tokens, inspector side panel, wheel fix ---
+
+LAYERS = ["architecture", "interaction", "process", "decision", "data", "lifecycle", "other"]
+CHAT_BPMN = f"{CHAT}chat_bpmn"
+
+
+def _fragment(client, iri):
+    resp = client.get(f"/view/{quote(iri, safe='')}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    return resp.text
+
+
+def test_full_page_has_all_layer_tokens(client):
+    resp = client.get(f"/view/{quote(CHAT_ARCHITECTURE, safe='')}", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    for layer in LAYERS:
+        assert f"--layer-{layer}:" in resp.text
+    assert "window.seamsLayerColours" in resp.text
+
+
+def test_layer_tokens_are_shell_only(client):
+    # The palette lives in page.html (MEM009) so it survives htmx swaps.
+    assert "--layer-architecture:" not in _fragment(client, CHAT_ARCHITECTURE)
+
+
+def test_c4_fragment_layout_and_card_renderer(client):
+    html = _fragment(client, CHAT_ARCHITECTURE)
+    assert 'class="view-layout"' in html
+    assert 'class="view-canvas"' in html
+    assert '<aside class="inspector">' in html
+    assert '<section class="inspector">' not in html
+    assert "zoomView: false" in html
+    assert 'shape: "custom"' in html
+    assert "ctxRenderer" in html
+    assert '"seams":' in html
+    assert '"typeLabel":' in html
+    # The inspector sits after the canvas column, inside the layout.
+    assert html.index('class="view-canvas"') < html.index('<aside class="inspector">')
+
+
+def test_inspector_seam_dots_carry_layers(client):
+    # chat_api self-lands (chat_ui auto-navigates into chat_ifml, ADR-0005).
+    html = _fragment(client, CHAT_API)
+    assert '<span class="seam-dot" data-layer="process"' in html
+    assert '<span class="seam-dot" data-layer="architecture"' in html
+    assert '<span class="seam-dot" data-layer="other"' in html
+    # Incoming rows use the source's layer: chat_ui (a C4 container,
+    # architecture layer) presents chat_ifml.
+    incoming = _fragment(client, f"{CHAT}chat_ifml")
+    assert '<span class="seam-dot" data-layer="architecture"' in incoming
+
+
+def test_seam_dot_layers_are_known_values(client):
+    import re
+
+    html = _fragment(client, CHAT_API)
+    layers = re.findall(r'class="seam-dot" data-layer="([^"]*)"', html)
+    assert layers
+    assert set(layers) <= set(LAYERS)
+
+
+def test_bpmn_fragment_disables_zoom_scroll(client):
+    html = _fragment(client, CHAT_BPMN)
+    assert "zoomScroll: { enabled: false }" in html
+    assert '<aside class="inspector">' in html
+
+
+def test_no_renderer_view_still_uses_layout(client):
+    # An untyped/unknown element renders the no-renderer branch inside the
+    # canvas column without breaking the layout.
+    html = _fragment(client, "https://w3id.org/seams/seam#UIFragment")
+    assert 'class="view-layout"' in html
+    assert '<aside class="inspector">' in html
+    assert "No renderer yet" in html or "network" in html or "payload-canvas" in html

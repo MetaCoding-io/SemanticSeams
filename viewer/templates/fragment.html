@@ -29,18 +29,134 @@
     </div>
   {% endif %}
 
+  <div class="view-layout">
+  <div class="view-canvas">
   {% if render_kind in ("c4", "ifml", "statechart") %}
     <div id="network" style="height:480px;border:1px solid #ccc;"></div>
     <script>
       (function () {
-        var nodes = new vis.DataSet({{ nodes | tojson }});
+        // Shared node card (M006/S01): type pill, bold label, one-line
+        // description, and one dot per outgoing seam coloured by the layer
+        // the click lands in. Data comes from nodes_for() in viewer/app.py.
+        var colours = window.seamsLayerColours || {};
+        function layerColour(layer) {
+          return colours[layer] || colours.other || "#9ca3af";
+        }
+        var CARD_W = 200, PAD = 10, DOT = 8, DOT_GAP = 4;
+        var FONT_PILL = "600 10px system-ui, sans-serif";
+        var FONT_LABEL = "600 13px system-ui, sans-serif";
+        var FONT_DESC = "11px system-ui, sans-serif";
+
+        function ellipsize(ctx, text, maxWidth) {
+          if (ctx.measureText(text).width <= maxWidth) return text;
+          var lo = 0, hi = text.length;
+          while (lo < hi) {
+            var mid = Math.ceil((lo + hi) / 2);
+            if (ctx.measureText(text.slice(0, mid) + "\u2026").width <= maxWidth) lo = mid; else hi = mid - 1;
+          }
+          return text.slice(0, lo) + "\u2026";
+        }
+        function roundRect(ctx, x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        }
+        function tooltipFor(node) {
+          var seams = node.seams || [];
+          if (!seams.length) return undefined;
+          var el = document.createElement("div");
+          el.style.whiteSpace = "pre-line";
+          el.textContent = seams.map(function (s) {
+            return s.predicateLabel + " \u2192 " + s.targetLabel;
+          }).join("\n");
+          return el;
+        }
+
+        var nodeData = {{ nodes | tojson }};
+        nodeData.forEach(function (n) {
+          n.shape = "custom";
+          n.title = tooltipFor(n);
+        });
+        var nodes = new vis.DataSet(nodeData);
         var edges = new vis.DataSet({{ edges | tojson }});
+
+        function ctxRenderer(args) {
+          var ctx = args.ctx, state = args.state || {};
+          var node = nodes.get(args.id) || {};
+          var hasDesc = !!node.description;
+          var h = hasDesc ? 70 : 54;
+          var left = args.x - CARD_W / 2, top = args.y - h / 2;
+          var accent = layerColour(node.layer);
+          return {
+            drawNode: function () {
+              var emphasised = state.selected || state.hover;
+              ctx.save();
+              roundRect(ctx, left, top, CARD_W, h, 6);
+              ctx.fillStyle = "#ffffff";
+              ctx.fill();
+              ctx.lineWidth = emphasised ? 3 : 1;
+              ctx.strokeStyle = emphasised ? accent : "#c7ccd4";
+              ctx.stroke();
+              // Left accent bar in the node's own layer colour.
+              ctx.fillStyle = accent;
+              ctx.fillRect(left + 1, top + 4, 4, h - 8);
+
+              var seams = node.seams || [];
+              var dotsWidth = seams.length ? seams.length * (DOT + DOT_GAP) : 0;
+              var textLeft = left + PAD + 4;
+              var textWidth = CARD_W - PAD * 2 - 4;
+
+              // Type pill.
+              ctx.font = FONT_PILL;
+              var pillText = ellipsize(ctx, node.typeLabel || "Element", textWidth - dotsWidth - 12);
+              var pillW = ctx.measureText(pillText).width + 12;
+              roundRect(ctx, textLeft, top + 7, pillW, 15, 7);
+              ctx.fillStyle = "#eef0f3";
+              ctx.fill();
+              ctx.fillStyle = "#444";
+              ctx.textBaseline = "middle";
+              ctx.textAlign = "left";
+              ctx.fillText(pillText, textLeft + 6, top + 15);
+
+              // Seam dots, top-right, one per outgoing seam.
+              var dx = left + CARD_W - PAD - DOT / 2;
+              for (var i = seams.length - 1; i >= 0; i--) {
+                ctx.beginPath();
+                ctx.arc(dx, top + 14, DOT / 2, 0, 2 * Math.PI);
+                ctx.fillStyle = layerColour(seams[i].targetLayer);
+                ctx.fill();
+                dx -= DOT + DOT_GAP;
+              }
+
+              ctx.fillStyle = "#1a1a1a";
+              ctx.font = FONT_LABEL;
+              ctx.fillText(ellipsize(ctx, node.label || "", textWidth), textLeft, top + 36);
+              if (hasDesc) {
+                ctx.fillStyle = "#555";
+                ctx.font = FONT_DESC;
+                ctx.fillText(ellipsize(ctx, node.description, textWidth), textLeft, top + 55);
+              }
+              ctx.restore();
+            },
+            nodeDimensions: { width: CARD_W, height: h },
+          };
+        }
+
         var container = document.getElementById("network");
         var network = new vis.Network(container, { nodes: nodes, edges: edges }, {
-          nodes: { shape: "box", margin: 10, font: { multi: false } },
-          edges: { arrows: "to", font: { align: "middle" } },
-          physics: { stabilization: true },
+          nodes: { shape: "custom", ctxRenderer: ctxRenderer },
+          edges: { arrows: "to", color: { color: "#9aa0a8", highlight: "#555", hover: "#555" }, font: { align: "middle" } },
+          physics: { stabilization: true, barnesHut: { springLength: 200, avoidOverlap: 0.6 } },
+          // zoomView off so the mouse wheel scrolls the page instead of
+          // being trapped by canvas zoom; buttons provide zoom instead.
+          interaction: { zoomView: false, navigationButtons: true, dragView: true, hover: true },
         });
+        // Diagnostic hook: lets browser checks find node positions.
+        container.seamsNetwork = network;
         network.on("click", function (params) {
           if (params.nodes.length) {
             window.seamsNavigate(params.nodes[0], "{{ next_path_qs }}");
@@ -53,7 +169,7 @@
     <script>
       (function () {
         var elementMap = {{ element_map | tojson }};
-        var viewer = new BpmnJS({ container: "#payload-canvas" });
+        var viewer = new BpmnJS({ container: "#payload-canvas", zoomScroll: { enabled: false } });
         fetch("{{ payload_url }}")
           .then(function (res) { return res.text(); })
           .then(function (xml) { return viewer.importXML(xml); })
@@ -75,7 +191,7 @@
       (function () {
         var elementMap = {{ element_map | tojson }};
         var container = document.querySelector("#payload-canvas");
-        var viewer = new DmnJS({ container: container });
+        var viewer = new DmnJS({ container: container, drd: { zoomScroll: { enabled: false } } });
         var drdWired = false;
         function navigateTo(elementId) {
           var iri = elementMap[elementId];
@@ -131,7 +247,9 @@
     <div id="query-results"></div>
   {% endif %}
 
-  <section class="inspector">
+  </div>
+
+  <aside class="inspector">
     <h3>Details</h3>
     <p><strong>IRI:</strong> <code>{{ focus_iri }}</code></p>
     <p><strong>Type:</strong> {{ types_str }}</p>
@@ -143,6 +261,7 @@
       <ul>
         {% for e in outgoing %}
           <li>
+            <span class="seam-dot" data-layer="{{ e.targetLayer }}" title="{{ e.targetLabel }} ({{ e.targetLayer }})"></span>
             <code class="predicate-label" data-predicate="{{ e.predicate }}">{{ e.predicateLabel }}</code> &rarr;
             {% if e.navigational %}
               <a href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true">{{ e.targetLabel }}</a>
@@ -159,11 +278,13 @@
       <ul>
         {% for e in incoming %}
           <li>
+            <span class="seam-dot" data-layer="{{ e.sourceLayer }}" title="{{ e.sourceLabel }} ({{ e.sourceLayer }})"></span>
             <a href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true">{{ e.sourceLabel }}</a>
             &rarr; <code class="predicate-label" data-predicate="{{ e.predicate }}">{{ e.predicateLabel }}</code>
           </li>
         {% endfor %}
       </ul>
     {% endif %}
-  </section>
+  </aside>
+  </div>
 </main>

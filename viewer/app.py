@@ -176,14 +176,21 @@ def layer_of(iri: str) -> str:
     return LAYER_BY_NOTATION.get(notation_of(model), "other") if model else "other"
 
 
-def type_label(iri: str) -> str:
-    """Friendly label of the element's primary rdf:type for the card's type pill.
+def primary_type(iri: str) -> str | None:
+    """IRI of the element's primary rdf:type, or None when it has none.
     Picks deterministically, preferring a domain type over the generic seam:Model."""
     types = sorted(str(t) for t in get_graph().objects(URIRef(iri), RDF.type))
     if not types:
-        return "Element"
+        return None
     domain = [t for t in types if t != str(SEAM.Model)]
-    t = (domain or types)[0]
+    return (domain or types)[0]
+
+
+def type_label(iri: str) -> str:
+    """Friendly label of the element's primary rdf:type for the card's type pill."""
+    t = primary_type(iri)
+    if t is None:
+        return "Element"
     return ontology_labels().get(t, short_name(t))
 
 
@@ -346,6 +353,7 @@ def nodes_for(members: set[str]) -> list[dict]:
             "id": m,
             "label": label(m),
             "group": (types_of(m) or ["Element"])[0],
+            "type": qname(primary_type(m)) if primary_type(m) else "Element",
             "typeLabel": type_label(m),
             "description": description_of(m),
             "layer": layer_of(m),

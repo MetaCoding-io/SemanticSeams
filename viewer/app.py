@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 
-from viewer import legend
+from viewer import ifml, legend
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.validation import get_model_conformance
@@ -536,6 +536,8 @@ def build_view(
         "detailedByCandidates": detailed_by_candidates or [],
         "warnings": warnings,
         "modelConformance": get_model_conformance(get_graph()),
+        # Derived IFML notation diagram for the SVG renderer (M006/S05, D011).
+        "ifml": ifml.ifml_diagram(iri) if notation == "ifml" else None,
     }
 
 

@@ -23,18 +23,21 @@ editing waits.
 
 ## P0: one visual language, legible descent
 
-| # | Item | Merges | Size | Depends on | Vocabulary impact |
-|---|---|---|---|---|---|
-| 1 | **Node card with seam dots and colour-by-layer tokens** in the existing templates. Type pill, label, description, one dot per outgoing seam coloured by target layer. | Levels 3, 8 · Reveal 1 | S | none | none; `rdfs:label`, `rdfs:comment`, `arch:technology`, `deploy:version` already exist |
-| 2 | **C4 renderer on ELK with nested containment.** Replace vis-network; containment as nesting; deterministic positions; levels L1–L3 as class filters; rolled-up L1 edges from a canned query with an acceptance test. | Levels 1, 2, 7 · Reveal 2 | M | 1 | a viewer-side level config, not a seam predicate (design rule 2) |
-| 3 | **IFML rendered as IFML, server-side SVG.** Containers as boxes, components with stereotypes and «DataBinding», events as border circles, flows, binding groups; Action hexagons from `seam:triggers`, fields from the written shape, activation notes from `seam:visibleWhen`; seam dots on all of them. | IFML 2, 3 | M | 1 | none to add; derivations only. Decide whether fields come only from SHACL (recommended) |
-| 4 | **Level and lens state in the URL**, remembered per notation; level cards written as questions beside the Questions catalog, greyed out when empty. | Levels 5, 6 | S | 2 | none |
-| 5 | **Legend with live counts and click-to-hide**, with edge contraction through hidden types. | Levels 4 | S | 2 | none |
-| 6 | **Inspector as a right-hand panel.** Also fixes the wheel-over-canvas scroll trap. | walkthrough finding | S | 1 | none |
+| # | Item | Merges | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|---|
+| 1 | **Node card with seam dots and colour-by-layer tokens** in the existing templates. Type pill, label, description, one dot per outgoing seam coloured by target layer. | Levels 3, 8 · Reveal 1 | S | none | none; `rdfs:label`, `rdfs:comment`, `arch:technology`, `deploy:version` already exist | done (M006/S01) |
+| 2 | **C4 renderer on ELK with nested containment.** Replace vis-network; containment as nesting; deterministic positions; levels L1–L3 as class filters; rolled-up L1 edges from a canned query with an acceptance test. | Levels 1, 2, 7 · Reveal 2 | M | 1 | a viewer-side level config, not a seam predicate (design rule 2) | done (M006/S02) |
+| 3 | **IFML rendered as IFML, server-side SVG.** Containers as boxes, components with stereotypes and «DataBinding», events as border circles, flows, binding groups; Action hexagons from `seam:triggers`, fields from the written shape, activation notes from `seam:visibleWhen`; seam dots on all of them. | IFML 2, 3 | M | 1 | none to add; derivations only. Decide whether fields come only from SHACL (recommended) | done (M006/S05) |
+| 4 | **Level and lens state in the URL**, remembered per notation; level cards written as questions beside the Questions catalog, greyed out when empty. | Levels 5, 6 | S | 2 | none | done (M006/S03) |
+| 5 | **Legend with live counts and click-to-hide**, with edge contraction through hidden types. | Levels 4 | S | 2 | none | done (M006/S04) |
+| 6 | **Inspector as a right-hand panel.** Also fixes the wheel-over-canvas scroll trap. | walkthrough finding | S | 1 | none | done (M006/S01) |
 
 Ship order: 1, 6, 2, 4, 5, 3. Items 1 and 6 are template-only and can land in
 one PR. Item 3 can start in parallel with 2 because it does not share the
 layout engine.
+
+*All six shipped in M006 (One Visual Language), completed 2026-10-28. Item 2's
+renderer choice is recorded in [ADR-0008](adr/0008-node-link-renderer.md).*
 
 ## P1: the differentiators, once the base is consistent
 
@@ -97,10 +100,10 @@ around it. The generators themselves come after G2 and are M3.
 The earlier order put P1 first, which contradicted the guiding call above that
 UI work must not eat M3.*
 
-1. P0 items 1 and 6 (one PR).
-2. P0 item 2 and G2 in parallel.
-3. P0 items 4, 5, 3.
-4. M3, opening with the ADR-0007 spike (its open items). ADR-0007 moves to
+1. P0 items 1 and 6 (one PR). *Done, M006/S01.*
+2. P0 item 2 and G2 in parallel. *Done, M006/S02 and S06.*
+3. P0 items 4, 5, 3. *Done, M006/S03, S04, S05.*
+4. M3 (tracked as M004, The Payoff), opening with the ADR-0007 spike (its open items). ADR-0007 moves to
    Accepted only if the spike holds; then the vocabulary additions from G2's
    gap list, the worker, and the three generators against the golden outputs.
 5. P1 items 8, 7, 9, 10 and the P2 list, re-triaged once M3 lands and as the

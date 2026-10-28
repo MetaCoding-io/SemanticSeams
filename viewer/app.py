@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 
+from viewer import legend
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.validation import get_model_conformance
@@ -504,10 +505,18 @@ def build_view(
     breadcrumb_trail: list[str],
     detailed_by_candidates: list[dict] | None = None,
     level: str = "",
+    hide: str = "",
 ) -> dict:
     notation = notation_of(iri)
     effective_level, warnings = resolve_level(notation, level)
+    hidden, rejected = legend.parse_hide(hide)
+    warnings = warnings + [{"message": f"Ignored hide value '{t}': expected a type qname"} for t in rejected]
     payload = render_payload_of(iri)
+    if effective_level:
+        level_nodes, _ = c4_graph_data(iri, effective_level)
+        legend_items = legend.legend_entries(level_nodes, hidden)
+    else:
+        legend_items, hidden = [], []
     return {
         "@context": "https://w3id.org/seams/context.jsonld",
         "@id": iri,
@@ -517,6 +526,8 @@ def build_view(
         "notation": notation,
         "level": effective_level,
         "levels": level_summaries(iri) if effective_level else [],
+        "legend": legend_items,
+        "hiddenTypes": hidden,
         "layer": layer_of(iri),
         "nativeElementId": native_element_id(iri),
         "renderPayload": payload,
@@ -537,13 +548,20 @@ def wants_json(request: Request) -> bool:
     return "application/ld+json" in accept or "application/json" in accept
 
 
-def href_for(iri: str, trail: list[str], level: str = "") -> str:
+def href_for(iri: str, trail: list[str], level: str = "", hide: list[str] | None = None) -> str:
     qs = quote(",".join(trail), safe="")
     href = f"/view/{quote(iri, safe='')}?path={qs}"
     # Only known level ids are ever carried into a link.
     if level in C4_LEVELS:
         href += f"&level={level}"
+    # hide holds parse_hide()-validated qnames only (M006/S04, D010).
+    if hide:
+        href += f"&hide={quote(','.join(hide), safe=':,')}"
     return href
+
+
+def toggled(hidden: list[str], type_qname: str) -> list[str]:
+    return sorted(set(hidden) ^ {type_qname})
 
 
 @app.on_event("startup")
@@ -623,13 +641,13 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
 
 
 @app.get("/view/{iri:path}")
-def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
+def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", hide: str = ""):
     clicked = unquote(iri)
     incoming_trail = [p for p in unquote(path).split(",") if p]
 
     nav = resolve_navigation(clicked)
     focus = nav["landing"] if nav["candidates"] else (nav["target"] or clicked)
-    view = build_view(focus, incoming_trail, detailed_by_candidates=nav["candidates"], level=level)
+    view = build_view(focus, incoming_trail, detailed_by_candidates=nav["candidates"], level=level, hide=hide)
 
     if wants_json(request):
         return JSONResponse(view)
@@ -656,10 +674,21 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
         "levels": [
             {
                 **summary,
-                "href": href_for(focus, incoming_trail, summary["id"]),
+                "href": href_for(focus, incoming_trail, summary["id"], view["hiddenTypes"]),
                 "active": summary["id"] == view["level"],
             }
             for summary in view["levels"]
+        ],
+        # Legend entries toggle their own type in ?hide= and keep the level.
+        # Descent links below carry the level but never hide (D010).
+        "legend": [
+            {
+                **entry,
+                "href": href_for(
+                    focus, incoming_trail, view["level"], toggled(view["hiddenTypes"], entry["type"])
+                ),
+            }
+            for entry in view["legend"]
         ],
         "model_conformance": view["modelConformance"],
         "outgoing": view["seamEdges"]["outgoing"],
@@ -684,6 +713,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = ""):
 
     if render_kind == "c4":
         nodes, edges = c4_graph_data(focus, view["level"])
+        nodes, edges = legend.contract_hidden(nodes, edges, view["hiddenTypes"])
         ctx["nodes"] = nodes
         ctx["edges"] = edges
     elif render_kind in GRAPH_BUILDERS:

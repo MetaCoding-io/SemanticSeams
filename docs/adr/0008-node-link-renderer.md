@@ -31,6 +31,10 @@ C4 levels are **viewer configuration** in `viewer/levels.py`, not seam predicate
 
 System-to-system edges at L1 come from `docs/queries/c4-l1-rollup.rq`, which rolls container-level `arch:dependsOn` and `seam:deployedTo` up to the systems and environments that contain the endpoints. It is SPARQL with an acceptance test in `tests/test_acceptance.py`, not JavaScript. It is a projection query for the view, not a Questions-catalog entry, and is not listed in `viewer/queries.py`.
 
+### Legend and hiding
+
+The C4 view has a legend with one entry per node type (the node's `type` qname) and its count at the current level. Clicking an entry toggles that type in a `?hide=` query parameter, so a filtered view is a shareable URL, like `?level=`. Hiding is server-side in `viewer/legend.py` (decision D010). A hidden node with a visible ancestor is collapsed into that ancestor. A hidden node with no visible ancestor is contracted, so its visible predecessors connect to its visible successors. Rerouted edges carry kind `contracted` and are drawn dashed. The level toggle and legend links carry `hide`; descent links do not.
+
 ## Alternatives Considered
 
 - **(a) elkjs + hand-rolled SVG — chosen.**

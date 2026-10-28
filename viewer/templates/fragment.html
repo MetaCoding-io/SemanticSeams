@@ -50,6 +50,18 @@
         <button type="button" data-zoom="fit" title="Fit">&#9634;</button>
       </div>
     </div>
+    {# Legend (M006/S04, D010): one entry per node type at this level with its
+       unfiltered count. Clicking toggles the type in ?hide=; the server
+       collapses or contracts hidden nodes so neighbours stay connected. #}
+    <section id="c4-legend" class="c4-legend" aria-label="Legend">
+      {% for item in legend %}
+        <a class="c4-legend-item" href="{{ item.href }}" hx-get="{{ item.href }}" hx-target="#view-content" hx-push-url="true" data-type="{{ item.type }}" aria-pressed="{{ 'true' if item.hidden else 'false' }}" title="{{ 'Show' if item.hidden else 'Hide' }} {{ item.label }}">
+          <span class="seam-dot c4-legend-swatch" data-layer="{{ item.layer }}"></span>
+          <span class="c4-legend-label">{{ item.label }}</span>
+          <span class="c4-legend-count">{{ item.count }}</span>
+        </a>
+      {% endfor %}
+    </section>
     <script>
       (function () {
         var SVG_NS = "http://www.w3.org/2000/svg";
@@ -224,7 +236,7 @@
             (e.sections || []).forEach(function (s) {
               var pts = [s.startPoint].concat(s.bendPoints || [], [s.endPoint]);
               el("polyline", {
-                "class": "c4-edge",
+                "class": src.kind === "contracted" ? "c4-edge c4-edge-contracted" : "c4-edge",
                 points: pts.map(function (p) { return (p.x + off.x) + "," + (p.y + off.y); }).join(" "),
                 "marker-end": "url(#c4-arrow)",
               }, g);

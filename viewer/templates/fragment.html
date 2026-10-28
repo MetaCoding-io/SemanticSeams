@@ -74,23 +74,44 @@
     <script>
       (function () {
         var elementMap = {{ element_map | tojson }};
-        var viewer = new DmnJS({ container: "#payload-canvas" });
+        var container = document.querySelector("#payload-canvas");
+        var viewer = new DmnJS({ container: container });
+        var drdWired = false;
+        function navigateTo(elementId) {
+          var iri = elementMap[elementId];
+          if (iri) {
+            window.seamsNavigate(iri, "{{ next_path_qs }}");
+          }
+        }
+        // dmn-js swaps views (DRD <-> decision table) in place, so wire on
+        // every view change, not just the view active after import.
+        function wireActiveView() {
+          var activeView = viewer.getActiveView();
+          if (activeView && activeView.type === "drd") {
+            var activeViewer = viewer.getActiveViewer();
+            activeViewer.get("canvas").zoom("fit-viewport");
+            if (!drdWired) {
+              drdWired = true;
+              activeViewer.get("eventBus").on("element.click", function (e) {
+                navigateTo(e.element.id);
+              });
+            }
+          }
+        }
+        // A decision table isn't a diagram-js canvas (no element.click); the
+        // table stands for its decision, so its name header navigates to it.
+        container.addEventListener("click", function (e) {
+          var activeView = viewer.getActiveView();
+          if (activeView && activeView.type === "decisionTable" &&
+              e.target.closest(".decision-table-name")) {
+            navigateTo(activeView.element.id);
+          }
+        });
+        viewer.on("views.changed", wireActiveView);
         fetch("{{ payload_url }}")
           .then(function (res) { return res.text(); })
           .then(function (xml) { return viewer.importXML(xml); })
-          .then(function () {
-            var activeView = viewer.getActiveView();
-            if (activeView && activeView.type === "drd") {
-              var activeViewer = viewer.getActiveViewer();
-              activeViewer.get("canvas").zoom("fit-viewport");
-              activeViewer.get("eventBus").on("element.click", function (e) {
-                var iri = elementMap[e.element.id];
-                if (iri) {
-                  window.seamsNavigate(iri, "{{ next_path_qs }}");
-                }
-              });
-            }
-          })
+          .then(wireActiveView)
           .catch(function (err) { console.error("dmn-js render failed:", err); });
       })();
     </script>

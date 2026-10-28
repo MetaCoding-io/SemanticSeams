@@ -5,7 +5,7 @@
                    xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                    id="chat_bpmn_defs"
                    targetNamespace="https://example.org/chat/chat_bpmn">
-  <bpmn:process id="send_message_process" name="Send Message Process" isExecutable="false">
+  <bpmn:process id="send_message_process" name="Send Message Process" isExecutable="true">
     <bpmn:startEvent id="start" name="Message Submitted">
       <bpmn:outgoing>flow_to_persist</bpmn:outgoing>
     </bpmn:startEvent>

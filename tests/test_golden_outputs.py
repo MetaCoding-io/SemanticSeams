@@ -104,6 +104,11 @@ def test_golden_artifacts_present():
     assert ARTIFACTS, f"no golden artifacts under {GOLDEN.relative_to(ROOT)}"
 
 
+def test_all_three_golden_artifacts_exist():
+    missing = [name for name in ARTIFACT_NAMES if not (GOLDEN / name).exists()]
+    assert not missing, f"missing golden artifacts under {GOLDEN.relative_to(ROOT)}: {missing}"
+
+
 @pytest.mark.parametrize("path", ARTIFACTS, ids=lambda p: p.name)
 def test_every_line_has_exactly_one_trailing_marker(path):
     problems = []
@@ -191,3 +196,77 @@ def test_resolver_rejects_invented_terms(model_terms):
     assert not resolve("nope:thing", model_terms)[1]
     assert resolve("->", model_terms) is None
     assert resolve("image", model_terms) is None
+
+
+def test_every_gap_row_is_referenced():
+    referenced = {
+        marker[len("gap: "):]
+        for path in ARTIFACTS
+        for _, marker in markers(path)
+        if marker.startswith("gap: ")
+    }
+    orphans = [gap for gap in gap_ids() if gap not in referenced]
+    assert not orphans, f"gaps.md: rows not referenced by any golden artifact line: {orphans}"
+
+
+def test_gap_table_covers_backlog_g2_list():
+    # docs/backlog.md G2 names the expected vocabulary additions; each must
+    # surface in the gap table.
+    text = GAPS.read_text().lower()
+    assert "path" in text, "gaps.md: no gap about operation paths"
+    assert "event" in text, "gaps.md: no gap about event-to-operation binding"
+    assert "field" in text, "gaps.md: no gap about form fields"
+    assert "sse" in text, "gaps.md: no gap about SSE transport"
+    assert "channel" in text, "gaps.md: no gap about channel transport"
+    assert "artifact" in text, "gaps.md: no gap about container artifacts"
+    assert "image" in text, "gaps.md: no gap about container images"
+    assert "port" in text, "gaps.md: no gap about ports"
+
+
+def _functions(tree):
+    return [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
+
+def _is_post_route(func):
+    return any(
+        isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and d.func.attr == "post"
+        for d in func.decorator_list
+    )
+
+
+def test_chat_api_handlers_hold_no_domain_if():
+    # ADR-0007 rule 1: a generated handler with an `if` about the domain is a
+    # generator bug; branching belongs to the runtime-interpreted payloads.
+    path = GOLDEN / "chat_api.py"
+    tree = ast.parse(path.read_text(), filename=path.name)
+    functions = _functions(tree)
+    assert functions, f"{path.name}: no handler functions"
+    problems = [
+        f"{path.name}:{node.lineno}: {type(node).__name__} in handler {func.name}()"
+        for func in functions
+        for node in ast.walk(func)
+        if isinstance(node, (ast.If, ast.IfExp, ast.Match))
+    ]
+    assert not problems, "\n".join(problems)
+
+
+def test_chat_api_send_handler_starts_the_process():
+    path = GOLDEN / "chat_api.py"
+    tree = ast.parse(path.read_text(), filename=path.name)
+    posts = [f for f in _functions(tree) if _is_post_route(f)]
+    assert len(posts) == 1, f"{path.name}: expected one POST route (:send_message_op), found {len(posts)}"
+    handler = posts[0]
+    starts = [
+        node
+        for node in ast.walk(handler)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "start_process"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "runtime"
+    ]
+    assert starts, f"{path.name}:{handler.lineno}: {handler.name}() does not call runtime.start_process"
+    first = starts[0].args[0] if starts[0].args else None
+    assert isinstance(first, ast.Constant) and first.value == ":send_message_process", (
+        f"{path.name}:{starts[0].lineno}: runtime.start_process does not start :send_message_process"
+    )

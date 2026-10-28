@@ -9,7 +9,7 @@ written by hand before any generator code exists:
 |----------|----------------|--------|
 | [`compose.yaml`](compose.yaml) | `deploy:` / `arch:` on the containers | docker-compose for the whole system |
 | [`chat_page.html`](chat_page.html) | `ifml:` on `:chat_page` plus the seams it touches | htmx / Jinja2 page |
-| `chat_api.py` | `seam:exposes` on `:chat_api` plus the hydra/comm contract | thin FastAPI route module |
+| [`chat_api.py`](chat_api.py) | `seam:exposes` on `:chat_api` plus the hydra/comm contract | thin FastAPI route module |
 
 They follow ADR-0007: handlers stay thin and the runtime interprets the
 BPMN/DMN/SHACL payloads, secrets are passed by reference only, the model is
@@ -62,4 +62,33 @@ Counts of non-blank lines per marker. M004 drives the gap column toward zero.
 |----------|------:|------:|----:|
 | compose.yaml | 20 | 7 | 42 |
 | chat_page.html | 39 | 18 | 21 |
-| chat_api.py | | | |
+| chat_api.py | 16 | 13 | 16 |
+| **total** | **75** | **38** | **79** |
+
+## Feeding M004
+
+The 22 gaps in [`gaps.md`](gaps.md), grouped by the vocabulary namespace that
+would close them (a gap that spans two layers is listed under both):
+
+- **`deploy:`**: container images (GAP-01), ports (GAP-02), volumes (GAP-03),
+  placement meaning (GAP-04), secret resolution (GAP-05), non-secret config
+  (GAP-06) and readiness (GAP-07). This is the largest group and accounts for
+  most of the compose gap lines.
+- **`comm:` / `hydra:`**: operation paths (GAP-08), read operations (GAP-11),
+  SSE/channel transport (GAP-15) and request encoding (GAP-18).
+- **`ifml:`**: event-to-operation binding (GAP-09), swap and trigger (GAP-10),
+  form field binding and presentation (GAP-12, GAP-13), the page route and
+  title (GAP-17) and the response partial (GAP-19).
+- **`seam:`**: event-to-operation binding (GAP-09), state-guard evaluation
+  (GAP-16), operation to component (GAP-19), policy on the operation (GAP-20)
+  and handler naming (GAP-21).
+- **Data shapes (`sh:`)**: the identifier convention (GAP-11), user-entered
+  fields and required-ness (GAP-12), field order and widget (GAP-13) and the
+  `:status` value set (GAP-14, with `state:`).
+- **`proc:`**: the process correlation key (GAP-22).
+- **`odrl:` / `arch:`**: evaluable policy rules and the auth scheme (GAP-20),
+  plus the `arch:dependsOn` startup rule (GAP-07) and node selectors (GAP-04).
+
+The generator vocabulary names (`seams_runtime.Runtime` and its
+`validate` / `start_process` / `render_fragment` / `subscribe` methods) are
+marked `[fixed]`: they belong to the generator and runtime, not to the model.

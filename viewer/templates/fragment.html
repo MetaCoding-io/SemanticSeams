@@ -36,7 +36,11 @@
        deterministic positions, L1/L2/L3 from viewer/levels.py. #}
     <nav class="level-toggle" aria-label="C4 level">
       {% for lv in levels %}
+        {% if lv.empty %}
+        <a class="level-empty" aria-disabled="true" data-level="{{ lv.id }}" data-empty="true" title="{{ lv.title }} (nothing new at this level)"{% if lv.active %} aria-current="true"{% endif %}>{{ lv.id }} {{ lv.title }}</a>
+        {% else %}
         <a href="{{ lv.href }}" hx-get="{{ lv.href }}" hx-target="#view-content" hx-push-url="true" data-level="{{ lv.id }}" title="{{ lv.title }}"{% if lv.active %} aria-current="true"{% endif %}>{{ lv.id }} {{ lv.title }}</a>
+        {% endif %}
       {% endfor %}
     </nav>
     <div id="c4-canvas" class="c4-canvas" data-level="{{ level }}">
@@ -171,7 +175,7 @@
           g.addEventListener("click", function (ev) {
             ev.stopPropagation();
             if (moved) return;
-            window.seamsNavigate(n.id, "{{ next_path_qs }}");
+            window.seamsNavigate(n.id, "{{ next_path_qs }}", "{{ carried_level }}");
           });
           return g;
         }
@@ -424,7 +428,7 @@
         container.seamsNetwork = network;
         network.on("click", function (params) {
           if (params.nodes.length) {
-            window.seamsNavigate(params.nodes[0], "{{ next_path_qs }}");
+            window.seamsNavigate(params.nodes[0], "{{ next_path_qs }}", "{{ carried_level }}");
           }
         });
       })();
@@ -443,7 +447,7 @@
             viewer.get("eventBus").on("element.click", function (e) {
               var iri = elementMap[e.element.id];
               if (iri) {
-                window.seamsNavigate(iri, "{{ next_path_qs }}");
+                window.seamsNavigate(iri, "{{ next_path_qs }}", "{{ carried_level }}");
               }
             });
           })
@@ -461,7 +465,7 @@
         function navigateTo(elementId) {
           var iri = elementMap[elementId];
           if (iri) {
-            window.seamsNavigate(iri, "{{ next_path_qs }}");
+            window.seamsNavigate(iri, "{{ next_path_qs }}", "{{ carried_level }}");
           }
         }
         // dmn-js swaps views (DRD <-> decision table) in place, so wire on
@@ -498,6 +502,27 @@
     </script>
   {% else %}
     <p><em>No renderer yet for notation "{{ notation }}" — showing inspector only.</em></p>
+  {% endif %}
+
+  {% if levels %}
+    {# Level cards (M006/S03): the C4 zoom levels phrased as questions, beside
+       the Questions catalog. Empty levels are greyed out and not clickable. #}
+    <section id="level-cards" class="level-cards">
+      <h3>Levels</h3>
+      <div class="level-cards-list">
+      {% for lv in levels %}
+        {% if lv.empty %}
+        <a class="level-card level-empty" aria-disabled="true" data-level="{{ lv.id }}" data-empty="true"{% if lv.active %} aria-current="true"{% endif %}>
+        {% else %}
+        <a class="level-card" href="{{ lv.href }}" hx-get="{{ lv.href }}" hx-target="#view-content" hx-push-url="true" data-level="{{ lv.id }}" data-empty="false"{% if lv.active %} aria-current="true"{% endif %}>
+        {% endif %}
+          <div class="level-card-head">{{ lv.id }} {{ lv.title }}</div>
+          <div class="level-card-question">{{ lv.question }}</div>
+          <div class="level-card-count">{{ lv.nodeCount }} node{{ "" if lv.nodeCount == 1 else "s" }}</div>
+        </a>
+      {% endfor %}
+      </div>
+    </section>
   {% endif %}
 
   {% if applicable_queries %}

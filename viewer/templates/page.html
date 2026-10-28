@@ -79,6 +79,16 @@
     .level-toggle a:last-child { border-right: none; }
     .level-toggle a:hover { background: #f4f5f7; }
     .level-toggle a[aria-current="true"] { background: #14213d; color: #fff; font-weight: 600; }
+    /* Level cards (M006/S03): each C4 level phrased as a question. */
+    .level-cards { margin: 1rem 0; }
+    .level-cards-list { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .level-card { flex: 1 1 12rem; display: block; padding: 0.5rem 0.75rem; background: #fff; border: 1px solid #c7ccd4; border-left: 4px solid var(--layer-architecture); border-radius: 6px; color: #14213d; text-decoration: none; font-size: 0.85rem; }
+    .level-card:hover { background: #f4f5f7; }
+    .level-card[aria-current="true"] { border-color: #14213d; border-left-color: var(--layer-architecture); box-shadow: 0 0 0 1px #14213d; }
+    .level-card .level-card-head { font-weight: 600; }
+    .level-card .level-card-question { margin-top: 0.2rem; color: #333; }
+    .level-card .level-card-count { margin-top: 0.2rem; color: #666; font-size: 0.75rem; }
+    .level-empty { opacity: 0.45; cursor: default; pointer-events: none; }
     .c4-canvas { position: relative; height: 520px; overflow: hidden; border: 1px solid #ccc; background: #fff; cursor: grab; user-select: none; }
     .c4-canvas.dragging { cursor: grabbing; }
     .c4-canvas svg { display: block; width: 100%; height: 100%; }
@@ -114,8 +124,10 @@
       });
       return colours;
     })();
-    window.seamsNavigate = function (iri, pathQs) {
+    window.seamsNavigate = function (iri, pathQs, level) {
       var url = "/view/" + encodeURIComponent(iri) + "?path=" + pathQs;
+      // Keep the C4 level in the URL across canvas clicks (M006/S03).
+      if (level) url += "&level=" + encodeURIComponent(level);
       htmx.ajax("GET", url, { target: "#view-content", swap: "innerHTML" }).then(function () {
         history.pushState({}, "", url);
       });

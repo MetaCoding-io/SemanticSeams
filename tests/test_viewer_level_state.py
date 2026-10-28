@@ -158,3 +158,91 @@ def test_bogus_level_on_c4_carries_effective_level(client):
 def test_new_tab_landing_keeps_level(client):
     body = _view_json(client, CHAT_ARCHITECTURE, "&level=L1")
     assert body["level"] == "L1"
+
+
+def _level_cards(html):
+    start = html.index('<section id="level-cards"')
+    return html[start:html.index("</section>", start)]
+
+
+def _card_tags(section):
+    return re.findall(r'<a class="level-card[^"]*"[^>]*>', section)
+
+
+def test_level_cards_render_questions_in_order(client):
+    html = _fragment(client, CHAT_ARCHITECTURE, "level=L1")
+    section = _level_cards(html)
+    assert 'class="level-cards"' in section
+    assert "<h3>Levels</h3>" in section
+    tags = _card_tags(section)
+    assert [re.search(r'data-level="(L\d)"', t).group(1) for t in tags] == ["L1", "L2", "L3"]
+    for lv in ("L1", "L2", "L3"):
+        assert html_lib.escape(levels.C4_LEVELS[lv].question) in section
+    assert all('data-empty="false"' in t for t in tags)
+    assert [t for t in tags if 'aria-current="true"' in t] == [tags[0]]
+    for tag, lv in zip(tags, ("L1", "L2", "L3")):
+        href = html_lib.unescape(re.search(r'href="([^"]*)"', tag).group(1))
+        hx = html_lib.unescape(re.search(r'hx-get="([^"]*)"', tag).group(1))
+        assert href == hx and href.endswith(f"&level={lv}")
+        assert 'hx-target="#view-content"' in tag and 'hx-push-url="true"' in tag
+
+
+def test_level_cards_sit_before_questions(client):
+    html = _fragment(client, CHAT_ARCHITECTURE, "level=L2")
+    cards_at = html.index('<section id="level-cards"')
+    if 'id="query-catalog"' in html:
+        assert cards_at < html.index('id="query-catalog"')
+    # Same column as the catalog: inside the canvas, before the inspector.
+    assert html.index('class="view-canvas"') < cards_at < html.index('<aside class="inspector">')
+
+
+def test_canvas_navigation_carries_level(client):
+    html = _fragment(client, CHAT_ARCHITECTURE, "level=L1")
+    calls = re.findall(r"seamsNavigate\(([^;]*)\);", html)
+    assert calls
+    for call in calls:
+        assert '"L1"' in call, call
+
+
+def test_canvas_navigation_carries_level_through_non_c4(client):
+    path = quote(CHAT_ARCHITECTURE, safe="")
+    html = _fragment(client, CONVERSATION_SHAPE, f"path={path}&level=L1")
+    for call in re.findall(r"seamsNavigate\(([^;]*)\);", html):
+        assert '"L1"' in call, call
+
+
+def test_page_seams_navigate_accepts_level(client):
+    resp = client.get(f"/view/{quote(CHAT_ARCHITECTURE, safe='')}?level=L1")
+    assert resp.status_code == 200
+    assert "window.seamsNavigate = function (iri, pathQs, level)" in resp.text
+    assert '"&level=" + encodeURIComponent(level)' in resp.text
+
+
+def test_empty_level_card_is_greyed_and_inert(client, monkeypatch):
+    real = viewer_app.level_summaries
+
+    def fake(model_iri):
+        out = [dict(s) for s in real(model_iri)]
+        out[-1]["empty"] = True
+        return out
+
+    monkeypatch.setattr(viewer_app, "level_summaries", fake)
+    html = _fragment(client, CHAT_ARCHITECTURE, "level=L1")
+    tags = _card_tags(_level_cards(html))
+    l3 = [t for t in tags if 'data-level="L3"' in t]
+    assert len(l3) == 1
+    card = l3[0]
+    assert "level-empty" in card
+    assert 'aria-disabled="true"' in card
+    assert 'data-empty="true"' in card
+    assert "hx-get" not in card and "href=" not in card
+    # The toggle link for L3 gets the same inert treatment.
+    nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
+    toggle_l3 = re.search(r'<a [^>]*data-level="L3"[^>]*>', nav).group(0)
+    assert "level-empty" in toggle_l3 and 'aria-disabled="true"' in toggle_l3
+    assert "hx-get" not in toggle_l3 and "href=" not in toggle_l3
+
+
+def test_non_c4_view_has_no_level_cards(client):
+    html = _fragment(client, CONVERSATION_SHAPE)
+    assert 'id="level-cards"' not in html

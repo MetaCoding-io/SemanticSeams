@@ -206,7 +206,8 @@ def test_c4_fragment_unknown_level_marks_default_active(client):
     import re
 
     html = _fragment(client, CHAT_ARCHITECTURE, "?level=bogus")
-    assert re.findall(r'data-level="(L\d)"[^>]*aria-current="true"', html) == ["L2"]
+    nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
+    assert re.findall(r'data-level="(L\d)"[^>]*aria-current="true"', nav) == ["L2"]
 
 
 def test_non_c4_fragment_has_no_level_toggle(client):

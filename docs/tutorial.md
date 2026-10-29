@@ -5,6 +5,10 @@ Everything the app does comes from one model: the IFML interaction model, the BP
 the DMN routing table and the SHACL shapes in `examples/chat-app/`. You regenerate the code
 from it, start the stack with Docker Compose, and chat.
 
+This is the quick-start track: a finished model, the pipeline end to end, in about ten
+minutes. To write a model yourself, one layer per chapter, follow the other track,
+[Build an expense approval app](tutorials/expenses/index.md).
+
 The regeneration and Docker commands below are the ones CI runs: the `acceptance` job
 runs the generators and fails on any diff, and the `tutorial-e2e` job brings the same stack
 up in stub mode and chats with it (`tests/test_tutorial_e2e.py`).

@@ -11,6 +11,7 @@
 @prefix dec:    <https://w3id.org/seams/dec#> .
 @prefix state:  <https://w3id.org/seams/state#> .
 @prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
 
 <https://w3id.org/seams/shapes> a owl:Ontology ;
@@ -24,7 +25,8 @@ comments were already making; validating a model against this file is what turns
 
 Validate with the ontology files merged into the data graph: sh:class checks
 subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data.""" ;
-    sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] .
+    sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] ,
+               [ sh:prefix "ifml" ; sh:namespace "https://w3id.org/seams/ifml#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -115,6 +117,61 @@ seamsh:VisibleWhenShape a sh:NodeShape ;
         sh:message "seam:visibleWhen points at a state:State." ] .
 
 #################################################################
+# UI <-> communication
+#################################################################
+
+seamsh:SubmitsToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:submitsTo ;
+    sh:class ifml:Event ;
+    sh:property [ sh:path seam:submitsTo ; sh:class hydra:Operation ;
+        sh:message "seam:submitsTo points at a hydra:Operation." ] ;
+    sh:message "Only an ifml:Event seam:submitsTo an operation." .
+
+seamsh:RendersComponentShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:rendersComponent ;
+    sh:class hydra:Operation ;
+    sh:property [ sh:path seam:rendersComponent ; sh:class ifml:ViewComponent ;
+        sh:message "seam:rendersComponent points at an ifml:ViewComponent." ] ;
+    sh:message "Only a hydra:Operation seam:rendersComponent." .
+
+seamsh:SwapShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:swap ;
+    sh:class ifml:NavigationFlow ;
+    sh:property [ sh:path ifml:swap ; sh:maxCount 1 ;
+        sh:in ( ifml:Replace ifml:Append ifml:Prepend ) ;
+        sh:message "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend." ] ;
+    sh:message "Only an ifml:NavigationFlow carries ifml:swap." .
+
+seamsh:BoundToShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:boundTo ;
+    sh:class ifml:Parameter ;
+    sh:property [ sh:path ifml:boundTo ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "ifml:boundTo names at most one property IRI." ] ;
+    sh:message "Only an ifml:Parameter is ifml:boundTo a property." .
+
+seamsh:OrderShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:order ;
+    sh:class ifml:ViewComponent ;
+    sh:property [ sh:path ifml:order ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:message "ifml:order is at most one xsd:integer per component." ] ;
+    sh:message "Only an ifml:ViewComponent carries ifml:order." .
+
+# Separate shape so the node-level message above does not attach to its results.
+seamsh:OrderUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:order ;
+    sh:sparql [
+        sh:message "ifml:order is unique among the components of one ViewContainer." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?container ifml:contains $this , ?other .
+                FILTER(?other != $this)
+                $this ifml:order ?n . ?other ifml:order ?m .
+                FILTER(?n = ?m)
+            }""" ;
+    ] .
+
+#################################################################
 # Process <-> decisions, communication, data
 #################################################################
 
@@ -193,3 +250,52 @@ seamsh:MediaKindShape a sh:NodeShape ;
     sh:targetObjectsOf seam:mediaKind ;
     sh:class seam:MediaKind ;
     sh:message "seam:mediaKind takes a seam:MediaKind (seam:UIFragment or seam:Data)." .
+
+#################################################################
+# Deployment facts the generators read
+#################################################################
+
+seamsh:ArtifactShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:artifact ;
+    sh:property [ sh:path deploy:reference ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:artifact has exactly one string deploy:reference." ] ;
+    sh:property [ sh:path deploy:version ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:artifact has at most one string deploy:version." ] .
+
+seamsh:PortShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:port ;
+    sh:property [ sh:path deploy:containerPort ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 1 ; sh:maxInclusive 65535 ;
+        sh:message "A deploy:port has exactly one integer deploy:containerPort in 1..65535." ] ;
+    sh:property [ sh:path deploy:publishedPort ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 1 ; sh:maxInclusive 65535 ;
+        sh:message "deploy:publishedPort is at most one integer in 1..65535." ] .
+
+seamsh:VolumeShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:volume ;
+    sh:property [ sh:path deploy:volumeName ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:volume has exactly one string deploy:volumeName." ] ;
+    sh:property [ sh:path deploy:mountPath ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^/" ;
+        sh:message "A deploy:volume has exactly one absolute deploy:mountPath." ] .
+
+seamsh:HealthcheckShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:healthcheck ;
+    sh:property [ sh:path deploy:probe ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:healthcheck has exactly one string deploy:probe." ] .
+
+seamsh:BindingShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:binding ;
+    sh:property [ sh:path deploy:key ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A deploy:binding has exactly one deploy:key." ] ;
+    sh:xone ( [ sh:path deploy:value ; sh:minCount 1 ]
+              [ sh:path deploy:secretRef ; sh:minCount 1 ]
+              [ sh:path deploy:serviceOf ; sh:minCount 1 ] ) ;
+    sh:property [ sh:path deploy:serviceOf ; sh:class arch:Container ;
+        sh:message "deploy:serviceOf points at an arch:Container." ] ;
+    sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef or deploy:serviceOf." .
+
+seamsh:SecretNameShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:secretName ;
+    sh:property [ sh:path deploy:secretRef ; sh:minCount 1 ;
+        sh:message "deploy:secretName names the platform secret for a deploy:secretRef binding; a binding with a secretName must carry a secretRef." ] .

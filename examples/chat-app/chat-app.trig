@@ -13,6 +13,7 @@
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix dash:   <http://datashapes.org/dash#> .
 @prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix seam:   <https://w3id.org/seams/seam#> .
@@ -41,6 +42,11 @@
     :chat_ui a arch:Container ; rdfs:label "Chat Web Interface" ;
         arch:technology "htmx + server-rendered fragments" ;
         arch:dependsOn :chat_api ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/chat-ui" ;
+                          deploy:version "latest" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
+        deploy:dependsOn :chat_api ;
         seam:inModel :chat_architecture .
 
     :chat_api a arch:Container ; rdfs:label "Chat API" ;
@@ -51,9 +57,14 @@
                           deploy:version "0.3.1" ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "DB_URL" ;
-                                                deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ] ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ;
+                                                deploy:secretName "chat-prod-db-url" ] ;
                                deploy:binding [ deploy:key "LLM_API_KEY" ;
-                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ] ] ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ;
+                                                deploy:secretName "chat-prod-llm-key" ] ;
+                               deploy:binding [ deploy:key "LLM_GATEWAY_URL" ;
+                                                deploy:serviceOf :llm_gateway ] ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
         deploy:replicas 3 ;
         deploy:dependsOn :message_db ;
         deploy:placement [ a deploy:PlacementPolicy ;
@@ -62,10 +73,29 @@
 
     :llm_gateway a arch:Container ; rdfs:label "LLM Provider Gateway" ;
         arch:technology "OpenAI-compatible API proxy" ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/llm-gateway" ;
+                          deploy:version "latest" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "UPSTREAM_BASE_URL" ;
+                                                deploy:value "https://api.openai.com/v1" ] ] ;
         seam:inModel :chat_architecture .
 
     :message_db a arch:Container ; rdfs:label "Message Store" ;
         arch:technology "PostgreSQL" ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "postgres" ;
+                          deploy:version "16" ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "POSTGRES_DB" ;
+                                                deploy:value "chat" ] ] ;
+        deploy:volume [ a deploy:Volume ;
+                        deploy:volumeName "message_db_data" ;
+                        deploy:mountPath "/var/lib/postgresql/data" ] ;
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "pg_isready -U postgres" ;
+                             deploy:interval "5s" ] ;
         seam:inModel :chat_architecture .
 
     :prod a arch:Environment ; rdfs:label "Production" ;
@@ -92,19 +122,24 @@
 
     :chat_page a ifml:ViewContainer ; rdfs:label "Chat Page" ;
         ifml:isLandmark true ;
+        ifml:path "/" ;
+        ifml:title "Chat"@en ;
         ifml:contains :conversation_list , :message_thread , :compose_form ;
         seam:inModel :chat_ifml .
 
     :conversation_list a ifml:List ; rdfs:label "Conversations" ;
+        ifml:order 0 ;
         ifml:hasParameter :selected_conversation ;
         ifml:hasEvent :select_conversation ;
         seam:inModel :chat_ifml .
 
     :message_thread a ifml:Details ; rdfs:label "Message Thread" ;
+        ifml:order 1 ;
         ifml:hasParameter :conversation ;
         seam:inModel :chat_ifml .
 
     :compose_form a ifml:Form ; rdfs:label "Compose Message" ;
+        ifml:order 2 ;
         ifml:hasEvent :send_message ;
         ifml:hasParameter :message_input ;
         seam:inModel :chat_ifml .
@@ -113,18 +148,31 @@
         seam:inModel :chat_ifml .
     :conversation a ifml:Parameter ; rdfs:label "conversation" ;
         seam:inModel :chat_ifml .
+    # The only user-entered field of the compose form; every other MessageShape
+    # property (role, status, timestamp) is system-set (ifml:boundTo rule):
+    # role by its sh:defaultValue "user", status and timestamp by the runtime.
     :message_input a ifml:Parameter ; rdfs:label "message input" ;
+        ifml:boundTo :content ;
         seam:inModel :chat_ifml .
 
     :send_message a ifml:Event ; rdfs:label "Send Message" ;
+        ifml:trigger "submit" ;
         seam:inModel :chat_ifml .
     :select_conversation a ifml:Event ; rdfs:label "Select Conversation" ;
+        ifml:trigger "click" ;
         seam:inModel :chat_ifml .
 
     # Selecting a conversation navigates to (refreshes) the thread; the data flow
     # it triggers carries the selection into the thread's own parameter.
     :select_to_thread a ifml:NavigationFlow ;
         ifml:source :select_conversation ; ifml:target :message_thread ;
+        ifml:swap ifml:Replace ;
+        seam:inModel :chat_ifml .
+
+    # Sending a message appends the new message to the thread's item list.
+    :send_to_thread a ifml:NavigationFlow ;
+        ifml:source :send_message ; ifml:target :message_thread ;
+        ifml:swap ifml:Append ;
         seam:inModel :chat_ifml .
 
     :list_to_thread a ifml:DataFlow ;
@@ -177,13 +225,21 @@
     :chat_data_shapes a seam:Model ; rdfs:label "Chat Data Model" .
 
     :MessageShape a sh:NodeShape ; rdfs:label "Message" ;
-        sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :status ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :timestamp ; sh:datatype xsd:dateTime ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:maxLength 16000 ; sh:order 0 ; dash:editor dash:TextAreaEditor ] ;
+        # A message posted without a role is the user's; the worker writes "assistant".
+        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 1 ;
+                      sh:defaultValue "user" ] ;
+        # Values are the rdfs:labels of :message_lifecycle's states (seam:lifecycle).
+        sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;
+                      sh:in ( "composing" "sending" "streaming" "complete" "failed" ) ] ;
+        sh:property [ sh:path :timestamp ; sh:datatype xsd:dateTime ; sh:maxCount 1 ; sh:order 3 ] ;
         seam:inModel :chat_data_shapes .
 
+    # Identifier convention: a shape that is addressed in a URL carries exactly
+    # one string :id; comm:path templates map their variables to it.
     :ConversationShape a sh:NodeShape ; rdfs:label "Conversation" ;
+        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
         sh:property [ sh:path :title ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
         sh:property [ sh:path :hasMessage ; sh:class :MessageShape ] ;
         seam:inModel :chat_data_shapes .
@@ -224,10 +280,12 @@
 
     # Architecture → UI/Process seam edges
     :chat_ui seam:presents :chat_ifml ;
-        seam:consumes :send_message_op ;
+        seam:consumes :send_message_op , :list_conversations_op , :message_thread_op ,
+                      :stream_events ;
         seam:deployedTo :web01 .
 
-    :chat_api seam:exposes :send_message_op , :stream_events ;
+    :chat_api seam:exposes :send_message_op , :list_conversations_op , :message_thread_op ,
+                           :stream_events ;
         seam:executes :send_message_process ;
         seam:deployedTo :app01 .
 
@@ -238,15 +296,27 @@
 
     # UI → Process seam edges
     :send_message seam:triggers :send_message_process ;
+        seam:submitsTo :send_message_op ;
         seam:governedBy :user_send_policy .
+
+    # Operation → component whose partial the UIFragment response renders
+    :send_message_op seam:rendersComponent :message_thread ;
+        seam:governedBy :user_send_policy .
+    :list_conversations_op seam:rendersComponent :conversation_list .
+    :message_thread_op seam:rendersComponent :message_thread .
 
     :conversation_list seam:reads :ConversationShape .
     :compose_form seam:writes :MessageShape .
+    # The thread shows in every message state but :s_failed: before a send,
+    # while the reply is sent and streamed, and after it completes.
     :message_thread seam:reads :MessageShape ;
-        seam:visibleWhen :s_composing .
+        seam:visibleWhen :s_composing , :s_sending , :s_streaming , :s_complete .
 
     # Process → Decision/Data seam edges
-    :send_message_process seam:detailedBy :chat_bpmn .
+    # The correlation key is the IFML parameter whose name is the comm:path
+    # variable of the operation :send_message submits to (gaps.md GAP-22).
+    :send_message_process seam:detailedBy :chat_bpmn ;
+        proc:correlationKey :conversation .
 
     <https://example.org/chat/chat_bpmn#persist_user_msg>
         seam:invokes :send_message_op ;
@@ -279,6 +349,14 @@
         # disambiguation popover (decision table vs. the data shape it reads).
         seam:detailedBy :routing_dmn , :chat_data_shapes ;
         seam:inModel :routing_dmn .
+    # Runtime bindings into routing.dmn (gaps.md GAP-23..GAP-25): the native
+    # decision id, each table input's expression variable and the source
+    # path, and the output (named by its label "Provider") feeding "provider".
+    :routing_decision dec:payloadElement "routing_decision" ;
+        dec:input [ a dec:InputBinding ; dec:variable "message_role" ; dec:fromPath :role ] ,
+                  [ a dec:InputBinding ; dec:variable "message_length" ; dec:fromPath :content ;
+                    dec:measure dec:Length ] ;
+        dec:output [ a dec:OutputBinding ; dec:variable "Provider" ; dec:processVariable "provider" ] .
     :routing_dmn seam:notation seam:DMN ;
         seam:renderPayload <routing.dmn> .
 
@@ -299,17 +377,58 @@
         hydra:method "POST" ;
         seam:acceptsShape :MessageShape ;
         seam:returnsShape :MessageShape ;
-        seam:mediaKind seam:UIFragment .
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations/{conversation}/messages" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "conversation" ;
+                                    hydra:property :id ] ] .
+
+    :list_conversations_op a hydra:Operation ; rdfs:label "List Conversations" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ConversationShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations" ] .
+
+    :message_thread_op a hydra:Operation ; rdfs:label "Message Thread" ;
+        hydra:method "GET" ;
+        seam:returnsShape :MessageShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations/{conversation}/messages" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "conversation" ;
+                                    hydra:property :id ] ] .
 
     :completion_op a hydra:Operation ; rdfs:label "LLM Completion" ;
         hydra:method "POST" ;
         seam:acceptsShape :MessageShape ;
         seam:returnsShape :MessageShape ;
-        seam:mediaKind seam:Data .
+        seam:mediaKind seam:Data ;
+        comm:requestMediaType "application/json" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/v1/chat/completions" ] .
 
     :stream_events a comm:Channel ; rdfs:label "stream.events" ;
-        seam:acceptsShape :MessageShape .
+        seam:acceptsShape :MessageShape ;
+        comm:transport comm:SSE ;
+        comm:eventName "token" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/conversations/{conversation}/stream" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "conversation" ;
+                                    hydra:property :id ] ] .
 
     # Authorization
-    :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" .
+    # :authenticated_user is established by a trusted proxy identity header
+    # (X-Forwarded-User), or by SEAMS_DEV_USER for local use (decision D014,
+    # gaps.md GAP-20).
+    :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" ;
+        odrl:permission [ a odrl:Permission ;
+                          odrl:target :send_message_op ;
+                          odrl:action odrl:use ;
+                          odrl:assignee :authenticated_user ] .
+    :authenticated_user a odrl:PartyCollection ; rdfs:label "Authenticated users" .
 }

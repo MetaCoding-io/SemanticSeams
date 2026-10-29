@@ -5,6 +5,7 @@
   <title>SemanticSeams Viewer — {{ label }}</title>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/diagram-js.css">
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/bpmn-js.css">
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css">
@@ -15,6 +16,18 @@
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-literal-expression.css">
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-font/css/dmn.css">
   <style>
+    /* One layer palette shared by CSS (seam dots, pills) and canvas drawing
+       (window.seamsLayerColours below). Hues follow
+       docs/research/2026-10-15-reveal-modes.md section 1. */
+    :root {
+      --layer-architecture: #2563eb;
+      --layer-interaction: #d97706;
+      --layer-process: #7c3aed;
+      --layer-decision: #e11d48;
+      --layer-data: #16a34a;
+      --layer-lifecycle: #0d9488;
+      --layer-other: #9ca3af;
+    }
     body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a; }
     header { padding: 0.75rem 1.5rem; background: #14213d; color: #fff; font-weight: 600; }
     .breadcrumbs { padding: 0.75rem 1.5rem; background: #f4f5f7; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
@@ -24,9 +37,25 @@
     #network { background: #fff; }
     #payload-canvas { background: #fff; }
     #payload-canvas .decision-table-name { cursor: pointer; }
-    .inspector { margin-top: 1.5rem; border-top: 1px solid #ddd; padding-top: 1rem; }
+    .view-layout { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.5rem; align-items: start; }
+    .view-canvas { min-width: 0; }
+    .inspector { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem 1rem; background: #fafbfc; font-size: 0.9rem; overflow-wrap: anywhere; }
+    .inspector h3 { margin-top: 0; }
     .inspector ul { list-style: none; padding-left: 0; }
     .inspector li { padding: 0.25rem 0; }
+    @media (max-width: 900px) {
+      .view-layout { grid-template-columns: minmax(0, 1fr); }
+      .inspector { position: static; max-height: none; }
+    }
+    .seam-dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: middle; background: var(--layer-other); }
+    .seam-dot[data-layer="architecture"] { background: var(--layer-architecture); }
+    .seam-dot[data-layer="interaction"] { background: var(--layer-interaction); }
+    .seam-dot[data-layer="process"] { background: var(--layer-process); }
+    .seam-dot[data-layer="decision"] { background: var(--layer-decision); }
+    .seam-dot[data-layer="data"] { background: var(--layer-data); }
+    .seam-dot[data-layer="lifecycle"] { background: var(--layer-lifecycle); }
+    .seam-dot[data-layer="other"] { background: var(--layer-other); }
+    .type-pill { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; background: #eef0f3; color: #444; font-size: 0.75rem; font-weight: 600; }
     .warning { color: #8a5300; background: #fff3cd; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; }
     code { background: #f0f0f0; padding: 0.1rem 0.3rem; border-radius: 3px; }
     .disambiguation { border: 2px solid #14213d; background: #eef2fb; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
@@ -44,16 +73,105 @@
     .health-panel details { margin-top: 0.35rem; }
     .health-panel summary { cursor: pointer; }
     .health-panel ul { margin: 0.35rem 0 0 0; padding-left: 1.25rem; }
+    /* C4 node-link view (M006/S02, ADR-0008): ELK layout drawn as SVG. */
+    .level-toggle { display: inline-flex; border: 1px solid #c7ccd4; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .level-toggle a { padding: 0.3rem 0.75rem; color: #14213d; text-decoration: none; background: #fff; border-right: 1px solid #c7ccd4; }
+    .level-toggle a:last-child { border-right: none; }
+    .level-toggle a:hover { background: #f4f5f7; }
+    .level-toggle a[aria-current="true"] { background: #14213d; color: #fff; font-weight: 600; }
+    /* Level cards (M006/S03): each C4 level phrased as a question. */
+    .level-cards { margin: 1rem 0; }
+    .level-cards-list { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .level-card { flex: 1 1 12rem; display: block; padding: 0.5rem 0.75rem; background: #fff; border: 1px solid #c7ccd4; border-left: 4px solid var(--layer-architecture); border-radius: 6px; color: #14213d; text-decoration: none; font-size: 0.85rem; }
+    .level-card:hover { background: #f4f5f7; }
+    .level-card[aria-current="true"] { border-color: #14213d; border-left-color: var(--layer-architecture); box-shadow: 0 0 0 1px #14213d; }
+    .level-card .level-card-head { font-weight: 600; }
+    .level-card .level-card-question { margin-top: 0.2rem; color: #333; }
+    .level-card .level-card-count { margin-top: 0.2rem; color: #666; font-size: 0.75rem; }
+    .level-empty { opacity: 0.45; cursor: default; pointer-events: none; }
+    .c4-canvas { position: relative; height: 520px; overflow: hidden; border: 1px solid #ccc; background: #fff; cursor: grab; user-select: none; }
+    .c4-canvas.dragging { cursor: grabbing; }
+    .c4-canvas svg { display: block; width: 100%; height: 100%; }
+    .c4-controls { position: absolute; right: 0.5rem; bottom: 0.5rem; display: flex; gap: 0.25rem; }
+    .c4-controls button { width: 2rem; height: 2rem; border: 1px solid #c7ccd4; border-radius: 4px; background: #fff; cursor: pointer; font-size: 1rem; }
+    .c4-controls button:hover { background: #f4f5f7; }
+    .c4-card, .c4-frame { cursor: pointer; }
+    .c4-card .c4-card-bg { fill: #fff; stroke: #c7ccd4; stroke-width: 1; }
+    .c4-card:hover .c4-card-bg { stroke: #555; stroke-width: 2; }
+    .c4-frame > .c4-frame-bg { fill: #f8f9fb; stroke: #9aa0a8; stroke-width: 1; stroke-dasharray: 6 3; }
+    .c4-frame:hover > .c4-frame-bg { stroke: #555; }
+    .c4-pill-bg { fill: #eef0f3; }
+    .c4-pill { fill: #444; font: 600 10px system-ui, sans-serif; }
+    .c4-label { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
+    .c4-desc { fill: #555; font: 11px system-ui, sans-serif; }
+    .c4-edge { fill: none; stroke: #9aa0a8; stroke-width: 1.5; }
+    .c4-edge-label { fill: #555; font: 10px system-ui, sans-serif; }
+    /* Edges rerouted around hidden types (M006/S04, D010). */
+    .c4-edge.c4-edge-contracted { stroke-dasharray: 5 4; }
+    /* C4 legend (M006/S04): click an entry to hide or show its type. */
+    .c4-legend { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.8rem; }
+    .c4-legend-item { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border: 1px solid #c7ccd4; border-radius: 999px; background: #fff; color: #14213d; text-decoration: none; }
+    .c4-legend-item:hover { background: #f4f5f7; }
+    .c4-legend-item .seam-dot { margin-right: 0; }
+    .c4-legend-count { color: #666; font-variant-numeric: tabular-nums; }
+    .c4-legend-item[aria-pressed="true"] { opacity: 0.5; background: #f4f5f7; }
+    .c4-legend-item[aria-pressed="true"] .c4-legend-label { text-decoration: line-through; }
+    /* IFML drawn as IFML (M006/S05, D011): server-side SVG from viewer/ifml.py.
+       Chrome uses the interaction layer token, like the S01 cards. */
+    .ifml-canvas { overflow: auto; border: 1px solid #ccc; background: #fff; }
+    .ifml-diagram { display: block; max-width: 100%; height: auto; font-family: system-ui, sans-serif; }
+    .ifml-diagram [data-iri] { cursor: pointer; }
+    .ifml-container-bg { fill: #fffaf2; stroke: var(--layer-interaction); stroke-width: 1.5; }
+    .ifml-container-title { fill: var(--layer-interaction); fill-opacity: 0.15; stroke: var(--layer-interaction); stroke-width: 1.5; }
+    .ifml-container-name { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
+    .ifml-container:hover > .ifml-container-bg { stroke-width: 2.5; }
+    .ifml-component-bg { fill: #fff; stroke: var(--layer-interaction); stroke-width: 1.5; }
+    .ifml-component:hover > .ifml-component-bg { stroke: #555; stroke-width: 2; }
+    .ifml-stereotype { fill: #555; font: 11px system-ui, sans-serif; }
+    .ifml-name { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
+    .ifml-binding-bg { fill: var(--layer-data); fill-opacity: 0.12; stroke: var(--layer-data); stroke-width: 1; }
+    .ifml-binding-text { fill: #1a1a1a; font: 10px system-ui, sans-serif; }
+    .ifml-field-bg { fill: #f8f9fb; stroke: #d5d9df; stroke-width: 1; }
+    .ifml-field-text { fill: #1a1a1a; font: 10px system-ui, sans-serif; }
+    .ifml-field-kind { fill: #888; font: italic 9px system-ui, sans-serif; }
+    .ifml-event-circle { stroke: #1a1a1a; stroke-width: 1.5; }
+    .ifml-event-user .ifml-event-circle { fill: #fff; }
+    .ifml-event-system .ifml-event-circle { fill: #1a1a1a; }
+    .ifml-event:hover .ifml-event-circle { stroke-width: 2.5; }
+    .ifml-event-label { fill: #1a1a1a; font: 10px system-ui, sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+    .ifml-action { fill: var(--layer-process); fill-opacity: 0.1; stroke: var(--layer-process); stroke-width: 1.5; }
+    .ifml-action-group:hover .ifml-action { stroke-width: 2.5; }
+    .ifml-action-label { fill: #1a1a1a; font: 600 12px system-ui, sans-serif; }
+    .ifml-flow-line { fill: none; stroke: #555; stroke-width: 1.5; }
+    .ifml-flow:hover .ifml-flow-line { stroke: #1a1a1a; stroke-width: 2.5; }
+    .ifml-arrowhead { fill: #555; }
+    .ifml-note-bg { fill: #fffbe6; stroke: #b8a76a; stroke-width: 1; }
+    .ifml-note-fold { fill: none; stroke: #b8a76a; stroke-width: 1; }
+    .ifml-note-connector { fill: none; stroke: #b8a76a; stroke-width: 1; }
+    .ifml-note-text { fill: #1a1a1a; font: 11px system-ui, sans-serif; }
+    .ifml-seam-dot { stroke: #fff; stroke-width: 1; }
   </style>
 </head>
 <body>
   <script src="https://unpkg.com/bpmn-js@17/dist/bpmn-navigated-viewer.production.min.js"></script>
   <script src="https://unpkg.com/dmn-js@16/dist/dmn-navigated-viewer.production.min.js"></script>
   <script>
-    // Shared by every renderer's click handler (vis-network, bpmn-js, dmn-js).
+    // Shared by every renderer's click handler (ELK/SVG, vis-network, bpmn-js, dmn-js).
     // Defined once here so it survives htmx swaps of #view-content.
-    window.seamsNavigate = function (iri, pathQs) {
+    // Layer palette for canvas renderers, read from the :root --layer-*
+    // tokens so CSS and canvas share one source of colours.
+    window.seamsLayerColours = (function () {
+      var css = getComputedStyle(document.documentElement);
+      var colours = {};
+      ["architecture", "interaction", "process", "decision", "data", "lifecycle", "other"].forEach(function (layer) {
+        colours[layer] = css.getPropertyValue("--layer-" + layer).trim() || "#9ca3af";
+      });
+      return colours;
+    })();
+    window.seamsNavigate = function (iri, pathQs, level) {
       var url = "/view/" + encodeURIComponent(iri) + "?path=" + pathQs;
+      // Keep the C4 level in the URL across canvas clicks (M006/S03).
+      if (level) url += "&level=" + encodeURIComponent(level);
       htmx.ajax("GET", url, { target: "#view-content", swap: "innerHTML" }).then(function () {
         history.pushState({}, "", url);
       });

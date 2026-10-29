@@ -58,12 +58,27 @@ ifml:contains a rdf:Property ;
     rdfs:domain ifml:ViewElement ; rdfs:range ifml:ViewElement ;
     rdfs:comment "Container nesting and container->component placement. Corresponds to: ViewContainer.viewElements." .
 
+ifml:order a rdf:Property ;
+    rdfs:label "order" ;
+    rdfs:domain ifml:ViewComponent ; rdfs:range xsd:integer ;
+    rdfs:comment "Render order of components within their containing ViewContainer, ascending; at most one per component and unique within a container (seamsh:OrderShape). Generators emit a container's components in this order, never in graph iteration order. Our extension; IFML's viewElements is an unordered association." .
+
 ifml:isLandmark a rdf:Property ; rdfs:range xsd:boolean ;
     rdfs:comment "Reachable from any container (global navigation). Corresponds to: ViewContainer.isLandmark." .
 ifml:isDefault  a rdf:Property ; rdfs:range xsd:boolean ;
     rdfs:comment "Shown by default among XOR siblings. Corresponds to: ViewContainer.isDefault." .
 ifml:isXOR      a rdf:Property ; rdfs:range xsd:boolean ;
     rdfs:comment "Children are mutually exclusive (tabs, wizard steps). Corresponds to: ViewContainer.isXOR." .
+
+ifml:path a rdf:Property ;
+    rdfs:label "path" ;
+    rdfs:domain ifml:ViewContainer ; rdfs:range xsd:string ;
+    rdfs:comment "URL path of a landmark ViewContainer: the GET route that serves the full page (\"/\" for the app entry point). Our extension; IFML has no URL notion." .
+
+ifml:title a rdf:Property ;
+    rdfs:label "title" ;
+    rdfs:domain ifml:ViewContainer ; rdfs:range rdf:langString ;
+    rdfs:comment "User-facing, language-tagged document title of a ViewContainer (the HTML <title>), distinct from the modeller's rdfs:label. Our extension." .
 
 #################################################################
 # Events and flows
@@ -93,6 +108,31 @@ ifml:target a rdf:Property ;
     rdfs:domain ifml:InteractionFlow ;
     rdfs:comment "View element, or — via the seam — a process/decision the event seam:triggers. Corresponds to: InteractionFlow.trgtInteractionFlowElement." .
 
+ifml:trigger a rdf:Property ;
+    rdfs:label "trigger" ;
+    rdfs:domain ifml:Event ; rdfs:range xsd:string ;
+    rdfs:comment "Literal DOM event name that fires the ifml:Event (\"click\", \"submit\"); renders as hx-trigger. Our extension; IFML leaves the concrete UI event to the platform." .
+
+ifml:swap a rdf:Property ;
+    rdfs:label "swap" ;
+    rdfs:domain ifml:NavigationFlow ; rdfs:range ifml:SwapStrategy ;
+    rdfs:comment """How the response of a NavigationFlow lands in its ifml:target
+component; renders as hx-swap. Generator rules: an ifml:Replace flow targets the
+component element #<component> and its response partial is <component>.html; an
+ifml:Append or ifml:Prepend flow targets the component's item list
+#<component>_items and its partial is <component>_item.html (the operation that
+renders the partial is the one whose seam:rendersComponent names the target).
+Channel rule (no flow needed): a comm:Channel subscription a container
+seam:consumes always appends events into its element (hx-swap beforeend), since
+an event stream only adds. Our extension.""" .
+
+ifml:SwapStrategy a rdfs:Class ;
+    rdfs:label "Swap strategy" ;
+    rdfs:comment "Enumeration of ifml:swap values." .
+ifml:Replace a ifml:SwapStrategy ; rdfs:label "replace (outerHTML)" .
+ifml:Append  a ifml:SwapStrategy ; rdfs:label "append (beforeend)" .
+ifml:Prepend a ifml:SwapStrategy ; rdfs:label "prepend (afterbegin)" .
+
 #################################################################
 # Parameters
 #################################################################
@@ -103,6 +143,18 @@ ifml:Parameter a rdfs:Class ;
 ifml:hasParameter a rdf:Property ;
     rdfs:range ifml:Parameter ;
     rdfs:comment "Corresponds to: InteractionFlowElement.parameters." .
+
+ifml:boundTo a rdf:Property ;
+    rdfs:label "bound to" ;
+    rdfs:domain ifml:Parameter ; rdfs:range rdf:Property ;
+    rdfs:comment """The sh:path property a Form parameter fills (an ifml:Parameter -> the
+property IRI of a property shape of the shape the Form seam:writes). Form rule: a Form
+renders an input only for properties that some ifml:hasParameter of the Form is
+ifml:boundTo; every other property of the written shape is system-set and never
+rendered as input. Presentation comes from the bound property shape: sh:order (field
+order), sh:minCount 1 (required), sh:maxLength (maxlength), dash:editor (widget, e.g.
+dash:TextAreaEditor -> <textarea>, default single-line <input>). Our extension; IFML
+leaves Parameter -> domain attribute binding to its DataBinding machinery.""" .
 
 ifml:ParameterBinding a rdfs:Class ;
     rdfs:comment "sourceParameter -> targetParameter along a flow. Maps to htmx params/vals. Corresponds to: ParameterBinding." .

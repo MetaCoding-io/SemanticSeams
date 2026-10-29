@@ -33,7 +33,11 @@ proc:Task a rdfs:Class ;
     rdfs:comment "Mirrors bpmn:task (and serves as the superclass for typed tasks below)." .
 
 proc:ServiceTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
-    rdfs:comment "Mirrors bpmn:serviceTask. The type that seam:invokes a comm operation." .
+    rdfs:comment """Mirrors bpmn:serviceTask. The type that seam:invokes a comm operation.
+Implementation rule (gaps.md GAP-27): the implementation of the invoked operation is
+the arch:Container that seam:exposes it, reached at the operation's comm:path; there
+is no proc:implementation term. A container that also seam:executes the task's
+process serves the operation in-process.""" .
 
 proc:UserTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
     rdfs:comment "Mirrors bpmn:userTask. Human work item; the type most likely to seam:governedBy a policy and to surface in generated UIs later." .
@@ -42,7 +46,9 @@ proc:BusinessRuleTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
     rdfs:comment "Mirrors bpmn:businessRuleTask. The only legal subject of seam:decidedBy." .
 
 proc:MessageThrowEvent a rdfs:Class ;
-    rdfs:comment "Mirrors bpmn:intermediateThrowEvent / endEvent with messageEventDefinition. Subject of seam:publishesTo." .
+    rdfs:comment """Mirrors bpmn:intermediateThrowEvent / endEvent with messageEventDefinition. Subject of seam:publishesTo.
+Message-name rule (gaps.md GAP-26): the event's message name is the rdfs:label of the
+comm:Channel it seam:publishesTo; no messageRef is added to the BPMN payload.""" .
 
 proc:MessageCatchEvent a rdfs:Class ;
     rdfs:comment "Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo." .
@@ -56,3 +62,60 @@ dec:DecisionModel a rdfs:Class ;
 
 dec:Decision a rdfs:Class ;
     rdfs:comment "Mirrors dmn:decision. Object of seam:decidedBy; subject of seam:reads on its input data shapes." .
+
+#################################################################
+# Runtime binding terms (M004/S02, gaps.md GAP-22..GAP-27)
+#################################################################
+
+proc:correlationKey a rdf:Property ;
+    rdfs:domain proc:Process ;
+    rdfs:range <https://w3id.org/seams/ifml#Parameter> ;
+    rdfs:comment """The ifml:Parameter whose value identifies a running instance of the
+process, so later events, channel subscriptions and lifecycle transitions find the
+same instance. The handler that starts the process passes it as correlation_key;
+its name matches the hydra:variable of the comm:path mapping of the operation the
+triggering event seam:submitsTo (gaps.md GAP-22).""" .
+
+dec:payloadElement a rdf:Property ;
+    rdfs:domain dec:Decision ;
+    rdfs:comment """The id of the native dmn:decision element in the decision model's
+seam:renderPayload (a literal, e.g. "routing_decision"). The worker joins the
+graph decision to the DMN on this id and checks the DMN declares it (GAP-23);
+it never derives the id from the IRI local name.""" .
+
+dec:InputBinding a rdfs:Class ;
+    rdfs:comment "Binds one DMN input variable to a property path of the shape the process carries (GAP-24)." .
+
+dec:OutputBinding a rdfs:Class ;
+    rdfs:comment "Binds the decision's DMN output to the process variable it feeds (GAP-25)." .
+
+dec:input a rdf:Property ;
+    rdfs:domain dec:Decision ; rdfs:range dec:InputBinding ;
+    rdfs:comment "One DMN input the worker must supply when evaluating the decision." .
+
+dec:output a rdf:Property ;
+    rdfs:domain dec:Decision ; rdfs:range dec:OutputBinding ;
+    rdfs:comment "The DMN output whose value the worker stores in the process." .
+
+dec:variable a rdf:Property ;
+    rdfs:comment """The DMN-side name: for an InputBinding, the inputExpression text of
+the decision table input; for an OutputBinding, the output's name (or its label
+when the payload's output has no name attribute).""" .
+
+dec:fromPath a rdf:Property ;
+    rdfs:domain dec:InputBinding ;
+    rdfs:comment "The sh:path of the carried shape whose value fills the input." .
+
+dec:measure a rdf:Property ;
+    rdfs:domain dec:InputBinding ; rdfs:range dec:Measure ;
+    rdfs:comment "Optional function applied to the path value before binding. Absent means the value itself." .
+
+dec:Measure a rdfs:Class ;
+    rdfs:comment "Enumeration of functions dec:measure can apply." .
+
+dec:Length a dec:Measure ;
+    rdfs:comment "The character length of a string value." .
+
+dec:processVariable a rdf:Property ;
+    rdfs:domain dec:OutputBinding ;
+    rdfs:comment "The process variable the decision output is stored under." .

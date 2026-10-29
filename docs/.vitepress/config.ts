@@ -6,8 +6,9 @@ import { defineConfig } from "vitepress";
  * The site is the `docs/` directory rendered as-is, plus what `scripts/generate.py`
  * writes into `docs/generated/` from the model's own sources (the seam ontology, the
  * layer vocabularies, the SHACL shapes and the query catalog). Generated pages are
- * rewritten to `reference/`. `docs/research/` (design notes on what comes next) and
- * `docs/queries/` (the raw catalog, rendered as /reference/queries) are not built.
+ * rewritten to `reference/`. `docs/research/` (design notes on what comes next),
+ * `docs/generation/` (golden fixtures for the generator tests) and `docs/queries/`
+ * (the raw catalog, rendered as /reference/queries) are not built.
  *
  * A relative link that leaves `docs/`, or points into a directory the site does not
  * build, becomes a link into the repository on GitHub, so the same Markdown reads on
@@ -22,7 +23,7 @@ const REPO = "https://github.com/MetaCoding-io/SemanticSeams";
 const PROJECT_PAGE = "https://metacoding-io.github.io/SemanticSeams/";
 const BASE = process.env.DOCS_BASE ?? "/SemanticSeams/docs/";
 /** Directories under `docs/` the site does not build; a link into one goes to GitHub. */
-const OFF_SITE = ["research", "queries"];
+const OFF_SITE = ["research", "queries", "generation"];
 
 const decisions = [
   ["0001", "Named-graph partitioning", "0001-named-graph-partitioning"],
@@ -31,7 +32,8 @@ const decisions = [
   ["0004", "View response contract", "0004-view-response-contract"],
   ["0005", "Navigation resolution", "0005-navigation-resolution"],
   ["0006", "Index-payload drift lint", "0006-index-payload-drift-lint"],
-  ["0007", "Execution strategy (proposed)", "0007-execution-strategy"],
+  ["0007", "Execution strategy", "0007-execution-strategy"],
+  ["0008", "Node-link renderer", "0008-node-link-renderer"],
 ] as const;
 
 export default defineConfig({
@@ -75,6 +77,7 @@ export default defineConfig({
           { text: "Getting started", link: "/guide/getting-started" },
           { text: "Using the viewer", link: "/guide/the-viewer" },
           { text: "Authoring a model", link: "/guide/authoring-a-model" },
+          { text: "Tutorial: the chat app", link: "/tutorial" },
         ],
       },
       {

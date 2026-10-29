@@ -111,6 +111,7 @@
 
 :submit_order a ifml:Event ; rdfs:label "Submit Order" ;
     seam:triggers :order_process ;
+    seam:submitsTo :submit_order_op ;   # the route the form posts to
     seam:governedBy :customer_policy ;
     seam:inModel :checkout_ifml .
 
@@ -221,7 +222,8 @@
     hydra:method "POST" ;
     seam:acceptsShape :OrderShape ;
     seam:returnsShape :OrderShape ;     # the shape of the data the fragment renders
-    seam:mediaKind seam:UIFragment .
+    seam:mediaKind seam:UIFragment ;
+    seam:rendersComponent :order_status .   # the partial the fragment response is
 
 :order_events a comm:Channel ; rdfs:label "order.events" ;
     seam:acceptsShape :OrderShape .

@@ -2,7 +2,7 @@
 
 *A zoomable, multi-notation application graph. One RDF graph is the source of truth; diagrams are views.*
 
-A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
+A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [tutorial](docs/tutorial.md) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
 
 **The pitch, in one paragraph.** Every tool that draws software draws one layer: C4 tools stop at the repository link, BPMN modelers never see the UI that fires a process, IFML never wired up its hooks to data, and SHACL lives in its own silo. SemanticSeams puts every element of every layer in one RDF graph, as a resource with an IRI, and treats each diagram as a view over it. Click a C4 container and land on its IFML interaction model; click a UI event and land on the BPMN process it triggers; click a business-rule task and land on the DMN table; click a data object and land on the SHACL shape. The cross-layer edges are the *seams*, a small bridging ontology of 25 predicates, and because the whole system is one graph, the questions no single-notation tool can answer become SPARQL.
 
@@ -45,6 +45,20 @@ pytest
 ```
 
 The suite (also run in CI) parses every Turtle file, validates the example against `ontology/shapes/seam-shapes.ttl`, proves the shapes reject invalid seams, checks every non-reserved seam predicate is exercised, and asserts exact expected rows for the canned queries in `docs/queries/` — so the flagship cross-layer traversals can never silently regress to zero rows.
+
+## Tutorial
+
+[`docs/tutorial.md`](docs/tutorial.md) goes from a clean checkout to a running chat app:
+regenerate the code from the chat-app model, `docker compose up --build`, open
+http://localhost:8080 and chat with an LLM (OpenAI, any OpenAI-compatible server, or the
+gateway's built-in stub). CI runs the same stack end to end.
+
+## Generators
+
+`python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/` generates the
+chat page's Jinja2/htmx template from the IFML model and the seams it touches. The output
+matches the golden in `docs/generation/golden/` byte for byte. The rendering rules, each
+keyed on a graph fact, are in [`seams_gen/README.md`](seams_gen/README.md).
 
 ## v1: the viewer
 

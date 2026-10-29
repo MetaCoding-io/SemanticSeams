@@ -1,0 +1,38 @@
+# Which systems talk to which, and where are they deployed, with container
+# detail rolled up?
+#
+# Projection query for the C4 L1 (system context) view — NOT a Questions-catalog
+# entry, and deliberately not listed in viewer/queries.py. It has no focus
+# variable: it returns every rolled-up edge in the model, and the viewer keeps
+# the rows whose endpoints are visible at L1 (see ADR-0008).
+#
+# Two branches:
+#   - "depends on"  : a container of ?from arch:dependsOn a container of ?to,
+#                     where both are arch:System and ?from != ?to (dependencies
+#                     inside one system do not roll up into a self-edge).
+#   - "deployed to" : a container of system ?from is seam:deployedTo a
+#                     deployment node that environment ?to arch:contains.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX arch: <https://w3id.org/seams/arch#>
+
+SELECT DISTINCT ?from ?to ?kind WHERE {
+  {
+    ?from a arch:System ;
+          arch:contains ?a .
+    ?to a arch:System ;
+        arch:contains ?b .
+    ?a arch:dependsOn ?b .
+    FILTER(?from != ?to)
+    BIND("depends on" AS ?kind)
+  }
+  UNION
+  {
+    ?from a arch:System ;
+          arch:contains ?c .
+    ?c seam:deployedTo ?n .
+    ?to a arch:Environment ;
+        arch:contains ?n .
+    BIND("deployed to" AS ?kind)
+  }
+}

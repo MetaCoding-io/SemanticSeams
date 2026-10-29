@@ -1,15 +1,19 @@
-"""The docker compose generator (M004/S06/T01, D016, D018): generating the
+"""The docker compose generator (M004/S06/T01-T02, D016, D018): generating the
 compose file with base_dir at the repo root reproduces the marker-stripped
 golden compose.yaml byte for byte, carries the real model hash, is
 deterministic, holds no domain literals in its template, bind-mounts the model
 read-only into the executing container, follows graph edits, and fails with a
 GeneratorError naming the subject and predicate when a required fact is
-missing.
+missing, through both the API and the ``python -m seams_gen compose`` CLI. When
+docker is installed, ``docker compose config`` accepts the generated file.
 """
 
 import difflib
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -32,6 +36,7 @@ GOLDEN = ROOT / "docs" / "generation" / "golden" / "compose.yaml"
 CHAT = "https://example.org/chat/"
 ARCH_GRAPH = URIRef("urn:seams:graph:model:chat_architecture")
 SEAMS_GRAPH = URIRef("urn:seams:graph:seams")
+PAYLOADS = ("chat_process.bpmn", "routing.dmn")
 
 
 def _diff(expected: str, actual: str) -> str:
@@ -255,3 +260,97 @@ def test_depends_on_outside_the_system_raises():
     ds.graph(ARCH_GRAPH).add((ui, DEPLOY.dependsOn, URIRef(CHAT + "web01")))
     err = _raises(ds)
     assert err.subject == str(ui) and err.predicate == str(DEPLOY.dependsOn)
+
+
+# ── negative paths through the API and the CLI ────────────────────────────
+
+
+def _copy_model(tmp_path, *edits) -> Path:
+    for name in PAYLOADS:
+        shutil.copy(TRIG.parent / name, tmp_path / name)
+    text = TRIG.read_text(encoding="utf-8")
+    for old, new in edits:
+        assert text.count(old) == 1, old
+        text = text.replace(old, new)
+    trig = tmp_path / TRIG.name
+    trig.write_text(text, encoding="utf-8")
+    return trig
+
+
+def _cli(*args):
+    return subprocess.run([sys.executable, "-m", "seams_gen", *map(str, args)],
+                          cwd=ROOT, capture_output=True, text=True)
+
+
+NO_DB_ARTIFACT = ('        deploy:artifact [ a deploy:Artifact ;\n'
+                  '                          deploy:reference "postgres" ;\n'
+                  '                          deploy:version "16" ] ;\n', "")
+NO_SECRET_NAME = ('llm-key> ;\n'
+                  '                                                deploy:secretName "chat-prod-llm-key" ]',
+                  'llm-key> ]')
+NO_NODE_LABEL = (':db01  a arch:DeploymentNode ; rdfs:label "db01" ;', ':db01  a arch:DeploymentNode ;')
+
+
+@pytest.mark.parametrize("edit, subject, predicate", [
+    (NO_DB_ARTIFACT, CHAT + "message_db", str(DEPLOY.artifact)),
+    (NO_SECRET_NAME, CHAT + "chat_api", str(DEPLOY.secretName)),
+    (NO_NODE_LABEL, CHAT + "db01", str(RDFS.label)),
+], ids=["no-artifact", "no-secret-name", "unlabelled-node"])
+def test_missing_fact_fails_api_and_cli(tmp_path, edit, subject, predicate):
+    trig = _copy_model(tmp_path, edit)
+    with pytest.raises(GeneratorError) as err:
+        generate_compose(trig, base_dir=tmp_path)
+    assert err.value.subject == subject and err.value.predicate == predicate
+
+    out = tmp_path / "out"
+    run = _cli("compose", trig, "--out", out)
+    assert run.returncode == 2, run.stderr
+    assert subject in run.stderr and predicate in run.stderr
+    assert run.stdout == ""
+    assert not (out / "compose.yaml").exists()
+
+
+def _without_sources_and_hash(text: str) -> str:
+    text = re.sub(r"sha256:[0-9a-f]{64}", "sha256:HASH", text)
+    return re.sub(r"(?m)^(\s+- )\./[^:]+(:/model/)", r"\1SRC\2", text)
+
+
+def test_unedited_copy_generates_same_services(tmp_path):
+    trig = _copy_model(tmp_path)
+    copied, original = generate_compose(trig, base_dir=ROOT), generate_compose(TRIG, base_dir=ROOT)
+    assert copied != original  # the sources differ
+    assert _without_sources_and_hash(copied) == _without_sources_and_hash(original)
+
+
+def test_cli_writes_compose(tmp_path):
+    out = tmp_path / "gen"
+    run = _cli("compose", TRIG, "--out", out)
+    assert run.returncode == 0, run.stderr
+    written = out / "compose.yaml"
+    assert sorted(p.name for p in out.iterdir()) == ["compose.yaml"]
+    assert run.stdout.splitlines() == [str(written)]
+    assert written.read_bytes() == generate_compose(TRIG, base_dir=out).encode("utf-8")
+    assert b"\r\n" not in written.read_bytes()
+
+
+def _docker_compose_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=30).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def test_docker_compose_config_accepts_output():
+    if not _docker_compose_available():
+        pytest.skip("docker compose is not installed")
+    with tempfile.NamedTemporaryFile("w", suffix=".compose.yaml", dir=ROOT, delete=False,
+                                     encoding="utf-8", newline="\n") as fh:
+        fh.write(generate_compose(TRIG, base_dir=ROOT))
+    try:
+        run = subprocess.run(["docker", "compose", "-f", fh.name, "--project-directory", str(ROOT), "config", "-q"],
+                             cwd=ROOT, capture_output=True, text=True, timeout=60)
+        assert run.returncode == 0, run.stderr
+    finally:
+        Path(fh.name).unlink()

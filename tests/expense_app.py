@@ -42,6 +42,18 @@ PROCESS_CHAPTERS = sorted(
     p.name for p in EXPENSES.glob("chapter-*")
     if (p / "generated").is_dir() and int(p.name.split("-")[1]) >= FIRST_PROCESS_CHAPTER
 )
+# The first chapter whose checkpoint governs the submit operation and the
+# user tasks with role policies. From there only the "manager" identity sees
+# the approval task, and an approved expense waits on pay_expense for finance.
+FIRST_ROLES_CHAPTER = 7
+
+
+def chapter_number(chapter: str) -> int:
+    return int(chapter.split("-")[1])
+
+
+def has_roles(chapter: str) -> bool:
+    return chapter_number(chapter) >= FIRST_ROLES_CHAPTER
 
 
 def chapter_dir(chapter: str) -> Path:

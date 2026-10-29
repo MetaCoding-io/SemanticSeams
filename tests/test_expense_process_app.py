@@ -24,6 +24,12 @@ its decided state (auto and approvals: approved; a rejection: rejected), and
 the instance's lifecycle history records the sequence (draft, submitted,
 decided). The guard's refusal and the seam:visibleWhen block are in
 tests/test_expense_lifecycle.py.
+
+Chapter 7 adds role policies and the pay_expense task. The generic tests
+above still pass on it ("employee" and "manager" name the parties), except
+that the employee no longer sees the manager's task and approving leaves the
+instance waiting until finance pays. Those two tests branch on has_roles; the
+roles themselves are covered in tests/test_expense_roles.py.
 """
 
 import shutil
@@ -39,6 +45,7 @@ from expense_app import (
     chapter_dir,
     commands,
     copy_checkpoint,
+    has_roles,
     serve,
     serve_directory,
     status,
@@ -57,6 +64,9 @@ FINANCE_TASK = EX + "approval_bpmn#finance_approve_expense"
 EXPENSE = {"description": "Train to Leeds", "amount": "250.00", "date": "2026-10-01"}
 EMPLOYEE = {"X-Forwarded-User": "employee"}
 APPROVER = {"X-Forwarded-User": "manager"}
+# From chapter 7 the payment task is finance's.
+FINANCE = {"X-Forwarded-User": "finance"}
+PAYMENT = {"reference": "PAY-1", "paid_on": "2026-10-05"}
 JSON = {"Accept": "application/json"}
 SEAM = Namespace("https://w3id.org/seams/seam#")
 
@@ -123,6 +133,12 @@ def app(request, tmp_path, monkeypatch):
 process_apps = pytest.mark.parametrize("app", PROCESS_CHAPTERS, indirect=True)
 
 
+@pytest.fixture
+def chapter(request) -> str:
+    """The chapter a ``process_apps`` test is serving."""
+    return request.node.callspec.params["app"]
+
+
 def _submit(c, runtime, key="e1"):
     r = c.post(f"/expenses/{key}", data=EXPENSE, headers=EMPLOYEE)
     assert r.status_code == 200, r.text
@@ -149,7 +165,7 @@ def test_submitting_starts_the_process_and_waits_for_approval(app):
 
 
 @process_apps
-def test_the_task_is_in_the_inbox_with_its_form(app):
+def test_the_task_is_in_the_inbox_with_its_form(app, chapter):
     c, runtime = app
     _submit(c, runtime)
 
@@ -167,18 +183,29 @@ def test_the_task_is_in_the_inbox_with_its_form(app):
     assert '<option value="rejected">rejected</option>' in r.text
     assert '<dd class="description">Train to Leeds</dd>' in r.text
 
-    # no policy yet (chapter 7): any authenticated identity sees the task
-    assert len(c.get("/tasks", headers={**EMPLOYEE, **JSON}).json()["tasks"]) == 1
+    employee_sees = c.get("/tasks", headers={**EMPLOYEE, **JSON}).json()["tasks"]
+    if has_roles(chapter):
+        # the manager approval policy: the employee does not see the task
+        assert employee_sees == []
+    else:
+        # no policy yet: any authenticated identity sees the task
+        assert len(employee_sees) == 1
 
 
 @process_apps
-def test_approving_finishes_the_instance(app):
+def test_approving_finishes_the_instance(app, chapter):
     c, runtime = app
     _submit(c, runtime)
 
     r = c.post("/expenses/e1/approval", data={"decision": "approved", "comment": "fine"}, headers=APPROVER)
     assert r.status_code == 200, r.text
     assert '<section id="expense_details"' in r.text and 'data-expense="e1"' in r.text
+    if has_roles(chapter):
+        # from chapter 7 the approved expense waits for finance to pay it
+        until(lambda: [row["bpmn_id"] for row in runtime.store.list_user_tasks()] == ["pay_expense"])
+        assert status(runtime, "e1") == "waiting"
+        r = c.post("/expenses/e1/payment", data=PAYMENT, headers=FINANCE)
+        assert r.status_code == 200, r.text
     until(lambda: status(runtime, "e1") == "complete")
 
     [approval] = runtime.query(":ApprovalShape", expense="e1")

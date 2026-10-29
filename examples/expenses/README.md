@@ -39,6 +39,14 @@ examples/expenses/
   chapter-06/generated/      the route module (chapter 5's plus the awaiting-approval route)
                              and templates generated from chapter 6
   chapter-06/seed.json       an empty seed ({})
+  chapter-07/expenses.trig   permissions: chapter 6 plus the employee, manager and finance parties,
+                             the submit and three task policies, the PaymentShape and the finance
+                             pay_expense task with its payment form and operation
+  chapter-07/approval.bpmn   chapter 6's process plus the pay_expense user task after record_approval
+  chapter-07/approval.dmn    chapter 6's routing table, unchanged
+  chapter-07/generated/      the route module (chapter 6's plus the payment completion route, and the
+                             employee policy on the submit route) and templates generated from chapter 7
+  chapter-07/seed.json       an empty seed ({})
 ```
 
 Every checkpoint is a cumulative copy of the one before it, so the diff between
@@ -96,3 +104,13 @@ state does not allow is a `LifecycleViolation` naming it. In a copy of the
 checkpoint whose `record_approval` fires `:t_pay`, an auto-approved expense
 fails its instance with the transition recorded and stays `submitted`. The
 `awaiting_approval` block renders only while the expense is submitted.
+
+For chapter 7, `tests/test_expense_roles.py` serves the checkpoint with
+identities whose roles come from `X-Forwarded-Groups`. Only an employee may
+submit, only a manager may complete the manager approval, and only finance may
+complete the finance approval or pay. A wrong role is a 403 naming the policy
+that changes nothing, no identity is a 401, and an invalid payment is a 422
+that leaves the instance waiting. An approved expense waits on `pay_expense`,
+and paying stores a `PaymentShape` and leaves the expense `paid`. The same
+file runs the viewer's `screens-by-role-writing-shape` query on `PaymentShape`
+and gets one row: the employee's Submit Expense on the Expenses page.

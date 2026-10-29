@@ -39,6 +39,7 @@ CHAT_APP_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 # seam:completedOn (ADR-0009) needs a user task and a form, which checkout does not
 # model; the human-task fixture exercises it instead.
 HUMAN_TASK_TRIG = ROOT / "tests" / "fixtures" / "human_task" / "approval.trig"
+EXPENSES_CHAPTER_7_TRIG = ROOT / "examples" / "expenses" / "chapter-07" / "expenses.trig"
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 
@@ -477,6 +478,22 @@ def test_human_task_screens_by_role_writing_shape():
     assert _screens_by_role(g, EXPENSES.ApprovalShape) == {
         (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
          APPROVAL_APPROVE_EXPENSE),
+    }
+
+
+def test_expenses_chapter_7_screens_by_role_writing_payment():
+    """The tutorial's chapter 7 answer: the only screen an employee can use
+    that eventually writes a Payment is the Expenses page's Submit Expense,
+    whose process reaches finance's pay_expense task. Finance's own Submit
+    Payment completes the task but triggers nothing, so it is no row."""
+    g = load(*ONTOLOGY_FILES)
+    ds = rdflib.Dataset()
+    ds.parse(EXPENSES_CHAPTER_7_TRIG, format="trig")
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    assert _screens_by_role(g, EXPENSES.PaymentShape) == {
+        (EXPENSES.employee, EXPENSES.expenses_page, EXPENSES.submit_expense,
+         URIRef("https://example.org/expenses/approval_bpmn#pay_expense")),
     }
 
 

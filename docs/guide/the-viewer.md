@@ -131,7 +131,9 @@ gives each seam edge its `reveal` mode beside `navigational`. When you click an 
 3. If it has no detail of its own but a navigational edge leads to something that does,
    the viewer follows that one extra hop. It never goes further, so you never cross two
    layers without seeing the step between them.
-4. Otherwise it opens the inspector for the element.
+4. Otherwise it opens the inspector for the element. A SHACL node shape with no detail
+   model of its own (e.g. ConversationShape) also gets its model's shape graph on the
+   canvas, with itself highlighted; the JSON view still reports its notation as none.
 
 ## URLs
 

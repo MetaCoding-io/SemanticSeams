@@ -67,7 +67,7 @@ Read-only, navigable, notation-switching browser over a hand-authored model. Sta
 - **Fuseki** — model store; one named graph per `seam:Model`
 - **FastAPI** — three endpoints: describe node (JSON-LD, triples + seam edges), fetch render payload, SPARQL passthrough (HTTP QUERY, RFC 10008)
 - **htmx shell** — every click is `hx-get /view/{iri}`; server dispatches on `seam:notation`
-- **Renderers** — bpmn-js `NavigatedViewer` and dmn-js (read-only) for process/decision layers; a shared node-link renderer (elkjs layout) for architecture, IFML, statecharts, and shape graphs
+- **Renderers** — bpmn-js `NavigatedViewer` and dmn-js (read-only) for process/decision layers; a shared node-link renderer (elkjs layout, SVG cards) for architecture and shape graphs; IFML notation drawn as SVG on the server; vis-network for statecharts
 
 Milestone 1: load `examples/checkout.ttl` + a hand-drawn `order_process.bpmn`, and complete the descent arch → IFML → BPMN → DMN/shape-graph purely by clicking.
 

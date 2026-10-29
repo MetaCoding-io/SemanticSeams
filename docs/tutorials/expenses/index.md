@@ -20,11 +20,11 @@ triple is there.
 | 4 | [The process](./04-process) | A BPMN process triggered from the form, with an approval user task | The submission running through SpiffWorkflow, approved from the `/tasks` inbox |
 | 5 | [The rules](./05-rules) | A DMN table that routes approvals by amount, and a gateway with one path per route | Different paths for different amounts, with no code change |
 | 6 | [The lifecycle](./06-lifecycle) | A statechart: draft, submitted, approved or rejected, paid; the tasks that fire each transition; a block guarded by state | Each path ending in its state, a block shown only while submitted, an illegal transition refused |
-| 7 | People and permissions (coming) | Employee, manager and finance roles and their policies | Who can do what, enforced |
+| 7 | [People and permissions](./07-permissions) | Employee, manager and finance roles, a policy on the submit operation and on each user task, and a payment task | A 403 for the wrong role, an expense ending paid, and the viewer naming the screens an employee can use that write a payment |
 | 8 | Growing up (coming) | A payout process, a finance console, a worker, `docker compose up` | The whole system |
 
-Chapters 1 to 6 are written. Chapter 7 comes next: it gives the employee, manager and finance
-roles their policies, so only the right person can complete each task.
+Chapters 1 to 7 are written. Chapter 8 comes next: it makes payout asynchronous, adds a
+finance console and runs the whole system with `docker compose up`.
 
 ## Prerequisites
 
@@ -55,6 +55,7 @@ examples/expenses/chapter-03/expenses.trig
 examples/expenses/chapter-04/expenses.trig
 examples/expenses/chapter-05/expenses.trig
 examples/expenses/chapter-06/expenses.trig
+examples/expenses/chapter-07/expenses.trig
 ```
 
 Each checkpoint is the previous one plus that chapter's additions, so a `diff` between
@@ -72,7 +73,7 @@ the [seam shapes](/reference/shapes) and opens it in the viewer
 (`tests/test_expense_checkpoints.py`). It also runs chapter 3's generated app
 (`tests/test_expense_chapter3_app.py`) and the process chapters' generated apps from
 chapter 4 on (`tests/test_expense_process_app.py`), checks chapter 6's lifecycle guard
-(`tests/test_expense_lifecycle.py`), and checks that every model excerpt on these pages
+(`tests/test_expense_lifecycle.py`) and chapter 7's roles (`tests/test_expense_roles.py`), and checks that every model excerpt on these pages
 appears verbatim in its chapter's checkpoint (`tests/test_expense_tutorial_doc.py`).
 
 Start with [chapter 1](./01-architecture).

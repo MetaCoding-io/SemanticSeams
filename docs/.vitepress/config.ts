@@ -97,6 +97,7 @@ export default defineConfig({
               { text: "4 · The process", link: "/tutorials/expenses/04-process" },
               { text: "5 · The rules", link: "/tutorials/expenses/05-rules" },
               { text: "6 · The lifecycle", link: "/tutorials/expenses/06-lifecycle" },
+              { text: "7 · People and permissions", link: "/tutorials/expenses/07-permissions" },
             ],
           },
         ],

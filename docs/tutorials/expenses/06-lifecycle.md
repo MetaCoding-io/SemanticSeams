@@ -2,7 +2,8 @@
 
 At the end of this chapter an expense has a lifecycle. It starts as a draft, becomes
 submitted when the process stores it, and ends approved or rejected. Paid comes in
-chapter 8. The process can only move an expense along a transition the lifecycle allows,
+chapter 7, when finance records a payment by hand, and chapter 8 makes payout
+asynchronous. The process can only move an expense along a transition the lifecycle allows,
 and the runtime refuses any other move before the task runs, so a refused move writes
 nothing. The approvals page also gains a block that is visible only while an expense is
 waiting for a decision.
@@ -156,7 +157,8 @@ the instance has written.
 
 In the viewer, open `record_approval` and follow its `seam:fires` seam to `:t_approve` in
 the statechart. Each edge of the statechart now leads back to the task that fires it,
-except `:t_pay`, which nothing fires yet.
+except `:t_pay`, which nothing fires yet: chapter 7 adds a manual payment task that
+fires it, and chapter 8 makes payout asynchronous.
 
 ## A block that shows only while the expense waits
 
@@ -323,5 +325,6 @@ To see only what this chapter added:
 diff examples/expenses/chapter-05/expenses.trig examples/expenses/chapter-06/expenses.trig
 ```
 
-Chapter 7 adds people and permissions: employee, manager and finance roles, and policies
-that decide who may complete which task.
+[Chapter 7](./07-permissions) adds people and permissions: employee, manager and finance
+roles, policies that decide who may submit and who may complete which task, and a manual
+payment that finally fires `:t_pay`.

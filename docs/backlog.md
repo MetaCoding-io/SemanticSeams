@@ -77,11 +77,11 @@ worked example item 11 waits for.
 
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
-| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | in progress (M009/S03 done: chapters 1 to 3; E4 done in M009/S04; M009/S05 done: chapters 4 to 6, the process, the rules and the lifecycle; S06, S07 to come) |
+| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | in progress (M009/S03 done: chapters 1 to 3; E4 done in M009/S04; M009/S05 done: chapters 4 to 6, the process, the rules and the lifecycle; M009/S06 done: chapter 7, roles and the fourth canned query; S07 to come) |
 | E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | done (M009/S01) |
 | E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | done (M009/S02) |
 | E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker used to skip manual tasks; it now waits on them. | M | ADR first | done (M009/S04) |
-| E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | in progress (M009/S06: the RoleEvaluator and the fourth canned query, `screens-by-role-writing-shape.rq`, are done; chapter 7 to come) |
+| E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | done (M009/S06) |
 
 ## Generation: what is planned, what is not
 
@@ -147,7 +147,11 @@ UI work must not eat M3.*
    the host serves a `/tasks` inbox.* *E1 chapters 4 to 6 done, M009/S05: the
    [expense tutorial](tutorials/expenses/index.md) adds the approval process with a manager
    task, DMN routing by amount and the expense lifecycle, with checkpoints in
-   `examples/expenses/chapter-04` to `chapter-06`.*
+   `examples/expenses/chapter-04` to `chapter-06`.* *E5 and E1 chapter 7 done, M009/S06:
+   the runtime's `RoleEvaluator` admits identities by their `X-Forwarded-Groups` roles (or
+   `SEAMS_DEV_ROLES`), the viewer's fourth canned query names the screens each role can use
+   that eventually write a shape, and [chapter 7](tutorials/expenses/07-permissions.md) adds
+   the employee, manager and finance policies and a payment task.*
 7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each
    item's parking reason is checked again first: editing is a v1 non-goal in the
    product brief, and layer mode (S03) opens with the E3 complexity check on the

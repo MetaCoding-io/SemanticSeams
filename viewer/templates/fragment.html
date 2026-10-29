@@ -7,7 +7,7 @@
 </nav>
 
 <main>
-  <h2>{{ label }} <small>({{ notation }})</small></h2>
+  <h2>{{ label }}{% if notation != "none" %} <small>({{ notation }})</small>{% endif %}</h2>
 
   {% for w in warnings %}
     <div class="warning">{{ w.message }}</div>
@@ -518,7 +518,8 @@
           .catch(function (err) { console.error("dmn-js render failed:", err); });
       })();
     </script>
-  {% else %}
+  {% elif not (detailed_by_candidates and detailed_by_candidates | length > 1) %}
+    {# The disambiguation card above already says what to do next. #}
     <p><em>No renderer yet for notation "{{ notation }}" — showing inspector only.</em></p>
   {% endif %}
 

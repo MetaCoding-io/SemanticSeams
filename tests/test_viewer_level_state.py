@@ -246,3 +246,24 @@ def test_empty_level_card_is_greyed_and_inert(client, monkeypatch):
 def test_non_c4_view_has_no_level_cards(client):
     html = _fragment(client, CONVERSATION_SHAPE)
     assert 'id="level-cards"' not in html
+
+
+def test_browser_history_reloads_views_instead_of_restoring_snapshots(client):
+    # Back/Forward must re-render from the server: the canvases are drawn by
+    # scripts, so an htmx localStorage snapshot restores blank diagrams.
+    html = client.get(f"/view/{quote(CHAT_ARCHITECTURE, safe='')}").text
+    assert '"historyCacheSize": 0' in html
+    assert '"refreshOnHistoryMiss": true' in html
+    # htmx ignores popstate for entries without {htmx: true}: the landing entry
+    # and every canvas click must carry it, or Back changes only the URL.
+    assert 'history.replaceState({ htmx: true }, "", location.href)' in html
+    assert 'history.pushState({ htmx: true }, "", url)' in html
+    assert "history.pushState({}," not in html
+
+
+def test_disambiguation_landing_hides_notation_and_no_renderer_note(client):
+    route_to_provider = "https://example.org/chat/chat_bpmn#route_to_provider"
+    html = client.get(f"/view/{quote(route_to_provider, safe='')}").text
+    assert 'id="disambiguation"' in html
+    assert "(none)" not in html
+    assert "No renderer yet" not in html

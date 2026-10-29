@@ -101,7 +101,10 @@ derivation exposed, or that a builder meets after launch.
 | U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | proposed |
 | U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | proposed |
 
-U1 to U3 can land together.
+| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | the U2 seam, a store-kind value and a connection-binding link | planned; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
+
+U1 to U3 can land together. U9 subsumes U2's vocabulary work, so the two are best done
+as one piece.
 
 ## Generation: what is planned, what is not
 

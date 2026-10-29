@@ -150,7 +150,10 @@ branches only choose a layout from graph facts. Everything is sorted by IRI.
 `extract_compose(model, base_dir)` builds a frozen `ComposeModel`; `render_compose`
 renders it through `templates/compose.yaml.j2` (same environment, no domain literals).
 `generate_compose(trig, base_dir=None)` defaults `base_dir` to the working directory;
-the CLI passes `--out` (D018). Every value is pre-rendered as a YAML scalar: plain when
+the CLI passes `--out` (D018). The bind-mount sources and `SEAMS_MODEL` follow the TriG
+path it is given, so a model under another path or stem mounts and names that file; the
+runtime reads `SEAMS_MODEL` in preference to the path in the generated route module (see
+[seams_runtime/README.md](../seams_runtime/README.md)). Every value is pre-rendered as a YAML scalar: plain when
 `yaml.safe_load` reads it back as the same string, otherwise JSON double-quoted.
 
 | Output | Graph fact |

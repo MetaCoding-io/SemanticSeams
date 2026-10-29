@@ -42,4 +42,4 @@ fixture with its policy links removed.
 the cross-layer seam edge count; see [seams_gen/README.md](../../seams_gen/README.md)).
 They are not focus-node questions and are not rendered on the query reference page,
 which only reads the `.rq` files at this top level. `tests/test_complexity.py` checks
-their results against the chat app and checkout models.
+their results against the chat app, checkout and expense chapter-08 models.

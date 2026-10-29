@@ -28,6 +28,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
+| `await runtime.start_subscribed(":payout_process", correlation_key, current, status)` | Starts a channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md)): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel. The instance gets the correlation key and a copy of `current` (entities by shape IRI, ids kept) and `status` (status by shape IRI). Nothing is re-validated. It is checkpointed before its worker task runs. Rule 6a calls this for you; a process that is not channel-started raises `ResolutionError(process, seam:subscribesTo)`. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
@@ -56,6 +57,10 @@ It includes `module.router` and adds:
 - `GET /healthz`, which returns `{"status": "ok", "model_hash": ...}`;
 - the landmark page at its `ifml:path`, rendered by `render_page`. Only correlation-key
   query parameters such as `?conversation=` reach the template;
+- each of `ModelGraph.secondary_pages()` at its own `ifml:path`, rendered the same way.
+  A secondary page is an `ifml:ViewContainer` with an `ifml:path` that is not the
+  landmark and holds no form a user task is `seam:completedOn`. Task-form screens are
+  reached through `GET /tasks` instead;
 - a startup seed from the JSON file named by `SEAMS_SEED`, in the form
   `{"<shape curie>": [{"id": ..., ...payload}]}`. Every item passes `runtime.validate`
   before any is written. A field named after a correlation-key label that is not a
@@ -101,6 +106,13 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 5. After dispatch: the fired transition is applied and its status is persisted.
 6. Message throw events publish a completion event named after the channel's
    `rdfs:label` (GAP-26).
+   6a. Then every channel-started process subscribed to that channel starts
+   ([ADR-0010](../docs/adr/0010-channel-started-processes.md)): its start event is a
+   `proc:MessageCatchEvent` that `seam:subscribesTo` the channel. It gets the
+   publisher's correlation key and a copy of its current entities and statuses, is
+   checkpointed, and runs as its own asyncio task. The publisher's trace row records
+   `started: [{process, instance}]`. A subscriber that fails, or cannot start (recorded
+   in that row with `instance: null` and its `error`), never fails the publisher.
 7. Exceptions: the lifecycle's `"error"` exit is applied (status becomes `failed`), the
    error is recorded, the channel scope is closed and the instance is marked failed.
    When Spiff wrapped a model error (a `ResolutionError` raised inside a business-rule

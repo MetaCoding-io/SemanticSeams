@@ -40,7 +40,7 @@ The rest group by the layers they join. A few examples:
 |---|---|
 | Architecture to everything | `presents` (container to its interface), `executes` (container to the process it runs), `exposes` and `consumes` (operations and channels), `deployedTo` |
 | Interface to process | `triggers` (event to process), `completedOn` (user task to the form a person completes it on, [ADR-0009](/adr/0009-human-tasks)), `visibleWhen` (view component to lifecycle state) |
-| Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo`, `subscribesTo`, `reads`, `writes` |
+| Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo`, `subscribesTo` (a message start event that subscribes to a channel starts its process on each publish, [ADR-0010](/adr/0010-channel-started-processes)), `reads`, `writes` |
 | Data to lifecycle | `lifecycle` (shape to state machine), `fires` (task to transition) |
 | Communication contracts | `acceptsShape`, `returnsShape`, `mediaKind` |
 | Authorization | `governedBy`, deliberately attachable to anything |

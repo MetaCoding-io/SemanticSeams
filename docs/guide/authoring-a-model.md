@@ -228,14 +228,14 @@ than the viewer already gives you.
 
 The chat app scores 0 / 3 / 58 and fails by design, since it is a one-model-per-layer
 quick start. The expense-approval tutorial's final model,
-`examples/expenses/chapter-08/expenses.trig`, passes with 4 / 6 / 109:
+`examples/expenses/chapter-08/expenses.trig`, passes with 4 / 6 / 111:
 
 - BPMN, DMN, IFML and statechart each have two models: the approval and payout
   processes, the routing and payout-method decisions, the expense and finance-console
   interfaces, and the expense and payment lifecycles.
 - `:ExpenseShape` is reached from six models: the expense interface, both processes,
   both decisions and the finance console.
-- It has 109 cross-layer seam edges.
+- It has 111 cross-layer seam edges.
 
 The exit code is 0 on pass, 1 on fail, and 2 when the file is missing, unreadable or not
 valid TriG (the message goes to stderr). The check loads only the TriG, not the ontology

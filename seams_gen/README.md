@@ -41,6 +41,7 @@ compose_yaml = generate_compose("examples/chat-app/chat-app.trig", base_dir=".")
 | `htmx` | `<out>/<page local name>.html`, a Jinja2/htmx template (UTF-8, `\n` newlines) | the landmark `ifml:ViewContainer` and the seam, shape, comm and lifecycle facts it touches |
 | `htmx` (fragments) | `<out>/<component>.html` and `<out>/<component>_item.html` partials, one per name the fragment rule gives | each operation the presenting container `seam:consumes` that `seam:rendersComponent` a page component |
 | `htmx` (task forms) | `<out>/<form local name>.html`, one partial per form a user task is completed on, plus the partials its completion route renders on the form's screen | each `ifml:Form` a `proc:UserTask` `seam:completedOn` (ADR-0009, D027) |
+| `htmx` (secondary pages) | `<out>/<page local name>.html` and its partials, built like the landmark page but without task forms | each `ifml:ViewContainer` with an `ifml:path` that is not the landmark and holds no task form (`ModelGraph.secondary_pages`), from any `ifml:InteractionModel` its container `seam:presents`. The expense tutorial's `:payouts_page` (chapter 8) is one. A partial two pages would render differently is a `GeneratorError` |
 | `fastapi` | `<out>/<container local name>.py`, a thin FastAPI route module | the one serving `arch:Container` (it `seam:executes` a `proc:Process`, or `seam:exposes` an operation an `ifml:Event` `seam:submitsTo`), and what it `seam:exposes` |
 | `compose` | `<out>/compose.yaml`, a docker compose file whose bind-mount sources are relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts, `seam:deployedTo` and the serving-container rule |
 
@@ -159,7 +160,7 @@ branches only choose a layout from graph facts. Everything is sorted by IRI.
 | Signature | Each template variable as `<var>: str`, then `request: Request` when the operation has a `comm:requestMediaType`, then, for a Complete step, `identity: Identity = Depends(runtime.task_policy("<task>"))` (401 without an identity, 403 unless every `seam:governedBy` policy of the task permits it). `Identity` is imported only by a module with a Complete step. |
 | Request body | `application/x-www-form-urlencoded` → `form = await request.form()`; `application/json` → `body = await request.json()`; any other media type raises `GeneratorError(op, comm:requestMediaType)`. |
 | Validate | `seam:acceptsShape S` → `<s> = runtime.validate("<S curie>", form)`, where `<s>` is S's local name lowercased minus `Shape`, plus `_payload` when that name is also a path variable (so the payload never shadows the correlation key). It needs a request body. A handler with a Write or Complete step has no separate validate line: `runtime.write` and `runtime.complete_task` validate. |
-| Start | When the operation is the triggering operation of a process the container executes (`ModelGraph.triggering_operation`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. |
+| Start | When the operation is the triggering operation of a process the container executes (`ModelGraph.triggering_operation`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. A channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel) gets no route; the runtime starts it when the channel is published on. An executed process with neither a `seam:triggers` event nor a subscribed start is `GeneratorError(process, seam:triggers)`. |
 | Write | When no process is triggered by the operation, it has `seam:acceptsShape S`, and an event of an `ifml:Form` that `seam:writes S` (`ifml:hasEvent`) `seam:submitsTo` it (D026), `<s> = runtime.write("<S curie>", form)` in place of the validate line and before the return, so the item partial renders the stored entity. `runtime.write` validates the form itself because it first assigns the entity's `:id`, which the form never sends. Any other untriggered operation gets no write step. |
 | Complete | When an event of an `ifml:Form` that a `proc:UserTask` `seam:completedOn` `seam:submitsTo` the operation (ADR-0009), `await runtime.complete_task("<task>", form, correlation_key=<key>, identity=identity)` in place of Start or Write. `<key>` is the `proc:correlationKey` label of the process whose BPMN model holds the task and must be a path variable, else `GeneratorError(process, proc:correlationKey)`. It needs a request body (error on `comm:requestMediaType`); an operation that also triggers a process, or whose forms complete several tasks, raises on `seam:submitsTo`. The serving-container rule covers the container through `seam:executes`. |
 | Query | A `GET` (or an operation with a Complete step) with `seam:returnsShape S` → `<s>s = runtime.query("<S curie>", <var>=<var> …)`, one keyword per path variable. |
@@ -202,13 +203,15 @@ against any model (backlog E3, D025) and prints the models per notation, the fiv
 elements reached from the most distinct models and the cross-layer seam edge count,
 then `PASS` or `FAIL` with one line per failed threshold (actual vs required).
 
-| Measure | Threshold | Chat app |
-|---|---|---|
-| Notations with 2+ models | at least 3 (`MIN_MULTI_MODEL_NOTATIONS`) | 0 |
-| Most models one element is reached from | at least 5 (`MIN_MAX_REACH`) | 3 |
-| Cross-layer seam edges | reported, not gated | 58 |
+| Measure | Threshold | Chat app | Expenses, chapter 8 |
+|---|---|---|---|
+| Notations with 2+ models | at least 3 (`MIN_MULTI_MODEL_NOTATIONS`) | 0 | 4 (BPMN, DMN, IFML, statechart) |
+| Most models one element is reached from | at least 5 (`MIN_MAX_REACH`) | 3 | 6 (`:ExpenseShape`) |
+| Cross-layer seam edges | reported, not gated | 58 | 111 |
 
-The chat app fails by design: it is a one-model-per-layer quick start.
+The chat app fails by design: it is a one-model-per-layer quick start. The
+expense tutorial's final checkpoint, `examples/expenses/chapter-08/expenses.trig`,
+is the passing worked example.
 
 **Exit codes.** 0 pass, 1 fail, 2 when the model file is missing, unreadable or not
 valid TriG (the message goes to stderr).
@@ -258,7 +261,8 @@ the parsed structure (read-only model binds, external secrets), bind sources fol
 missing artifact, `deploy:secretName` and node label failing through the API and the
 CLI, the CLI writing exactly `compose.yaml`, and `docker compose config -q` accepting
 the output (skipped when docker compose is not installed).
-`tests/test_complexity.py`: the chat app (0 / 3 / 58, two failures) and checkout scores,
+`tests/test_complexity.py`: the chat app (0 / 3 / 58, two failures), checkout and
+expense chapter 8 (4 / 6 / 111, passing, also through the CLI) scores,
 determinism, the ontology not being loaded, a synthetic passing model and its
 one-short-of-each-threshold boundary, an empty model, the CLI's exit codes 0, 1 and 2
 (missing file, invalid TriG, a directory), and the complexity queries staying out of

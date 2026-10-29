@@ -1,0 +1,119 @@
+"""Shared helpers for the expense tutorial app tests (chapters 3 onward).
+
+Each chapter with generated code commits examples/expenses/chapter-NN/generated/
+(route module plus templates/). ``commands(chapter)`` is the pair of generator
+commands the tutorial page shows and the generated README names;
+``assert_generated_current`` regenerates both into tmp_path and diffs them
+against the committed copy (helpers shared with
+tests/test_generated_outputs_current.py). ``serve`` builds the host app for a
+chapter's committed route module on a temp store, and ``until``/``status``
+poll a running instance, as tests/test_human_task_app.py does.
+"""
+
+from __future__ import annotations
+
+import sys
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+for p in (ROOT, ROOT / "tests"):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from seams_runtime.host import build_app  # noqa: E402
+from test_generated_outputs_current import (  # noqa: E402
+    HAND_WRITTEN,
+    assert_current,
+    committed_files,
+    regenerate,
+)
+
+EXPENSES = ROOT / "examples" / "expenses"
+# The first chapter whose checkpoint runs a BPMN process.
+FIRST_PROCESS_CHAPTER = 4
+PROCESS_CHAPTERS = sorted(
+    p.name for p in EXPENSES.glob("chapter-*")
+    if (p / "generated").is_dir() and int(p.name.split("-")[1]) >= FIRST_PROCESS_CHAPTER
+)
+
+
+def chapter_dir(chapter: str) -> Path:
+    return EXPENSES / chapter
+
+
+def commands(chapter: str) -> dict[str, str]:
+    """The regenerate commands, run from the repository root."""
+    trig = f"examples/expenses/{chapter}/expenses.trig"
+    out = f"examples/expenses/{chapter}/generated"
+    return {
+        "fastapi": f"python -m seams_gen fastapi {trig} --out {out}",
+        "htmx": f"python -m seams_gen htmx {trig} --out {out}/templates",
+    }
+
+
+def host_command(chapter: str) -> list[str]:
+    """The fragments of the host command a chapter page must show."""
+    return [
+        f"SEAMS_MODEL=examples/expenses/{chapter}/expenses.trig",
+        f"SEAMS_TEMPLATES=examples/expenses/{chapter}/generated/templates",
+        "SEAMS_DB=",
+        f"python -m seams_runtime.host --routes examples/expenses/{chapter}/generated/expense_api.py",
+    ]
+
+
+def assert_generated_current(chapter: str, tmp_path: Path, generator: str) -> None:
+    """The committed route module (``fastapi``) or templates (``htmx``) equal
+    a fresh run of the generator on the chapter's checkpoint."""
+    generated = chapter_dir(chapter) / "generated"
+    trig = chapter_dir(chapter) / "expenses.trig"
+    if generator == "fastapi":
+        committed_dir, committed = generated, committed_files(generated, HAND_WRITTEN)
+    else:
+        committed_dir = generated / "templates"
+        committed = committed_files(committed_dir)
+    assert_current(regenerate(generator, trig, tmp_path / generator), committed, committed_dir,
+                   commands(chapter)[generator])
+
+
+@contextmanager
+def serve(chapter: str, tmp_path: Path, monkeypatch):
+    """(TestClient, Runtime) for the chapter's committed route module, with
+    SEAMS_MODEL / SEAMS_TEMPLATES on the checkpoint, SEAMS_DB in tmp_path, and
+    no dev user or seed, so every identity comes from X-Forwarded-User."""
+    directory = chapter_dir(chapter)
+    monkeypatch.setenv("SEAMS_MODEL", str(directory / "expenses.trig"))
+    monkeypatch.setenv("SEAMS_TEMPLATES", str(directory / "generated" / "templates"))
+    monkeypatch.setenv("SEAMS_DB", str(tmp_path / "seams.sqlite"))
+    monkeypatch.delenv("SEAMS_DEV_USER", raising=False)
+    monkeypatch.delenv("SEAMS_SEED", raising=False)
+    app = build_app(directory / "generated" / "expense_api.py")
+    with TestClient(app) as client:
+        yield client, app.state.runtime
+
+
+def until(predicate, timeout=5.0):
+    """Poll ``predicate`` until it returns something truthy, and return that."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(0.02)
+    raise AssertionError(f"timed out waiting for {predicate.__doc__ or predicate}")
+
+
+def status(runtime, key):
+    """the instance's stored status"""
+    rows = runtime.store.list_instances(correlation_key=key)
+    return rows[-1]["status"] if rows else None
+
+
+def trace(runtime, key) -> list[dict]:
+    """The latest instance's trace rows, read back from its checkpoint."""
+    [*_, row] = runtime.store.list_instances(correlation_key=key)
+    wf = runtime.engine.deserialize(runtime.store.load_state(row["instance_id"]))
+    return wf.data["seams"]["trace"]

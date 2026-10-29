@@ -4,9 +4,10 @@ docs/tutorials/expenses/NN-*.md walks the reader through chapter NN. Every
 ```trig block on a page is a verbatim excerpt of that chapter's checkpoint,
 examples/expenses/chapter-NN/expenses.trig (compared line by line with
 surrounding whitespace stripped and blank lines ignored), and the page links
-the checkpoint. Chapter 3 shows the generator commands
-tests/test_expense_chapter3_app.py runs, and the host command with the
-environment its app fixture sets. Chapter 2 shows the deliberate mistake
+the checkpoint. The pages are chapters 1, 2, 3... with no gap. Chapter 3 and
+every process chapter (4 onward) show the generator commands
+tests/expense_app.py names for them, and the host command with the
+environment the app tests set. Chapter 2 shows the deliberate mistake
 tests/test_expense_checkpoints.py replays.
 """
 
@@ -21,6 +22,7 @@ for p in (ROOT, ROOT / "tests"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
+from expense_app import commands, host_command  # noqa: E402
 from test_expense_chapter3_app import COMMANDS  # noqa: E402
 from test_expense_checkpoints import CHAPTER_2_MISTAKE_TEXT  # noqa: E402
 
@@ -53,8 +55,12 @@ def code_lines(page: Path) -> set[str]:
     return {ln.strip() for body in blocks(page) for ln in body.splitlines() if ln.strip()}
 
 
-def test_pages_cover_chapters_1_to_3():
-    assert [chapter_of(p) for p in PAGES] == ["chapter-01", "chapter-02", "chapter-03"]
+PROCESS_PAGES = [p for p in PAGES if int(p.name[:2]) >= 4]
+
+
+def test_pages_are_contiguous_chapters_from_1():
+    assert len(PAGES) >= 4, PAGE_IDS
+    assert [chapter_of(p) for p in PAGES] == [f"chapter-{n:02d}" for n in range(1, len(PAGES) + 1)]
     assert (PAGES_DIR / "index.md").is_file()
     for page in PAGES:
         assert (EXPENSES / chapter_of(page) / "expenses.trig").is_file(), page.name
@@ -90,6 +96,16 @@ def test_chapter_3_runs_the_host_as_the_app_test_does():
     assert "SEAMS_TEMPLATES=examples/expenses/chapter-03/generated/templates" in text
     assert "SEAMS_DB=" in text
     assert "python -m seams_runtime.host --routes examples/expenses/chapter-03/generated/expense_api.py" in text
+
+
+@pytest.mark.parametrize("page", PROCESS_PAGES, ids=[p.stem for p in PROCESS_PAGES])
+def test_process_chapter_shows_its_generator_and_host_commands(page):
+    chapter = chapter_of(page)
+    missing = [c for c in commands(chapter).values() if c not in code_lines(page)]
+    assert not missing, f"{page.name} lacks the generator commands: {missing}"
+    text = "\n".join(blocks(page, "sh"))
+    missing = [fragment for fragment in host_command(chapter) if fragment not in text]
+    assert not missing, f"{page.name} lacks the host command fragments: {missing}"
 
 
 def test_chapter_2_shows_the_mistake_as_a_diff():

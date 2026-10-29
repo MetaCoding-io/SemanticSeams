@@ -1,0 +1,9 @@
+# seams_runtime: lower bounds match requirements-dev.txt and viewer/requirements.txt.
+# lxml has no bound elsewhere; python-multipart backs request.form() in generated routes.
+rdflib>=7.0
+pyshacl>=0.30
+SpiffWorkflow>=3.0
+lxml>=5.0
+httpx>=0.27
+fastapi>=0.115
+python-multipart>=0.0.9

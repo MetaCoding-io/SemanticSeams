@@ -23,9 +23,10 @@ from .policy import (
     StaticUserAuthenticator,
     authenticator_from_env,
 )
+from .llm import LLMClient, LLMError
+from .runtime import Runtime
 from .store import Store
-
-# Runtime (the facade generated code imports) is added in M004/S03 T05.
+from .worker import Instance, Worker
 
 __all__ = [
     "Authenticator",
@@ -34,6 +35,9 @@ __all__ = [
     "Engine",
     "HeaderAuthenticator",
     "Identity",
+    "Instance",
+    "LLMClient",
+    "LLMError",
     "LifecycleGuard",
     "LifecycleViolation",
     "ModelGraph",
@@ -43,9 +47,11 @@ __all__ = [
     "PolicyHook",
     "PresenceEvaluator",
     "ResolutionError",
+    "Runtime",
     "RuntimeModelError",
     "StaticUserAuthenticator",
     "Store",
+    "Worker",
     "authenticator_from_env",
     "model_hash",
     "validate",

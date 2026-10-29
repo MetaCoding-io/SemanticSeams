@@ -94,6 +94,8 @@ Evidence: [`spikes/adr0007/spike.py`](../../spikes/adr0007/spike.py) (throwaway,
 
 *Follow-up (M004/S02):* all five are closed as [gaps.md](../generation/golden/gaps.md) GAP-23..GAP-27 (`dec:payloadElement`, `dec:input`, `dec:output`, and the message-name and implementation rules in `ontology/proc.ttl`); the process correlation key is GAP-22 (`proc:correlationKey`).
 
+*Follow-up (M004/S03):* the v1 worker is [`seams_runtime`](../../seams_runtime/README.md). Its `Runtime` facade is what generated routes import, and its generic worker dispatches every BPMN element from graph facts alone (`seam:fires`, `seam:invokes`, `seam:writes`, `seam:decidedBy`, `seam:publishesTo`).
+
 ## Consequences
 
 - **Positive:** The BPMN and DMN the viewer shows are the code that runs. Editing the diagram changes behaviour without regenerating anything.

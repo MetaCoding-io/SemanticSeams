@@ -34,6 +34,7 @@ PROC = Namespace("https://w3id.org/seams/proc#")
 STATE = Namespace("https://w3id.org/seams/state#")
 HYDRA = Namespace("http://www.w3.org/ns/hydra/core#")
 ODRL = Namespace("http://www.w3.org/ns/odrl/2/")
+DEPLOY = Namespace("https://w3id.org/seams/deploy#")
 
 
 def local_name(iri) -> str:
@@ -407,6 +408,76 @@ class ModelGraph:
             raise ResolutionError(iri, RDF.type, "not a proc:Process")
         model = self._one(iri, SEAM.detailedBy, "process has no BPMN model")
         return ProcessFacts(iri, self.label(iri), model, self.payload_path(model))
+
+    def executing_container(self, process) -> Container:
+        """The single container that seam:executes the process (in-process)."""
+        iri = self.curie(process)
+        containers = sorted(set(self.ds.subjects(SEAM.executes, iri)))
+        if len(containers) != 1:
+            raise ResolutionError(iri, SEAM.executes,
+                                  f"expected one executing container, found {[str(c) for c in containers]}")
+        return Container(containers[0], self.label(containers[0]), True)
+
+    def triggering_operation(self, process) -> URIRef:
+        """The operation that the event which seam:triggers the process
+        seam:submitsTo."""
+        iri = self.curie(process)
+        ops = sorted({op for ev in self.ds.subjects(SEAM.triggers, iri)
+                      for op in self.ds.objects(ev, SEAM.submitsTo)})
+        if len(ops) != 1:
+            raise ResolutionError(iri, SEAM.triggers,
+                                  f"expected one triggering event submitting to one operation, "
+                                  f"found {[str(o) for o in ops]}")
+        return ops[0]
+
+    def accepted_shape(self, operation) -> URIRef:
+        return self._one(self.curie(operation), SEAM.acceptsShape, "operation accepts no shape")
+
+    def returned_shape(self, operation) -> URIRef:
+        return self._one(self.curie(operation), SEAM.returnsShape, "operation returns no shape")
+
+    def process_channel(self, process) -> ChannelBinding:
+        """The comm:Channel that elements of the process's BPMN model
+        seam:publishesTo (there must be exactly one)."""
+        facts = self.process_for(process)
+        prefix = f"{facts.model}#"
+        channels = sorted({ch for el, ch in self.ds.subject_objects(SEAM.publishesTo)
+                           if str(el).startswith(prefix) and (ch, RDF.type, COMM.Channel) in self.ds})
+        if len(channels) != 1:
+            raise ResolutionError(facts.iri, SEAM.publishesTo,
+                                  f"expected one channel published to by {prefix}*, "
+                                  f"found {[str(c) for c in channels]}")
+        ch = channels[0]
+        event = self._one(ch, COMM.eventName, f"channel of {facts.iri}")
+        return ChannelBinding(ch, self.label(ch), str(event))
+
+    def service_binding_key(self, container, service_of) -> str:
+        """The deploy:key of ``container``'s deploy:binding whose
+        deploy:serviceOf is ``service_of`` (e.g. LLM_GATEWAY_URL)."""
+        c, target = self.curie(container), self.curie(service_of)
+        keys = sorted({str(self.ds.value(b, DEPLOY.key))
+                       for cfg in self.ds.objects(c, DEPLOY.configuration)
+                       for b in self.ds.objects(cfg, DEPLOY.binding)
+                       if (b, DEPLOY.serviceOf, target) in self.ds and self.ds.value(b, DEPLOY.key) is not None})
+        if len(keys) != 1:
+            raise ResolutionError(c, DEPLOY.binding,
+                                  f"expected one deploy:binding with deploy:serviceOf {target}, found {keys}")
+        return keys[0]
+
+    def lifecycle_shape(self, transition) -> URIRef:
+        """The shape whose seam:lifecycle machine state:hasTransition ``transition``."""
+        t = self.curie(transition)
+        shapes = sorted({shape for machine in self.ds.subjects(STATE.hasTransition, t)
+                         for shape in self.ds.subjects(SEAM.lifecycle, machine)})
+        if len(shapes) != 1:
+            raise ResolutionError(t, STATE.hasTransition,
+                                  f"expected one shape whose lifecycle owns this transition, "
+                                  f"found {[str(s) for s in shapes]}")
+        return shapes[0]
+
+    def correlation_key_labels(self) -> set[str]:
+        """rdfs:labels of every proc:correlationKey parameter in the model."""
+        return {str(self.label(p)) for p in self.ds.objects(None, PROC.correlationKey)}
 
     def correlation_key(self, process) -> str:
         iri = self.curie(process)

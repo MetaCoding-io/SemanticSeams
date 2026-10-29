@@ -93,11 +93,16 @@ def shape_contract(model: ModelGraph, shape) -> ShapeContract:
 
 def _items(payload) -> list[tuple[str, object]]:
     """(key, value) pairs; MultiDict-style inputs keep every value of a key,
-    single values unwrap to the value itself."""
+    single values unwrap to the value itself. In MultiDict-style (form)
+    inputs an empty string is no value: HTML forms submit every field, so an
+    empty textarea must fail sh:minCount rather than pass as ""."""
     getlist = getattr(payload, "getlist", None)
     out = []
     for key in dict.fromkeys(payload.keys()):
-        values = list(getlist(key)) if getlist is not None else payload[key]
+        if getlist is not None:
+            values = [v for v in getlist(key) if v != ""]
+        else:
+            values = payload[key]
         if isinstance(values, (list, tuple)):
             values = [v for v in values if v is not None]
             if not values:

@@ -82,6 +82,12 @@ class Store:
             raise LookupError(f"no workflow_state row for instance {instance_id} in {self.path}")
         return rows[0]["state"]
 
+    def get_instance(self, instance_id: str) -> dict | None:
+        """Instance metadata (no state), or None."""
+        rows = self._read("SELECT instance_id, process, correlation_key, status, updated "
+                          "FROM workflow_state WHERE instance_id = ?", (str(instance_id),))
+        return dict(rows[0]) if rows else None
+
     def list_instances(self, correlation_key: str | None = None) -> list[dict]:
         """Instance metadata (no state), oldest update first."""
         sql = "SELECT instance_id, process, correlation_key, status, updated FROM workflow_state"

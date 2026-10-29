@@ -106,6 +106,8 @@ UI work must not eat M3.*
 4. M3 (tracked as M004, The Payoff), opening with the ADR-0007 spike (its open items).
    *Spike done, M004/S01: it held, and ADR-0007 is Accepted.* *Vocabulary additions
    done, M004/S02: every row of G2's gap list and the spike's findings (GAP-01..GAP-27)
-   is closed.* Next come the worker and the three generators against the golden outputs.
+   is closed.* *Runtime worker done, M004/S03: [`seams_runtime`](../seams_runtime/README.md)
+   runs the send-message process end to end from graph facts.* Next come the three
+   generators against the golden outputs.
 5. P1 items 8, 7, 9, 10 and the P2 list, re-triaged once M3 lands and as the
    second worked example demands.

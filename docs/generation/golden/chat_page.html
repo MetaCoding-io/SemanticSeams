@@ -69,7 +69,7 @@
     <label for="compose_content">content</label>  {# [graph: :MessageShape sh:property sh:path :content] #}
     <textarea id="compose_content"  {# [graph: :MessageShape sh:property sh:path :content dash:editor dash:TextAreaEditor sh:order] #}
               name="content"  {# [graph: :compose_form seam:writes :MessageShape sh:property sh:path :content] #}
-              maxlength="4000"  {# [graph: :MessageShape sh:property sh:path :content sh:maxLength] #}
+              maxlength="16000"  {# [graph: :MessageShape sh:property sh:path :content sh:maxLength] #}
               required></textarea>  {# [graph: :message_input ifml:boundTo :content sh:minCount] #}
     {# role, status and timestamp are set by the runtime, not entered: no parameter is ifml:boundTo them [graph: :compose_form ifml:hasParameter :message_input ifml:boundTo :content] #}
     <button type="submit">Send Message</button>  {# [graph: :compose_form ifml:hasEvent :send_message rdfs:label] #}

@@ -203,6 +203,8 @@ class ModelGraph:
         self.base_dir = self.path.parent
         self.ds = dataset if dataset is not None else _load(self.path)
         self._hash: str | None = None
+        # Per-instance caches (never module-level id()-keyed dicts; see MEM010).
+        self._contract_cache: dict = {}
 
     @classmethod
     def load(cls, trig_path) -> "ModelGraph":

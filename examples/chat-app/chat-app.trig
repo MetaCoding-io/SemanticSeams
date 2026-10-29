@@ -222,7 +222,7 @@
 
     :MessageShape a sh:NodeShape ; rdfs:label "Message" ;
         sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:maxLength 4000 ; sh:order 0 ; dash:editor dash:TextAreaEditor ] ;
+                      sh:maxLength 16000 ; sh:order 0 ; dash:editor dash:TextAreaEditor ] ;
         sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 1 ] ;
         # Values are the rdfs:labels of :message_lifecycle's states (seam:lifecycle).
         sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;

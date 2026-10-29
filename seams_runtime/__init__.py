@@ -8,12 +8,15 @@ from .errors import (
     ResolutionError,
     RuntimeModelError,
 )
+from .contracts import validate
+from .lifecycle import LifecycleGuard
 from .model import ModelGraph, model_hash
 
 # Runtime (the facade generated code imports) is added in M004/S03 T05.
 
 __all__ = [
     "ContractViolation",
+    "LifecycleGuard",
     "LifecycleViolation",
     "ModelGraph",
     "ModelHashMismatch",
@@ -21,4 +24,5 @@ __all__ = [
     "ResolutionError",
     "RuntimeModelError",
     "model_hash",
+    "validate",
 ]

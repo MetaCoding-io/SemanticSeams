@@ -618,7 +618,7 @@ def test_gap_13_field_presentation(chat_model):
            }""",
     )
     assert rows == {
-        (CHAT.content, lit(0), lit(4000), DASH.TextAreaEditor),
+        (CHAT.content, lit(0), lit(16000), DASH.TextAreaEditor),
         (CHAT.role, lit(1), None, None),
         (CHAT.status, lit(2), None, None),
         (CHAT.timestamp, lit(3), None, None),

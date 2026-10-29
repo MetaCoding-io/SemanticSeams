@@ -34,6 +34,7 @@ const decisions = [
   ["0006", "Index-payload drift lint", "0006-index-payload-drift-lint"],
   ["0007", "Execution strategy", "0007-execution-strategy"],
   ["0008", "Node-link renderer", "0008-node-link-renderer"],
+  ["0009", "Human tasks", "0009-human-tasks"],
 ] as const;
 
 export default defineConfig({

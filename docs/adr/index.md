@@ -14,3 +14,4 @@ supersedes an earlier one instead.
 | [ADR-0006](./0006-index-payload-drift-lint) | Index-payload drift lint: keeping the graph and the native files in step | Accepted |
 | [ADR-0007](./0007-execution-strategy) | Execution strategy: interpret where an engine exists, generate where none does | Proposed |
 | [ADR-0008](./0008-node-link-renderer) | Node-link renderer: elkjs layout with hand-rolled SVG cards, shared by C4 and shape graphs | Accepted |
+| [ADR-0009](./0009-human-tasks) | Human tasks: a BPMN user task points at the form it is completed on (`seam:completedOn`) | Accepted |

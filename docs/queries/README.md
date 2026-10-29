@@ -11,6 +11,7 @@ user sees (RDF-invisibility principle, see `orig_convo/product-brief.md`).
 | `what-writes-shape.rq` | Which UI events can eventually write this data shape, and through which task? | `?shape` |
 | `impact-of-node.rq` | What breaks — containers *and processes* — if this deployment node goes away? | `?node` |
 | `what-moves-state.rq` | Which process tasks may move an entity out of this state? | `?state` |
+| `screens-to-finish-process.rq` | Which screens must a person visit to finish this process, and which policy governs each? | `?process` |
 | `c4-l1-rollup.rq` | Which systems talk to which, and where are they deployed, with container detail rolled up? | none |
 
 `c4-l1-rollup.rq` is a projection query, not a Questions-catalog entry: it
@@ -20,6 +21,11 @@ exposed as an inspector button.
 `tests/test_acceptance.py` runs each query against `examples/checkout.ttl` and
 the chat-app model and asserts the exact expected rows; a change that silently
 breaks a traversal breaks CI.
+
+`screens-to-finish-process.rq` follows `seam:completedOn` (ADR-0009), which neither
+example uses yet, so its expected row comes from the human-task fixture,
+`tests/fixtures/human_task/approval.trig`; it returns no rows on the chat app.
+`tests/test_human_task_vocabulary.py` checks it too.
 
 `complexity/` holds the three model-size measurements used by
 `python -m seams_gen.complexity` (models per notation, the most-reached elements and

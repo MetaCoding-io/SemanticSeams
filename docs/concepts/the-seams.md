@@ -10,7 +10,7 @@ generated from [`ontology/seam.ttl`](../../ontology/seam.ttl).
 
 ## Four design rules
 
-1. **Few and generic beats many and precise.** Twenty-five predicates. Precision lives
+1. **Few and generic beats many and precise.** Twenty-eight predicates. Precision lives
    in the layer vocabularies and in SHACL shapes over the seams, not in a growing list of
    specialised edges.
 2. **Every predicate must earn a cross-layer query.** If no question needs it, it does
@@ -39,7 +39,7 @@ The rest group by the layers they join. A few examples:
 | Join | Predicates |
 |---|---|
 | Architecture to everything | `presents` (container to its interface), `executes` (container to the process it runs), `exposes` and `consumes` (operations and channels), `deployedTo` |
-| Interface to process | `triggers` (event to process), `visibleWhen` (view component to lifecycle state) |
+| Interface to process | `triggers` (event to process), `completedOn` (user task to the form a person completes it on, [ADR-0009](/adr/0009-human-tasks)), `visibleWhen` (view component to lifecycle state) |
 | Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo`, `subscribesTo`, `reads`, `writes` |
 | Data to lifecycle | `lifecycle` (shape to state machine), `fires` (task to transition) |
 | Communication contracts | `acceptsShape`, `returnsShape`, `mediaKind` |
@@ -56,7 +56,7 @@ Every seam predicate, apart from the administrative `inModel`, `notation` and
 in the ontology. The mode tells the viewer what to do with the edge's target:
 
 - **Open** replaces the view with the target's model: `detailedBy`, `triggers`,
-  `decidedBy` and `lifecycle`.
+  `completedOn`, `decidedBy` and `lifecycle`.
 - **Nest** draws the target inside its source: `presents` and `executes`. This is what
   the C4 view's L4 level shows.
 - **Layer** overlays the target on the current view. This applies to every other seam.

@@ -124,8 +124,9 @@ for direction and the label. Empty groups are left out.
 Navigation follows [ADR-0005](/adr/0005-navigation-resolution). The viewer does not keep
 its own list of navigational predicates. Each seam predicate declares a reveal mode
 (`seam:reveal`) in `ontology/seam.ttl`, and a predicate whose mode is open or nest
-navigates. Today that is `seam:detailedBy`, `seam:triggers`, `seam:decidedBy` and
-`seam:lifecycle` (open), and `seam:presents` and `seam:executes` (nest). Every other seam
+navigates. Today that is `seam:detailedBy`, `seam:triggers`, `seam:completedOn`,
+`seam:decidedBy` and `seam:lifecycle` (open), and `seam:presents` and `seam:executes`
+(nest). Every other seam
 predicate is layer, so it shows in the inspector but does not navigate. The JSON view
 gives each seam edge its `reveal` mode beside `navigational`. When you click an element:
 

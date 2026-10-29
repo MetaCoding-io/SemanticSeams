@@ -14,6 +14,7 @@ from seams_runtime import (
     PolicyDenied,
     PolicyHook,
     PresenceEvaluator,
+    RoleEvaluator,
     StaticUserAuthenticator,
     authenticator_from_env,
 )
@@ -21,6 +22,7 @@ from seams_runtime.model import ODRL, Permission, PolicyFacts
 
 ROOT = Path(__file__).resolve().parent.parent
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
+APPROVAL_TRIG = ROOT / "tests" / "fixtures" / "human_task" / "approval.trig"
 CHAT = "https://example.org/chat/"
 
 
@@ -174,3 +176,107 @@ def test_presence_evaluator_assignee_rules():
 
     collection = facts(Permission(op, ODRL.use, URIRef(CHAT + "users"), (ODRL.PartyCollection,)))
     assert ev(collection, op, Identity("anyone"))[0]
+
+
+# ── roles (backlog E5, D028) ──
+
+
+def test_identity_roles_default_empty_and_hashable():
+    assert Identity("x").roles == frozenset()
+    assert Identity("x") == Identity("x", frozenset())
+    assert hash(Identity("x", frozenset({"manager"}))) == hash(Identity("x", frozenset({"manager"})))
+
+
+def test_policy_hook_default_is_role_evaluator(model):
+    assert isinstance(PolicyHook(model).evaluator, RoleEvaluator)
+
+
+def _role_facts():
+    op = URIRef(CHAT + "send_message_op")
+    employee = URIRef(CHAT + "employee")
+    policy = PolicyFacts(URIRef(CHAT + "employee_submit_policy"), "p",
+                         (Permission(op, ODRL.use, employee, ()),))
+    return op, employee, policy
+
+
+def test_role_evaluator_matches_role_by_local_name_and_full_iri():
+    op, employee, policy = _role_facts()
+    ev = RoleEvaluator()
+    assert ev(policy, op, Identity("alice", frozenset({"employee"})))[0]
+    assert ev(policy, op, Identity("alice", frozenset({str(employee)})))[0]
+
+
+def test_role_evaluator_still_matches_id_without_roles():
+    op, employee, policy = _role_facts()
+    ev = RoleEvaluator()
+    assert ev(policy, op, Identity("employee"))[0]
+    assert ev(policy, op, Identity(str(employee)))[0]
+
+
+def test_role_evaluator_denies_a_non_matching_role_with_reason():
+    op, employee, policy = _role_facts()
+    allowed, reason = RoleEvaluator()(policy, op, Identity("bob", frozenset({"manager", "finance"})))
+    assert not allowed
+    assert reason == (f"identity 'bob' (roles: finance, manager) is not an assignee "
+                      f"({employee}) of {CHAT}employee_submit_policy")
+    allowed, reason = RoleEvaluator()(policy, op, Identity("bob"))
+    assert not allowed and "(roles: none)" in reason
+
+
+def test_role_evaluator_party_collection_and_no_assignee_admit_anyone():
+    op = URIRef(CHAT + "send_message_op")
+    ev = RoleEvaluator()
+    collection = PolicyFacts(URIRef(CHAT + "p"), "p", (
+        Permission(op, ODRL.use, URIRef(CHAT + "users"), (ODRL.PartyCollection,)),))
+    assert ev(collection, op, Identity("anyone"))[0]
+    open_perm = PolicyFacts(URIRef(CHAT + "p"), "p", (Permission(op, ODRL.use, None, ()),))
+    assert ev(open_perm, op, Identity("anyone", frozenset({"x"})))[0]
+    no_action = PolicyFacts(URIRef(CHAT + "p"), "p", (Permission(op, None, None, ()),))
+    allowed, reason = ev(no_action, op, Identity("anyone", frozenset({"employee"})))
+    assert not allowed and "no permission" in reason
+
+
+def test_role_mismatch_is_403_through_the_dependency(fresh):
+    """A specific-party assignee on the chat policy: a role that does not
+    match is 403 with the reason, a matching groups header is 200."""
+    policy = fresh.curie(":user_send_policy")
+    employee = URIRef(CHAT + "employee")
+    for node in fresh.ds.objects(policy, ODRL.permission):
+        for old in list(fresh.ds.objects(node, ODRL.assignee)):
+            fresh.ds.remove((node, ODRL.assignee, old))
+        fresh.ds.add((node, ODRL.assignee, employee))
+    client = _client(PolicyHook(fresh))
+    denied = client.post("/send", headers={"X-Forwarded-User": "bob", "X-Forwarded-Groups": "manager"})
+    assert denied.status_code == 403
+    assert "identity 'bob' (roles: manager) is not an assignee" in denied.json()["detail"]["reason"]
+    ok = client.post("/send", headers={"X-Forwarded-User": "bob", "X-Forwarded-Groups": "employee"})
+    assert ok.status_code == 200
+
+
+def test_header_authenticator_parses_groups():
+    auth = HeaderAuthenticator()
+    identity = auth(_Req({"X-Forwarded-User": "alice", "X-Forwarded-Groups": "employee, manager, , "}))
+    assert identity == Identity("alice", frozenset({"employee", "manager"}))
+    assert auth(_Req({"X-Forwarded-User": "alice"})).roles == frozenset()
+    assert auth(_Req({"X-Forwarded-User": "alice", "X-Forwarded-Groups": " , "})).roles == frozenset()
+    assert "X-Forwarded-Groups" in repr(auth)
+    custom = HeaderAuthenticator(roles_header="X-Roles")
+    assert custom(_Req({"X-Forwarded-User": "a", "X-Roles": "finance"})).roles == frozenset({"finance"})
+
+
+def test_dev_roles_env_sets_roles():
+    dev = authenticator_from_env({"SEAMS_DEV_USER": "dev", "SEAMS_DEV_ROLES": "employee, finance,"})
+    assert dev(None) == Identity("dev", frozenset({"employee", "finance"}))
+    assert authenticator_from_env({"SEAMS_DEV_USER": "dev"})(None).roles == frozenset()
+    assert isinstance(authenticator_from_env({"SEAMS_DEV_ROLES": "employee"}), HeaderAuthenticator)
+
+
+def test_check_element_admits_manager_role_on_approval_task():
+    hook = PolicyHook(ModelGraph(APPROVAL_TRIG))
+    task = "https://example.org/expenses/approval_bpmn#approve_expense"
+    manager = Identity("alice", frozenset({"manager"}))
+    assert hook.check_element(task, manager) == manager
+    with pytest.raises(PolicyDenied) as exc:
+        hook.check_element(task, Identity("alice", frozenset({"employee"})))
+    assert exc.value.http_status == 403
+    assert "identity 'alice' (roles: employee) is not an assignee" in exc.value.reason

@@ -132,6 +132,7 @@ compliance question), and the Questions catalog in `viewer/queries.py` takes bot
   they cannot disagree with it.
 - **Positive:** Authorization stays on the task, where a BPMN modeller sets it, and
   uses the existing `PolicyEvaluator` protocol. S06's role evaluator plugs in unchanged.
+  (2026-10-29: it has landed as `RoleEvaluator` in M009/S06, and is now the default.)
 - **Negative:** The rule "the form's one event submits to the completion operation" is
   an invariant the shapes do not check yet. A form with two events is accepted by SHACL
   and refused by the generator.

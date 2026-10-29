@@ -32,6 +32,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
 | `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once. |
+| `PolicyHook(model, authenticator=None, evaluator=None)` | The policy hook behind `runtime.policy` and `runtime.task_policy`. The default authenticator is `HeaderAuthenticator`: the proxy-set `X-Forwarded-User` header is the identity id, and the comma-separated `X-Forwarded-Groups` header gives its roles (stripped, empty items ignored, none when absent). The default evaluator is `RoleEvaluator` (D028): a permission must target the operation with an `odrl:action`; no assignee or an `odrl:PartyCollection` admits any identity, and a specific party admits an identity whose id or any role equals the party IRI or its local name. A denial names the identity, its roles and the assignees. `PresenceEvaluator`, the id-only v1 evaluator, is still exported. |
 | `runtime.task_policy(task)` | A FastAPI dependency for a completion route. It authenticates the request (401) and checks the task's policies (403), answering with `PolicyDenied.to_dict()`, and yields the `Identity`. |
 | `runtime.query(":MessageShape", conversation="c1")` | Persisted entities of a shape. A filter named after a `proc:correlationKey` parameter label matches the correlation key. |
 | `runtime.subscribe(":stream_events", scope)` | An async iterator of SSE frames for one channel scope: the backlog first, then live frames. |
@@ -118,6 +119,7 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 | `SEAMS_MODEL` | TriG file `load` reads. When set and non-empty it takes precedence over the `trig_path` argument. The generated compose file sets it to the bind-mounted model, for example `/model/chat-app.trig`. |
 | `SEAMS_DB` | SQLite file for workflow state and entities. The default is `seams.sqlite`. `db_path=` overrides it. |
 | `SEAMS_DEV_USER` | Opt-in static identity for local runs. Without it, the `X-Forwarded-User` header is required (fail closed, D014). |
+| `SEAMS_DEV_ROLES` | Comma-separated roles of the `SEAMS_DEV_USER` identity, for example `employee,manager`. Ignored without `SEAMS_DEV_USER`. With the header authenticator, the roles come from the `X-Forwarded-Groups` header instead. |
 | `SEAMS_ALLOW_HASH_MISMATCH` | When set to `1`, `load` warns on a hash mismatch instead of refusing the model. |
 | `SEAMS_TEMPLATES` | Directory of the generated htmx partials `render_fragment` reads. The default is `./templates`. `templates_dir=` overrides it. |
 | `SEAMS_ROUTES` | Route module the host serves when `--routes` is not given. The default is `/app/chat_api.py`. |
@@ -126,6 +128,7 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 
 ## Deferred
 
-- ODRL constraints, duties and prohibitions. The v1 `PresenceEvaluator` checks permission
-  presence and assignee only. A full evaluator can be plugged in as a `PolicyEvaluator`.
+- ODRL constraints, duties and prohibitions. The default `RoleEvaluator` now checks role
+  assignees as well as identity ids, but still only permission presence and assignee. A
+  full evaluator can be plugged in as a `PolicyEvaluator`.
 - Postgres. The v1 store is stdlib sqlite3.

@@ -21,6 +21,7 @@ from .policy import (
     PolicyEvaluator,
     PolicyHook,
     PresenceEvaluator,
+    RoleEvaluator,
     StaticUserAuthenticator,
     authenticator_from_env,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "PolicyHook",
     "PresenceEvaluator",
     "ResolutionError",
+    "RoleEvaluator",
     "Runtime",
     "RuntimeModelError",
     "StaticUserAuthenticator",

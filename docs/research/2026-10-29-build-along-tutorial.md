@@ -1,6 +1,6 @@
 # Research note: a build-along tutorial, and the second worked example it produces
 
-*Status: proposal, 2026-10-29. Not yet scheduled. Linked from the
+*Status: proposal, 2026-10-29. Scheduled as M009, whose slices S01 to S07 follow "Proposed slices" below. Linked from the
 [backlog](../backlog.md) (item 11 and the "Examples and tutorials" section).*
 
 ## Two problems, one answer

@@ -487,3 +487,109 @@ def ifml_diagram(model_iri: str) -> dict:
         "flows": sorted(d["flows"], key=lambda f: (f["iri"] or "", f["kind"], f["from"], f["to"])),
         "notes": sorted(d["notes"], key=lambda n: (n["iri"], n["for"])),
     }
+
+
+# --- ELK port graph (M007/S04, D023) ----------------------------------------
+
+_FIXED = {"elk.algorithm": "fixed", "elk.padding": "[top=0,left=0,bottom=0,right=0]"}
+
+
+def _note_layer(n: dict, owners: dict) -> str:
+    """Same rule as the M006/S05 template: an activation note takes the layer
+    of the owner's seam that targets its state, else lifecycle; a bindings
+    note is interaction."""
+    if n["kind"] != "activation":
+        return "interaction"
+    owner = owners.get(n["for"]) or {}
+    seam = next((s for s in owner.get("seams", []) if s.get("target") == n["state"]), None)
+    return seam["targetLayer"] if seam else "lifecycle"
+
+
+def ifml_elk_graph(diagram: dict) -> dict:
+    """Carry the ifml_diagram() geometry as an elkjs graph for the diagram-js
+    canvas: {"elk": <root node>, "elements": {id: draw data}}.
+
+    Every node uses the "fixed" algorithm, so ELK keeps the Python positions:
+    containers and components nest under their parent container with x/y
+    relative to it, actions and notes are root children at absolute x/y, and
+    events are FIXED_POS ports on their owner's east border. Flows are root
+    edges whose single section follows the Python points.
+
+    Note: an event whose owner is not drawn (an action; _place_events gives
+    it cx = cy = 0) has no box to sit on, so it is left out of the ports and
+    of the elements map. Flows with no points, or whose end is not drawn,
+    are skipped too, so ELK never sees a dangling edge.
+    """
+    boxes = {b["iri"]: b for b in diagram["containers"] + diagram["components"]}
+    containers = {c["iri"] for c in diagram["containers"]}
+    elements: dict[str, dict] = {}
+
+    def base(kind: str, el: dict, **extra) -> dict:
+        return {"kind": kind, "iri": el["iri"], "label": el["label"], "layer": el["layer"],
+                "seams": el["seams"], **extra}
+
+    ports_of: dict[str, list[dict]] = {}
+    for e in diagram["events"]:
+        owner = boxes.get(e["owner"])
+        if owner is None:
+            continue
+        ports_of.setdefault(e["owner"], []).append(
+            {"id": e["iri"], "x": e["cx"] - e["r"] - owner["x"], "y": e["cy"] - e["r"] - owner["y"],
+             "width": 2 * e["r"], "height": 2 * e["r"], "layoutOptions": {"elk.port.side": "EAST"}}
+        )
+        elements[e["iri"]] = base("event", e, eventKind=e["kind"], owner=e["owner"], r=e["r"])
+
+    def node(b: dict, parent: dict | None) -> dict:
+        n = {"id": b["iri"], "x": b["x"] - (parent["x"] if parent else 0),
+             "y": b["y"] - (parent["y"] if parent else 0), "width": b["w"], "height": b["h"],
+             "layoutOptions": dict(_FIXED)}
+        if b["iri"] in containers:
+            kids = sorted(i for i, k in boxes.items() if k.get("parent") == b["iri"])
+            n["children"] = [node(boxes[k], b) for k in kids]
+            elements[b["iri"]] = base("container", b, title=b["title"], markers=b["markers"])
+        else:
+            elements[b["iri"]] = base("component", b, stereotype=b["stereotype"],
+                                      bindings=b["bindings"], fields=b["fields"])
+        if b["iri"] in ports_of:
+            n["ports"] = sorted(ports_of[b["iri"]], key=lambda p: p["id"])
+            n["layoutOptions"]["elk.portConstraints"] = "FIXED_POS"
+        return n
+
+    children = [node(b, None) for b in diagram["containers"] if b["parent"] is None]
+
+    for a in diagram["actions"]:
+        children.append({"id": a["iri"], "x": a["x"], "y": a["y"], "width": a["w"], "height": a["h"]})
+        elements[a["iri"]] = base("action", a, points=[[px - a["x"], py - a["y"]] for px, py in a["points"]])
+
+    owners = {**boxes}
+    for n in diagram["notes"]:
+        nid = f"note::{n['kind']}::{n['for']}"
+        children.append({"id": nid, "x": n["x"], "y": n["y"], "width": n["w"], "height": n["h"]})
+        elements[nid] = {"kind": "note", "iri": n["iri"], "label": n["text"], "layer": _note_layer(n, owners),
+                         "seams": [], "noteKind": n["kind"], "text": n["text"], "for": n["for"],
+                         "connector": n["connector"]}
+
+    drawn = set(elements)
+    edges = []
+    for f in diagram["flows"]:
+        pts = f.get("points") or []
+        if not pts or f["from"] not in drawn or f["to"] not in drawn:
+            continue
+        fid = f["iri"] or f"flow::action::{f['from']}::{f['to']}"
+        edges.append({
+            "id": fid, "sources": [f["from"]], "targets": [f["to"]],
+            "sections": [{"id": f"{fid}::s0",
+                          "startPoint": {"x": pts[0][0], "y": pts[0][1]},
+                          "bendPoints": [{"x": x, "y": y} for x, y in pts[1:-1]],
+                          "endPoint": {"x": pts[-1][0], "y": pts[-1][1]}}],
+        })
+        elements[fid] = {"kind": "flow", "iri": f["iri"] or f["to"], "label": f["label"], "layer": f["layer"],
+                         "seams": f["seams"], "flowKind": f["kind"], "bindings": f["bindings"], "points": pts}
+
+    return {
+        "elk": {"id": "root", "x": 0, "y": 0, "width": diagram["width"], "height": diagram["height"],
+                "layoutOptions": dict(_FIXED),
+                "children": sorted(children, key=lambda c: c["id"]),
+                "edges": sorted(edges, key=lambda e: e["id"])},
+        "elements": elements,
+    }

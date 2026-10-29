@@ -896,6 +896,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
             # IFML is drawn as IFML from viewer/ifml.py (M006/S05, D011);
             # nodes/edges are still built, but the ifml template does not use them.
             ctx["ifml"] = view["ifml"]
+            # Template-only ELK port graph for the diagram-js canvas (M007/S04, D023).
+            ctx["ifml_canvas"] = ifml.ifml_elk_graph(view["ifml"])
     elif render_kind in PAYLOAD_RENDERERS and view["renderPayload"]:
         ctx["payload_url"] = f"/payload/{quote(view['renderPayload'], safe='')}"
         ctx["element_map"] = payload_element_map(focus)

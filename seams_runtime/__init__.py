@@ -8,7 +8,9 @@ from .errors import (
     ResolutionError,
     RuntimeModelError,
 )
+from .channels import ChannelBus
 from .contracts import validate
+from .engine import Engine
 from .lifecycle import LifecycleGuard
 from .model import ModelGraph, model_hash
 from .policy import (
@@ -21,12 +23,15 @@ from .policy import (
     StaticUserAuthenticator,
     authenticator_from_env,
 )
+from .store import Store
 
 # Runtime (the facade generated code imports) is added in M004/S03 T05.
 
 __all__ = [
     "Authenticator",
+    "ChannelBus",
     "ContractViolation",
+    "Engine",
     "HeaderAuthenticator",
     "Identity",
     "LifecycleGuard",
@@ -40,6 +45,7 @@ __all__ = [
     "ResolutionError",
     "RuntimeModelError",
     "StaticUserAuthenticator",
+    "Store",
     "authenticator_from_env",
     "model_hash",
     "validate",

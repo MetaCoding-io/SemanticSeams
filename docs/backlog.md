@@ -83,6 +83,27 @@ worked example item 11 waits for.
 | E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker used to skip manual tasks; it now waits on them. | M | ADR first | done (M009/S04) |
 | E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | done (M009/S06) |
 
+## Library: a read-only Python model library
+
+*Added 2026-10-29 from the [library note](research/2026-10-29-seams-python-library.md).
+Unscheduled.* The generation work produced a real fact layer, `ModelGraph` in
+`seams_runtime/model.py`, but it is bundled with the runtime's dependencies, has no
+public surface, keeps one-of-each accessors that M009's multi-model expense example had to
+work around, and reads the native BPMN and DMN only for their IDs. The viewer and the docs generator read the graph with their own code,
+and IFML is interpreted twice. A small read-only library, `seams`, would give every
+consumer and every user-written generator one typed, multi-model view of the graph
+joined with the native files. It is built as a **uv workspace** with a committed
+lockfile, `pyproject.toml` packaging, ruff and a type checker.
+
+| # | Item | Size | Depends on | Status |
+|---|---|---|---|---|
+| L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | proposed |
+| L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | proposed |
+| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | proposed |
+| L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | proposed |
+| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | proposed |
+| L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | proposed |
+
 ## Generation: what is planned, what is not
 
 **Planned already.** The product brief puts generation on the critical path

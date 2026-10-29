@@ -60,6 +60,10 @@ chat page's Jinja2/htmx template from the IFML model and the seams it touches. T
 matches the golden in `docs/generation/golden/` byte for byte. The rendering rules, each
 keyed on a graph fact, are in [`seams_gen/README.md`](seams_gen/README.md).
 
+`python -m seams_gen.complexity examples/chat-app/chat-app.trig` measures a model's
+size (models per notation, most-reached elements, seam edges) and prints PASS or FAIL
+against thresholds; the chat app fails by design.
+
 ## v1: the viewer
 
 Read-only, navigable, notation-switching browser over a hand-authored model. Stack:

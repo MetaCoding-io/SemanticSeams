@@ -126,6 +126,45 @@ conforms, _, report = validate(data, shacl_graph="ontology/shapes/seam-shapes.tt
 print(report)
 ```
 
+## Check its complexity
+
+A model can be valid and still too small to need cross-layer tooling. The complexity
+check measures that:
+
+```sh
+python -m seams_gen.complexity path/to/model.trig
+```
+
+It runs three SPARQL queries against the model and prints three numbers:
+
+- **Models per notation**: how many `seam:Model` graphs use each notation. A notation
+  with two or more models is one where a reader has to move between models of the same
+  kind.
+- **Most-reached elements**: the five elements reached by `seam:` edges from the most
+  distinct models. A high count means one element ties many models together.
+- **Cross-layer seam edges**: the number of `seam:` triples, leaving out the
+  bookkeeping predicates `seam:inModel`, `seam:notation` and `seam:renderPayload`.
+
+It then prints `PASS` or `FAIL`, with one line per failed threshold giving the actual
+value and the required one.
+
+| Measure | Threshold |
+|---|---|
+| Notations with 2+ models | at least 3 |
+| Most models one element is reached from | at least 5 |
+| Cross-layer seam edges | reported, not gated |
+
+Edges are reported but not gated: one large model can have many edges and still be
+fully visible by descent, so the edge count alone does not say the model needs more
+than the viewer already gives you.
+
+The chat app scores 0 / 3 / 58 and fails by design, since it is a one-model-per-layer
+quick start. The expense-approval tutorial's final model is the one meant to pass.
+
+The exit code is 0 on pass, 1 on fail, and 2 when the file is missing, unreadable or not
+valid TriG (the message goes to stderr). The check loads only the TriG, not the ontology
+files. The source queries are in `docs/queries/complexity/` in the repository.
+
 ## View it
 
 The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your

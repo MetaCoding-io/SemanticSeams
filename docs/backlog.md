@@ -79,7 +79,7 @@ worked example item 11 waits for.
 |---|---|---|---|---|
 | E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | planned (M009/S03, S05, S06, S07) |
 | E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | done (M009/S01) |
-| E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | planned (M009/S02) |
+| E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | done (M009/S02) |
 | E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker skips manual tasks today. | M | ADR first | planned (M009/S04) |
 | E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | planned (M009/S06) |
 
@@ -137,7 +137,8 @@ UI work must not eat M3.*
 6. The build-along tutorial, E2, E3, E4, E5 and E1, as M009 (S01 to S07), after
    M007. Its final model is the second worked example that item 11 waits for.
    *E2 done, M009/S01: `SEAMS_MODEL` chooses the model for the runtime, the compose
-   stack and the viewer.*
+   stack and the viewer.* *E3 done, M009/S02: `python -m seams_gen.complexity` measures
+   models per notation, maximum reach and seam edges against thresholds.*
 7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each
    item's parking reason is checked again first: editing is a v1 non-goal in the
    product brief, and layer mode (S03) opens with the E3 complexity check on the

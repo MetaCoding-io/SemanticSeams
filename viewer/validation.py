@@ -1,7 +1,8 @@
 """Reusable SHACL conformance check for the viewer's loaded model.
 
-The viewer's Dataset (see viewer/app.py get_graph()) loads only
-examples/chat-app/chat-app.trig — it carries no ontology triples. The shapes
+The viewer's Dataset (see viewer/app.py get_graph()) loads only the configured
+model's TriG (SEAMS_MODEL, default examples/chat-app/chat-app.trig) — it
+carries no ontology triples. The shapes
 in ontology/shapes/seam-shapes.ttl rely on subclass closure from the ontology
 files (sh:class checks), so validation here mirrors tests/validate_chat_app.py:
 merge the ontology .ttl files with the dataset's quads into one union graph,

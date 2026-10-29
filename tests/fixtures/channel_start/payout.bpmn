@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   id="payout_bpmn_defs"
+                   targetNamespace="https://example.org/expenses/payout_bpmn">
+  <bpmn:process id="payout_process" name="Expense Payout" isExecutable="true">
+    <!-- A message start event: the graph says it seam:subscribesTo :payment_channel. -->
+    <bpmn:startEvent id="payment_received" name="Payment Requested">
+      <bpmn:outgoing>flow_to_pay</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="payment_received_msg" />
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="pay_expense" name="Pay Expense">
+      <bpmn:incoming>flow_to_pay</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end" name="Paid">
+      <bpmn:incoming>flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_pay" sourceRef="payment_received" targetRef="pay_expense" />
+    <bpmn:sequenceFlow id="flow_to_end" sourceRef="pay_expense" targetRef="end" />
+  </bpmn:process>
+</bpmn:definitions>

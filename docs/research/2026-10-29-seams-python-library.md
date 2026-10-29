@@ -1,7 +1,9 @@
 # Research note: `seams`, a read-only Python library over the model
 
 *Status: proposal, 2026-10-29. Not yet scheduled. Linked from the
-[backlog](../backlog.md) ("Library" section).*
+[backlog](../backlog.md) ("Library" section). Revised the same day after M009 merged:
+the expense tutorial's chapter 8 now exists, passes the complexity check, and shows how
+the current code copes with several models per notation.*
 
 ## The question
 
@@ -36,7 +38,8 @@ The generators in [`seams_gen`](../../seams_gen/README.md) build on it through a
 | Reader | How |
 |---|---|
 | Runtime and generators | `ModelGraph` |
-| Viewer | Its own loader (`ModelStore` in `viewer/app.py`), its own label, notation and seam-edge helpers, and its own IFML interpretation in `viewer/ifml.py` |
+| Complexity check | rdflib directly, in `seams_gen/complexity.py` |
+| Viewer | Its own loader (`ModelStore` in `viewer/app.py`, which now picks the model from `SEAMS_MODEL`), its own label, notation and seam-edge helpers, and its own IFML interpretation in `viewer/ifml.py` |
 | Docs reference pages | rdflib directly, in `docs/scripts/generate.py` |
 
 ### Why it is not yet a library for users
@@ -45,15 +48,22 @@ The generators in [`seams_gen`](../../seams_gen/README.md) build on it through a
    the host and the store, so `from seams_runtime import ModelGraph` pulls in
    SpiffWorkflow, FastAPI, uvicorn, httpx and the rest of
    `seams_runtime/requirements.txt`. Someone who only wants to read facts installs an
-   execution stack.
+   execution stack. It reaches further than `ModelGraph`'s own users:
+   `python -m seams_gen.complexity` runs three SPARQL queries with plain rdflib, yet it
+   will not start without SpiffWorkflow installed, because importing anything in
+   `seams_gen` imports `seams_runtime`, whose `__init__` imports the engine.
 2. **It has no public surface.** The generators import a private helper
    (`_payload_files`) and namespace constants from inside `seams_runtime.model`. Nothing
    marks what is stable.
-3. **It assumes one of each.** `_bpmn_model()` raises unless exactly one model renders a
-   BPMN payload; `landmark_page()` requires exactly one landmark page; `task_iri()`
-   resolves every BPMN ID against that one model. The
-   [build-along tutorial](2026-10-29-build-along-tutorial.md)'s final model has two
-   processes and three interfaces, and would raise.
+3. **It assumes one of each, and callers work around it.** `_bpmn_model()` raises
+   unless exactly one model renders a BPMN payload, `task_iri()` resolves every BPMN ID
+   against that one model, and `landmark_page()` requires exactly one landmark page. The
+   [build-along tutorial](2026-10-29-build-along-tutorial.md)'s chapter 8 has two BPMN,
+   two DMN, two IFML and two statechart models, and M009 shipped it by routing around
+   these accessors rather than replacing them: the engine resolves task IRIs under the
+   BPMN model each workflow was parsed from, and the htmx generator takes the landmark
+   page plus a separate `secondary_pages()` list. The one-of-each accessors remain, so
+   each new consumer has to know which of them are safe on a multi-model graph.
 4. **It barely reads the native files.** `bpmn_process_ids()` and `dmn_decision_ids()`
    list IDs with lxml, and SpiffWorkflow parses the files to execute them. Nothing lets
    a generator walk a process in flow order, see its gateways and unlifted elements, or
@@ -104,7 +114,7 @@ generator, and any generator a user writes for their own artifacts.
 |---|---|
 | `model.architecture` | Systems, containers, deployment nodes and environments, with `deploy:` facts |
 | `model.interfaces` | Interaction models, then pages, components, events, flows, parameters and bindings; activation conditions from `seam:visibleWhen` |
-| `model.processes` | Each BPMN model joined with its XML: elements in flow order, including those with no IRI, gateways and lanes; each task's seams resolved (invoked operation, shapes read and written, transition fired, decision) |
+| `model.processes` | Each BPMN model joined with its XML: elements in flow order, including those with no IRI, gateways and lanes; each task's seams resolved (invoked operation, shapes read and written, transition fired, decision); user tasks with the form they are completed on ([ADR-0009](../adr/0009-human-tasks.md)); message start events with the channel that starts them ([ADR-0010](../adr/0010-channel-started-processes.md)) |
 | `model.decisions` | Each DMN decision with its table: inputs, outputs, hit policy and rules; the shapes it reads |
 | `model.shapes` | SHACL shapes as fields: path, datatype, cardinality, label |
 | `model.operations`, `model.channels` | Paths, methods, accepted and returned shapes, media kinds; channel transport |
@@ -228,8 +238,8 @@ Each slice ships on its own and leaves every test green.
 | # | Slice | Notes |
 |---|---|---|
 | L1 | **uv workspace and tooling.** `pyproject.toml` per package, `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles on uv; the requirements files removed. | No code changes. First, because it makes everything after it installable. |
-| L2 | **Extract the core into `seams`:** loader (file or directory), hash, payload resolution, namespaces, errors. `seams_runtime` re-exports `ModelGraph`, now built on it; the generators import only the public API. | Builds on backlog item E2, the configurable model path, scheduled as M009/S01. No behaviour change. |
-| L3 | **Typed views over the graph,** replacing the one-of-each accessors with collections and `.only()`. | The build-along tutorial's chapter 8 (M009/S07) has two processes and three interfaces, so it needs this first, or must lift the one-of-each assumptions in `ModelGraph` itself. |
+| L2 | **Extract the core into `seams`:** loader (file or directory), hash, payload resolution, namespaces, errors. `seams_runtime` re-exports `ModelGraph`, now built on it; the generators import only the public API. | The loader honours `SEAMS_MODEL` as the runtime and viewer do since backlog item E2 (M009/S01). No behaviour change. |
+| L3 | **Typed views over the graph,** replacing the one-of-each accessors with collections and `.only()`. | Replaces the per-caller workarounds M009 added for multiple models: per-workflow task IRIs in the engine, and the landmark-plus-secondary-pages split in the htmx generator. |
 | L4 | **Native joins:** BPMN in flow order, DMN tables. | |
 | L5 | **Port the consumers:** generators first (`extract_page` on the interfaces view), then the viewer (`ifml.py` on the same view, so IFML has one interpretation, and `ModelStore` replaced by the loader), then the docs reference generator. | Golden outputs must stay byte-identical. |
 | L6 | **Docs:** an API reference page and a "Write your own generator" guide. | Could also be a chapter of the build-along tutorial. |
@@ -244,5 +254,7 @@ Each slice ships on its own and leaves every test green.
   where they are, as members in place, is cheaper.
 - **Which type checker.** pyright or mypy; whichever is chosen runs strict on the
   library.
-- **Publish in v1, or stay workspace-only** until the API has a second real consumer, for
-  example the build-along tutorial's generator chapter?
+- **Publish in v1, or stay workspace-only** until the API has an outside consumer? Inside
+  the repository there are now two real models to test it against, the chat app and the
+  expense tutorial's chapter 8, which passes the complexity check (four notations with two
+  models each, `ExpenseShape` reached from six models, 111 seam edges).

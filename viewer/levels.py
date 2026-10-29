@@ -6,6 +6,10 @@ is cumulative — L2 shows everything L1 shows plus its own classes and edges.
 
 L1 edges are not derived in Python: they come from the canned projection
 query docs/queries/c4-l1-rollup.rq, which has its own acceptance tests.
+
+L4 (M007/S02) is L3 plus the targets of nest-mode seams (seam:reveal
+seam:Nest — today seam:presents and seam:executes) drawn as compound nodes
+inside their source container, each holding its model's top-level members.
 """
 
 from __future__ import annotations
@@ -39,6 +43,9 @@ class C4Level:
     exposed_elements: bool = False
     # The question this level answers, shown on its level card (M006/S03).
     question: str = ""
+    # L4 only: targets of nest-mode seams from visible nodes become compound
+    # nodes nested in their source, holding their model's top-level members.
+    nest: bool = False
 
 
 _L1_CLASSES = frozenset({ARCH.System, ARCH.Person, ARCH.Environment})
@@ -67,6 +74,15 @@ C4_LEVELS: dict[str, C4Level] = {
         edge_rules=_L2_EDGES + ((SEAM.consumes, "consumes"),),
         exposed_elements=True,
         question="Which operations does each container expose and consume?",
+    ),
+    "L4": C4Level(
+        id="L4",
+        title="Seams",
+        classes=_L2_CLASSES,
+        edge_rules=_L2_EDGES + ((SEAM.consumes, "consumes"),),
+        exposed_elements=True,
+        nest=True,
+        question="Where does this architecture hand off to UI and process?",
     ),
 }
 

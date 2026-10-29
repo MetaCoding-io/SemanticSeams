@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="approval_bpmn_defs"
+                   targetNamespace="https://example.org/expenses/approval_bpmn">
+  <bpmn:process id="approval_process" name="Expense Approval" isExecutable="true">
+    <bpmn:startEvent id="start" name="Expense Submitted">
+      <bpmn:outgoing>flow_to_persist</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="persist_expense" name="Persist Expense">
+      <bpmn:incoming>flow_to_persist</bpmn:incoming>
+      <bpmn:outgoing>flow_to_approve</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="approve_expense" name="Approve Expense">
+      <bpmn:incoming>flow_to_approve</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="end" name="Decided">
+      <bpmn:incoming>flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_persist" sourceRef="start" targetRef="persist_expense" />
+    <bpmn:sequenceFlow id="flow_to_approve" sourceRef="persist_expense" targetRef="approve_expense" />
+    <bpmn:sequenceFlow id="flow_to_end" sourceRef="approve_expense" targetRef="end" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="diagram">
+    <bpmndi:BPMNPlane id="plane" bpmnElement="approval_process">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="60" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="persist_expense_di" bpmnElement="persist_expense">
+        <dc:Bounds x="150" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approve_expense_di" bpmnElement="approve_expense">
+        <dc:Bounds x="300" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_di" bpmnElement="end">
+        <dc:Bounds x="452" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_persist_di" bpmnElement="flow_to_persist">
+        <di:waypoint x="96" y="138" />
+        <di:waypoint x="150" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_approve_di" bpmnElement="flow_to_approve">
+        <di:waypoint x="250" y="138" />
+        <di:waypoint x="300" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_end_di" bpmnElement="flow_to_end">
+        <di:waypoint x="400" y="138" />
+        <di:waypoint x="452" y="138" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

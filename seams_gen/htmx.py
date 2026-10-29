@@ -4,7 +4,12 @@
 communication and lifecycle facts it touches into frozen dataclasses;
 ``generate_page`` renders them through templates/htmx_page.html.j2 and
 ``generate_fragments`` renders the partials the presenting container's
-UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2. The
+UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2, plus,
+for each ``ifml:Form`` a ``proc:UserTask`` ``seam:completedOn`` (ADR-0009), a
+task form partial through htmx_task_form.html.j2 and the partials of the
+components its completion renders on the form's screen. ``generate_pages``
+adds each ``ModelGraph.secondary_pages`` page (an ``ifml:path`` and no task
+form), extracted the same way and rendered with its own partials. The
 template holds the fixed text only: every model-specific string comes from the
 ``PageModel``, and every collection is sorted explicitly (components by
 ifml:order, fields by sh:order, everything else by IRI), never by graph
@@ -20,10 +25,11 @@ from pathlib import Path
 
 import jinja2
 from rdflib import RDF, XSD, Literal
+from rdflib.collection import Collection
 from rdflib.namespace import SH
 
 from seams_runtime import ModelGraph
-from seams_runtime.model import COMM, HYDRA, SEAM, STATE, local_name
+from seams_runtime.model import COMM, HYDRA, PROC, SEAM, STATE, local_name
 
 from . import GeneratorError
 from .facts import DASH, IFML
@@ -34,6 +40,11 @@ from .fragments import fragment_for
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "htmx_page.html.j2"
 FRAGMENT_TEMPLATE_NAME = "htmx_fragment.html.j2"
+TASK_FORM_TEMPLATE_NAME = "htmx_task_form.html.j2"
+
+# The runtime variable a task form partial fills the correlation-key path
+# variable from: Runtime.user_tasks rows are bound as ``task``.
+TASK_KEY = "task.correlation_key"
 
 # ifml:swap value -> (hx-swap, targets the component's item list); the rule
 # documented on ifml:swap in ontology/ifml.ttl.
@@ -58,6 +69,7 @@ class Field:
     order: int | None
     max_length: int | None
     required: bool   # sh:minCount >= 1
+    options: tuple[str, ...] = ()  # sh:in values, in list order
 
 
 @dataclass(frozen=True)
@@ -91,8 +103,9 @@ class Input:
     """A form field: an ifml:Parameter ifml:boundTo a written shape's sh:path."""
     id: str
     name: str
-    element: str     # "textarea" or "input"
+    element: str     # "textarea", "input" or (task forms only) "select"
     attributes: tuple[str, ...]
+    options: tuple[str, ...] = ()  # a select's sh:in values
 
 
 @dataclass(frozen=True)
@@ -149,6 +162,25 @@ class Fragment:
 
 
 @dataclass(frozen=True)
+class TaskForm:
+    """The partial of an ifml:Form a proc:UserTask seam:completedOn (ADR-0009),
+    rendered by the host's task inbox with ``task`` bound to a
+    Runtime.user_tasks row."""
+    name: str        # file name, <form local name>.html
+    id: str          # the form's local name
+    curie: str
+    label: str       # the form's rdfs:label
+    task: str        # curie of the user task
+    task_label: str  # the task's rdfs:label
+    key: str         # the process's proc:correlationKey rdfs:label
+    entity_class: str | None    # the task's seam:reads shape label, lowercased
+    entity_fields: tuple[Field, ...]
+    submit: Submit
+    inputs: tuple[Input, ...]
+    unbound: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class PageModel:
     model_stem: str
     model_hash: str
@@ -160,6 +192,9 @@ class PageModel:
     uses_sse: bool
     components: tuple[Component, ...]
     fragments: tuple[Fragment, ...] = ()
+    task_forms: tuple[TaskForm, ...] = ()
+    screen_components: tuple[Component, ...] = ()  # rendered components of task form screens
+    landmark: bool = True  # False for a ModelGraph.secondary_pages page
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
@@ -178,9 +213,13 @@ def _fill(template: str, fill) -> str:
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
-def extract_page(model: ModelGraph) -> PageModel:
+def extract_page(model: ModelGraph, page=None) -> PageModel:
+    """The landmark page, or ``page`` (one of ``ModelGraph.secondary_pages``).
+    Only the landmark's PageModel carries the task forms and their screens'
+    components; a secondary page carries its own components and partials."""
     f = _Facts(model)
-    page = _landmark(f, model)
+    landmark = page is None
+    page = _landmark(f, model) if landmark else model.curie(page)
     imodel = _interaction_model(f, page)
     presenter = _presenter(f, imodel)
 
@@ -199,6 +238,8 @@ def extract_page(model: ModelGraph) -> PageModel:
 
     built = tuple(_component(f, c, order, presenter, page_params, sse_channels)
                   for order, c in components)
+    task_forms = _task_forms(f, presenter) if landmark else ()
+    screens = _screen_components(f, presenter, task_forms, {c.id for c in built}, sse_channels)
     return PageModel(
         model_stem=model.path.stem,
         model_hash=model.hash,
@@ -209,7 +250,10 @@ def extract_page(model: ModelGraph) -> PageModel:
         title=str(f.one(page, IFML.title)),
         uses_sse=bool(sse_channels),
         components=built,
-        fragments=_fragments(f, presenter, {c.id for c in built}),
+        fragments=_fragments(f, presenter, {c.id for c in built + screens}),
+        task_forms=task_forms,
+        screen_components=screens,
+        landmark=landmark,
     )
 
 
@@ -367,10 +411,12 @@ def _fields(f: _Facts, shape) -> tuple[Field, ...]:
         else:
             kind = "text"
         min_count = f.int_value(prop, SH.minCount)
+        members = f.optional(prop, SH["in"])
+        options = tuple(str(v) for v in Collection(f.ds, members)) if members is not None else ()
         fields.append(Field(
             name=local_name(f.one(prop, SH.path)), kind=kind,
             order=f.int_value(prop, SH.order), max_length=f.int_value(prop, SH.maxLength),
-            required=min_count is not None and min_count >= 1,
+            required=min_count is not None and min_count >= 1, options=options,
         ))
     fields.sort(key=lambda fl: (fl.order is None, fl.order or 0, fl.name))
     return tuple(fields)
@@ -448,6 +494,117 @@ def _submit(f: _Facts, c, presenter, fill_param) -> Submit:
     )
 
 
+def _task_forms(f: _Facts, presenter) -> tuple[TaskForm, ...]:
+    """One TaskForm per ifml:Form some proc:UserTask seam:completedOn, by IRI."""
+    found = {}
+    for task, form in f.ds.subject_objects(SEAM.completedOn):
+        if (task, RDF.type, PROC.UserTask) not in f.ds:
+            continue
+        if form in found:
+            raise GeneratorError(form, SEAM.completedOn,
+                                 f"completes both {found[form]} and {task}; expected one user task")
+        found[form] = task
+    return tuple(_task_form(f, form, found[form], presenter) for form in sorted(found, key=str))
+
+
+def _task_form(f: _Facts, form, task, presenter) -> TaskForm:
+    if (form, RDF.type, IFML.Form) not in f.ds:
+        raise GeneratorError(task, SEAM.completedOn, f"{form} is not an ifml:Form")
+    writes = f.one(form, SEAM.writes, "the shape the task form submits")
+    process = _task_process(f, task)
+    key = f.label(f.one(process, PROC.correlationKey))
+
+    def fill_key(var: str) -> str:
+        if var != key:
+            raise GeneratorError(process, PROC.correlationKey,
+                                 f"path variable {var!r} of the completion of {task} is not the "
+                                 f"correlation key {key!r}")
+        return TASK_KEY
+
+    submit = _submit(f, form, presenter, fill_key)
+    if TASK_KEY not in submit.path:
+        raise GeneratorError(process, PROC.correlationKey,
+                             f"{key!r} is not a path variable of {submit.operation}, "
+                             f"so the completion of {task} cannot name its instance")
+    fields = _fields(f, writes)
+    bound = {local_name(t): p for p in f.objects(form, IFML.hasParameter)
+             for t in [f.optional(p, IFML.boundTo)] if t is not None}
+    by_name = {fl.name for fl in fields}
+    unknown = sorted(set(bound) - by_name)
+    if unknown:
+        raise GeneratorError(bound[unknown[0]], IFML.boundTo,
+                             f"{unknown[0]!r} is not a datatype sh:path of {writes}")
+    prefix = local_name(form)
+    if prefix.endswith("_form") and len(prefix) > len("_form"):
+        prefix = prefix[: -len("_form")]
+    reads = f.optional(task, SEAM.reads)
+    return TaskForm(
+        name=f"{local_name(form)}.html", id=local_name(form), curie=f.curie(form),
+        label=f.label(form), task=_task_curie(f, task), task_label=f.label(task), key=key,
+        entity_class=f.label(reads).lower() if reads is not None else None,
+        entity_fields=_fields(f, reads) if reads is not None else (),
+        submit=submit,
+        inputs=tuple(_task_input(prefix, fl) for fl in fields if fl.name in bound),
+        unbound=tuple(fl.name for fl in fields if fl.name not in bound),
+    )
+
+
+def _task_process(f: _Facts, task):
+    """The proc:Process whose seam:detailedBy BPMN model holds ``task`` (its
+    IRI is <model>#<bpmn id>, or it is seam:inModel the model)."""
+    models = set(f.objects(task, SEAM.inModel))
+    found = [p for p in f.subjects(RDF.type, PROC.Process)
+             if any(m in models or str(task).startswith(f"{m}#") for m in f.objects(p, SEAM.detailedBy))]
+    if len(found) != 1:
+        raise GeneratorError(task, SEAM.detailedBy,
+                             "expected one proc:Process seam:detailedBy the model holding the task, "
+                             f"found {[str(p) for p in found]}")
+    return found[0]
+
+
+def _task_curie(f: _Facts, task) -> str:
+    """``prefix:rest`` for the longest bound namespace, keeping the whole rest
+    (``:approval_bpmn#approve_expense``), so that ModelGraph.curie expands it
+    back to the task IRI; Facts.curie shortens a BPMN element to ``:id``,
+    which would name a different, ungoverned IRI."""
+    s = str(task)
+    for ns, prefix in f._ns:
+        if s.startswith(ns):
+            return f"{prefix}:{s[len(ns):]}"
+    return s
+
+
+def _screen_components(f: _Facts, presenter, task_forms, built_ids, sse_channels) -> tuple[Component, ...]:
+    """The components on a task form's screen (the ifml:ViewContainer that
+    ifml:contains it) that an operation the presenter seam:consumes
+    seam:rendersComponent, and the landmark page does not already hold, so
+    that the completion route's partial is generated. Sorted by IRI."""
+    rendered = {c for op in f.objects(presenter, SEAM.consumes) for c in f.objects(op, SEAM.rendersComponent)}
+    out = {}
+    for tf in task_forms:
+        form = f.m.curie(tf.curie)
+        for screen in f.subjects(IFML.contains, form):
+            if (screen, RDF.type, IFML.ViewContainer) not in f.ds:
+                continue
+            params = {f.label(p) for c in f.objects(screen, IFML.contains)
+                      for p in f.objects(c, IFML.hasParameter)}
+            for c in f.objects(screen, IFML.contains):
+                if c in rendered and local_name(c) not in built_ids and c not in out:
+                    out[c] = _component(f, c, f.int_value(c, IFML.order) or 0, presenter,
+                                        params, sse_channels)
+    return tuple(out[c] for c in sorted(out, key=str))
+
+
+def _task_input(prefix: str, fl: Field) -> Input:
+    """A task form field: an sh:in enumeration is a <select> of its values in
+    list order; anything else is the page's ``_input``."""
+    if not fl.options:
+        return _input(prefix, fl)
+    attributes = (f'name="{fl.name}"',) + (("required",) if fl.required else ())
+    return Input(id=f"{prefix}_{fl.name}", name=fl.name, element="select",
+                 attributes=attributes, options=fl.options)
+
+
 def _input(prefix: str, fl: Field) -> Input:
     element = "textarea" if fl.kind == "textarea" else "input"
     attributes = [f'name="{fl.name}"']
@@ -488,9 +645,32 @@ def render_page(page: PageModel) -> str:
 def render_fragments(page: PageModel) -> dict[str, str]:
     """{file name: text} for every partial in ``page.fragments``."""
     template = _environment().get_template(FRAGMENT_TEMPLATE_NAME)
-    by_id = {c.id: c for c in page.components}
+    by_id = {c.id: c for c in page.components + page.screen_components}
     return {fr.name: template.render(page=page, fr=fr, c=by_id[fr.component])
             for fr in page.fragments}
+
+
+def render_task_forms(page: PageModel) -> dict[str, str]:
+    """{file name: text} for every task form partial in ``page.task_forms``."""
+    template = _environment().get_template(TASK_FORM_TEMPLATE_NAME)
+    return {tf.name: template.render(page=page, t=tf) for tf in page.task_forms}
+
+
+def generate_pages(model: ModelGraph) -> dict[str, str]:
+    """{file name: text}: the landmark page as <page local name>.html with
+    its partials and task form partials, then each secondary page and its
+    partials. Two pages naming the same partial must render it identically."""
+    files: dict[str, str] = {}
+    for page in [extract_page(model)] + [extract_page(model, p) for p in model.secondary_pages()]:
+        rendered = {f"{page.id}.html": render_page(page), **render_fragments(page)}
+        if page.landmark:
+            rendered.update(render_task_forms(page))
+        for name, text in rendered.items():
+            if files.get(name, text) != text:
+                raise GeneratorError(model.curie(page.curie), IFML.contains,
+                                     f"{name} would be generated twice with different content")
+            files[name] = text
+    return files
 
 
 def generate_page(trig_path) -> str:
@@ -501,3 +681,8 @@ def generate_page(trig_path) -> str:
 def generate_fragments(trig_path) -> dict[str, str]:
     """Load the model and render the partials its UIFragment operations name."""
     return render_fragments(extract_page(ModelGraph.load(trig_path)))
+
+
+def generate_task_forms(trig_path) -> dict[str, str]:
+    """Load the model and render the partial of each form a user task is completed on."""
+    return render_task_forms(extract_page(ModelGraph.load(trig_path)))

@@ -280,7 +280,7 @@ def test_view_json_ifml_is_null_for_other_notations(client):
     assert "ifml" in body and body["ifml"] is None
 
 
-# --- HTML: the IFML notation drawn as server-side SVG (T02) ---------------
+# --- HTML: the IFML notation on a diagram-js canvas (M007/S04, D023) -------
 
 
 def _fragment(client, iri):
@@ -294,10 +294,41 @@ def ifml_html():
     return _fragment(TestClient(viewer_app.app), CHAT_IFML)
 
 
-def test_fragment_draws_ifml_svg(ifml_html):
-    assert 'class="ifml-diagram"' in ifml_html
+@pytest.fixture(scope="module")
+def ifml_page():
+    resp = TestClient(viewer_app.app).get(f"/view/{quote(CHAT_IFML, safe='')}")
+    assert resp.status_code == 200
+    return resp.text
+
+
+def _canvas_json(html):
+    """The ifml_elk_graph() payload embedded as seamsRenderIfml's second argument."""
+    import json
+
+    call = "window.seamsRenderIfml(container, "
+    assert call in html, "seamsRenderIfml call with embedded canvas JSON missing"
+    data, _ = json.JSONDecoder().raw_decode(html, html.index(call) + len(call))
+    return data
+
+
+def test_fragment_mounts_ifml_canvas(ifml_html):
+    assert 'id="ifml-canvas"' in ifml_html
+    assert 'data-notation="ifml"' in ifml_html
+    assert 'aria-label="IFML: ' in ifml_html
+    for zoom in ("in", "out", "fit"):
+        assert f'data-zoom="{zoom}"' in ifml_html
+    assert "window.seamsIfmlReady.then(" in ifml_html
+    assert "window.seamsRenderIfml(" in ifml_html
+
+
+def test_fragment_drops_server_svg_and_vis(ifml_html):
+    assert 'class="ifml-diagram"' not in ifml_html
+    assert "<svg" not in ifml_html
     assert "new vis.Network" not in ifml_html
-    assert 'viewBox="0 0 ' in ifml_html
+
+
+def test_fragment_embeds_the_elk_graph(ifml_html):
+    assert _canvas_json(ifml_html) == ifml.ifml_elk_graph(ifml.ifml_diagram(CHAT_IFML))
 
 
 @pytest.mark.parametrize(
@@ -318,77 +349,269 @@ def test_fragment_draws_ifml_svg(ifml_html):
         "Send Message Process",
     ],
 )
-def test_fragment_shows_ifml_text(ifml_html, text):
-    # Jinja autoescape leaves «, » and → alone (they are not HTML specials).
-    assert text in ifml_html
+def test_canvas_json_carries_ifml_text(ifml_html, text):
+    # The former visible SVG text now travels in the embedded canvas JSON.
+    import json
+
+    assert text in json.dumps(_canvas_json(ifml_html)["elements"], ensure_ascii=False)
 
 
-def test_fragment_action_is_hexagon_for_send_process(ifml_html):
-    import re
-
-    m = re.search(r'<g [^>]*data-iri="' + re.escape(SEND_PROCESS) + r'" data-kind="action"[^>]*>(.*?)</g>', ifml_html, re.S)
-    assert m, "send_message_process action group missing"
-    assert 'data-layer="process"' in m.group(0)
-    points = re.search(r'<polygon class="ifml-action" points="([^"]+)"', m.group(1))
-    assert points and len(points.group(1).split()) == 6
-
-
-def test_fragment_groups_carry_kind_and_layer(ifml_html):
-    import re
-
-    groups = re.findall(r'<g class="ifml-[^"]*" data-iri="([^"]+)" data-kind="([a-z]+)"[^>]*data-layer="([a-z]+)"', ifml_html)
-    kinds = {k for _, k, _ in groups}
-    assert kinds == {"container", "component", "event", "action", "note", "flow"}
-    layers = {layer for _, _, layer in groups}
-    assert layers <= {"architecture", "interaction", "process", "decision", "data", "lifecycle", "other"}
-    by_iri = {(iri, k) for iri, k, _ in groups}
-    assert (CHAT_PAGE, "container") in by_iri
-    assert (SEND_MESSAGE, "event") in by_iri
-    assert (SELECT_CONVERSATION, "event") in by_iri
-    # Activation note descends to the state; it takes the state's layer.
-    assert re.search(r'data-iri="https://example.org/chat/s_complete" data-kind="note"[^>]*data-layer="lifecycle"', ifml_html)
+def test_canvas_json_kinds_and_layers(ifml_html):
+    elements = _canvas_json(ifml_html)["elements"]
+    assert {e["kind"] for e in elements.values()} == {"container", "component", "event", "action", "note", "flow"}
+    assert {e["layer"] for e in elements.values()} <= {
+        "architecture", "interaction", "process", "decision", "data", "lifecycle", "other"
+    }
+    assert elements[CHAT_PAGE]["kind"] == "container"
+    assert elements[SEND_PROCESS]["kind"] == "action" and elements[SEND_PROCESS]["layer"] == "process"
+    assert len(elements[SEND_PROCESS]["points"]) == 6
+    assert {elements[e]["eventKind"] for e in (SEND_MESSAGE, SELECT_CONVERSATION)} == {"user"}
 
 
-def test_fragment_flows_solid_and_dashed(ifml_html):
-    import re
-
-    nav = re.search(r'data-flow-kind="navigation".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
-    assert "stroke-dasharray" not in nav and "marker-end" in nav
-    data = re.search(r'data-flow-kind="data".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
-    assert "stroke-dasharray" in data
-    action = re.search(r'data-flow-kind="action".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
-    assert "stroke-dasharray" not in action and "marker-end" in action
-
-
-def test_fragment_events_white_for_user(ifml_html):
-    assert ifml_html.count('class="ifml-event ifml-event-user"') == 2
-    assert "ifml-event-system" not in ifml_html
+def test_full_page_ships_diagram_js_renderer(ifml_page):
+    assert "https://esm.sh/diagram-js@15" in ifml_page
+    assert "https://esm.sh/tiny-svg@3" in ifml_page
+    assert "window.seamsRenderIfml =" in ifml_page
+    assert "window.seamsIfmlReady = " in ifml_page
+    assert 'id="ifml-canvas"' in ifml_page
+    assert ".ifml-action {" in ifml_page  # IFML CSS lives in page.html
+    assert ".ifml-controls {" in ifml_page
+    # Drawing order is pinned by the renderer: dashed data flows, 22px binding rows.
+    assert '"stroke-dasharray"] = "6 4"' in ifml_page
+    assert "44 + i * 22" in ifml_page
 
 
-def test_fragment_seam_dots_use_layer_tokens(ifml_html):
-    assert 'style="fill: var(--layer-data)"' in ifml_html
-    assert 'style="fill: var(--layer-lifecycle)"' in ifml_html
-    assert 'style="fill: var(--layer-process)"' in ifml_html
+def test_no_scroll_zoom_anywhere(ifml_page, ifml_html):
+    # Pan by drag and zoom by buttons only: page scroll is never trapped.
+    for html in (ifml_page, ifml_html):
+        assert "zoomscroll" not in html.lower()
+        assert '"wheel"' not in html
 
 
-def test_fragment_script_delegates_click_and_never_traps_wheel(ifml_html):
-    assert 'closest("[data-iri]")' in ifml_html
-    assert "window.seamsNavigate(" in ifml_html
-    assert "container.seamsIfml = " in ifml_html
-    assert '"wheel"' not in ifml_html
+def test_renderer_lives_only_in_the_shell(ifml_html):
+    for shell_only in ("https://esm.sh/diagram-js@15", "window.seamsRenderIfml =", ".ifml-action {", "zoomscroll"):
+        assert shell_only not in ifml_html
 
 
-def test_full_page_renders_ifml(client):
-    resp = client.get(f"/view/{quote(CHAT_IFML, safe='')}")
-    assert resp.status_code == 200
-    assert 'class="ifml-diagram"' in resp.text
-    assert ".ifml-action {" in resp.text  # IFML CSS lives in page.html
-
-
-def test_ifml_css_not_in_fragment(ifml_html):
-    assert ".ifml-action {" not in ifml_html
-
-
-def test_non_ifml_model_has_no_ifml_svg(client):
+def test_non_ifml_model_has_no_ifml_canvas(client):
     html = _fragment(client, f"{CHAT}chat_architecture")
-    assert 'class="ifml-diagram"' not in html
+    assert 'id="ifml-canvas"' not in html
+    assert "window.seamsRenderIfml(" not in html
+
+
+# --- ELK port graph (M007/S04, D023) --------------------------------------
+
+
+@pytest.fixture(scope="module")
+def elk_graph(diagram):
+    return ifml.ifml_elk_graph(diagram)
+
+
+def _abs_nodes(node, ox=0, oy=0, out=None, ports=None):
+    """Walk the ELK tree adding parent offsets: (absolute boxes, absolute port boxes)."""
+    out = {} if out is None else out
+    ports = {} if ports is None else ports
+    for child in node.get("children", []):
+        x, y = ox + child["x"], oy + child["y"]
+        out[child["id"]] = (x, y, child["width"], child["height"])
+        for p in child.get("ports", []):
+            ports[p["id"]] = (child["id"], x + p["x"], y + p["y"], p["width"], p["height"])
+        _abs_nodes(child, x, y, out, ports)
+    return out, ports
+
+
+def _find_node(node, iri):
+    for child in node.get("children", []):
+        if child["id"] == iri:
+            return child
+        found = _find_node(child, iri)
+        if found:
+            return found
+    return None
+
+
+def test_elk_graph_deterministic(diagram, elk_graph):
+    assert ifml.ifml_elk_graph(ifml.ifml_diagram(CHAT_IFML)) == ifml.ifml_elk_graph(diagram) == elk_graph
+
+
+def test_elk_root_is_fixed_and_sized(diagram, elk_graph):
+    root = elk_graph["elk"]
+    assert root["id"] == "root" and (root["x"], root["y"]) == (0, 0)
+    assert (root["width"], root["height"]) == (diagram["width"], diagram["height"])
+    assert root["layoutOptions"]["elk.algorithm"] == "fixed"
+    assert root["layoutOptions"]["elk.nodeSize.fixedGraphSize"] is True
+    assert [c["id"] for c in root["children"]] == sorted(c["id"] for c in root["children"])
+    assert [e["id"] for e in root["edges"]] == sorted(e["id"] for e in root["edges"])
+
+
+@pytest.mark.parametrize("event,owner", [(SEND_MESSAGE, COMPOSE), (SELECT_CONVERSATION, CONVERSATIONS)])
+def test_user_events_are_east_ports_on_owner(elk_graph, event, owner):
+    node = _find_node(elk_graph["elk"], owner)
+    assert node["layoutOptions"]["elk.portConstraints"] == "FIXED_POS"
+    (port,) = [p for p in node["ports"] if p["id"] == event]
+    assert port["layoutOptions"] == {"elk.port.side": "EAST"}
+    # The port box straddles the owner's right border.
+    assert port["x"] + port["width"] // 2 == node["width"]
+    assert elk_graph["elements"][event]["kind"] == "event"
+    assert elk_graph["elements"][event]["eventKind"] == "user"
+    assert elk_graph["elements"][event]["owner"] == owner
+
+
+def test_compound_nodes_nest_components_under_container(elk_graph):
+    page = _find_node(elk_graph["elk"], CHAT_PAGE)
+    assert [c["id"] for c in page["children"]] == sorted([COMPOSE, CONVERSATIONS, THREAD])
+    for n in [page] + page["children"]:
+        assert n["layoutOptions"]["elk.algorithm"] == "fixed"
+        assert n["layoutOptions"]["elk.padding"] == "[top=0,left=0,bottom=0,right=0]"
+        assert n["layoutOptions"]["elk.nodeSize.fixedGraphSize"] is True
+
+
+def test_action_flow_bottom_run_stays_inside_container(diagram):
+    (page,) = [c for c in diagram["containers"] if c["iri"] == CHAT_PAGE]
+    assert (page["x"], page["y"], page["w"], page["h"]) == (20, 20, 820, 312)
+    lowest = max(c["y"] + c["h"] for c in diagram["components"])
+    flow = max((f for f in diagram["flows"] if f.get("points")), key=lambda f: max(y for _, y in f["points"]))
+    pts = flow["points"]
+    runs = [a[1] for a, b in zip(pts, pts[1:]) if a[1] == b[1] and a[1] > lowest]
+    assert runs, flow
+    for y in runs:
+        assert y < page["y"] + page["h"]
+
+
+def test_elk_round_trip_reproduces_python_geometry(diagram, elk_graph):
+    nodes, ports = _abs_nodes(elk_graph["elk"])
+    for key in ("containers", "components", "actions"):
+        for el in diagram[key]:
+            assert nodes[el["iri"]] == (el["x"], el["y"], el["w"], el["h"]), el["iri"]
+    for n in diagram["notes"]:
+        assert nodes[f"note::{n['kind']}::{n['for']}"] == (n["x"], n["y"], n["w"], n["h"])
+    assert diagram["events"]
+    for e in diagram["events"]:
+        owner, px, py, pw, ph = ports[e["iri"]]
+        assert owner == e["owner"]
+        assert (px + pw // 2, py + ph // 2) == (e["cx"], e["cy"])
+        assert (pw, ph) == (2 * e["r"], 2 * e["r"])
+
+
+def test_elk_edge_sections_follow_python_points(diagram, elk_graph):
+    edges = {e["id"]: e for e in elk_graph["elk"]["edges"]}
+    assert len(edges) == len(diagram["flows"])
+    for f in diagram["flows"]:
+        fid = f["iri"] or f"flow::action::{f['from']}::{f['to']}"
+        (sec,) = edges[fid]["sections"]
+        assert sec["id"] == f"{fid}::s0"
+        pts = [sec["startPoint"]] + sec["bendPoints"] + [sec["endPoint"]]
+        assert [[p["x"], p["y"]] for p in pts] == f["points"]
+        assert edges[fid]["sources"] == [f["from"]] and edges[fid]["targets"] == [f["to"]]
+        assert elk_graph["elements"][fid]["points"] == f["points"]
+
+
+def test_action_flow_runs_from_send_message_port(elk_graph):
+    fid = f"flow::action::{SEND_MESSAGE}::{SEND_PROCESS}"
+    (edge,) = [e for e in elk_graph["elk"]["edges"] if e["id"] == fid]
+    assert edge["sources"] == [SEND_MESSAGE] and edge["targets"] == [SEND_PROCESS]
+    el = elk_graph["elements"][fid]
+    assert el["kind"] == "flow" and el["flowKind"] == "action" and el["iri"] == SEND_PROCESS
+
+
+def test_elements_cover_exactly_nodes_ports_and_edges(elk_graph):
+    nodes, ports = _abs_nodes(elk_graph["elk"])
+    ids = set(nodes) | set(ports) | {e["id"] for e in elk_graph["elk"]["edges"]}
+    assert set(elk_graph["elements"]) == ids
+    assert {e["kind"] for e in elk_graph["elements"].values()} == {
+        "container", "component", "event", "action", "flow", "note"
+    }
+    for el in elk_graph["elements"].values():
+        assert all(k in el for k in ("kind", "iri", "label", "layer", "seams"))
+
+
+def test_elements_carry_draw_data(diagram, elk_graph):
+    els = elk_graph["elements"]
+    assert els[CHAT_PAGE]["title"] == "[L] Chat Page" and els[CHAT_PAGE]["markers"] == ["[L]"]
+    assert els[COMPOSE]["stereotype"] == "«Form»"
+    assert els[COMPOSE]["fields"] == by_iri(diagram["components"])[COMPOSE]["fields"]
+    (action,) = diagram["actions"]
+    assert els[SEND_PROCESS]["points"][0] == [action["points"][0][0] - action["x"], action["points"][0][1] - action["y"]]
+    assert all(0 <= x <= action["w"] and 0 <= y <= action["h"] for x, y in els[SEND_PROCESS]["points"])
+    notes = [e for e in els.values() if e["kind"] == "note"]
+    assert {n["noteKind"] for n in notes} == {"activation", "bindings"}
+    assert all(n["text"] == n["label"] and n["seams"] == [] for n in notes)
+
+
+def test_activation_note_layer_matches_template_rule(diagram, elk_graph):
+    owners = by_iri(diagram["components"] + diagram["containers"])
+    for n in diagram["notes"]:
+        el = elk_graph["elements"][f"note::{n['kind']}::{n['for']}"]
+        if n["kind"] == "bindings":
+            assert el["layer"] == "interaction"
+            continue
+        seam = next((s for s in owners[n["for"]]["seams"] if s["target"] == n["state"]), None)
+        assert el["layer"] == (seam["targetLayer"] if seam else "lifecycle")
+        assert el["connector"] == n["connector"]
+
+
+def test_elk_coordinates_are_ints(elk_graph):
+    def walk(obj, path="elk"):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k in ("x", "y", "width", "height", "r"):
+                    yield path + "." + k, v
+                elif k in ("points", "connector"):
+                    for pt in v:
+                        yield from ((path + "." + k, n) for n in pt)
+                else:
+                    yield from walk(v, path + "." + k)
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj):
+                yield from walk(v, f"{path}[{i}]")
+
+    numbers = list(walk(elk_graph))
+    assert numbers
+    assert [(p, v) for p, v in numbers if type(v) is not int] == []
+
+
+def test_non_ifml_model_yields_empty_elk_root():
+    g = ifml.ifml_elk_graph(ifml.ifml_diagram(f"{CHAT}chat_architecture"))
+    assert g["elk"]["children"] == [] and g["elk"]["edges"] == []
+    assert g["elements"] == {}
+
+
+def test_undrawn_owner_event_and_pointless_flow_are_skipped(diagram):
+    # Boundary: an event owned by an action (cx = cy = 0) gets no port, and a
+    # flow without points (or touching it) gets no edge.
+    d = {**diagram, "events": diagram["events"] + [
+        {"iri": "urn:sys", "label": "sys", "layer": "interaction", "seams": [], "owner": SEND_PROCESS,
+         "kind": "system", "cx": 0, "cy": 0, "r": 8}
+    ], "flows": diagram["flows"] + [
+        {"iri": "urn:f1", "label": "f1", "layer": "interaction", "seams": [], "kind": "navigation",
+         "from": "urn:sys", "to": COMPOSE, "bindings": [], "points": [[0, 0], [5, 5]]},
+        {"iri": "urn:f2", "label": "f2", "layer": "interaction", "seams": [], "kind": "navigation",
+         "from": SEND_MESSAGE, "to": THREAD, "bindings": [], "points": []},
+    ]}
+    g = ifml.ifml_elk_graph(d)
+    assert "urn:sys" not in g["elements"] and "urn:f1" not in g["elements"] and "urn:f2" not in g["elements"]
+    _, ports = _abs_nodes(g["elk"])
+    assert "urn:sys" not in ports
+
+
+def _all_keys(obj):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield k
+            yield from _all_keys(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _all_keys(v)
+
+
+def test_view_json_ifml_unchanged_by_elk_graph(client):
+    resp = client.get(f"/view/{quote(CHAT_IFML, safe='')}?format=json")
+    assert resp.status_code == 200
+    body = resp.json()
+    keys = set(_all_keys(body["ifml"]))
+    assert "elk" not in keys and "elements" not in keys
+    assert "ifml_canvas" not in body
+    assert set(body["ifml"]) == {
+        "model", "label", "layer", "width", "height",
+        "containers", "components", "events", "actions", "flows", "notes",
+    }

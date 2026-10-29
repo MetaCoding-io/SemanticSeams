@@ -1,0 +1,163 @@
+# Expense approval tutorial, chapter 3: the screens.
+#
+# Chapter 2's triples are unchanged; this chapter adds the expense_ifml
+# interaction model (one page with an expense list and a new-expense form),
+# the two API operations the page calls, and the seams that tie them to the
+# containers and the ExpenseShape. There is no process yet: the form's
+# operation validates the input against ExpenseShape and stores it (D026).
+#
+# A model is a TriG file: Turtle triples grouped into named graphs. Each
+# seam:Model gets its own graph, and every link between models (and every
+# seam: annotation such as seam:notation) lives in the seams graph at the end.
+# See docs/tutorials/expenses/ for the walkthrough.
+
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix ifml:   <https://w3id.org/seams/ifml#> .
+@prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
+@prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix :       <https://example.org/expenses/> .
+
+#################################################################
+# Architecture model graph (C4)
+#################################################################
+
+<urn:seams:graph:model:expense_architecture> {
+
+    :expense_architecture a seam:Model ;
+        rdfs:label "Expense Architecture" .
+
+    # The system and the two containers it is built from.
+    :expense_system a arch:System ; rdfs:label "Expense Approval" ;
+        arch:contains :employee_portal , :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :expense_api a arch:Container ; rdfs:label "Expense API" ;
+        arch:technology "FastAPI" ;
+        seam:inModel :expense_architecture .
+}
+
+#################################################################
+# Data model graph (SHACL shape graph)
+#################################################################
+
+<urn:seams:graph:model:expense_data> {
+
+    :expense_data a seam:Model ; rdfs:label "Expense Data" .
+
+    # Identifier convention (as in the chat app): a shape addressed in a URL
+    # carries exactly one string :id. The other properties are what a form asks for.
+    :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :description ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 0 ] ;
+        sh:property [ sh:path :amount ; sh:datatype xsd:decimal ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:minInclusive 0.01 ; sh:order 1 ] ;
+        sh:property [ sh:path :date ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 2 ] ;
+        seam:inModel :expense_data .
+}
+
+#################################################################
+# Interaction model graph (IFML)
+#################################################################
+
+<urn:seams:graph:model:expense_ifml> {
+
+    :expense_ifml a seam:Model , ifml:InteractionModel ;
+        rdfs:label "Expense Interface" ;
+        ifml:contains :expenses_page .
+
+    # The landmark page: the generated app serves it at ifml:path.
+    :expenses_page a ifml:ViewContainer ; rdfs:label "Expenses Page" ;
+        ifml:isLandmark true ;
+        ifml:path "/" ;
+        ifml:title "Expenses"@en ;
+        ifml:contains :expense_list , :expense_form ;
+        seam:inModel :expense_ifml .
+
+    # The expenses submitted so far, one item per expense.
+    :expense_list a ifml:Details ; rdfs:label "My Expenses" ;
+        ifml:order 0 ;
+        seam:inModel :expense_ifml .
+
+    # The form asks for the three fields its parameters are bound to.
+    :expense_form a ifml:Form ; rdfs:label "New Expense" ;
+        ifml:order 1 ;
+        ifml:hasEvent :submit_expense ;
+        ifml:hasParameter :description_input , :amount_input , :date_input ;
+        seam:inModel :expense_ifml .
+
+    :description_input a ifml:Parameter ; rdfs:label "description" ;
+        ifml:boundTo :description ;
+        seam:inModel :expense_ifml .
+    :amount_input a ifml:Parameter ; rdfs:label "amount" ;
+        ifml:boundTo :amount ;
+        seam:inModel :expense_ifml .
+    :date_input a ifml:Parameter ; rdfs:label "date" ;
+        ifml:boundTo :date ;
+        seam:inModel :expense_ifml .
+
+    :submit_expense a ifml:Event ; rdfs:label "Submit Expense" ;
+        ifml:trigger "submit" ;
+        seam:inModel :expense_ifml .
+
+    # Submitting appends the stored expense to the list.
+    :submit_to_list a ifml:NavigationFlow ;
+        ifml:source :submit_expense ; ifml:target :expense_list ;
+        ifml:swap ifml:Append ;
+        seam:inModel :expense_ifml .
+}
+
+#################################################################
+# Seams graph: notations and cross-model links
+#################################################################
+
+<urn:seams:graph:seams> {
+
+    # The viewer opens at the model whose notation is C4.
+    :expense_architecture seam:notation seam:C4 .
+    :expense_data seam:notation seam:ShapeGraph .
+    :expense_ifml seam:notation seam:IFML .
+
+    # Architecture to UI and API: the portal presents the screens and calls
+    # the operations the API exposes.
+    :employee_portal seam:presents :expense_ifml ;
+        seam:consumes :submit_expense_op , :list_expenses_op .
+    :expense_api seam:exposes :submit_expense_op , :list_expenses_op .
+
+    # UI to data and API: the form writes an ExpenseShape, its event submits
+    # it to the operation, and the list reads ExpenseShapes.
+    :expense_form seam:writes :ExpenseShape .
+    :expense_list seam:reads :ExpenseShape .
+    :submit_expense seam:submitsTo :submit_expense_op .
+
+    # Operation to the component whose partial its response renders.
+    :submit_expense_op seam:rendersComponent :expense_list .
+    :list_expenses_op seam:rendersComponent :expense_list .
+
+    # Communication contract: the two operations.
+    :submit_expense_op a hydra:Operation ; rdfs:label "Submit Expense" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :ExpenseShape ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses" ] .
+
+    :list_expenses_op a hydra:Operation ; rdfs:label "List Expenses" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses" ] .
+}

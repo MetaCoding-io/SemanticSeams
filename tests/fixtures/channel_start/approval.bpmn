@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   id="approval_bpmn_defs"
+                   targetNamespace="https://example.org/expenses/approval_bpmn">
+  <bpmn:process id="approval_process" name="Expense Approval" isExecutable="true">
+    <bpmn:startEvent id="start" name="Expense Submitted">
+      <bpmn:outgoing>flow_to_persist</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="persist_expense" name="Persist Expense">
+      <bpmn:incoming>flow_to_persist</bpmn:incoming>
+      <bpmn:outgoing>flow_to_approve</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="approve_expense" name="Approve Expense">
+      <bpmn:incoming>flow_to_approve</bpmn:incoming>
+      <bpmn:outgoing>flow_to_gateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="decision_gateway" name="Decision?">
+      <bpmn:incoming>flow_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>flow_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="record_approval" name="Record Approval">
+      <bpmn:incoming>flow_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="record_rejection" name="Record Rejection">
+      <bpmn:incoming>flow_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_rejected_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Publishes on :payment_channel; the payout process starts from it (ADR-0010). -->
+    <bpmn:intermediateThrowEvent id="payment_requested" name="Payment Requested">
+      <bpmn:incoming>flow_to_publish</bpmn:incoming>
+      <bpmn:outgoing>flow_approved_end</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="payment_requested_msg" />
+    </bpmn:intermediateThrowEvent>
+
+    <bpmn:endEvent id="end" name="Decided">
+      <bpmn:incoming>flow_approved_end</bpmn:incoming>
+      <bpmn:incoming>flow_rejected_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_persist" sourceRef="start" targetRef="persist_expense" />
+    <bpmn:sequenceFlow id="flow_to_approve" sourceRef="persist_expense" targetRef="approve_expense" />
+    <bpmn:sequenceFlow id="flow_to_gateway" sourceRef="approve_expense" targetRef="decision_gateway" />
+    <bpmn:sequenceFlow id="flow_approved" sourceRef="decision_gateway" targetRef="record_approval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">decision == "approved"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejected" sourceRef="decision_gateway" targetRef="record_rejection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">decision == "rejected"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_to_publish" sourceRef="record_approval" targetRef="payment_requested" />
+    <bpmn:sequenceFlow id="flow_approved_end" sourceRef="payment_requested" targetRef="end" />
+    <bpmn:sequenceFlow id="flow_rejected_end" sourceRef="record_rejection" targetRef="end" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,8 @@
+# How many cross-layer seam edges does the model have?
+PREFIX seam: <https://w3id.org/seams/seam#>
+
+SELECT (COUNT(*) AS ?edges) WHERE {
+  ?s ?p ?o .
+  FILTER(STRSTARTS(STR(?p), STR(seam:)))
+  FILTER(?p NOT IN (seam:inModel, seam:notation, seam:renderPayload))
+}

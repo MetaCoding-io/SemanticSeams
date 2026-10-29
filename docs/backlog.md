@@ -43,10 +43,10 @@ renderer choice is recorded in [ADR-0008](adr/0008-node-link-renderer.md).*
 
 | # | Item | Merges | Size | Depends on | Why not P0 | Status |
 |---|---|---|---|---|---|---|
-| 7 | **Per-predicate reveal setting** (`open` / `nest` / `layer`) replacing the boolean `seam:navigational`; Relations panel; nest for `presents` and `executes` gives L4. | Reveal 3 · Levels 1 (L4) · open question 1 | M | 2, 3 | Changes an ADR-0005 annotation. Nest needs ELK compound layout, so it waits for 2 | planned (M007/S02) |
-| 8 | **Tint bpmn-js and dmn-js and add overlay badges**, so process and decision views join the language and show their seams. | Reveal 5 | S | 1 | Cheap, but only reads as consistent once 1 and 2 define the language | planned (M007/S01) |
-| 9 | **ShapeGraph renderer** using the same card; the data layer has no view at all today. | Reveal 6 | M | 1, 2 | Needed for the descent to bottom out somewhere other than an inspector; after 2 because it reuses the ELK renderer | planned (M007/S03) |
-| 10 | **IFML on diagram-js with ELK ports for events**, geometry carried over from 3. | IFML 4 | M | 3 | Only worth it once pan, zoom and overlays are needed on the IFML view, and as the base for editing | planned (M007/S04) |
+| 7 | **Per-predicate reveal setting** (`open` / `nest` / `layer`) replacing the boolean `seam:navigational`; Relations panel; nest for `presents` and `executes` gives L4. | Reveal 3 · Levels 1 (L4) · open question 1 | M | 2, 3 | Changes an ADR-0005 annotation. Nest needs ELK compound layout, so it waits for 2 | done (M007/S02) |
+| 8 | **Tint bpmn-js and dmn-js and add overlay badges**, so process and decision views join the language and show their seams. | Reveal 5 | S | 1 | Cheap, but only reads as consistent once 1 and 2 define the language | done (M007/S01) |
+| 9 | **ShapeGraph renderer** using the same card; the data layer has no view at all today. | Reveal 6 | M | 1, 2 | Needed for the descent to bottom out somewhere other than an inspector; after 2 because it reuses the ELK renderer | done (M007/S03) |
+| 10 | **IFML on diagram-js with ELK ports for events**, geometry carried over from 3. | IFML 4 | M | 3 | Only worth it once pan, zoom and overlays are needed on the IFML view, and as the base for editing | done (M007/S04) |
 
 ## P2: parked, with the reason
 
@@ -56,13 +56,14 @@ updated reason.
 
 | # | Item | Merges | Reason | Status |
 |---|---|---|---|---|
-| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. The candidate is the expense-approval build-along tutorial (E1), and the slice's first check can be the complexity check (E3); see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
+| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. That example now exists: the expense-approval build-along tutorial's final checkpoint (E1, done in M009/S07) passes the complexity check (E3), and the slice opens by running that check; see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
 | 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item | planned (M008/S01) |
 | 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief | planned (M008/S04) |
 | 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
 
 Resolved open questions from the Levels note: L4 is a preset of reveal
-choices, not a separate level (item 7); rollup queries live in
+choices, not a separate level (item 7, delivered in M007/S02: L4 applies nest
+mode to `presents` and `executes`); rollup queries live in
 `docs/queries/` with acceptance tests (item 2).
 
 ## Examples and tutorials
@@ -76,19 +77,19 @@ worked example item 11 waits for.
 
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
-| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. Chapter 8 (two processes, three interfaces) breaks `ModelGraph`'s one-of-each assumptions: it needs L3 first, or lifts them in `ModelGraph` itself. | L | E2, E4, E5 | planned (M009/S03, S05, S06, S07) |
-| E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | planned (M009/S01) |
-| E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | planned (M009/S02) |
-| E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker skips manual tasks today. | M | ADR first | planned (M009/S04) |
-| E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | planned (M009/S06) |
+| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | done (M009/S03 done: chapters 1 to 3; E4 done in M009/S04; M009/S05 done: chapters 4 to 6, the process, the rules and the lifecycle; M009/S06 done: chapter 7, roles and the fourth canned query; M009/S07 done: chapter 8, the channel-started payout process, the finance console and `docker compose up`) |
+| E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | done (M009/S01) |
+| E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | done (M009/S02) |
+| E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker used to skip manual tasks; it now waits on them. | M | ADR first | done (M009/S04) |
+| E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | done (M009/S06) |
 
 ## Library: a read-only Python model library
 
 *Added 2026-10-29 from the [library note](research/2026-10-29-seams-python-library.md).
 Unscheduled.* The generation work produced a real fact layer, `ModelGraph` in
 `seams_runtime/model.py`, but it is bundled with the runtime's dependencies, has no
-public surface, assumes one model per notation, and reads the native BPMN and DMN only
-for their IDs. The viewer and the docs generator read the graph with their own code,
+public surface, keeps one-of-each accessors that M009's multi-model expense example had to
+work around, and reads the native BPMN and DMN only for their IDs. The viewer and the docs generator read the graph with their own code,
 and IFML is interpreted twice. A small read-only library, `seams`, would give every
 consumer and every user-written generator one typed, multi-model view of the graph
 joined with the native files. It is built as a **uv workspace** with a committed
@@ -97,8 +98,8 @@ lockfile, `pyproject.toml` packaging, ruff and a type checker.
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
 | L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | proposed |
-| L2 | **Extract the core into `seams`**: the loader (file or directory), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. Builds on E2's configurable model path. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1, E2 | proposed |
-| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors. Unblocks E1's chapter 8. | M | L2 | proposed |
+| L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | proposed |
+| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | proposed |
 | L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | proposed |
 | L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | proposed |
 | L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | proposed |
@@ -153,10 +154,32 @@ UI work must not eat M3.*
    M004/S04, S05, S06: htmx templates, the FastAPI route module and the compose
    file, each passing the golden outputs.* *Tutorial done, M004/S07:
    [`docs/tutorial.md`](tutorial.md) runs end to end in CI.*
-5. P1 items 8, 7, 9, 10 as M007, The Differentiators (S01 to S04, in that order).
+5. P1 items 8, 7, 9, 10 as M007, The Differentiators (S01 to S04, in that order). *Item 8 done, M007/S01.* *Item 7 done, M007/S02.* *Item 9 done, M007/S03.* *Item 10 done, M007/S04: P1 items 7 to 10 are all done (M007).*
 6. The build-along tutorial, E2, E3, E4, E5 and E1, as M009 (S01 to S07), after
    M007. Its final model is the second worked example that item 11 waits for.
+   *E2 done, M009/S01: `SEAMS_MODEL` chooses the model for the runtime, the compose
+   stack and the viewer.* *E3 done, M009/S02: `python -m seams_gen.complexity` measures
+   models per notation, maximum reach and seam edges against thresholds.* *E1 chapters
+   1 to 3 done, M009/S03: the [expense tutorial](tutorials/expenses/index.md) goes from an
+   empty file to a generated form that rejects invalid input, and CI checks every chapter's
+   checkpoint in `examples/expenses/`.* *E4 done, M009/S04: [ADR-0009](adr/0009-human-tasks.md)
+   points a user task at its form with `seam:completedOn`, the runtime lists and completes
+   user tasks under their policies, the generators emit the completion form and route, and
+   the host serves a `/tasks` inbox.* *E1 chapters 4 to 6 done, M009/S05: the
+   [expense tutorial](tutorials/expenses/index.md) adds the approval process with a manager
+   task, DMN routing by amount and the expense lifecycle, with checkpoints in
+   `examples/expenses/chapter-04` to `chapter-06`.* *E5 and E1 chapter 7 done, M009/S06:
+   the runtime's `RoleEvaluator` admits identities by their `X-Forwarded-Groups` roles (or
+   `SEAMS_DEV_ROLES`), the viewer's fourth canned query names the screens each role can use
+   that eventually write a shape, and [chapter 7](tutorials/expenses/07-permissions.md) adds
+   the employee, manager and finance policies and a payment task.* *E1 done, M009/S07:
+   [chapter 8](tutorials/expenses/08-growing-up.md) adds a payout process that
+   [ADR-0010](adr/0010-channel-started-processes.md) starts from a channel, with its own
+   decision and payment lifecycle, a finance console and a `docker compose up` run in CI.
+   Its checkpoint passes `python -m seams_gen.complexity` (4 notations with two models,
+   a maximum reach of 6), so it is the second worked example item 11 waits for.*
 7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each
    item's parking reason is checked again first: editing is a v1 non-goal in the
-   product brief, and layer mode (S03) opens with the E3 complexity check on the
-   expense app.
+   product brief. *Next:* layer mode (S03) opens by running the E3 complexity
+   measurement on the finished expense app,
+   `python -m seams_gen.complexity examples/expenses/chapter-08/expenses.trig`.

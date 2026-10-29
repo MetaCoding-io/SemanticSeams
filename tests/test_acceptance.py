@@ -36,6 +36,10 @@ CHAT_PERSIST_USER_MSG = URIRef("https://example.org/chat/chat_bpmn#persist_user_
 CHAT_PERSIST_RESPONSE = URIRef("https://example.org/chat/chat_bpmn#persist_response")
 
 CHAT_APP_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
+# seam:completedOn (ADR-0009) needs a user task and a form, which checkout does not
+# model; the human-task fixture exercises it instead.
+HUMAN_TASK_TRIG = ROOT / "tests" / "fixtures" / "human_task" / "approval.trig"
+EXPENSES_CHAPTER_7_TRIG = ROOT / "examples" / "expenses" / "chapter-07" / "expenses.trig"
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 
@@ -138,9 +142,14 @@ def test_every_nonreserved_seam_predicate_is_exercised(dataset):
     for _s, p, _o, _g in dataset.quads((None, None, None, None)):
         if str(p).startswith(str(SEAM)):
             used.add(p)
+    human_task = rdflib.Dataset()
+    human_task.parse(HUMAN_TASK_TRIG, format="trig")
+    for _s, p, _o, _g in human_task.quads((None, None, None, None)):
+        if str(p).startswith(str(SEAM)):
+            used.add(p)
     missing = declared - RESERVED_PREDICATES - used
     assert not missing, (
-        f"seam predicates never exercised by checkout.trig: {sorted(missing)}"
+        f"seam predicates never exercised by checkout.trig or the human-task fixture: {sorted(missing)}"
     )
 
 
@@ -187,6 +196,25 @@ def test_what_moves_state(model):
 SEAMS_GRAPH = URIRef("urn:seams:graph:seams")
 
 
+def _leaked_seam_quads(ds: rdflib.Dataset) -> list[tuple]:
+    """Quads using a seam: predicate outside the seams graph.
+
+    seam:inModel is allowed in model graphs. seam:reveal annotates the seam
+    predicates themselves (ADR-0005 as amended), so it is allowed in the default
+    graph, where the ontology files load.
+    """
+    allowed_in_model_graphs = {SEAM.inModel}
+    leaked = []
+    for s, p, o, ctx in ds.quads((None, None, None, None)):
+        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
+        if p == SEAM.reveal and str(graph_id) == "urn:x-rdflib:default":
+            continue
+        if str(p).startswith(str(SEAM)) and p not in allowed_in_model_graphs:
+            if graph_id != SEAMS_GRAPH:
+                leaked.append((graph_id, s, p, o))
+    return leaked
+
+
 def test_seam_predicates_isolated_to_seams_graph(dataset):
     """Cross-layer seam predicates must only appear in the seams graph.
 
@@ -194,13 +222,7 @@ def test_seam_predicates_isolated_to_seams_graph(dataset):
     resources to their owning model). Every other seam: predicate must live in
     the dedicated seams graph per ADR-0001.
     """
-    ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
-    leaked = []
-    for s, p, o, ctx in dataset.quads((None, None, None, None)):
-        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
-        if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
-            if graph_id != SEAMS_GRAPH:
-                leaked.append((graph_id, s, p, o))
+    leaked = _leaked_seam_quads(dataset)
     assert not leaked, (
         f"seam predicates leaked into model graphs:\n"
         + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
@@ -293,13 +315,7 @@ def test_chat_app_conforms_to_seam_shapes(chat_model):
 
 def test_chat_app_seam_predicates_isolated(chat_dataset):
     """Cross-layer seam predicates in chat-app must only appear in the seams graph."""
-    ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
-    leaked = []
-    for s, p, o, ctx in chat_dataset.quads((None, None, None, None)):
-        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
-        if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
-            if graph_id != SEAMS_GRAPH:
-                leaked.append((graph_id, s, p, o))
+    leaked = _leaked_seam_quads(chat_dataset)
     assert not leaked, (
         f"seam predicates leaked into model graphs:\n"
         + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
@@ -315,6 +331,19 @@ def test_chat_app_what_writes_shape(chat_model):
     assert {(r.event, r.writer) for r in rows} == {
         (CHAT.send_message, CHAT_PERSIST_USER_MSG),
         (CHAT.send_message, CHAT_PERSIST_RESPONSE),
+    }
+
+
+def test_chat_app_screens_by_role_writing_shape(chat_model):
+    """Authenticated users reach MessageShape from the chat page's send_message,
+    governed through the operation it submits to."""
+    rows = chat_model.query(
+        canned("screens-by-role-writing-shape.rq"),
+        initBindings={"shape": CHAT.MessageShape},
+    )
+    assert {(r.role, r.screen, r.event, r.writer) for r in rows} == {
+        (CHAT.authenticated_user, CHAT.chat_page, CHAT.send_message, CHAT_PERSIST_USER_MSG),
+        (CHAT.authenticated_user, CHAT.chat_page, CHAT.send_message, CHAT_PERSIST_RESPONSE),
     }
 
 
@@ -384,3 +413,112 @@ def test_c4_l1_rollup_depends_on_branch():
     rows = _rollup_rows(g)
     assert rows == {(ex.sysA, ex.sysB, Literal("depends on"))}
     assert not any(frm == to for frm, to, _ in rows)
+
+
+# --- Human tasks (ADR-0009) ---
+
+EXPENSES = Namespace("https://example.org/expenses/")
+
+
+def test_human_task_screens_to_finish_process():
+    """The approval process waits on one screen: the approvals page holding the
+    form its user task seam:completedOn, governed by the manager policy."""
+    g = load(*ONTOLOGY_FILES)
+    ds = rdflib.Dataset()
+    ds.parse(HUMAN_TASK_TRIG, format="trig")
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    rows = g.query(
+        canned("screens-to-finish-process.rq"),
+        initBindings={"process": EXPENSES.approval_process},
+    )
+    assert {(r.task, r.form, r.screen, r.policy) for r in rows} == {
+        (URIRef("https://example.org/expenses/approval_bpmn#approve_expense"),
+         EXPENSES.approve_form, EXPENSES.approvals_page, EXPENSES.manager_approval_policy),
+    }
+
+
+def test_chat_app_has_no_screens_to_finish(chat_model):
+    """The chat app's process has no user task, so no screen waits for a person."""
+    assert list(chat_model.query(canned("screens-to-finish-process.rq"))) == []
+
+
+APPROVAL_PERSIST_EXPENSE = URIRef("https://example.org/expenses/approval_bpmn#persist_expense")
+APPROVAL_APPROVE_EXPENSE = URIRef("https://example.org/expenses/approval_bpmn#approve_expense")
+SCREENS_BY_ROLE_SUBMIT_POLICY = (
+    EXPENSES.submit_expense, SEAM.governedBy, EXPENSES.employee_submit_policy
+)
+
+
+def _human_task_model() -> rdflib.Graph:
+    g = load(*ONTOLOGY_FILES)
+    ds = rdflib.Dataset()
+    ds.parse(HUMAN_TASK_TRIG, format="trig")
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    return g
+
+
+def _screens_by_role(g: rdflib.Graph, shape: URIRef) -> set:
+    rows = g.query(
+        canned("screens-by-role-writing-shape.rq"), initBindings={"shape": shape}
+    )
+    return {(r.role, r.screen, r.event, r.writer) for r in rows}
+
+
+def test_human_task_screens_by_role_writing_shape():
+    """Only the employee's Submit Expense, on the Expenses page, eventually writes
+    either shape: submitting starts the process whose tasks write both. The
+    manager's Submit Approval triggers nothing, so it reaches no writer."""
+    g = _human_task_model()
+    assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
+         APPROVAL_PERSIST_EXPENSE),
+    }
+    assert _screens_by_role(g, EXPENSES.ApprovalShape) == {
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
+         APPROVAL_APPROVE_EXPENSE),
+    }
+
+
+def test_expenses_chapter_7_screens_by_role_writing_payment():
+    """The tutorial's chapter 7 answer: the only screen an employee can use
+    that eventually writes a Payment is the Expenses page's Submit Expense,
+    whose process reaches finance's pay_expense task. Finance's own Submit
+    Payment completes the task but triggers nothing, so it is no row."""
+    g = load(*ONTOLOGY_FILES)
+    ds = rdflib.Dataset()
+    ds.parse(EXPENSES_CHAPTER_7_TRIG, format="trig")
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    assert _screens_by_role(g, EXPENSES.PaymentShape) == {
+        (EXPENSES.employee, EXPENSES.expenses_page, EXPENSES.submit_expense,
+         URIRef("https://example.org/expenses/approval_bpmn#pay_expense")),
+    }
+
+
+def test_screens_by_role_via_operation_policy_only():
+    """With the event's own seam:governedBy removed, the role still comes from
+    the operation it seam:submitsTo."""
+    g = _human_task_model()
+    g.remove(SCREENS_BY_ROLE_SUBMIT_POLICY)
+    assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
+         APPROVAL_PERSIST_EXPENSE),
+    }
+
+
+def test_screens_by_role_ungoverned_writer_has_no_role():
+    """No model ships an ungoverned writing event, so drop both policy links in
+    memory: the row survives with ?role unbound (open to any identity)."""
+    g = _human_task_model()
+    g.remove(SCREENS_BY_ROLE_SUBMIT_POLICY)
+    g.remove((EXPENSES.submit_expense_op, SEAM.governedBy, EXPENSES.employee_submit_policy))
+    assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
+        (None, EXPENSES.submit_page, EXPENSES.submit_expense, APPROVAL_PERSIST_EXPENSE),
+    }
+
+
+def test_screens_by_role_unrelated_shape_has_no_rows(chat_model):
+    """A focus no event writes returns nothing, governed or not."""
+    assert _screens_by_role(chat_model, CHAT.ConversationShape) == set()

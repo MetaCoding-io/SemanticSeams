@@ -11,6 +11,15 @@
 #   LLM_GATEWAY_STUB    1 forces the stub even when a key is present
 #   UPSTREAM_BASE_URL   OpenAI-compatible base URL (default https://api.openai.com/v1)
 #   LLM_MODEL_OVERRIDE  model name sent upstream regardless of what the worker asks for
+#   SEAMS_APP_DIR       app directory whose generated code the runtime image bakes in
+#                       (default examples/chat-app)
+#   SEAMS_ROUTES_FILE   generated route module in <SEAMS_APP_DIR>/generated (default chat_api.py)
+#
+# This override is written for the chat app's service names (chat_api, llm_gateway,
+# chat_ui, message_db). Another app's generated compose file needs its own override,
+# passed with -f: examples/expenses/chapter-08/compose.override.yaml is the expense
+# tutorial's. The model the runtime loads is the one the generated file mounts at
+# /model and names in SEAMS_MODEL.
 
 services:
   chat_api:
@@ -19,6 +28,9 @@ services:
     build:
       context: .
       dockerfile: docker/runtime.Dockerfile
+      args:
+        SEAMS_APP_DIR: ${SEAMS_APP_DIR:-examples/chat-app}
+        SEAMS_ROUTES_FILE: ${SEAMS_ROUTES_FILE:-chat_api.py}
     pull_policy: build
     environment:
       # No auth proxy in front of chat_ui locally: every request is this user.

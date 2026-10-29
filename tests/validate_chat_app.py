@@ -19,6 +19,10 @@ CHAT_APP_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 SEAM = Namespace("https://w3id.org/seams/seam#")
 SEAMS_GRAPH = URIRef("urn:seams:graph:seams")
 ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
+# seam:reveal annotates the seam predicates themselves (ADR-0005 as amended); the
+# ontology files declare it, and they load into the default graph, not a model graph.
+DEFAULT_GRAPH = URIRef("urn:x-rdflib:default")
+ALLOWED_IN_DEFAULT_GRAPH = {SEAM.reveal}
 
 EXPECTED_GRAPHS = {
     URIRef("urn:seams:graph:model:chat_architecture"),
@@ -78,6 +82,8 @@ def check_isolation(ds: rdflib.Dataset) -> list[str]:
     leaked = []
     for s, p, o, ctx in ds.quads((None, None, None, None)):
         graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
+        if graph_id == DEFAULT_GRAPH and p in ALLOWED_IN_DEFAULT_GRAPH:
+            continue
         if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
             if graph_id != SEAMS_GRAPH:
                 leaked.append((graph_id, s, p, o))

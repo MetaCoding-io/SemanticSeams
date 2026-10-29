@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
+from rdflib import URIRef
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,12 +47,15 @@ def _view_json(client, iri, query=""):
 
 
 def test_level_config():
-    assert list(levels.C4_LEVELS) == ["L1", "L2", "L3"]
+    assert list(levels.C4_LEVELS) == ["L1", "L2", "L3", "L4"]
     assert levels.DEFAULT_LEVEL == "L2"
-    l1, l2, l3 = levels.C4_LEVELS.values()
-    assert l1.classes < l2.classes <= l3.classes
-    assert set(l2.edge_rules) < set(l3.edge_rules)
-    assert l1.rollup and not l2.rollup and not l3.rollup
+    l1, l2, l3, l4 = levels.C4_LEVELS.values()
+    assert l1.classes < l2.classes <= l3.classes == l4.classes
+    assert set(l2.edge_rules) < set(l3.edge_rules) == set(l4.edge_rules)
+    assert l1.rollup and not l2.rollup and not l3.rollup and not l4.rollup
+    assert l4.exposed_elements and l4.nest
+    assert not any(lv.nest for lv in (l1, l2, l3))
+    assert l4.title == "Seams"
 
 
 def test_load_rollup_reads_fixed_query():
@@ -89,7 +94,7 @@ def test_l2_nests_containers_and_nodes():
     }
 
 
-@pytest.mark.parametrize("level", ["L1", "L2", "L3"])
+@pytest.mark.parametrize("level", ["L1", "L2", "L3", "L4"])
 def test_no_contains_edges(level):
     _, edges, _, triples = _graph(level)
     assert all(lbl != "contains" for _, _, lbl in triples)
@@ -122,7 +127,7 @@ def test_l2_has_no_operations():
     assert all(lbl != "consumes" for _, _, lbl in triples)
 
 
-@pytest.mark.parametrize("level", ["L1", "L2", "L3"])
+@pytest.mark.parametrize("level", ["L1", "L2", "L3", "L4"])
 def test_output_is_deterministic_and_sorted(level):
     first = viewer_app.c4_graph_data(CHAT_ARCHITECTURE, level)
     second = viewer_app.c4_graph_data(CHAT_ARCHITECTURE, level)
@@ -195,9 +200,9 @@ def test_c4_fragment_level_toggle(client):
     nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
     links = re.findall(r'<a href="([^"]*)" hx-get="([^"]*)"', nav)
     assert [h for h, _ in links] == [g for _, g in links]
-    assert [h.rsplit("level=", 1)[1] for h, _ in links] == ["L1", "L2", "L3"]
-    assert nav.count('hx-target="#view-content"') == 3
-    assert nav.count('hx-push-url="true"') == 3
+    assert [h.rsplit("level=", 1)[1] for h, _ in links] == ["L1", "L2", "L3", "L4"]
+    assert nav.count('hx-target="#view-content"') == 4
+    assert nav.count('hx-push-url="true"') == 4
     current = re.findall(r'data-level="(L\d)"[^>]*aria-current="true"', nav)
     assert current == ["L3"]
 
@@ -220,3 +225,89 @@ def test_full_page_loads_elkjs(client):
     resp = client.get(f"/view/{quote(CHAT_ARCHITECTURE, safe='')}", headers={"Accept": "text/html"})
     assert resp.status_code == 200
     assert '<script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>' in resp.text
+
+
+# --- M007/S02 T03: L4 nests nest-mode seam targets (seam:presents, seam:executes) ---
+
+CHAT_IFML = f"{CHAT}chat_ifml"
+SEND_MESSAGE_PROCESS = f"{CHAT}send_message_process"
+
+
+def _by_id(level):
+    nodes, _ = viewer_app.c4_graph_data(CHAT_ARCHITECTURE, level)
+    return {n["id"]: n for n in nodes}
+
+
+def test_l4_nests_presents_target():
+    n = _by_id("L4")[CHAT_IFML]
+    assert n["parent"] == f"{CHAT}chat_ui"
+    assert n["nestedVia"] == "seam:presents"
+    assert n["layer"] == "interaction"
+
+
+def test_l4_nests_executes_target():
+    n = _by_id("L4")[SEND_MESSAGE_PROCESS]
+    assert n["parent"] == f"{CHAT}chat_api"
+    assert n["nestedVia"] == "seam:executes"
+    assert n["layer"] == "process"
+
+
+def test_l4_nests_top_level_members_of_the_nested_models():
+    nodes = _by_id("L4")
+    ifml_children = [n for n in nodes.values() if n["parent"] == CHAT_IFML]
+    bpmn_children = [n for n in nodes.values() if n["parent"] == SEND_MESSAGE_PROCESS]
+    assert ifml_children and all(n["layer"] == "interaction" for n in ifml_children)
+    assert bpmn_children and all(n["layer"] == "process" for n in bpmn_children)
+    assert f"{CHAT}chat_page" in {n["id"] for n in ifml_children}
+    # Only top-level members: nothing nested inside chat_page is lifted.
+    graph = viewer_app.get_graph()
+    held = {str(o) for o in graph.objects(URIRef(f"{CHAT}chat_page"), viewer_app.IFML.contains)}
+    assert held and not held & set(nodes)
+    # Members are nested cards, not seam targets themselves.
+    assert all(n["nestedVia"] is None for n in ifml_children + bpmn_children)
+
+
+def test_l4_draws_no_nested_model_edges():
+    nodes, edges = viewer_app.c4_graph_data(CHAT_ARCHITECTURE, "L4")
+    _, l3_edges = viewer_app.c4_graph_data(CHAT_ARCHITECTURE, "L3")
+    assert edges == l3_edges
+    # Nesting is shown by parent, never as a presents/executes edge.
+    assert all(e["kind"] not in {"seam:presents", "seam:executes"} for e in edges)
+
+
+def test_no_nested_nodes_below_l4():
+    for level in ("L1", "L2", "L3"):
+        nodes = _by_id(level)
+        assert CHAT_IFML not in nodes and SEND_MESSAGE_PROCESS not in nodes
+        assert all(n["nestedVia"] is None for n in nodes.values())
+
+
+def test_l4_non_nested_nodes_have_null_nested_via():
+    nodes = _by_id("L4")
+    nested = {n["id"] for n in nodes.values() if n["nestedVia"]}
+    assert nested == {CHAT_IFML, SEND_MESSAGE_PROCESS}
+
+
+def test_view_json_accepts_l4(client):
+    body = _view_json(client, CHAT_ARCHITECTURE, "&level=L4")
+    assert body["level"] == "L4"
+    assert body["warnings"] == []
+    l4 = next(lv for lv in body["levels"] if lv["id"] == "L4")
+    assert l4["empty"] is False and l4["nodeCount"] > 0
+
+
+def test_l4_fragment_carries_nested_via(client):
+    html = _fragment(client, CHAT_ARCHITECTURE, "?level=L4")
+    assert 'data-level="L4"' in html
+    assert '"nestedVia": "seam:presents"' in html
+    assert '"nestedVia": "seam:executes"' in html
+    assert "data-nested-via" in html
+
+
+def test_l4_legend_counts_nested_types():
+    nodes, edges = viewer_app.c4_graph_data(CHAT_ARCHITECTURE, "L4")
+    entries = {e["type"]: e for e in viewer_app.legend.legend_entries(nodes, set())}
+    assert entries["ifml:InteractionModel"]["count"] == 1
+    assert entries["proc:Process"]["count"] == 1
+    kept, _ = viewer_app.legend.contract_hidden(nodes, edges, {"proc:ServiceTask"})
+    assert all(n["type"] != "proc:ServiceTask" for n in kept)

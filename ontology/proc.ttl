@@ -40,7 +40,7 @@ is no proc:implementation term. A container that also seam:executes the task's
 process serves the operation in-process.""" .
 
 proc:UserTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
-    rdfs:comment "Mirrors bpmn:userTask. Human work item; the type most likely to seam:governedBy a policy and to surface in generated UIs later." .
+    rdfs:comment "Mirrors bpmn:userTask. Human work item: the process waits until a person completes it on the ifml:Form it seam:completedOn (ADR-0009). Its seam:governedBy policies, with the task as odrl:target, decide who may complete it." .
 
 proc:BusinessRuleTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
     rdfs:comment "Mirrors bpmn:businessRuleTask. The only legal subject of seam:decidedBy." .
@@ -51,7 +51,10 @@ Message-name rule (gaps.md GAP-26): the event's message name is the rdfs:label o
 comm:Channel it seam:publishesTo; no messageRef is added to the BPMN payload.""" .
 
 proc:MessageCatchEvent a rdfs:Class ;
-    rdfs:comment "Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo." .
+    rdfs:comment """Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo.
+Channel start rule (ADR-0010): when the event is the bpmn:startEvent of its process, the process is
+channel-started. The runtime starts it whenever a message throw event publishes on the comm:Channel it
+seam:subscribesTo, with the publisher's correlation key and a copy of its entities and statuses.""" .
 
 #################################################################
 # DMN index types

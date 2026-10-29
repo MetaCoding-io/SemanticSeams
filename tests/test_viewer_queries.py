@@ -25,10 +25,15 @@ MESSAGE_SHAPE = CHAT + "MessageShape"
 DB01 = CHAT + "db01"
 S_COMPOSING = CHAT + "s_composing"
 
-EXPECTED_NAMES = ["what-writes-shape", "impact-of-node", "what-moves-state"]
+EXPECTED_NAMES = [
+    "what-writes-shape",
+    "impact-of-node",
+    "what-moves-state",
+    "screens-by-role-writing-shape",
+]
 
 
-def test_catalog_has_three_queries():
+def test_catalog_has_four_queries():
     assert list(queries.QUERIES) == EXPECTED_NAMES
     for name, q in queries.QUERIES.items():
         assert q.name == name
@@ -48,6 +53,23 @@ def test_execute_what_writes_shape_chat_app():
     assert {(r["event"], r["writer"]) for r in result["rows"]} == {
         (CHAT + "send_message", CHAT + "chat_bpmn#persist_user_msg"),
         (CHAT + "send_message", CHAT + "chat_bpmn#persist_response"),
+    }
+
+
+def test_execute_screens_by_role_writing_shape_chat_app():
+    result = queries.execute_query(
+        get_graph(), "screens-by-role-writing-shape", MESSAGE_SHAPE
+    )
+    assert result["bindings"] == {"shape": MESSAGE_SHAPE}
+    assert result["columns"] == ["role", "screen", "event", "writer"]
+    assert result["resultCount"] == 2
+    assert {
+        (r["role"], r["screen"], r["event"], r["writer"]) for r in result["rows"]
+    } == {
+        (CHAT + "authenticated_user", CHAT + "chat_page", CHAT + "send_message",
+         CHAT + "chat_bpmn#persist_user_msg"),
+        (CHAT + "authenticated_user", CHAT + "chat_page", CHAT + "send_message",
+         CHAT + "chat_bpmn#persist_response"),
     }
 
 
@@ -100,7 +122,7 @@ def test_is_applicable_type_rules():
         for focus in (MESSAGE_SHAPE, DB01, S_COMPOSING)
     }
     assert applicability == {
-        MESSAGE_SHAPE: ["what-writes-shape"],
+        MESSAGE_SHAPE: ["what-writes-shape", "screens-by-role-writing-shape"],
         DB01: ["impact-of-node"],
         S_COMPOSING: ["what-moves-state"],
     }
@@ -214,6 +236,7 @@ def test_fragment_shows_query_buttons_for_shape():
     html = resp.text
     assert 'id="query-catalog"' in html
     assert 'data-query-name="what-writes-shape"' in html
+    assert 'data-query-name="screens-by-role-writing-shape"' in html
     assert 'hx-target="#query-results"' in html
     assert '<div id="query-results"></div>' in html
 
@@ -225,7 +248,7 @@ def test_fragment_hides_inapplicable_queries():
 
 
 def test_fragment_no_catalog_for_untyped_element():
-    # The root C4 model is a seam:Model — none of the three focus types apply.
+    # The root C4 model is a seam:Model — none of the catalog's focus types apply.
     html = _view_fragment(ROOT_MODEL).text
     assert 'id="query-catalog"' not in html
     assert 'id="query-results"' not in html

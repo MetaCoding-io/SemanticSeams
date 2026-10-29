@@ -1,13 +1,18 @@
 """SemanticSeams viewer — Phase A POC.
 
 FastAPI server implementing the /view/{iri} contract (ADR-0004) over an
-in-process rdflib graph loaded from examples/chat-app/chat-app.trig. The
-graph load is behind get_graph() so a Fuseki-backed store can drop in later
-without touching routes or resolution logic.
+in-process rdflib graph loaded from one TriG model. SEAMS_MODEL chooses the
+model (default examples/chat-app/chat-app.trig); its payload files must sit
+beside it. The root view is the model's single C4 seam:Model, or
+SEAMS_VIEWER_ROOT when set. The graph load is behind get_graph() so a
+Fuseki-backed store can drop in later without touching routes or resolution
+logic.
 """
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
@@ -15,21 +20,37 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
+from rdflib.namespace import SH
 
 from viewer import ifml, legend
+from viewer.shapegraph import shapegraph_graph_data
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.validation import get_model_conformance
 
+# uvicorn configures handlers for its own loggers only, so log through
+# uvicorn.error to have the startup line show up in the server output.
+logger = logging.getLogger("uvicorn.error")
+
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR.parent / "examples" / "chat-app"
-DATA_PATH = DATA_DIR / "chat-app.trig"
-ROOT_IRI = "https://example.org/chat/chat_architecture"
+MODEL_ENV = "SEAMS_MODEL"
+ROOT_ENV = "SEAMS_VIEWER_ROOT"
+DEFAULT_MODEL_PATH = BASE_DIR.parent / "examples" / "chat-app" / "chat-app.trig"
+
+
+def model_path_from_env() -> Path:
+    """SEAMS_MODEL when set and non-empty, else the chat app's TriG."""
+    value = os.environ.get(MODEL_ENV)
+    return Path(value).resolve() if value else DEFAULT_MODEL_PATH
+
+
+MODEL_PATH = model_path_from_env()
+MODEL_DIR = MODEL_PATH.parent
 
 # ADR-0003 specifies manifest-graph resolution (path/checksum/mediaType via a
 # dedicated <urn:seams:graph:manifest> graph). Phase B takes a simplified path:
 # seam:renderPayload values are relative IRIs resolved by rdflib against the
-# trig file's own path, which already yields a file:// URI under DATA_DIR — so
+# trig file's own path, which already yields a file:// URI under MODEL_DIR — so
 # that URI is trusted directly instead of introducing manifest predicates.
 PAYLOAD_MEDIA_TYPES = {
     ".bpmn": "application/bpmn+xml",
@@ -51,8 +72,11 @@ NOTATION_LABELS = {
     SEAM.ShapeGraph: "shapegraph",
 }
 
-# ADR-0005: predicates that trigger navigation on click.
-NAVIGATIONAL_PREDICATES = {SEAM.detailedBy, SEAM.triggers, SEAM.presents, SEAM.decidedBy}
+# ADR-0005 (amended M007/S02): each seam predicate declares a seam:reveal mode
+# in ontology/seam.ttl. Open and nest predicates navigate on click; layer
+# predicates stay inspector-only. See reveal_mode() and navigational_predicates().
+REVEAL_MODES = {SEAM.Open: "open", SEAM.Nest: "nest", SEAM.Layer: "layer"}
+NAVIGATING_MODES = {"open", "nest"}
 
 # Administrative seam predicates excluded from the seamEdges inspector list —
 # they drive rendering/dispatch rather than representing a cross-layer edge.
@@ -69,7 +93,7 @@ LAYER_BY_NOTATION = {
     "statechart": "lifecycle",
 }
 
-RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn"}
+RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn", "shapegraph"}
 PAYLOAD_RENDERERS = {"bpmn", "dmn"}
 
 app = FastAPI(title="SemanticSeams Viewer")
@@ -90,13 +114,51 @@ class ModelStore:
 
 
 _store: ModelStore | None = None
+_root_iri: str | None = None
+
+
+def configure(path: Path) -> None:
+    """Point the viewer at another model and drop the loaded graph and root."""
+    global MODEL_PATH, MODEL_DIR, _store, _root_iri
+    MODEL_PATH = Path(path).resolve()
+    MODEL_DIR = MODEL_PATH.parent
+    _store = None
+    _root_iri = None
 
 
 def get_graph() -> Dataset:
     global _store
     if _store is None:
-        _store = ModelStore(DATA_PATH)
+        if not MODEL_PATH.is_file():
+            source = f" (from {MODEL_ENV})" if os.environ.get(MODEL_ENV) else ""
+            raise FileNotFoundError(f"viewer model not found: {MODEL_PATH}{source}")
+        _store = ModelStore(MODEL_PATH)
     return _store.graph
+
+
+def root_iri() -> str:
+    """The IRI the viewer opens at: SEAMS_VIEWER_ROOT, else the model's single
+    C4 seam:Model. Computed once per loaded model."""
+    global _root_iri
+    if _root_iri is None:
+        override = os.environ.get(ROOT_ENV)
+        if override:
+            _root_iri = override
+        else:
+            graph = get_graph()
+            candidates = sorted(
+                str(s)
+                for s in set(graph.subjects(RDF.type, SEAM.Model))
+                if (s, SEAM.notation, SEAM.C4) in graph
+            )
+            if len(candidates) != 1:
+                found = ", ".join(candidates) if candidates else "none"
+                raise RuntimeError(
+                    f"{MODEL_PATH} must have exactly one seam:Model with seam:notation seam:C4 "
+                    f"to use as the viewer root (found: {found}); set {ROOT_ENV} to choose one"
+                )
+            _root_iri = candidates[0]
+    return _root_iri
 
 
 def short_name(iri: str) -> str:
@@ -134,6 +196,41 @@ def ontology_labels() -> dict[str, str]:
             g.parse(p, format="turtle")
         _ontology_labels = {str(s): str(o) for s, o in g.subject_objects(RDFS.label)}
     return _ontology_labels
+
+
+# Reveal modes come from the same ontology side lookup as labels (D004, D006):
+# the annotations never enter the ModelStore.
+_ontology_reveal: dict[str, str] | None = None
+
+
+def ontology_reveal() -> dict[str, str]:
+    """Predicate IRI -> "open" | "nest" | "layer", from seam:reveal in ontology/*.ttl."""
+    global _ontology_reveal
+    if _ontology_reveal is None:
+        from rdflib import Graph
+
+        g = Graph()
+        for p in sorted((BASE_DIR.parent / "ontology").glob("*.ttl")):
+            g.parse(p, format="turtle")
+        _ontology_reveal = {
+            str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES
+        }
+    return _ontology_reveal
+
+
+def reveal_mode(p) -> str:
+    """Reveal mode of a predicate: a model-graph seam:reveal wins, then the
+    ontology default, then "layer" (unannotated predicates never navigate)."""
+    local = get_graph().value(URIRef(str(p)), SEAM.reveal)
+    if local in REVEAL_MODES:
+        return REVEAL_MODES[local]
+    return ontology_reveal().get(str(p), "layer")
+
+
+def navigational_predicates() -> set[URIRef]:
+    """Seam predicates whose reveal mode is open or nest (ADR-0005 as amended)."""
+    preds = set(ontology_reveal()) | {str(s) for s in get_graph().subjects(SEAM.reveal, None)}
+    return {URIRef(p) for p in preds if reveal_mode(p) in NAVIGATING_MODES}
 
 
 def predicate_label(p) -> str:
@@ -218,12 +315,12 @@ def render_payload_of(iri: str) -> str | None:
 
 def resolve_payload_path(payload_iri: str) -> Path:
     """Resolve a seam:renderPayload file:// IRI to a path, rejecting anything
-    outside DATA_DIR so an unexpected payload IRI can't read arbitrary files."""
+    outside MODEL_DIR so an unexpected payload IRI can't read arbitrary files."""
     parts = urlsplit(payload_iri)
     if parts.scheme != "file":
         raise HTTPException(status_code=404, detail=f"payload {payload_iri} is not a resolvable file")
     candidate = Path(unquote(parts.path)).resolve()
-    if DATA_DIR.resolve() not in candidate.parents:
+    if MODEL_DIR.resolve() not in candidate.parents:
         raise HTTPException(status_code=404, detail=f"payload {payload_iri} is outside the model root")
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail=f"payload file not found: {candidate}")
@@ -251,7 +348,8 @@ def seam_edges(iri: str) -> dict:
                     "target": str(o),
                     "targetLabel": label(str(o)),
                     "targetLayer": layer_of(str(o)),
-                    "navigational": p in NAVIGATIONAL_PREDICATES,
+                    "reveal": reveal_mode(p),
+                    "navigational": reveal_mode(p) in NAVIGATING_MODES,
                 }
             )
     incoming = []
@@ -264,7 +362,8 @@ def seam_edges(iri: str) -> dict:
                     "source": str(s),
                     "sourceLabel": label(str(s)),
                     "sourceLayer": layer_of(str(s)),
-                    "navigational": p in NAVIGATIONAL_PREDICATES,
+                    "reveal": reveal_mode(p),
+                    "navigational": reveal_mode(p) in NAVIGATING_MODES,
                 }
             )
     return {"outgoing": outgoing, "incoming": incoming}
@@ -304,7 +403,7 @@ def resolve_navigation(iri: str) -> dict:
     if direct:
         return {"target": direct[0], "landing": direct[0], "candidates": None}
 
-    for pred in (SEAM.triggers, SEAM.presents, SEAM.decidedBy):
+    for pred in sorted(navigational_predicates() - {SEAM.detailedBy}, key=str):
         for target in graph.objects(subj, pred):
             target = str(target)
             if is_model(target):
@@ -329,6 +428,18 @@ def payload_element_map(model_iri: str) -> dict:
     return {short_name(m): m for m in model_members(model_iri)}
 
 
+def payload_element_seams(model_iri: str) -> dict[str, list[dict]]:
+    """Native element id -> its outgoing seams (card_seams shape), for the
+    overlay badges drawn on BPMN/DMN diagrams. Seams back to model_iri itself
+    are dropped (a badge would only re-open the current view), and so are ids
+    left with no seams, so a badge appears only for a seam in the graph."""
+    seams = {
+        native_id: [s for s in card_seams(iri) if s["target"] != model_iri]
+        for native_id, iri in payload_element_map(model_iri).items()
+    }
+    return {native_id: lst for native_id, lst in seams.items() if lst}
+
+
 def card_seams(iri: str) -> list[dict]:
     """Outgoing seam edges of iri as card dots, sorted by predicate then target."""
     edges = [
@@ -343,6 +454,7 @@ def card_seams(iri: str) -> list[dict]:
             "target": o,
             "targetLabel": label(o),
             "targetLayer": layer_of(o),
+            "reveal": reveal_mode(p),
         }
         for p, o in sorted(edges, key=lambda e: (str(e[0]), e[1]))
     ]
@@ -400,7 +512,19 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
                 parents[str(o)] = min(parents.get(str(o), str(s)), str(s))
         visible |= {o for o, p in parents.items() if p in visible}
 
-    nodes = [{**n, "parent": parents.get(n["id"])} for n in nodes_for(visible)]
+    nested_via: dict[str, str] = {}
+    if spec.nest:
+        nested_via, nested_layers = _nest_targets(visible, parents)
+        visible |= set(nested_via) | {o for o, p in parents.items() if p in nested_via}
+
+    nodes = [
+        {**n, "parent": parents.get(n["id"]), "nestedVia": nested_via.get(n["id"])}
+        for n in nodes_for(visible)
+    ]
+    if spec.nest:
+        for n in nodes:
+            if n["id"] in nested_layers and n["layer"] == "other":
+                n["layer"] = nested_layers[n["id"]]
     nodes.sort(key=lambda n: (n["parent"] or "", n["id"]))
 
     if spec.rollup:
@@ -417,6 +541,61 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         ]
     edges.sort(key=lambda e: (e["from"], e["to"], e["label"]))
     return nodes, edges
+
+
+# Containment predicates that make a model member a child of another member;
+# L4 nests only a nested model's top-level members (the ones no sibling holds).
+NEST_CONTAINMENT_PREDICATES = (IFML.contains, IFML.hasEvent, IFML.hasParameter, ARCH.contains)
+
+
+def nested_model_of(iri: str) -> str | None:
+    """Model a nest-mode target stands for: itself, else its single detailedBy model."""
+    if is_model(iri):
+        return iri
+    targets = detailedby_targets(iri)
+    return targets[0] if len(targets) == 1 else None
+
+
+def top_level_members(model_iri: str) -> list[str]:
+    """Labelled members of model_iri that no other member of it contains."""
+    graph = get_graph()
+    members = set(model_members(model_iri))
+    held = {
+        str(o)
+        for pred in NEST_CONTAINMENT_PREDICATES
+        for s, o in graph.subject_objects(pred)
+        if str(s) in members and str(s) != str(o)
+    }
+    return sorted(
+        m for m in members - held if (URIRef(m), RDFS.label, None) in graph
+    )
+
+
+def _nest_targets(visible: set[str], parents: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """L4: adds nest-mode seam targets of visible nodes (and their models'
+    top-level members) to parents. Returns (target -> qname of the nesting
+    predicate, target -> layer of its nested model)."""
+    graph = get_graph()
+    nested_via: dict[str, str] = {}
+    layers: dict[str, str] = {}
+    for m in sorted(visible):
+        for p, t in sorted(graph.predicate_objects(URIRef(m)), key=lambda po: (str(po[0]), str(po[1]))):
+            target = str(t)
+            if not isinstance(t, URIRef) or target in visible or reveal_mode(p) != "nest":
+                continue
+            if target in parents and parents[target] <= m:
+                continue
+            parents[target] = m
+            nested_via[target] = qname(p)
+    for target in sorted(nested_via):
+        model = nested_model_of(target)
+        if model is None:
+            continue
+        layers[target] = LAYER_BY_NOTATION.get(notation_of(model), "other")
+        for member in top_level_members(model):
+            if member not in visible and member not in nested_via and member != target:
+                parents.setdefault(member, target)
+    return nested_via, layers
 
 
 def ifml_graph_data(model_iri: str) -> tuple[list[dict], list[dict]]:
@@ -458,6 +637,7 @@ GRAPH_BUILDERS = {
     "c4": c4_graph_data,
     "ifml": ifml_graph_data,
     "statechart": statechart_graph_data,
+    "shapegraph": shapegraph_graph_data,
 }
 
 
@@ -569,11 +749,13 @@ def toggled(hidden: list[str], type_qname: str) -> list[str]:
 @app.on_event("startup")
 def startup() -> None:
     get_graph()
+    logger.info("viewer model %s (%s), root %s", MODEL_PATH,
+                f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default", root_iri())
 
 
 @app.get("/")
 def index() -> RedirectResponse:
-    return RedirectResponse(url=f"/view/{quote(ROOT_IRI, safe='')}")
+    return RedirectResponse(url=f"/view/{quote(root_iri(), safe='')}")
 
 
 @app.get("/payload/{iri:path}")
@@ -642,6 +824,36 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
     return templates.TemplateResponse(request, "query-results.html", ctx)
 
 
+# Relations panel (M007/S02): the focused element's seam edges grouped by
+# reveal mode. Hints follow docs/research/2026-10-15-reveal-modes.md section 2.
+RELATION_GROUPS = (
+    ("open", "Open", "opens the target's model"),
+    ("nest", "Nest", "draws the target inside its source"),
+    ("layer", "Layer", "overlays the target on this view; opens the inspector for now"),
+)
+
+
+def relation_groups(outgoing: list[dict], incoming: list[dict]) -> list[dict]:
+    """Template-only context: outgoing and incoming edges (already carrying href)
+    merged with a direction key, grouped open, nest, layer, empty groups omitted."""
+    rows = [
+        {**e, "direction": "out", "label": e["targetLabel"], "layer": e["targetLayer"], "iri": e["target"]}
+        for e in outgoing
+    ] + [
+        {**e, "direction": "in", "label": e["sourceLabel"], "layer": e["sourceLayer"], "iri": e["source"]}
+        for e in incoming
+    ]
+    groups = []
+    for mode, title, hint in RELATION_GROUPS:
+        edges = sorted(
+            (r for r in rows if r["reveal"] == mode),
+            key=lambda r: (r["predicateLabel"], r["label"], r["direction"], r["iri"]),
+        )
+        if edges:
+            groups.append({"mode": mode, "title": title, "hint": hint, "edges": edges})
+    return groups
+
+
 @app.get("/view/{iri:path}")
 def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", hide: str = ""):
     clicked = unquote(iri)
@@ -660,7 +872,21 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     carried_level = view["level"] or (level if level in C4_LEVELS else "")
     notation = view["notation"]
     render_kind = notation if notation in RENDERERS_IMPLEMENTED else "none"
+    # D022: a NodeShape that self-lands (no detail model, e.g. ConversationShape)
+    # draws its model's shape graph with itself highlighted. Template-only:
+    # build_view and the ADR-0004 JSON keep notation "none" for it.
+    shape_model = None
+    if render_kind == "none" and not is_model(focus):
+        model = focused_model(focus)
+        if (
+            model is not None
+            and (URIRef(focus), RDF.type, SH.NodeShape) in get_graph()
+            and notation_of(model) == "shapegraph"
+        ):
+            render_kind = "shapegraph"
+            shape_model = model
 
+    root = root_iri()
     ctx = {
         "request": request,
         "focus_iri": focus,
@@ -698,9 +924,9 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "breadcrumbs": [
             {"label": c["label"], "href": href_for(c["iri"], incoming_trail[:i], carried_level)}
             for i, c in enumerate(view["breadcrumbs"])
-            if c["iri"] != ROOT_IRI
+            if c["iri"] != root
         ],
-        "root_href": href_for(ROOT_IRI, [], carried_level),
+        "root_href": href_for(root, [], carried_level),
         "next_path_qs": quote(",".join(outgoing_trail), safe=""),
         "applicable_queries": [
             {
@@ -718,6 +944,10 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         nodes, edges = legend.contract_hidden(nodes, edges, view["hiddenTypes"])
         ctx["nodes"] = nodes
         ctx["edges"] = edges
+    elif render_kind == "shapegraph":
+        nodes, edges = shapegraph_graph_data(shape_model or focus, focus=focus)
+        ctx["nodes"] = nodes
+        ctx["edges"] = edges
     elif render_kind in GRAPH_BUILDERS:
         nodes, edges = GRAPH_BUILDERS[render_kind](focus)
         ctx["nodes"] = nodes
@@ -726,9 +956,13 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
             # IFML is drawn as IFML from viewer/ifml.py (M006/S05, D011);
             # nodes/edges are still built, but the ifml template does not use them.
             ctx["ifml"] = view["ifml"]
+            # Template-only ELK port graph for the diagram-js canvas (M007/S04, D023).
+            ctx["ifml_canvas"] = ifml.ifml_elk_graph(view["ifml"])
     elif render_kind in PAYLOAD_RENDERERS and view["renderPayload"]:
         ctx["payload_url"] = f"/payload/{quote(view['renderPayload'], safe='')}"
         ctx["element_map"] = payload_element_map(focus)
+        # Template-only (not in build_view), so the JSON contract is unchanged.
+        ctx["element_seams"] = payload_element_seams(focus)
 
     def link(iri_str: str) -> str:
         return href_for(iri_str, outgoing_trail, carried_level)
@@ -741,6 +975,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     ctx["detailed_by_candidates"] = [
         {**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]
     ]
+    ctx["relations"] = relation_groups(ctx["outgoing"], ctx["incoming"])
 
     template = "fragment.html" if request.headers.get("hx-request") == "true" else "page.html"
     return templates.TemplateResponse(request, template, ctx)

@@ -1,11 +1,14 @@
 """Pins seams_runtime's engine (graph-bound Spiff parser, DMN input/output
 bindings, serialization), its SQLite store and its SSE channel bus
-(M004/S03 T04, D013) against examples/chat-app/chat-app.trig."""
+(M004/S03 T04, D013) against examples/chat-app/chat-app.trig, and the
+numeric DMN inputs and gateway routing (M009/S05) against the expense
+tutorial's chapter 5 checkpoint."""
 
 import asyncio
 import json
 import sys
 import threading
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -31,6 +34,10 @@ DECISION = URIRef(CHAT + "routing_decision")
 SHAPE = CHAT + "MessageShape"
 SHORT = {"role": "user", "content": "Hello, which provider?"}
 LONG = {"role": "user", "content": "x" * 4001}
+
+EXPENSES_TRIG = ROOT / "examples" / "expenses" / "chapter-05" / "expenses.trig"
+EXPENSE_PROCESS = ":approval_process"
+ROUTING = URIRef("https://example.org/expenses/approval_routing")
 
 
 @pytest.fixture(scope="module")
@@ -160,6 +167,80 @@ def test_unknown_measure_raises(fresh):
         eng.evaluate_inputs(eng.binding("route_to_provider"), LONG)
     assert exc.value.predicate == str(DEC.measure)
     assert "WordCount" in str(exc.value)
+
+
+# ── numeric DMN inputs (typeRef="number") ────────────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def expense_engine():
+    return Engine(ModelGraph(EXPENSES_TRIG))
+
+
+def _expense(amount) -> dict:
+    return {"description": "Train", "amount": amount, "date": "2026-10-01"}
+
+
+def test_input_type_ref_comes_from_the_dmn_input_expression(engine, expense_engine):
+    assert {b.variable: b.type_ref for b in engine.binding("route_to_provider").inputs} == {
+        "message_role": "string", "message_length": "number"}
+    [amount] = expense_engine.binding("route_expense").inputs
+    assert (amount.variable, amount.from_path, amount.type_ref) == ("amount", "amount", "number")
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("42.50", Decimal("42.50")), (" 1000 ", Decimal("1000")), ("1e3", Decimal("1000")),
+    (7, 7), (Decimal("2.5"), Decimal("2.5")),
+])
+def test_number_input_is_coerced_from_a_form_string(expense_engine, value, expected):
+    b = expense_engine.binding("route_expense")
+    [got] = expense_engine.evaluate_inputs(b, _expense(value)).values()
+    assert got == expected and type(got) is type(expected)
+
+
+@pytest.mark.parametrize("value", ["lots", "", "NaN", "Infinity", True, None])
+def test_non_number_input_names_the_decision(expense_engine, value):
+    b = expense_engine.binding("route_expense")
+    with pytest.raises(ResolutionError) as exc:
+        expense_engine.evaluate_inputs(b, _expense(value))
+    assert exc.value.subject == str(ROUTING)
+    assert exc.value.predicate == str(DEC.input)
+    assert "'approval_routing'" in str(exc.value) and repr(value) in str(exc.value)
+
+
+def test_string_input_is_not_coerced(engine):
+    b = engine.binding("route_to_provider")
+    assert engine.evaluate_inputs(b, {"role": "42", "content": "x"})["message_role"] == "42"
+
+
+@pytest.mark.parametrize("amount, route, waits_on", [
+    ("42.50", "auto", None),
+    ("100", "auto", None),
+    ("100.01", "manager", "approve_expense"),
+    ("1000", "manager", "approve_expense"),
+    ("1000.01", "finance", "finance_approve_expense"),
+])
+def test_gateway_routes_on_the_decision_output(expense_engine, amount, route, waits_on):
+    wf = expense_engine.new_workflow(EXPENSE_PROCESS)
+    trace = _drive(expense_engine, wf, _expense(amount))
+    assert trace[:4] == ["start", "persist_expense", "route_expense", "route_gateway"]
+    manual = [t.task_spec.bpmn_id for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.manual]
+    if waits_on is None:
+        assert wf.is_completed() and trace[-1] == "auto_approved" and manual == []
+        assert _final(wf)["route"] == route
+    else:
+        assert not wf.is_completed() and manual == [waits_on]
+        [task] = [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.manual]
+        assert task.data["route"] == route and task.data["amount"] == Decimal(amount)
+
+
+def test_decimal_input_survives_serialization(expense_engine):
+    wf = expense_engine.new_workflow(EXPENSE_PROCESS)
+    _drive(expense_engine, wf, _expense("250.00"))
+    restored = expense_engine.deserialize(expense_engine.serialize(wf))
+    [task] = [t for t in restored.get_tasks(state=TaskState.READY) if t.task_spec.manual]
+    assert task.data["amount"] == Decimal("250.00") and isinstance(task.data["amount"], Decimal)
+    assert task.data["route"] == "manager"
 
 
 def test_map_outputs_provider_to_provider(engine):

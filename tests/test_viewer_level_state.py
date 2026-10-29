@@ -58,11 +58,12 @@ def test_level_questions_configured():
     assert levels.C4_LEVELS["L1"].question == "Which systems talk to each other, and where do they run?"
     assert levels.C4_LEVELS["L2"].question == "Which containers make up the system, and where are they deployed?"
     assert levels.C4_LEVELS["L3"].question == "Which operations does each container expose and consume?"
+    assert levels.C4_LEVELS["L4"].question == "Where does this architecture hand off to UI and process?"
 
 
 def test_json_levels_for_c4_model(client):
     body = _view_json(client, CHAT_ARCHITECTURE)
-    assert [lv["id"] for lv in body["levels"]] == ["L1", "L2", "L3"]
+    assert [lv["id"] for lv in body["levels"]] == ["L1", "L2", "L3", "L4"]
     for lv in body["levels"]:
         assert lv["question"] == levels.C4_LEVELS[lv["id"]].question
         assert lv["title"] == levels.C4_LEVELS[lv["id"]].title
@@ -88,12 +89,13 @@ def test_level_summaries_marks_empty_levels(monkeypatch):
     monkeypatch.setattr(viewer_app, "get_graph", lambda: ds)
 
     summaries = viewer_app.level_summaries(str(model))
-    assert [s["id"] for s in summaries] == ["L1", "L2", "L3"]
+    assert [s["id"] for s in summaries] == ["L1", "L2", "L3", "L4"]
     by_id = {s["id"]: s for s in summaries}
     assert by_id["L1"]["empty"] is False
     assert by_id["L1"]["nodeCount"] == 1
     assert by_id["L2"]["empty"] is True
     assert by_id["L3"]["empty"] is True
+    assert by_id["L4"]["empty"] is True
 
 
 def test_level_summaries_no_nodes_is_empty(monkeypatch):
@@ -114,14 +116,14 @@ def test_c4_fragment_carries_level_on_every_link(client):
     toggle = [
         (html_lib.unescape(h), lv) for h, lv in re.findall(r'<a href="([^"]*)"[^>]*data-level="(L\d)"', html)
     ]
-    assert [lv for _, lv in toggle] == ["L1", "L2", "L3"]
+    assert [lv for _, lv in toggle] == ["L1", "L2", "L3", "L4"]
     for href, lv in toggle:
         assert href.endswith(f"&level={lv}")
     others = _view_hrefs(_without_toggle(html))
     assert others, "expected breadcrumb links into /view/"
     for href in others:
         assert "level=L1" in href, href
-        assert "level=L2" not in href and "level=L3" not in href
+        assert "level=L2" not in href and "level=L3" not in href and "level=L4" not in href
 
 
 def test_level_carried_through_non_c4_view(client):
@@ -175,12 +177,12 @@ def test_level_cards_render_questions_in_order(client):
     assert 'class="level-cards"' in section
     assert "<h3>Levels</h3>" in section
     tags = _card_tags(section)
-    assert [re.search(r'data-level="(L\d)"', t).group(1) for t in tags] == ["L1", "L2", "L3"]
-    for lv in ("L1", "L2", "L3"):
+    assert [re.search(r'data-level="(L\d)"', t).group(1) for t in tags] == ["L1", "L2", "L3", "L4"]
+    for lv in ("L1", "L2", "L3", "L4"):
         assert html_lib.escape(levels.C4_LEVELS[lv].question) in section
     assert all('data-empty="false"' in t for t in tags)
     assert [t for t in tags if 'aria-current="true"' in t] == [tags[0]]
-    for tag, lv in zip(tags, ("L1", "L2", "L3")):
+    for tag, lv in zip(tags, ("L1", "L2", "L3", "L4")):
         href = html_lib.unescape(re.search(r'href="([^"]*)"', tag).group(1))
         hx = html_lib.unescape(re.search(r'hx-get="([^"]*)"', tag).group(1))
         assert href == hx and href.endswith(f"&level={lv}")
@@ -229,16 +231,17 @@ def test_empty_level_card_is_greyed_and_inert(client, monkeypatch):
     monkeypatch.setattr(viewer_app, "level_summaries", fake)
     html = _fragment(client, CHAT_ARCHITECTURE, "level=L1")
     tags = _card_tags(_level_cards(html))
-    l3 = [t for t in tags if 'data-level="L3"' in t]
+    last = list(levels.C4_LEVELS)[-1]
+    l3 = [t for t in tags if f'data-level="{last}"' in t]
     assert len(l3) == 1
     card = l3[0]
     assert "level-empty" in card
     assert 'aria-disabled="true"' in card
     assert 'data-empty="true"' in card
     assert "hx-get" not in card and "href=" not in card
-    # The toggle link for L3 gets the same inert treatment.
+    # The toggle link for the last level gets the same inert treatment.
     nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
-    toggle_l3 = re.search(r'<a [^>]*data-level="L3"[^>]*>', nav).group(0)
+    toggle_l3 = re.search(rf'<a [^>]*data-level="{last}"[^>]*>', nav).group(0)
     assert "level-empty" in toggle_l3 and 'aria-disabled="true"' in toggle_l3
     assert "hx-get" not in toggle_l3 and "href=" not in toggle_l3
 

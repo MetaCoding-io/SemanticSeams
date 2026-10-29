@@ -48,6 +48,7 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py
+      - run: SEAMS_E2E=1 pytest -q tests/test_expense_e2e.py
 
   # Builds the docs site the way the Pages deploy does. Fails on a dead internal link,
   # or if a change to ontology/ or docs/queries/ breaks the reference-page generator.

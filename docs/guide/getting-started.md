@@ -8,8 +8,8 @@ example.
 ## What you need
 
 - Python 3.12 or later. CI runs on 3.12.
-- A browser with internet access. The viewer loads htmx, vis-network, bpmn-js and dmn-js
-  from a CDN.
+- A browser with internet access. The viewer loads htmx, vis-network, elkjs, bpmn-js,
+  dmn-js and diagram-js (via esm.sh) from a CDN.
 - Nothing else: there is no database to start. The viewer reads the example model into
   memory with rdflib.
 
@@ -43,6 +43,9 @@ request.
 python3 -m uvicorn viewer.app:app --port 8000
 ```
 
+The viewer loads the chat app unless `SEAMS_MODEL` names another TriG file
+(see [Authoring a model](/guide/authoring-a-model#view-it)).
+
 Open <http://localhost:8000>. The root redirects to the chat app's architecture view,
 the top of the descent. From there:
 
@@ -60,6 +63,10 @@ and explains everything else on the page.
 
 ## What next
 
+- [Quick start: the chat app](/tutorial): regenerate the chat app from its model and run
+  it with Docker Compose.
+- [Build an expense approval app](/tutorials/expenses/): write a model yourself, one layer
+  per chapter, from an empty file to the whole system under `docker compose up`.
 - [Using the viewer](/guide/the-viewer): what each part of the page does, and the URLs
   behind it.
 - [Diagrams are views](/concepts/diagrams-are-views): the idea the project rests on.

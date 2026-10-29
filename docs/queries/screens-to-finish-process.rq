@@ -1,0 +1,30 @@
+# Which screens must a person visit to finish ?process, and who may act there?
+#
+# The query ADR-0009 earns for seam:completedOn. Each user task of the process
+# waits for a person on the ifml:Form it seam:completedOn; the screen is the
+# ifml:ViewContainer that ifml:contains that form (the ADR's screen rule).
+#
+# Tasks belong to the process through the BPMN model it is seam:detailedBy:
+# every task carries seam:inModel of that model (process/detailedBy/^inModel),
+# the same backbone hop what-writes-shape.rq takes.
+#
+# ?policy is each odrl:Policy the task is seam:governedBy, unbound for an
+# ungoverned task (open to any authenticated identity). Following
+# ?policy odrl:permission/odrl:assignee answers the follow-up question
+# "which roles can complete this approval"; it is not a separate query.
+#
+# Bind ?process to a proc:Process; leave unbound to list every process's screens.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX proc: <https://w3id.org/seams/proc#>
+PREFIX ifml: <https://w3id.org/seams/ifml#>
+
+SELECT DISTINCT ?task ?form ?screen ?policy WHERE {
+  ?process a proc:Process ;
+           seam:detailedBy/^seam:inModel ?task .
+  ?task a proc:UserTask ;
+        seam:completedOn ?form .
+  ?screen a ifml:ViewContainer ;
+          ifml:contains ?form .
+  OPTIONAL { ?task seam:governedBy ?policy }
+}

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   id="approval_bpmn_defs"
+                   targetNamespace="https://example.org/expenses/approval_bpmn">
+  <bpmn:process id="approval_process" name="Expense Approval" isExecutable="true">
+    <bpmn:startEvent id="start" name="Expense Submitted">
+      <bpmn:outgoing>flow_to_persist</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="persist_expense" name="Persist Expense">
+      <bpmn:incoming>flow_to_persist</bpmn:incoming>
+      <bpmn:outgoing>flow_to_route</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:businessRuleTask id="route_expense" name="Route Expense">
+      <bpmn:incoming>flow_to_route</bpmn:incoming>
+      <bpmn:outgoing>flow_to_gateway</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:exclusiveGateway id="route_gateway" name="Route?">
+      <bpmn:incoming>flow_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>flow_auto</bpmn:outgoing>
+      <bpmn:outgoing>flow_manager</bpmn:outgoing>
+      <bpmn:outgoing>flow_finance</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="approve_expense" name="Approve Expense">
+      <bpmn:incoming>flow_manager</bpmn:incoming>
+      <bpmn:outgoing>flow_manager_decided</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="finance_approve_expense" name="Finance Approve Expense">
+      <bpmn:incoming>flow_finance</bpmn:incoming>
+      <bpmn:outgoing>flow_finance_decided</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="decision_gateway" name="Decision?">
+      <bpmn:incoming>flow_manager_decided</bpmn:incoming>
+      <bpmn:incoming>flow_finance_decided</bpmn:incoming>
+      <bpmn:outgoing>flow_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="record_approval" name="Record Approval">
+      <bpmn:incoming>flow_auto</bpmn:incoming>
+      <bpmn:incoming>flow_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_to_pay</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="pay_expense" name="Pay Expense">
+      <bpmn:incoming>flow_to_pay</bpmn:incoming>
+      <bpmn:outgoing>flow_to_approved_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="record_rejection" name="Record Rejection">
+      <bpmn:incoming>flow_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_to_rejected_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- A message end event: the graph says it seam:publishesTo :payouts (ADR-0010). -->
+    <bpmn:endEvent id="approved_end" name="Paid">
+      <bpmn:incoming>flow_to_approved_end</bpmn:incoming>
+      <bpmn:messageEventDefinition id="approved_end_msg" />
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="rejected_end" name="Rejected">
+      <bpmn:incoming>flow_to_rejected_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_persist" sourceRef="start" targetRef="persist_expense" />
+    <bpmn:sequenceFlow id="flow_to_route" sourceRef="persist_expense" targetRef="route_expense" />
+    <bpmn:sequenceFlow id="flow_to_gateway" sourceRef="route_expense" targetRef="route_gateway" />
+    <bpmn:sequenceFlow id="flow_auto" name="auto" sourceRef="route_gateway" targetRef="record_approval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">route == "auto"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_manager" name="manager" sourceRef="route_gateway" targetRef="approve_expense">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">route == "manager"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_finance" name="finance" sourceRef="route_gateway" targetRef="finance_approve_expense">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">route == "finance"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_manager_decided" sourceRef="approve_expense" targetRef="decision_gateway" />
+    <bpmn:sequenceFlow id="flow_finance_decided" sourceRef="finance_approve_expense" targetRef="decision_gateway" />
+    <bpmn:sequenceFlow id="flow_approved" name="approved" sourceRef="decision_gateway" targetRef="record_approval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">decision == "approved"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejected" name="rejected" sourceRef="decision_gateway" targetRef="record_rejection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">decision == "rejected"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_to_pay" sourceRef="record_approval" targetRef="pay_expense" />
+    <bpmn:sequenceFlow id="flow_to_approved_end" sourceRef="pay_expense" targetRef="approved_end" />
+    <bpmn:sequenceFlow id="flow_to_rejected_end" sourceRef="record_rejection" targetRef="rejected_end" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="diagram">
+    <bpmndi:BPMNPlane id="plane" bpmnElement="approval_process">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="60" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="persist_expense_di" bpmnElement="persist_expense">
+        <dc:Bounds x="150" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="route_expense_di" bpmnElement="route_expense">
+        <dc:Bounds x="300" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="route_gateway_di" bpmnElement="route_gateway" isMarkerVisible="true">
+        <dc:Bounds x="450" y="113" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approve_expense_di" bpmnElement="approve_expense">
+        <dc:Bounds x="560" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finance_approve_expense_di" bpmnElement="finance_approve_expense">
+        <dc:Bounds x="560" y="228" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decision_gateway_di" bpmnElement="decision_gateway" isMarkerVisible="true">
+        <dc:Bounds x="710" y="113" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="record_approval_di" bpmnElement="record_approval">
+        <dc:Bounds x="830" y="0" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="record_rejection_di" bpmnElement="record_rejection">
+        <dc:Bounds x="830" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="pay_expense_di" bpmnElement="pay_expense">
+        <dc:Bounds x="980" y="0" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approved_end_di" bpmnElement="approved_end">
+        <dc:Bounds x="1132" y="22" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rejected_end_di" bpmnElement="rejected_end">
+        <dc:Bounds x="982" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_persist_di" bpmnElement="flow_to_persist">
+        <di:waypoint x="96" y="138" />
+        <di:waypoint x="150" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_route_di" bpmnElement="flow_to_route">
+        <di:waypoint x="250" y="138" />
+        <di:waypoint x="300" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_gateway_di" bpmnElement="flow_to_gateway">
+        <di:waypoint x="400" y="138" />
+        <di:waypoint x="450" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_auto_di" bpmnElement="flow_auto">
+        <di:waypoint x="475" y="113" />
+        <di:waypoint x="475" y="20" />
+        <di:waypoint x="830" y="20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_manager_di" bpmnElement="flow_manager">
+        <di:waypoint x="500" y="138" />
+        <di:waypoint x="560" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_finance_di" bpmnElement="flow_finance">
+        <di:waypoint x="475" y="163" />
+        <di:waypoint x="475" y="268" />
+        <di:waypoint x="560" y="268" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_manager_decided_di" bpmnElement="flow_manager_decided">
+        <di:waypoint x="660" y="138" />
+        <di:waypoint x="710" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_finance_decided_di" bpmnElement="flow_finance_decided">
+        <di:waypoint x="660" y="268" />
+        <di:waypoint x="735" y="268" />
+        <di:waypoint x="735" y="163" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_approved_di" bpmnElement="flow_approved">
+        <di:waypoint x="735" y="113" />
+        <di:waypoint x="735" y="60" />
+        <di:waypoint x="830" y="60" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_rejected_di" bpmnElement="flow_rejected">
+        <di:waypoint x="760" y="138" />
+        <di:waypoint x="830" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_pay_di" bpmnElement="flow_to_pay">
+        <di:waypoint x="930" y="40" />
+        <di:waypoint x="980" y="40" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_approved_end_di" bpmnElement="flow_to_approved_end">
+        <di:waypoint x="1080" y="40" />
+        <di:waypoint x="1132" y="40" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_rejected_end_di" bpmnElement="flow_to_rejected_end">
+        <di:waypoint x="930" y="138" />
+        <di:waypoint x="982" y="138" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

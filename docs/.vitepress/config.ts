@@ -34,6 +34,8 @@ const decisions = [
   ["0006", "Index-payload drift lint", "0006-index-payload-drift-lint"],
   ["0007", "Execution strategy", "0007-execution-strategy"],
   ["0008", "Node-link renderer", "0008-node-link-renderer"],
+  ["0009", "Human tasks", "0009-human-tasks"],
+  ["0010", "Channel-started processes", "0010-channel-started-processes"],
 ] as const;
 
 export default defineConfig({
@@ -63,6 +65,7 @@ export default defineConfig({
     siteTitle: "SemanticSeams",
     nav: [
       { text: "Guide", link: "/guide/getting-started" },
+      { text: "Tutorials", link: "/tutorials/expenses/" },
       { text: "Concepts", link: "/concepts/diagrams-are-views" },
       { text: "Reference", link: "/reference/seam-predicates" },
       { text: "Project", link: "/project-outline" },
@@ -77,7 +80,28 @@ export default defineConfig({
           { text: "Getting started", link: "/guide/getting-started" },
           { text: "Using the viewer", link: "/guide/the-viewer" },
           { text: "Authoring a model", link: "/guide/authoring-a-model" },
-          { text: "Tutorial: the chat app", link: "/tutorial" },
+        ],
+      },
+      {
+        text: "Tutorials",
+        collapsed: false,
+        items: [
+          { text: "Quick start: the chat app", link: "/tutorial" },
+          {
+            text: "Build an expense approval app",
+            link: "/tutorials/expenses/",
+            collapsed: false,
+            items: [
+              { text: "1 · The architecture", link: "/tutorials/expenses/01-architecture" },
+              { text: "2 · The data", link: "/tutorials/expenses/02-data" },
+              { text: "3 · The screens", link: "/tutorials/expenses/03-screens" },
+              { text: "4 · The process", link: "/tutorials/expenses/04-process" },
+              { text: "5 · The rules", link: "/tutorials/expenses/05-rules" },
+              { text: "6 · The lifecycle", link: "/tutorials/expenses/06-lifecycle" },
+              { text: "7 · People and permissions", link: "/tutorials/expenses/07-permissions" },
+              { text: "8 · Growing up", link: "/tutorials/expenses/08-growing-up" },
+            ],
+          },
         ],
       },
       {
@@ -130,6 +154,8 @@ export default defineConfig({
     outline: { level: [2, 3] },
   },
   markdown: {
+    // Shiki has no TriG grammar; TriG is Turtle plus named-graph blocks, so Turtle highlights it.
+    languageAlias: { trig: "turtle" },
     config(md) {
       const fallback = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
       md.renderer.rules.link_open = (tokens, idx, options, env, self) => {

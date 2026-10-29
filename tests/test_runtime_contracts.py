@@ -120,6 +120,24 @@ def test_bad_timestamp_names_timestamp_and_datatype(model):
     assert (r["shape"], r["constraint"], r["value"]) == (SHAPE, "DatatypeConstraintComponent", "notadate")
 
 
+EXPENSES_TRIG = ROOT / "examples" / "expenses" / "chapter-03" / "expenses.trig"
+EXPENSE = {"id": "e1", "description": "Taxi", "date": "2026-10-01"}
+
+
+@pytest.mark.parametrize("amount", ["lots", "1,5", "NaN", "1e3", ""])
+def test_ill_formed_decimal_is_one_datatype_result(amount):
+    # caught before SHACL, like a bad xsd:date: one result, no rdflib cast traceback
+    with pytest.raises(ContractViolation) as exc:
+        validate(ModelGraph(EXPENSES_TRIG), ":ExpenseShape", {**EXPENSE, "amount": amount})
+    assert [(r["path"], r["constraint"]) for r in exc.value.results] == [
+        ("amount", "DatatypeConstraintComponent")]
+
+
+@pytest.mark.parametrize("amount", ["12", "12.50", "+0.01", ".5", "3."])
+def test_decimal_lexical_forms_pass(amount):
+    assert validate(ModelGraph(EXPENSES_TRIG), ":ExpenseShape", {**EXPENSE, "amount": amount})["amount"] == amount
+
+
 def test_wrong_python_type_is_datatype(model):
     r = only(violation(model, {"content": 5}), "content")
     assert r["constraint"] == "DatatypeConstraintComponent"

@@ -1,6 +1,7 @@
 """seams_runtime.host serves a CLI-generated route module (M004/S07/T02): the
 landmark page at its ifml:path with the seeded conversations and the selected
-thread, the RuntimeModelError -> JSON mapping, /healthz and an idempotent,
+thread, the RuntimeModelError -> JSON mapping, /healthz, the /tasks inbox (empty: the
+chat app has no user task) and an idempotent,
 validated startup seed. Runtime.load is redirected exactly as in
 tests/test_generated_app.py (repo model, temp store and templates, header
 auth, FakeLLM)."""
@@ -64,6 +65,18 @@ def _wait_complete(runtime, timeout=5.0):
             return instances
         time.sleep(0.05)
     pytest.fail(f"workflow instances did not finish within {timeout}s: {runtime.instances}")
+
+
+def test_task_inbox_is_empty_for_a_model_without_user_tasks(client):
+    c, _runtime = client
+    r = c.get("/tasks", headers=USER)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("text/html")
+    assert '<main id="tasks" data-identity="ann">' in r.text and "No open tasks." in r.text
+    r = c.get("/tasks", headers={**USER, "Accept": "application/json"})
+    assert r.json() == {"identity": "ann", "tasks": []}
+    r = c.get("/tasks")
+    assert r.status_code == 401 and r.json()["detail"]["type"] == "PolicyDenied"
 
 
 def test_landmark_page_lists_seeded_conversations(client):

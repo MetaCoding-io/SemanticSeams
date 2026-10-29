@@ -27,6 +27,11 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
 1. **Every model is a `seam:Model`** with an `rdfs:label`, and has exactly one
    `seam:notation`: one of `seam:C4`, `seam:IFML`, `seam:BPMN`, `seam:DMN`,
    `seam:Statechart` or `seam:ShapeGraph`. The notation picks the renderer.
+   A `seam:ShapeGraph` model draws each `sh:NodeShape` member as a frame and each
+   `sh:property` that has an `sh:path` as a card inside it, labelled from
+   `sh:datatype`, `sh:minCount`/`sh:maxCount` and `sh:in`, ordered by `sh:order`.
+   An `sh:class` or `sh:node` pointing at another node shape in the same model
+   draws an edge.
 2. **Every element states its model** with `seam:inModel`. Membership is data, so SPARQL
    can walk from a model to its elements; the viewer uses it to decide what to draw.
 3. **BPMN and DMN models carry a `seam:renderPayload`**, a path to the native XML
@@ -43,6 +48,83 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
    [shapes reference](/reference/shapes) lists every constraint, and the
    [seam predicates reference](/reference/seam-predicates) describes each predicate's
    intended source and target.
+
+::: tip Adding a seam predicate
+A model only uses the seam predicates that already exist. If you extend
+`ontology/seam.ttl` with a new one, give it a `seam:reveal` of `seam:Open`, `seam:Nest`
+or `seam:Layer`, and add it to the `seamsh:RevealShape` target list in
+`ontology/shapes/seam-shapes.ttl`. Open and nest predicates navigate on click
+([ADR-0005](/adr/0005-navigation-resolution)). A predicate without a mode counts as
+layer, so it only appears in the inspector.
+:::
+
+### Saving a form without a process
+
+A form can store what it submits before the model has any BPMN process. Give the
+form `seam:writes S` and an `ifml:hasEvent` whose event `seam:submitsTo` a POST
+`hydra:Operation` with `seam:acceptsShape S`, and do not give that event a
+`seam:triggers`. The container that `seam:exposes` the operation is then routed, and
+its generated handler calls `runtime.write`, which validates the input against `S` (a 422
+naming the failing paths) and stores it as a new entity. If `S` has an `:id` property the
+runtime fills it with the new entity's id first, so the form does not ask for it. The
+entity starts in the lifecycle's initial state when `S` has a `seam:lifecycle`
+(decision D026). Once the event `seam:triggers` a process, the
+handler starts the process instead and the worker does the persisting.
+
+### Human tasks
+
+A `proc:UserTask` is work a person does while the process waits. Give the task
+`seam:completedOn F`, where `F` is the one `ifml:Form` the person completes it on
+([ADR-0009](/adr/0009-human-tasks)). The rest follows from facts you already write:
+
+- The **screen** is the `ifml:ViewContainer` that `ifml:contains F`.
+- `F` has one `ifml:hasEvent` whose event `seam:submitsTo` the completion operation.
+  That event has no `seam:triggers`: the process is already running.
+- `F` `seam:writes` the task's output shape, the same shape the task `seam:writes`
+  and the completion operation `seam:acceptsShape`.
+
+The task's `seam:governedBy` policies say who may complete it. Each is evaluated with
+the task IRI as the `odrl:target`, so the permission names the task, not an operation.
+A task with no policy is open to any authenticated identity, and with no identity the
+call fails with 401. `docs/queries/screens-to-finish-process.rq` lists, for a process,
+each user task with its form, screen and policy. Chapter 4 of the expense tutorial,
+[The process](/tutorials/expenses/04-process), builds one step by step (checkpoint
+`examples/expenses/chapter-04/expenses.trig`, with no policy yet), and
+`tests/fixtures/human_task/approval.trig` is a small complete example with a policy.
+
+A person finds their open tasks at `GET /tasks`, the inbox `seams_runtime.host` serves
+next to the landmark page. It lists only the tasks whose policies permit the request's
+identity, each rendered with the form partial the htmx generator makes for `F`. The
+person submits that form to the generated completion route, which checks the policies
+again, validates the payload against the output shape and lets the process continue.
+A task already completed answers 409. The identity comes from the `X-Forwarded-User`
+header your proxy sets, and its roles from the comma-separated `X-Forwarded-Groups`
+header. For a local run, set `SEAMS_DEV_USER` to the person you want to act as and
+`SEAMS_DEV_ROLES` to their roles, for example `SEAMS_DEV_USER=bob SEAMS_DEV_ROLES=manager`.
+Without an identity, the inbox answers 401. A permission whose `odrl:assignee` is an
+`odrl:Party` admits an identity whose id or any role matches the party's IRI or local
+name, so a role is modelled as an `odrl:Party`. A permission with no assignee, or an
+`odrl:PartyCollection` assignee, admits any identity. A refused identity gets a 403
+that names its roles and the policy. Chapter 7 of the expense tutorial,
+[People and permissions](/tutorials/expenses/07-permissions), adds employee, manager
+and finance roles this way (checkpoint `examples/expenses/chapter-07/expenses.trig`).
+
+### Decisions and routing
+
+A `proc:BusinessRuleTask` evaluates a DMN decision table. Give the task
+`seam:decidedBy D` and `seam:reads S`, and give the `dec:Decision` `D` its
+`dec:payloadElement` (the DMN decision id), a `dec:input` per table input (its
+`dec:variable` is the input expression's text, its `dec:fromPath` the property of `S`
+that fills it) and a `dec:output` per output column (`dec:variable` is the column's
+label, `dec:processVariable` the name the rest of the process sees). An input whose
+DMN `inputExpression` has `typeRef="number"` is compared as a number, although form
+values arrive as strings. To route on the result, follow the task with a
+`bpmn:exclusiveGateway` whose outgoing flows carry conditions on the process
+variable, such as `route == "manager"`. The routing then lives in the DMN and BPMN
+files, so changing a threshold changes no generated code. A table that matches no rule,
+or an output that no condition accepts, fails the instance. Chapter 5 of the expense
+tutorial, [The rules](/tutorials/expenses/05-rules), builds one (checkpoint
+`examples/expenses/chapter-05/`).
 
 ## A skeleton
 
@@ -112,8 +194,62 @@ conforms, _, report = validate(data, shacl_graph="ontology/shapes/seam-shapes.tt
 print(report)
 ```
 
+## Check its complexity
+
+A model can be valid and still too small to need cross-layer tooling. The complexity
+check measures that:
+
+```sh
+python -m seams_gen.complexity path/to/model.trig
+```
+
+It runs three SPARQL queries against the model and prints three numbers:
+
+- **Models per notation**: how many `seam:Model` graphs use each notation. A notation
+  with two or more models is one where a reader has to move between models of the same
+  kind.
+- **Most-reached elements**: the five elements reached by `seam:` edges from the most
+  distinct models. A high count means one element ties many models together.
+- **Cross-layer seam edges**: the number of `seam:` triples, leaving out the
+  bookkeeping predicates `seam:inModel`, `seam:notation` and `seam:renderPayload`.
+
+It then prints `PASS` or `FAIL`, with one line per failed threshold giving the actual
+value and the required one.
+
+| Measure | Threshold |
+|---|---|
+| Notations with 2+ models | at least 3 |
+| Most models one element is reached from | at least 5 |
+| Cross-layer seam edges | reported, not gated |
+
+Edges are reported but not gated: one large model can have many edges and still be
+fully visible by descent, so the edge count alone does not say the model needs more
+than the viewer already gives you.
+
+The chat app scores 0 / 3 / 58 and fails by design, since it is a one-model-per-layer
+quick start. The expense-approval tutorial's final model,
+`examples/expenses/chapter-08/expenses.trig`, passes with 4 / 6 / 111:
+
+- BPMN, DMN, IFML and statechart each have two models: the approval and payout
+  processes, the routing and payout-method decisions, the expense and finance-console
+  interfaces, and the expense and payment lifecycles.
+- `:ExpenseShape` is reached from six models: the expense interface, both processes,
+  both decisions and the finance console.
+- It has 111 cross-layer seam edges.
+
+The exit code is 0 on pass, 1 on fail, and 2 when the file is missing, unreadable or not
+valid TriG (the message goes to stderr). The check loads only the TriG, not the ontology
+files. The source queries are in `docs/queries/complexity/` in the repository.
+
 ## View it
 
-The viewer currently loads one model, set by `DATA_PATH` and `ROOT_IRI` at the top of
-`viewer/app.py`. Point both at your file and its root model, then start the viewer as in
-[Getting started](/guide/getting-started#open-the-viewer).
+The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your
+`seam:renderPayload` values name beside the TriG file, then start the viewer:
+
+```sh
+SEAMS_MODEL=path/to/model.trig python3 -m uvicorn viewer.app:app --port 8000
+```
+
+The root view is your model's C4 `seam:Model`. If the file has none, or more than one,
+set `SEAMS_VIEWER_ROOT` to the IRI the viewer should open at. See
+[Getting started](/guide/getting-started#open-the-viewer) for a tour of the views.

@@ -5,6 +5,10 @@ Everything the app does comes from one model: the IFML interaction model, the BP
 the DMN routing table and the SHACL shapes in `examples/chat-app/`. You regenerate the code
 from it, start the stack with Docker Compose, and chat.
 
+This is the quick-start track: a finished model, the pipeline end to end, in about ten
+minutes. To write a model yourself, one layer per chapter, follow the other track,
+[Build an expense approval app](tutorials/expenses/index.md).
+
 The regeneration and Docker commands below are the ones CI runs: the `acceptance` job
 runs the generators and fails on any diff, and the `tutorial-e2e` job brings the same stack
 up in stub mode and chats with it (`tests/test_tutorial_e2e.py`).
@@ -102,6 +106,12 @@ Compose merges the generated `compose.yaml` with the hand-written `compose.overr
 builds the runtime and gateway images from this checkout, and starts four services:
 `chat_api` (the runtime serving the generated route module), `llm_gateway`, `chat_ui`
 (a reverse proxy on port 8080) and `message_db`. The first build takes a minute or two.
+
+The runtime image bakes in one app's generated route module, templates and seed data,
+chosen by the `SEAMS_APP_DIR` and `SEAMS_ROUTES_FILE` build args (default
+`examples/chat-app` and `chat_api.py`). It does not bake in the model: `compose.yaml`
+bind-mounts the TriG and its payloads at `/model`, and `SEAMS_MODEL` names the TriG the
+runtime loads (see [seams_runtime/README.md](https://github.com/MetaCoding-io/SemanticSeams/blob/main/seams_runtime/README.md)).
 
 ## 6. Open http://localhost:8080 and chat
 

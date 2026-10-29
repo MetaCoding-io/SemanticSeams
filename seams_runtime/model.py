@@ -58,6 +58,9 @@ class InputBinding:
     from_path: str  # local name of the dec:fromPath property, e.g. "content"
     from_path_iri: URIRef
     measure: URIRef | None  # e.g. dec:Length, or None for the raw value
+    # typeRef of the DMN inputExpression whose text is this variable (e.g.
+    # "number"), or None when the table has no such input expression.
+    type_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,13 @@ class ChannelBinding:
     iri: URIRef
     label: str
     event_name: str
+
+
+@dataclass(frozen=True)
+class ChannelStart:
+    process: URIRef
+    event: URIRef    # the proc:MessageCatchEvent start event
+    channel: URIRef  # the comm:Channel it seam:subscribesTo
 
 
 @dataclass(frozen=True)
@@ -319,6 +329,30 @@ class ModelGraph:
     def written_shapes(self, task) -> list[URIRef]:
         return sorted(set(self.ds.objects(self._task(task), SEAM.writes)))
 
+    # ── user tasks (ADR-0009) ──
+
+    def user_task_form(self, task) -> URIRef:
+        """The ifml:Form a user task is seam:completedOn."""
+        return self._one(self._task(task), SEAM.completedOn, "user task names no form it is completed on")
+
+    def task_output_shape(self, task) -> URIRef:
+        """The shape completing a user task writes: its form's seam:writes,
+        else the task's own seam:writes (there must be exactly one)."""
+        iri = self._task(task)
+        shapes = sorted(set(self.ds.objects(self.user_task_form(iri), SEAM.writes)))
+        if not shapes:
+            shapes = self.written_shapes(iri)
+        if len(shapes) != 1:
+            raise ResolutionError(iri, SEAM.writes,
+                                  f"expected one output shape for the user task, found {[str(s) for s in shapes]}")
+        return shapes[0]
+
+    def form_screen(self, form) -> URIRef | None:
+        """The ifml:ViewContainer that ifml:contains ``form``, or None."""
+        pages = sorted(p for p in self.ds.subjects(IFML.contains, self.curie(form))
+                       if (p, RDF.type, IFML.ViewContainer) in self.ds)
+        return pages[0] if pages else None
+
     # ── decisions ──
 
     def decision_binding(self, task) -> DecisionBinding:
@@ -340,12 +374,15 @@ class ModelGraph:
                 f"{decision_id!r} not among DMN decision ids {ids} in {dmn_path.name}, via {iri}",
             )
         inputs = []
+        types = dmn_input_types(dmn_path, decision_id)
         for node in self.ds.objects(decision, DEC.input):
             path = self._one(node, DEC.fromPath, f"input of {decision}")
+            variable = str(self._one(node, DEC.variable, f"input of {decision}"))
             inputs.append(InputBinding(
-                variable=str(self._one(node, DEC.variable, f"input of {decision}")),
+                variable=variable,
                 from_path=local_name(path), from_path_iri=path,
                 measure=self.ds.value(node, DEC.measure),
+                type_ref=types.get(variable),
             ))
         outputs = []
         for node in self.ds.objects(decision, DEC.output):
@@ -430,6 +467,55 @@ class ModelGraph:
                                   f"expected one triggering event submitting to one operation, "
                                   f"found {[str(o) for o in ops]}")
         return ops[0]
+
+    # ── channel-started processes (ADR-0010) ──
+
+    def _start_subscriptions(self, process) -> list[ChannelStart]:
+        """(start event, channel) for each proc:MessageCatchEvent of the
+        process's BPMN model that seam:subscribesTo a comm:Channel and is a
+        bpmn:startEvent of its payload, sorted by (event, channel)."""
+        iri = self.curie(process)
+        if (iri, SEAM.detailedBy, None) not in self.ds:
+            return []
+        facts = self.process_for(iri)
+        prefix = f"{facts.model}#"
+        starts = bpmn_start_event_ids(facts.bpmn_path)
+        found = set()
+        for el, ch in self.ds.subject_objects(SEAM.subscribesTo):
+            if str(el).startswith(prefix) and (el, RDF.type, PROC.MessageCatchEvent) in self.ds \
+                    and (ch, RDF.type, COMM.Channel) in self.ds and str(el)[len(prefix):] in starts:
+                found.add((el, ch))
+        return [ChannelStart(facts.iri, el, ch) for el, ch in sorted(found)]
+
+    def is_channel_started(self, process) -> bool:
+        """True when the process has one channel start (``start_channel``),
+        False when it has none. More than one raises ResolutionError."""
+        subs = self._start_subscriptions(process)
+        if len(subs) > 1:
+            raise ResolutionError(self.curie(process), SEAM.subscribesTo,
+                                  f"expected at most one subscribed start event, found "
+                                  f"{[(str(s.event), str(s.channel)) for s in subs]}")
+        return bool(subs)
+
+    def start_channel(self, process) -> ChannelStart:
+        """The start event of a channel-started process and the comm:Channel
+        it seam:subscribesTo (there must be exactly one)."""
+        subs = self._start_subscriptions(process)
+        if len(subs) != 1:
+            raise ResolutionError(self.curie(process), SEAM.subscribesTo,
+                                  f"expected one proc:MessageCatchEvent start event subscribed to a "
+                                  f"comm:Channel, found {[(str(s.event), str(s.channel)) for s in subs]}")
+        return subs[0]
+
+    def subscribed_processes(self, channel) -> list[URIRef]:
+        """The channel-started processes whose start event seam:subscribesTo
+        ``channel``, sorted by IRI."""
+        ch = self.curie(channel)
+        found = set()
+        for process in self.ds.subjects(RDF.type, PROC.Process):
+            if any(s.channel == ch for s in self._start_subscriptions(process)):
+                found.add(process)
+        return sorted(found)
 
     def accepted_shape(self, operation) -> URIRef:
         return self._one(self.curie(operation), SEAM.acceptsShape, "operation accepts no shape")
@@ -525,6 +611,21 @@ class ModelGraph:
                                   f"found {[str(p) for p in pages]}")
         return pages[0]
 
+    def secondary_pages(self) -> list[URIRef]:
+        """The other ifml:ViewContainers served as pages: each one with an
+        ifml:path that is not the landmark and holds no form a user task is
+        seam:completedOn (such a screen is reached through the task inbox,
+        ADR-0009). Sorted by IRI."""
+        landmark = self.landmark_page()
+        pages = []
+        for c in set(self.ds.subjects(RDF.type, IFML.ViewContainer)):
+            if c == landmark or (c, IFML.path, None) not in self.ds:
+                continue
+            if any((None, SEAM.completedOn, part) in self.ds for part in self.ds.objects(c, IFML.contains)):
+                continue
+            pages.append(c)
+        return sorted(pages, key=str)
+
     def page_path(self, page) -> str:
         """The ifml:path a page is served at."""
         return str(self._one(self.curie(page), IFML.path, "page has no ifml:path"))
@@ -561,3 +662,28 @@ def dmn_decision_ids(dmn_path) -> list[str]:
     root = etree.parse(str(dmn_path)).getroot()
     return [el.get("id") for el in root.iter()
             if isinstance(el.tag, str) and etree.QName(el).localname == "decision"]
+
+
+def bpmn_start_event_ids(bpmn_path) -> set[str]:
+    """ids of every bpmn:startEvent in the file."""
+    root = etree.parse(str(bpmn_path)).getroot()
+    return {el.get("id") for el in root.iter()
+            if isinstance(el.tag, str) and etree.QName(el).localname == "startEvent"}
+
+
+def dmn_input_types(dmn_path, decision_id: str) -> dict[str, str]:
+    """inputExpression text -> its typeRef, for the decision table of
+    ``decision_id``. An expression without a typeRef is left out."""
+    root = etree.parse(str(dmn_path)).getroot()
+    out = {}
+    for decision in root.iter():
+        if not (isinstance(decision.tag, str) and etree.QName(decision).localname == "decision"
+                and decision.get("id") == decision_id):
+            continue
+        for el in decision.iter():
+            if isinstance(el.tag, str) and etree.QName(el).localname == "inputExpression" \
+                    and el.get("typeRef"):
+                text = "".join(t.text or "" for t in el
+                               if isinstance(t.tag, str) and etree.QName(t).localname == "text")
+                out[text.strip()] = el.get("typeRef")
+    return out

@@ -2,11 +2,11 @@
 
 *A zoomable, multi-notation application graph. One RDF graph is the source of truth; diagrams are views.*
 
-A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [tutorial](docs/tutorial.md) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
+A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [tutorial](docs/tutorial.md) · [expense tutorial](docs/tutorials/expenses/index.md) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
 
-**The pitch, in one paragraph.** Every tool that draws software draws one layer: C4 tools stop at the repository link, BPMN modelers never see the UI that fires a process, IFML never wired up its hooks to data, and SHACL lives in its own silo. SemanticSeams puts every element of every layer in one RDF graph, as a resource with an IRI, and treats each diagram as a view over it. Click a C4 container and land on its IFML interaction model; click a UI event and land on the BPMN process it triggers; click a business-rule task and land on the DMN table; click a data object and land on the SHACL shape. The cross-layer edges are the *seams*, a small bridging ontology of 25 predicates, and because the whole system is one graph, the questions no single-notation tool can answer become SPARQL.
+**The pitch, in one paragraph.** Every tool that draws software draws one layer: C4 tools stop at the repository link, BPMN modelers never see the UI that fires a process, IFML never wired up its hooks to data, and SHACL lives in its own silo. SemanticSeams puts every element of every layer in one RDF graph, as a resource with an IRI, and treats each diagram as a view over it. Click a C4 container and land on its IFML interaction model; click a UI event and land on the BPMN process it triggers; click a business-rule task and land on the DMN table; click a data object and land on the SHACL shape. The cross-layer edges are the *seams*, a small bridging ontology of 28 predicates, and because the whole system is one graph, the questions no single-notation tool can answer become SPARQL.
 
-Click into a C4-style architecture component and land on an IFML interaction model. Click a UI event and land on the BPMN process it triggers. Click a business-rule task and land on a DMN decision table; click a data object and land on the RDF/SHACL shape graph. Four notations, one traversal — driven by 25 bridging predicates (the *seams*), not by tool integration glue.
+Click into a C4-style architecture component and land on an IFML interaction model. Click a UI event and land on the BPMN process it triggers. Click a business-rule task and land on a DMN decision table; click a data object and land on the RDF/SHACL shape graph. Four notations, one traversal — driven by 28 bridging predicates (the *seams*), not by tool integration glue.
 
 Because everything shares one graph, you also get cross-layer queries no single-notation tool can answer:
 
@@ -53,12 +53,23 @@ regenerate the code from the chat-app model, `docker compose up --build`, open
 http://localhost:8080 and chat with an LLM (OpenAI, any OpenAI-compatible server, or the
 gateway's built-in stub). CI runs the same stack end to end.
 
+[`docs/tutorials/expenses/`](docs/tutorials/expenses/index.md) is the slower track: build
+an expense approval app yourself, one layer per chapter, from an empty TriG file to the
+whole system under `docker compose up`. All eight chapters (architecture, data, screens,
+process, rules, lifecycle, permissions, and growing up with an asynchronous payout) are
+written; CI checks each chapter's checkpoint model in `examples/expenses/` and runs the
+last one under docker compose.
+
 ## Generators
 
 `python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/` generates the
 chat page's Jinja2/htmx template from the IFML model and the seams it touches. The output
 matches the golden in `docs/generation/golden/` byte for byte. The rendering rules, each
 keyed on a graph fact, are in [`seams_gen/README.md`](seams_gen/README.md).
+
+`python -m seams_gen.complexity examples/chat-app/chat-app.trig` measures a model's
+size (models per notation, most-reached elements, seam edges) and prints PASS or FAIL
+against thresholds; the chat app fails by design.
 
 ## v1: the viewer
 
@@ -67,7 +78,7 @@ Read-only, navigable, notation-switching browser over a hand-authored model. Sta
 - **Fuseki** — model store; one named graph per `seam:Model`
 - **FastAPI** — three endpoints: describe node (JSON-LD, triples + seam edges), fetch render payload, SPARQL passthrough (HTTP QUERY, RFC 10008)
 - **htmx shell** — every click is `hx-get /view/{iri}`; server dispatches on `seam:notation`
-- **Renderers** — bpmn-js `NavigatedViewer` and dmn-js (read-only) for process/decision layers; a shared node-link renderer (elkjs layout) for architecture, IFML, statecharts, and shape graphs
+- **Renderers** — bpmn-js `NavigatedViewer` and dmn-js (read-only) for process/decision layers; a shared node-link renderer (elkjs layout, SVG cards) for architecture and shape graphs; IFML notation on diagram-js (server-computed layout, ELK ports for events); vis-network for statecharts
 
 Milestone 1: load `examples/checkout.ttl` + a hand-drawn `order_process.bpmn`, and complete the descent arch → IFML → BPMN → DMN/shape-graph purely by clicking.
 

@@ -3,7 +3,8 @@ stack that runs on a laptop, without editing the generated file.
 
 Each test renders the merged config with `docker compose config --format json`
 from the repository root. It needs only the docker CLI and its compose plugin
-(no daemon); the module skips when either is absent.
+(no daemon); those tests skip when either is absent. The Dockerfile checks are
+plain text reads and always run.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from seams_runtime import model_hash
 ROOT = Path(__file__).resolve().parents[1]
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 COMPOSE = ROOT / "compose.yaml"
+DOCKERFILE = ROOT / "docker" / "runtime.Dockerfile"
 
 
 def _compose_available() -> bool:
@@ -31,13 +33,16 @@ def _compose_available() -> bool:
     return probe.returncode == 0
 
 
-pytestmark = pytest.mark.skipif(not _compose_available(), reason="docker CLI or compose plugin not installed")
+COMPOSE_AVAILABLE = _compose_available()
 
 # Host variables the override reads; cleared so the developer's shell cannot change the result.
-HOST_KNOBS = ("LLM_API_KEY_FILE", "LLM_GATEWAY_STUB", "LLM_MODEL_OVERRIDE", "UPSTREAM_BASE_URL")
+HOST_KNOBS = ("LLM_API_KEY_FILE", "LLM_GATEWAY_STUB", "LLM_MODEL_OVERRIDE", "UPSTREAM_BASE_URL",
+              "SEAMS_APP_DIR", "SEAMS_ROUTES_FILE")
 
 
 def compose_config(*files: str, **env: str) -> dict:
+    if not COMPOSE_AVAILABLE:
+        pytest.skip("docker CLI or compose plugin not installed")
     environ = {k: v for k, v in os.environ.items() if k not in HOST_KNOBS and not k.startswith("COMPOSE_")}
     environ.update(env)
     args = ["docker", "compose"]
@@ -70,6 +75,38 @@ def test_chat_api_is_built_locally_with_one_replica(merged):
     assert api["environment"]["SEAMS_SEED"] == "/app/seed.json"
     assert "healthz" in " ".join(api["healthcheck"]["test"])
     assert any(v["type"] == "volume" and v["target"] == "/data" for v in api["volumes"])
+
+
+def test_runtime_build_args_default_to_the_chat_app(merged):
+    args = merged["services"]["chat_api"]["build"]["args"]
+    assert args == {"SEAMS_APP_DIR": "examples/chat-app", "SEAMS_ROUTES_FILE": "chat_api.py"}
+
+
+def test_runtime_build_args_pass_through_from_the_host(key_file):
+    cfg = compose_config("compose.yaml", "compose.override.yaml", LLM_API_KEY_FILE=str(key_file),
+                         SEAMS_APP_DIR="examples/other-app", SEAMS_ROUTES_FILE="other_api.py")
+    args = cfg["services"]["chat_api"]["build"]["args"]
+    assert args == {"SEAMS_APP_DIR": "examples/other-app", "SEAMS_ROUTES_FILE": "other_api.py"}
+
+
+def test_runtime_dockerfile_names_the_chat_app_only_as_the_arg_default():
+    lines = DOCKERFILE.read_text(encoding="utf-8").splitlines()
+    assert "ARG SEAMS_APP_DIR=examples/chat-app" in lines
+    assert "ARG SEAMS_ROUTES_FILE=chat_api.py" in lines
+    hard_coded = [line for line in lines if "examples/chat-app/" in line]
+    assert hard_coded == [], hard_coded
+    # chat_api.py may appear only as the ARG default, never in a COPY or ENV line
+    assert [line for line in lines if "chat_api.py" in line] == ["ARG SEAMS_ROUTES_FILE=chat_api.py"]
+
+
+def test_runtime_dockerfile_declares_args_before_use():
+    lines = DOCKERFILE.read_text(encoding="utf-8").splitlines()
+    arg_at = max(i for i, line in enumerate(lines) if line.startswith("ARG SEAMS_"))
+    copies = [i for i, line in enumerate(lines) if line.startswith("COPY ${SEAMS_APP_DIR}")]
+    assert len(copies) == 3
+    assert all(arg_at < i for i in copies)
+    routes_env = next(i for i, line in enumerate(lines) if "SEAMS_ROUTES=/app/${SEAMS_ROUTES_FILE}" in line)
+    assert arg_at < routes_env
 
 
 def test_gateway_is_built_locally_and_reads_the_key_file(merged):

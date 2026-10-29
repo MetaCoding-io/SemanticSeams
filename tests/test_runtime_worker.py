@@ -252,6 +252,43 @@ def test_missing_base_url_fails_naming_the_env_key(tmp_path, monkeypatch):
     assert "LLM_GATEWAY_URL" in result["error"]["message"]
 
 
+def test_decision_without_output_fails_with_the_model_error(tmp_path):
+    # Spiff wraps errors raised inside a business-rule task in a
+    # WorkflowTaskException; the worker records the ResolutionError beneath it.
+    from rdflib import Literal, URIRef
+
+    from seams_runtime.model import DEC
+    rt = make_runtime(tmp_path)
+    node = rt.model.ds.value(URIRef(CHAT + "routing_decision"), DEC.output)
+    [(_s, _p, _o, ctx)] = list(rt.model.ds.quads((node, DEC.variable, None, None)))
+    rt.model.ds.remove((node, DEC.variable, None, ctx))
+    rt.model.ds.add((node, DEC.variable, Literal("Nope"), ctx))
+
+    async def main():
+        return await (await rt.start_process(PROCESS, SHORT, correlation_key="c1")).wait()
+
+    result = asyncio.run(main())
+    assert result["status"] == "failed"
+    assert result["error"]["type"] == "ResolutionError", result["error"]
+    assert "'routing_decision' produced no 'Nope'" in result["error"]["message"]
+    assert result["lifecycle"] == {"Message": "failed"}
+
+
+def test_model_error_is_found_through_the_exception_chain():
+    from seams_runtime import ResolutionError
+    from seams_runtime.worker import Worker
+    inner = ResolutionError(CHAT + "d", "dec:output", "no output")
+    try:
+        try:
+            raise inner
+        except ResolutionError as e:
+            raise RuntimeError("wrapped") from e
+    except RuntimeError as outer:
+        assert Worker._model_error(outer) is inner
+    plain = ValueError("plain")
+    assert Worker._model_error(plain) is plain
+
+
 def test_model_hash_is_enforced(tmp_path, monkeypatch):
     monkeypatch.delenv("SEAMS_ALLOW_HASH_MISMATCH", raising=False)
     with pytest.raises(ModelHashMismatch) as e:

@@ -10,7 +10,11 @@ here, and neither file carries a vendor extension:
   (seam:decidedBy -> dec:payloadElement), so a decision id missing from the
   DMN is a ``ResolutionError`` at parse time.
 - ``evaluate_inputs`` fills each dec:input variable from the entity
-  (dec:fromPath, optionally dec:measure), and ``map_outputs`` copies each
+  (dec:fromPath, optionally dec:measure). Validated form values are strings,
+  so an input whose DMN inputExpression has ``typeRef="number"`` is coerced
+  to a ``Decimal`` (registered with the serializer) and compares numerically
+  with entries such as ``<= 100``; a value that is not a number is a
+  ``ResolutionError`` naming the decision. ``map_outputs`` copies each
   dec:output variable into its dec:processVariable. ``before_task`` fills the
   inputs before a business-rule task runs. The output mapping runs inside the
   task, on the spec's run_event, so the children inherit the process
@@ -24,6 +28,7 @@ completes them once its handler has finished.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from lxml import etree
@@ -35,11 +40,14 @@ from SpiffWorkflow.bpmn.serializer import BpmnWorkflowSerializer
 from SpiffWorkflow.bpmn.serializer.config import DEFAULT_CONFIG
 from SpiffWorkflow.bpmn.serializer.default.task_spec import BpmnTaskSpecConverter
 from SpiffWorkflow.bpmn.specs.defaults import ServiceTask
+from SpiffWorkflow.bpmn.specs.event_definitions.message import MessageEventDefinition
 from SpiffWorkflow.bpmn.specs.mixins import BpmnSpecMixin
+from SpiffWorkflow.bpmn.util.event import BpmnEvent
 from SpiffWorkflow.bpmn.workflow import BpmnWorkflow
 from SpiffWorkflow.dmn.parser.BpmnDmnParser import BpmnDmnParser
 from SpiffWorkflow.dmn.serializer import BaseBusinessRuleTaskConverter
 from SpiffWorkflow.dmn.specs import BusinessRuleTaskMixin
+from SpiffWorkflow.util.task import TaskState
 
 from .errors import ResolutionError
 from .model import DEC, SEAM, DecisionBinding, ModelGraph, ProcessFacts
@@ -103,7 +111,10 @@ def make_serializer() -> BpmnWorkflowSerializer:
     # Spiff 3.2's DEFAULT_CONFIG registers only the spiff/camunda service-task
     # flavours. The plain bpmn ServiceTask has no extra state to save.
     config[ServiceTask] = BpmnTaskSpecConverter
-    return BpmnWorkflowSerializer(BpmnWorkflowSerializer.configure(config))
+    registry = BpmnWorkflowSerializer.configure(config)
+    # Numeric DMN inputs (evaluate_inputs) are Decimals in the task data.
+    registry.register(Decimal, lambda v: {"value": str(v)}, lambda v: Decimal(v["value"]))
+    return BpmnWorkflowSerializer(registry)
 
 
 def bpmn_process_ids(bpmn_path: Path) -> list[tuple[str, str | None, bool]]:
@@ -193,6 +204,29 @@ class Engine:
         mapped = self.map_outputs(self.binding(task), task.data)
         log.debug("decision %s -> %s", self.binding(task).decision_id, mapped)
 
+    @staticmethod
+    def deliver_start(wf: BpmnWorkflow, start_event: URIRef) -> bool:
+        """Run Spiff's internal start and deliver the (empty) message the
+        message start event ``start_event`` (``<BPMN model>#<bpmn id>``) waits
+        for, leaving it READY for the worker (ADR-0010). The worker state
+        carries the entities, not the message. A start event without a
+        message definition is already reachable: returns False, changes nothing."""
+        start_id = str(start_event).rsplit("#", 1)[-1]
+        ready = [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.bpmn_id is None]
+        spec = wf.spec.task_specs.get(start_id)
+        definition = getattr(spec, "event_definition", None)
+        if not isinstance(definition, MessageEventDefinition):
+            return False
+        for t in ready:
+            t.run()
+        wf.catch(BpmnEvent(definition, {}))
+        waiting = [t for t in wf.get_tasks(spec_name=start_id) if t.state != TaskState.READY]
+        if waiting:
+            raise ResolutionError(start_event, "bpmn:messageEventDefinition",
+                                  f"start event is {TaskState.get_name(waiting[0].state)} "
+                                  f"after its message was delivered")
+        return True
+
     def serialize(self, wf: BpmnWorkflow) -> str:
         return self.serializer.serialize_json(wf)
 
@@ -209,7 +243,16 @@ class Engine:
         for facts, pid, _spec, _subs in self._specs.values():
             if pid == task.workflow.spec.name:
                 return URIRef(f"{facts.model}#{bpmn_id}")
-        # A deserialized workflow whose process this engine never parsed.
+        # A deserialized workflow whose process this engine never parsed (a
+        # resume after a restart): parse the process its seams state names.
+        top = task.workflow
+        while getattr(top, "parent_workflow", None) is not None:
+            top = top.parent_workflow
+        process = (top.data.get("seams") or {}).get("process")
+        if process is not None and URIRef(process) not in self._specs:
+            facts, pid, _spec, _subs = self._spec(URIRef(process))
+            if pid == task.workflow.spec.name:
+                return URIRef(f"{facts.model}#{bpmn_id}")
         return self.model.task_iri(bpmn_id)
 
     def binding(self, task) -> DecisionBinding:
@@ -230,7 +273,7 @@ class Engine:
                 )
             value = entity[b.from_path]
             if b.measure is None:
-                out[b.variable] = value
+                out[b.variable] = self._typed(binding, b, value)
             elif b.measure == DEC.Length:
                 try:
                     out[b.variable] = len(value)
@@ -245,6 +288,26 @@ class Engine:
                     f"unknown measure {b.measure} for input {b.variable!r}",
                 )
         return out
+
+    @staticmethod
+    def _typed(binding: DecisionBinding, b, value):
+        """``value`` as the DMN input's typeRef expects: a Decimal for
+        "number" (form values arrive as strings), else unchanged."""
+        if b.type_ref != "number":
+            return value
+        if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+            return value
+        try:
+            number = Decimal(str(value).strip())
+        except InvalidOperation:
+            number = None
+        if isinstance(value, bool) or number is None or not number.is_finite():
+            raise ResolutionError(
+                binding.decision, DEC.input,
+                f"input {b.variable!r} of decision {binding.decision_id!r} is typeRef number, "
+                f"but {b.from_path!r} is {value!r}",
+            )
+        return number
 
     def map_outputs(self, binding: DecisionBinding, task_data: dict) -> dict:
         """Copy each dec:output variable into its dec:processVariable (in place);

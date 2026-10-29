@@ -1,0 +1,9 @@
+# Which elements are reached from the most distinct models?
+PREFIX seam: <https://w3id.org/seams/seam#>
+
+SELECT ?target (COUNT(DISTINCT ?model) AS ?models) WHERE {
+  ?source ?p ?target ;
+          seam:inModel ?model .
+  FILTER(STRSTARTS(STR(?p), STR(seam:)))
+  FILTER(?p NOT IN (seam:inModel, seam:notation, seam:renderPayload, seam:mediaKind, seam:detailedBy))
+} GROUP BY ?target ORDER BY DESC(?models) LIMIT 5

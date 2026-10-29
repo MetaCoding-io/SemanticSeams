@@ -10,7 +10,7 @@ generated from [`ontology/seam.ttl`](../../ontology/seam.ttl).
 
 ## Four design rules
 
-1. **Few and generic beats many and precise.** Twenty-five predicates. Precision lives
+1. **Few and generic beats many and precise.** Twenty-eight predicates. Precision lives
    in the layer vocabularies and in SHACL shapes over the seams, not in a growing list of
    specialised edges.
 2. **Every predicate must earn a cross-layer query.** If no question needs it, it does
@@ -39,8 +39,8 @@ The rest group by the layers they join. A few examples:
 | Join | Predicates |
 |---|---|
 | Architecture to everything | `presents` (container to its interface), `executes` (container to the process it runs), `exposes` and `consumes` (operations and channels), `deployedTo` |
-| Interface to process | `triggers` (event to process), `visibleWhen` (view component to lifecycle state) |
-| Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo`, `subscribesTo`, `reads`, `writes` |
+| Interface to process | `triggers` (event to process), `completedOn` (user task to the form a person completes it on, [ADR-0009](/adr/0009-human-tasks)), `visibleWhen` (view component to lifecycle state) |
+| Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo`, `subscribesTo` (a message start event that subscribes to a channel starts its process on each publish, [ADR-0010](/adr/0010-channel-started-processes)), `reads`, `writes` |
 | Data to lifecycle | `lifecycle` (shape to state machine), `fires` (task to transition) |
 | Communication contracts | `acceptsShape`, `returnsShape`, `mediaKind` |
 | Authorization | `governedBy`, deliberately attachable to anything |
@@ -48,6 +48,24 @@ The rest group by the layers they join. A few examples:
 `reads` and `writes` are the workhorses of impact analysis: a property path through
 `triggers`, `decidedBy` and `invokes` ending in `writes` answers "what can touch this
 data".
+
+## How each seam is revealed
+
+Every seam predicate, apart from the administrative `inModel`, `notation` and
+`renderPayload`, declares a [`seam:reveal`](/reference/seam-predicates#seam-reveal) mode
+in the ontology. The mode tells the viewer what to do with the edge's target:
+
+- **Open** replaces the view with the target's model: `detailedBy`, `triggers`,
+  `completedOn`, `decidedBy` and `lifecycle`.
+- **Nest** draws the target inside its source: `presents` and `executes`. This is what
+  the C4 view's L4 level shows.
+- **Layer** overlays the target on the current view. This applies to every other seam.
+  Until layer mode is built, these edges appear only in the inspector.
+
+Open and nest seams navigate on click. A model graph can override a predicate's mode
+with its own `seam:reveal` triple. The mode is an annotation on the predicate, not a new
+seam edge, so the predicate count does not change. See
+[ADR-0005](/adr/0005-navigation-resolution) and [the viewer guide](/guide/the-viewer).
 
 ## The method applied to itself
 

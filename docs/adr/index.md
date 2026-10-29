@@ -13,3 +13,6 @@ supersedes an earlier one instead.
 | [ADR-0005](./0005-navigation-resolution) | Navigation resolution: which edges a click follows, and how far | Accepted |
 | [ADR-0006](./0006-index-payload-drift-lint) | Index-payload drift lint: keeping the graph and the native files in step | Accepted |
 | [ADR-0007](./0007-execution-strategy) | Execution strategy: interpret where an engine exists, generate where none does | Proposed |
+| [ADR-0008](./0008-node-link-renderer) | Node-link renderer: elkjs layout with hand-rolled SVG cards, shared by C4 and shape graphs | Accepted |
+| [ADR-0009](./0009-human-tasks) | Human tasks: a BPMN user task points at the form it is completed on (`seam:completedOn`) | Accepted |
+| [ADR-0010](./0010-channel-started-processes) | Channel-started processes: a message start event that `seam:subscribesTo` a channel starts its process on each publish | Accepted |

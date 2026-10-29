@@ -15,6 +15,7 @@ validation; nothing else is filled in.
 from __future__ import annotations
 
 import datetime as _dt
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -32,10 +33,19 @@ MAX_ECHO = 200
 
 # Lexical-form checks for datatypes rdflib would otherwise cast noisily
 # (it logs a traceback on an ill-formed xsd:dateTime).
+_DECIMAL = re.compile(r"[+-]?(\d+(\.\d*)?|\.\d+)")
+
+
+def _decimal(text: str) -> None:
+    if not _DECIMAL.fullmatch(text):
+        raise ValueError(f"{text!r} is not an xsd:decimal lexical form")
+
+
 _LEXICAL = {
     XSD.dateTime: _dt.datetime.fromisoformat,
     XSD.date: _dt.date.fromisoformat,
     XSD.integer: int,
+    XSD.decimal: _decimal,
 }
 
 

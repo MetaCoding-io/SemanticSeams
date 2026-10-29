@@ -41,6 +41,7 @@
     #network { background: #fff; }
     #payload-canvas { background: #fff; }
     #payload-canvas .decision-table-name { cursor: pointer; }
+    .payload-canvas[data-layer="decision"] .decision-table-name { border-left: 4px solid var(--layer-decision); }
     .view-layout { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.5rem; align-items: start; }
     .view-canvas { min-width: 0; }
     .inspector { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem 1rem; background: #fafbfc; font-size: 0.9rem; overflow-wrap: anywhere; }
@@ -196,6 +197,42 @@
       if (level) url += "&level=" + encodeURIComponent(level);
       htmx.ajax("GET", url, { target: "#view-content", swap: "innerHTML" }).then(function () {
         history.pushState({ htmx: true }, "", url);
+      });
+    };
+    // Layer tint and seam badges for diagram-js canvases (bpmn-js, the
+    // dmn-js DRD). Tints every shape that is not root, connection or label,
+    // marks seam members, and adds one badge per outgoing seam, coloured by
+    // target layer. Idempotent: old badges are removed first, so calling it
+    // again after a re-render never duplicates them.
+    window.seamsDecorateDiagram = function (diagramViewer, elementSeams, elementMap, pathQs, level) {
+      var canvas = diagramViewer.get("canvas");
+      var root = canvas.getRootElement();
+      diagramViewer.get("elementRegistry").getAll().forEach(function (el) {
+        if (el === root || el.waypoints || el.type === "label") return;
+        canvas.addMarker(el.id, "seams-tinted");
+        if (elementMap[el.id]) canvas.addMarker(el.id, "seams-member");
+      });
+      var overlays = diagramViewer.get("overlays");
+      overlays.remove({ type: "seam-badges" });
+      Object.keys(elementSeams).forEach(function (id) {
+        var div = document.createElement("div");
+        div.className = "seam-badges";
+        elementSeams[id].forEach(function (seam) {
+          var span = document.createElement("span");
+          span.className = "seam-badge";
+          span.setAttribute("data-layer", seam.targetLayer);
+          span.title = seam.predicateLabel + " \u2192 " + seam.targetLabel;
+          span.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            window.seamsNavigate(seam.target, pathQs, level);
+          });
+          div.appendChild(span);
+        });
+        try {
+          overlays.add(id, "seam-badges", { position: { top: -8, right: 8 }, html: div });
+        } catch (err) {
+          console.error("seam badge overlay failed:", id, err);
+        }
       });
     };
   </script>

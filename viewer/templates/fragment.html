@@ -464,36 +464,7 @@
           .then(function () {
             var canvas = viewer.get("canvas");
             canvas.zoom("fit-viewport");
-            // Layer tint: every shape (not root, connection or label) takes
-            // the process colour; seam members get the stronger marker.
-            var root = canvas.getRootElement();
-            viewer.get("elementRegistry").getAll().forEach(function (el) {
-              if (el === root || el.waypoints || el.type === "label") return;
-              canvas.addMarker(el.id, "seams-tinted");
-              if (elementMap[el.id]) canvas.addMarker(el.id, "seams-member");
-            });
-            // Seam badges: one per outgoing seam, coloured by target layer.
-            var overlays = viewer.get("overlays");
-            Object.keys(elementSeams).forEach(function (id) {
-              var div = document.createElement("div");
-              div.className = "seam-badges";
-              elementSeams[id].forEach(function (seam) {
-                var span = document.createElement("span");
-                span.className = "seam-badge";
-                span.setAttribute("data-layer", seam.targetLayer);
-                span.title = seam.predicateLabel + " \u2192 " + seam.targetLabel;
-                span.addEventListener("click", function (ev) {
-                  ev.stopPropagation();
-                  window.seamsNavigate(seam.target, "{{ next_path_qs }}", "{{ carried_level }}");
-                });
-                div.appendChild(span);
-              });
-              try {
-                overlays.add(id, "seam-badges", { position: { top: -8, right: 8 }, html: div });
-              } catch (err) {
-                console.error("seam badge overlay failed:", id, err);
-              }
-            });
+            window.seamsDecorateDiagram(viewer, elementSeams, elementMap, "{{ next_path_qs }}", "{{ carried_level }}");
             viewer.get("eventBus").on("element.click", function (e) {
               var iri = elementMap[e.element.id];
               if (iri) {
@@ -505,10 +476,11 @@
       })();
     </script>
   {% elif render_kind == "dmn" %}
-    <div id="payload-canvas" style="height:480px;border:1px solid #ccc;"></div>
+    <div id="payload-canvas" class="payload-canvas" data-layer="decision" style="height:480px;border:1px solid #ccc;"></div>
     <script>
       (function () {
         var elementMap = {{ element_map | tojson }};
+        var elementSeams = {{ element_seams | tojson }};
         var container = document.querySelector("#payload-canvas");
         var viewer = new DmnJS({ container: container, drd: { zoomScroll: { enabled: false } } });
         var drdWired = false;
@@ -525,6 +497,7 @@
           if (activeView && activeView.type === "drd") {
             var activeViewer = viewer.getActiveViewer();
             activeViewer.get("canvas").zoom("fit-viewport");
+            window.seamsDecorateDiagram(activeViewer, elementSeams, elementMap, "{{ next_path_qs }}", "{{ carried_level }}");
             if (!drdWired) {
               drdWired = true;
               activeViewer.get("eventBus").on("element.click", function (e) {

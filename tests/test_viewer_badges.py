@@ -20,7 +20,9 @@ from viewer import app as viewer_app  # noqa: E402
 
 CHAT = "https://example.org/chat/"
 CHAT_BPMN = f"{CHAT}chat_bpmn"
+ROUTING_DMN = f"{CHAT}routing_dmn"
 BPMN_FILE = viewer_app.DATA_DIR / "chat_process.bpmn"
+DMN_FILE = viewer_app.DATA_DIR / "routing.dmn"
 SEAM_KEYS = {"predicate", "predicateLabel", "target", "targetLabel", "targetLayer"}
 
 
@@ -69,11 +71,12 @@ def test_bpmn_fragment_draws_tint_and_badges(client):
     resp = client.get(view_path(CHAT_BPMN), headers={"hx-request": "true"})
     assert resp.status_code == 200
     html = resp.text
-    for needle in ("elementSeams", "seam-badge", 'get("overlays")', "seams-tinted", 'data-layer="process"'):
+    for needle in ("elementSeams", "seamsDecorateDiagram(viewer", 'data-layer="process"'):
         assert needle in html, needle
-    assert "seam badge overlay failed:" in html
-    # MEM009: the badge CSS lives in the shell, not the swapped fragment.
+    # MEM009: the badge CSS and the shared helper live in the shell, not the
+    # swapped fragment.
     assert '.seam-badge[data-layer=' not in html
+    assert "window.seamsDecorateDiagram = function" not in html
 
 
 def test_full_page_carries_badge_and_tint_css(client):
@@ -91,3 +94,49 @@ def test_json_contract_has_no_element_seams(client):
     assert resp.status_code == 200
     assert "elementSeams" not in resp.json()
     assert "element_seams" not in resp.json()
+
+
+def test_shell_helper_draws_tint_and_badges(client):
+    resp = client.get(view_path(CHAT_BPMN))
+    assert resp.status_code == 200
+    html = resp.text
+    helper = html.split("window.seamsDecorateDiagram = function", 1)[1].split("};", 1)[0]
+    for needle in ("seams-tinted", "seams-member", 'get("overlays")', "seam-badge", "seamsNavigate"):
+        assert needle in helper, needle
+    assert "seam badge overlay failed:" in helper
+    # Badge labels go through textContent/title, never innerHTML.
+    assert "innerHTML" not in helper
+    # Idempotent: re-running after a dmn-js view switch replaces old badges.
+    assert 'overlays.remove({ type: "seam-badges" })' in helper
+
+
+def test_dmn_element_seams_keys_are_native_ids():
+    seams = viewer_app.payload_element_seams(ROUTING_DMN)
+    assert seams
+    assert set(seams) <= xml_ids(DMN_FILE)
+
+
+def test_routing_decision_has_data_badge_and_no_self_target():
+    seams = viewer_app.payload_element_seams(ROUTING_DMN)["routing_decision"]
+    assert any(s["targetLayer"] == "data" and s["target"] == f"{CHAT}chat_data_shapes" for s in seams)
+    assert all(s["target"] != ROUTING_DMN for s in seams)
+
+
+def test_dmn_fragment_wires_tint_and_badges(client):
+    resp = client.get(view_path(ROUTING_DMN), headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    html = resp.text
+    for needle in ("elementSeams", 'data-layer="decision"', "seamsDecorateDiagram(activeViewer"):
+        assert needle in html, needle
+    assert '.seam-badge[data-layer=' not in html
+    assert "window.seamsDecorateDiagram = function" not in html
+
+
+def test_dmn_full_page_carries_decision_css(client):
+    resp = client.get(view_path(ROUTING_DMN))
+    assert resp.status_code == 200
+    style = resp.text.split("<style>", 1)[1].split("</style>", 1)[0]
+    assert '.seam-badge[data-layer="data"]' in style
+    assert "var(--layer-decision)" in style
+    assert '.payload-canvas[data-layer="decision"] .decision-table-name' in style
+    assert "window.seamsDecorateDiagram = function" in resp.text

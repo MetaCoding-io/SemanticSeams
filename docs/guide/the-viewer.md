@@ -53,6 +53,11 @@ lists both with their notations and lets you choose.
 The DMN model opens in dmn-js. From its decision requirements diagram you can open the
 decision table; clicking the table's name returns to the decision it stands for.
 
+The decision diagram takes the decision layer colour, and the table's name carries a
+decision-coloured edge. Like the BPMN tasks, the decision carries one badge per seam,
+coloured by the layer the seam leads to; clicking a badge follows that seam. A seam back
+to the model you are already viewing gets no badge.
+
 ### A question
 
 ![The db01 deployment node with the question "What breaks if this node goes away?" answered: four impacted results](./img/viewer-impact-question.webp)
@@ -75,8 +80,8 @@ reached from more than one parent. Each crumb is a link back.
 | Notation | Renderer |
 |---|---|
 | C4 architecture, IFML interaction, statechart | A node-link graph drawn with vis-network |
-| BPMN | bpmn-js, from the model's native XML payload |
-| DMN | dmn-js, from the model's native XML payload: the decision diagram and its tables |
+| BPMN | bpmn-js, from the model's native XML payload, tinted with the process colour and badged per seam |
+| DMN | dmn-js, from the model's native XML payload: the decision diagram, tinted with the decision colour and badged per seam, and its tables |
 | SHACL shape graph | No renderer yet; the page shows the inspector only |
 
 **Questions.** The canned queries that apply to the focused element's type, as buttons.

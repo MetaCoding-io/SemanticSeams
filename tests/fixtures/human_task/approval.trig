@@ -56,11 +56,12 @@
 
     # The employee's page.
     :submit_page a ifml:ViewContainer ; rdfs:label "Expenses" ;
-        ifml:isLandmark true ; ifml:path "/" ;
+        ifml:isLandmark true ; ifml:path "/" ; ifml:title "Expenses"@en ;
         ifml:contains :expense_list , :expense_form ;
         seam:inModel :expense_ifml .
 
-    :expense_list a ifml:List ; rdfs:label "Expenses" ; ifml:order 0 ;
+    # The expenses submitted so far, one item per expense (submitting appends).
+    :expense_list a ifml:Details ; rdfs:label "Expenses" ; ifml:order 0 ;
         seam:inModel :expense_ifml .
 
     :expense_form a ifml:Form ; rdfs:label "New Expense" ; ifml:order 1 ;
@@ -93,7 +94,9 @@
     :expense_details a ifml:Details ; rdfs:label "Expense" ; ifml:order 0 ;
         ifml:hasParameter :approved_expense ;
         seam:inModel :expense_ifml .
-    :approved_expense a ifml:Parameter ; rdfs:label "approved expense" ;
+    # Labelled with the correlation key, so the details are of one expense
+    # (and the generated partial's data-expense attribute names it).
+    :approved_expense a ifml:Parameter ; rdfs:label "expense" ;
         seam:inModel :expense_ifml .
 
     :approve_form a ifml:Form ; rdfs:label "Approve Expense" ; ifml:order 1 ;

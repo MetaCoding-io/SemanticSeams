@@ -18,7 +18,7 @@ from pathlib import Path
 from . import GeneratorError
 from .compose import generate_compose
 from .fastapi import route_module
-from .htmx import extract_page, render_fragments, render_page
+from .htmx import extract_page, render_fragments, render_page, render_task_forms
 from seams_runtime import ModelGraph
 
 EXIT_GENERATOR_ERROR = 2
@@ -27,9 +27,10 @@ EXIT_IO_ERROR = 1
 
 def _htmx(trig: Path, out: Path) -> dict[str, str]:
     """{file name: content}: the landmark page as <page local name>.html, plus
-    the fragment partials its UIFragment operations render (GAP-19)."""
+    the fragment partials its UIFragment operations render (GAP-19) and the
+    partial of each form a user task is completed on (ADR-0009)."""
     page = extract_page(ModelGraph.load(trig))
-    return {f"{page.id}.html": render_page(page), **render_fragments(page)}
+    return {f"{page.id}.html": render_page(page), **render_fragments(page), **render_task_forms(page)}
 
 
 def _fastapi(trig: Path, out: Path) -> dict[str, str]:

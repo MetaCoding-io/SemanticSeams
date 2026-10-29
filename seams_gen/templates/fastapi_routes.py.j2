@@ -14,7 +14,11 @@
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+[% if m.needs_identity %]
+from seams_runtime import Identity, Runtime
+[% else %]
 from seams_runtime import Runtime
+[% endif %]
 
 MODEL_HASH = "[[ r.model_hash ]]"
 
@@ -32,6 +36,9 @@ async def [[ e.name ]]([[ e.arguments|join(", ") ]]) -> StreamingResponse:
     return StreamingResponse(events, media_type="text/event-stream")
 [% else %]
 # [[ e.curie ]] a hydra:Operation ; hydra:method "[[ e.method ]]"
+[% if e.complete %]
+# [[ e.complete.task ]] seam:completedOn the form that submits here (ADR-0009); its policies authorize the identity
+[% endif %]
 [% if e.policies %]
 @router.[[ e.method|lower ]](
     "[[ e.path ]]",
@@ -45,7 +52,7 @@ async def [[ e.name ]]([[ e.arguments|join(", ") ]]) -> HTMLResponse:
 [% if e.body %]
     [[ e.body.var ]] = await request.[[ e.body.call ]]()
 [% endif %]
-[% if e.validate and not e.write %]
+[% if e.validate and not e.write and not e.complete %]
     [[ e.validate.var ]] = runtime.validate("[[ e.validate.shape ]]", [[ e.validate.source ]])
 [% endif %]
 [% if e.start %]
@@ -53,6 +60,14 @@ async def [[ e.name ]]([[ e.arguments|join(", ") ]]) -> HTMLResponse:
         "[[ e.start.process ]]",
         [[ e.start.payload ]],
         correlation_key=[[ e.start.key ]],
+    )
+[% endif %]
+[% if e.complete %]
+    await runtime.complete_task(
+        "[[ e.complete.task ]]",
+        [[ e.complete.payload ]],
+        correlation_key=[[ e.complete.key ]],
+        identity=identity,
     )
 [% endif %]
 [% if e.write %]

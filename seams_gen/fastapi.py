@@ -9,7 +9,9 @@ name>.py``. The handlers are thin (ADR-0007 rule 1): read the request,
 validate it against the accepted shape, start the process the operation
 triggers (or, when it triggers none and an ``ifml:Form`` that ``seam:writes``
 the accepted shape submits to it, ``runtime.write`` the entity, which
-validates it and assigns its ``:id``), query the
+validates it and assigns its ``:id``; or, when the submitting form is the one
+a ``proc:UserTask`` ``seam:completedOn``, ``runtime.complete_task`` the task
+as the identity its ``task_policy`` dependency yields, ADR-0009), query the
 returned shape and render the fragment the GAP-19 rule names. Nothing else:
 no branching, no domain names. Every collection is sorted by IRI, and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
@@ -28,7 +30,7 @@ from seams_runtime.model import COMM, HYDRA, PROC, SEAM, local_name
 from . import GeneratorError
 from .facts import IFML, Facts
 from .fragments import ITEM, fragment_for
-from .htmx import _environment, _shape_name
+from .htmx import _environment, _shape_name, _task_curie, _task_process
 
 ARCH = Namespace("https://w3id.org/seams/arch#")
 
@@ -73,6 +75,13 @@ class Write:
 
 
 @dataclass(frozen=True)
+class Complete:
+    task: str        # the proc:UserTask as a CURIE ModelGraph.curie expands back to its IRI
+    payload: str     # the Body var; runtime.complete_task validates it
+    key: str         # proc:correlationKey rdfs:label of the task's process, a path variable
+
+
+@dataclass(frozen=True)
 class Query:
     var: str         # <shape name>s
     shape: str       # curie
@@ -100,6 +109,7 @@ class Endpoint:
     validate: Validate | None = None
     start: Start | None = None
     write: Write | None = None
+    complete: Complete | None = None
     query: Query | None = None
     render: Render | None = None
     accepts: str | None = None  # a channel's seam:acceptsShape curie
@@ -121,6 +131,11 @@ class RouteModule:
     exposes: tuple[str, ...]
     not_routed: tuple[NotRouted, ...]
     endpoints: tuple[Endpoint, ...]
+
+    @property
+    def needs_identity(self) -> bool:
+        """Whether a completion handler takes ``identity: Identity``."""
+        return any(e.complete is not None for e in self.endpoints)
 
 
 @dataclass(frozen=True)
@@ -274,7 +289,26 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
     if accepts is not None:
         if body is None:
             raise GeneratorError(op, COMM.requestMediaType, "seam:acceptsShape needs a request body")
-        validate = Validate(var=_shape_name(accepts), shape=f.curie(accepts), source=body.var)
+        var = _shape_name(accepts)
+        if var in variables:
+            var += "_payload"  # never shadow the path variable (the correlation key)
+        validate = Validate(var=var, shape=f.curie(accepts), source=body.var)
+
+    complete = None
+    task = _completed_task(f, op)
+    if task is not None:
+        if op in triggered:
+            raise GeneratorError(op, SEAM.submitsTo,
+                                 f"completes {task} and starts {triggered[op]}; an operation does one")
+        if body is None:
+            raise GeneratorError(op, COMM.requestMediaType, f"completing {task} needs a request body")
+        process = _task_process(f, task)
+        key = f.label(f.one(process, PROC.correlationKey))
+        if key not in variables:
+            raise GeneratorError(process, PROC.correlationKey,
+                                 f"{key!r} is not a path variable of {op} ({template}), "
+                                 f"so the completion of {task} cannot name its instance")
+        complete = Complete(task=_task_curie(f, task), payload=body.var, key=key)
 
     start = None
     if op in triggered:
@@ -288,12 +322,12 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
         start = Start(process=f.curie(process), payload=validate.var, key=key)
 
     write = None
-    if start is None and accepts is not None and _form_writes(f, op, accepts):
+    if start is None and complete is None and accepts is not None and _form_writes(f, op, accepts):
         write = Write(shape=validate.shape, var=validate.var, source=validate.source)
 
     returns = f.optional(op, SEAM.returnsShape)
     query = None
-    if method == "GET" and returns is not None:
+    if (method == "GET" or complete is not None) and returns is not None:
         query = Query(var=_shape_name(returns) + "s", shape=f.curie(returns), filters=tuple(variables))
 
     name, component, frag_kind = fragment_for(f, op)
@@ -306,17 +340,35 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
     else:
         if query is None:
             raise GeneratorError(op, SEAM.returnsShape,
-                                 f"the component partial {name} renders a GET query of the returned shape")
+                                 f"the component partial {name} renders a query of the returned shape "
+                                 "(a GET, or a user-task completion)")
         params = sorted({str(label) for p in f.objects(component, IFML.hasParameter)
                          for label in f.objects(p, RDFS.label) if str(label) in variables})
         render = Render(name=name, data=query.var, params=tuple(params), multiline=method != "GET")
 
     arguments = tuple(f"{v}: str" for v in variables) + (("request: Request",) if body else ())
+    if complete is not None:
+        arguments += (f'identity: Identity = Depends(runtime.task_policy("{complete.task}"))',)
     return Endpoint(
         curie=f.curie(op), name=_handler_name(op), channel=False, method=method, path=template,
         arguments=arguments, policies=tuple(f.curie(p) for p in f.objects(op, SEAM.governedBy)),
-        body=body, validate=validate, start=start, write=write, query=query, render=render,
+        body=body, validate=validate, start=start, write=write, complete=complete,
+        query=query, render=render,
     )
+
+
+def _completed_task(f: Facts, op):
+    """The proc:UserTask that seam:completedOn an ifml:Form whose event
+    seam:submitsTo ``op`` (ADR-0009), or None; several raise."""
+    tasks = sorted({task for event in _submitted(f, op)
+                    for form in f.subjects(IFML.hasEvent, event)
+                    if (form, RDF.type, IFML.Form) in f.ds
+                    for task in f.subjects(SEAM.completedOn, form)
+                    if (task, RDF.type, PROC.UserTask) in f.ds}, key=str)
+    if len(tasks) > 1:
+        raise GeneratorError(op, SEAM.submitsTo,
+                             f"completes several user tasks {[str(t) for t in tasks]}; expected one")
+    return tasks[0] if tasks else None
 
 
 def _form_writes(f: Facts, op, shape) -> bool:

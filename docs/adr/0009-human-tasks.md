@@ -81,11 +81,15 @@ T02 of M009/S04 builds this:
 T03 of M009/S04 builds this:
 
 - The FastAPI generator emits a **completion handler** for the operation a
-  `seam:completedOn` form's event submits to. It only validates, calls
-  `runtime.complete_task` and renders the fragment (pattern P007: no branching in
-  generated code).
-- The htmx generator emits the **form partial** from the form's bound parameters, the
-  same way it does for any form.
+  `seam:completedOn` form's event submits to. It depends on
+  `runtime.task_policy("<task>")` for the identity, awaits
+  `runtime.complete_task("<task>", form, correlation_key=<key>, identity=identity)`
+  (which validates), then queries and renders the fragment like any operation
+  (pattern P007: no branching in generated code). The correlation-key label must be a
+  path variable of the operation.
+- The htmx generator emits the **form partial** `<form local name>.html` from the
+  form's bound parameters (an `sh:in` field is a `<select>`), with the key filled from
+  `task.correlation_key`, so the inbox can render it per task.
 - The runtime host serves **`GET /tasks`**, an inbox that lists
   `Runtime.user_tasks(identity)` with a link to each task's screen.
 

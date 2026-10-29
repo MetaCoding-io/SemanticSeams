@@ -40,6 +40,7 @@ compose_yaml = generate_compose("examples/chat-app/chat-app.trig", base_dir=".")
 |---|---|---|
 | `htmx` | `<out>/<page local name>.html`, a Jinja2/htmx template (UTF-8, `\n` newlines) | the landmark `ifml:ViewContainer` and the seam, shape, comm and lifecycle facts it touches |
 | `htmx` (fragments) | `<out>/<component>.html` and `<out>/<component>_item.html` partials, one per name the fragment rule gives | each operation the presenting container `seam:consumes` that `seam:rendersComponent` a page component |
+| `htmx` (task forms) | `<out>/<form local name>.html`, one partial per form a user task is completed on, plus the partials its completion route renders on the form's screen | each `ifml:Form` a `proc:UserTask` `seam:completedOn` (ADR-0009, D027) |
 | `fastapi` | `<out>/<container local name>.py`, a thin FastAPI route module | the one serving `arch:Container` (it `seam:executes` a `proc:Process`, or `seam:exposes` an operation an `ifml:Event` `seam:submitsTo`), and what it `seam:exposes` |
 | `compose` | `<out>/compose.yaml`, a docker compose file whose bind-mount sources are relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts, `seam:deployedTo` and the serving-container rule |
 
@@ -120,6 +121,24 @@ The partials are the same template files the page uses, not slices of its output
 includes `htmx_item.html.j2` inside the Details loop. `htmx_fragment.html.j2` writes
 the header and includes one of the two.
 
+## Task forms
+
+`render_task_forms(page)` / `generate_task_forms(trig)` emit, for each `ifml:Form` that a
+`proc:UserTask` `seam:completedOn` (ADR-0009), the partial `<form local name>.html` that
+the host's task inbox renders once per open task, with `task` bound to a
+`Runtime.user_tasks` row. `python -m seams_gen htmx` writes them alongside the page and
+fragments (`templates/htmx_task_form.html.j2`). Forms are sorted by IRI.
+
+| Output | Graph fact |
+|---|---|
+| Header | The page's two header lines, then `{# task form partial of ifml:Form :f: <task> seam:completedOn :f #}`. The task is written `prefix:rest` (`:approval_bpmn#approve_expense`), which `ModelGraph.curie` expands back to the task IRI. |
+| `<article class="task">` | `aria-label` and `<h2>` are the task's `rdfs:label`; `data-task` is the task; `data-<key>="{{ task.correlation_key }}"` where `<key>` is the `rdfs:label` of the `proc:correlationKey` of the process whose `seam:detailedBy` BPMN model holds the task (its IRI is `<model>#<id>`, or it is `seam:inModel` the model; not exactly one process: error on `seam:detailedBy`). |
+| Entity | When the task `seam:reads` a shape: `{% if task.entity %}<dl class="<shape label lowercased>">` with a `<dt>`/`<dd class="<path>">{{ task.entity.<path> }}</dd>` per datatype property, by `sh:order`. |
+| `<form>` | The form's one submitting event (as on the page): `hx-<method>` is the operation's `hydra:template` with the correlation-key variable filled from `{{ task.correlation_key }}`. Any other path variable, or a template without the key, raises `GeneratorError(process, proc:correlationKey)`. `hx-target="closest article"` (an inbox holds several tasks, so no page id is targeted); `hx-swap` is the event's `ifml:NavigationFlow` swap. Element ids end in `_{{ task.correlation_key }}`. |
+| Fields | The datatype properties of the shape the form `seam:writes` that an `ifml:hasParameter` is `ifml:boundTo`, by `sh:order`. An `sh:in` enumeration is a `<select>` with one `<option>` per value in list order (`required` with `sh:minCount 1`); anything else is the page's `<input>` / `<textarea>` rule. Unbound properties get the page's "set by the runtime" comment. |
+| Screen partials | Each component on the form's screen (the `ifml:ViewContainer` that `ifml:contains` it) that an operation the presenter consumes `seam:rendersComponent` gets its fragment as above, so the completion route's partial exists (`expense_details.html` in the fixture). |
+| Errors | A form two user tasks are completed on raises on `seam:completedOn`; a completion target that is not an `ifml:Form` raises on `seam:completedOn`; a form with no `seam:writes` raises on `seam:writes`. |
+
 ## FastAPI rendering rules
 
 `extract_routes(model)` builds a frozen `RoutesModel`; `render_routes` renders it
@@ -137,12 +156,13 @@ branches only choose a layout from graph facts. Everything is sorted by IRI.
 | `Runtime.load` | `"/model/<trig file name>"` with `model_hash=MODEL_HASH` (ADR-0007 rule 2). |
 | Endpoints | Each element the container `seam:exposes`, by IRI: a `hydra:Operation` or a `comm:Channel` (anything else: error on `rdf:type`). The handler name is the local name minus a trailing `_op` (GAP-21). |
 | Decorator | `@router.<hydra:method lower>` (GET/POST/PUT/PATCH/DELETE); the path is the `comm:path` `hydra:template` (missing: error on `comm:path`). The operation must have `seam:mediaKind seam:UIFragment` (else error on `seam:mediaKind`) and gets `response_class=HTMLResponse`. Each `seam:governedBy` policy adds `Depends(runtime.policy("<curie>"))` to `dependencies=[…]`; with dependencies the decorator is multi-line, without them single-line. |
-| Signature | Each template variable as `<var>: str`, then `request: Request` when the operation has a `comm:requestMediaType`. |
+| Signature | Each template variable as `<var>: str`, then `request: Request` when the operation has a `comm:requestMediaType`, then, for a Complete step, `identity: Identity = Depends(runtime.task_policy("<task>"))` (401 without an identity, 403 unless every `seam:governedBy` policy of the task permits it). `Identity` is imported only by a module with a Complete step. |
 | Request body | `application/x-www-form-urlencoded` → `form = await request.form()`; `application/json` → `body = await request.json()`; any other media type raises `GeneratorError(op, comm:requestMediaType)`. |
-| Validate | `seam:acceptsShape S` → `<s> = runtime.validate("<S curie>", form)`, where `<s>` is S's local name lowercased minus `Shape`. It needs a request body. A handler with a Write step has no separate validate line: `runtime.write` validates. |
+| Validate | `seam:acceptsShape S` → `<s> = runtime.validate("<S curie>", form)`, where `<s>` is S's local name lowercased minus `Shape`, plus `_payload` when that name is also a path variable (so the payload never shadows the correlation key). It needs a request body. A handler with a Write or Complete step has no separate validate line: `runtime.write` and `runtime.complete_task` validate. |
 | Start | When the operation is the triggering operation of a process the container executes (`ModelGraph.triggering_operation`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. |
 | Write | When no process is triggered by the operation, it has `seam:acceptsShape S`, and an event of an `ifml:Form` that `seam:writes S` (`ifml:hasEvent`) `seam:submitsTo` it (D026), `<s> = runtime.write("<S curie>", form)` in place of the validate line and before the return, so the item partial renders the stored entity. `runtime.write` validates the form itself because it first assigns the entity's `:id`, which the form never sends. Any other untriggered operation gets no write step. |
-| Query | A `GET` with `seam:returnsShape S` → `<s>s = runtime.query("<S curie>", <var>=<var> …)`, one keyword per path variable. |
+| Complete | When an event of an `ifml:Form` that a `proc:UserTask` `seam:completedOn` `seam:submitsTo` the operation (ADR-0009), `await runtime.complete_task("<task>", form, correlation_key=<key>, identity=identity)` in place of Start or Write. `<key>` is the `proc:correlationKey` label of the process whose BPMN model holds the task and must be a path variable, else `GeneratorError(process, proc:correlationKey)`. It needs a request body (error on `comm:requestMediaType`); an operation that also triggers a process, or whose forms complete several tasks, raises on `seam:submitsTo`. The serving-container rule covers the container through `seam:executes`. |
+| Query | A `GET` (or an operation with a Complete step) with `seam:returnsShape S` → `<s>s = runtime.query("<S curie>", <var>=<var> …)`, one keyword per path variable. |
 | Return | `runtime.render_fragment("<name>", …)` with the name from `fragment_for` (GAP-19). An item partial passes the validated `<s>` (`seam:returnsShape` must equal `seam:acceptsShape`); a component partial passes the query list `<s>s` plus `<p>=<p>` for each `ifml:hasParameter` of the component whose `rdfs:label` is a path variable. POST and other non-GET methods use the multi-line layout, GET the single-line one. |
 | SSE channel | `comm:transport comm:SSE` → `@router.get(path)`, `async def <name>(<var>: str) -> StreamingResponse`, `events = runtime.subscribe("<curie>", scope=<var>)` with the single path variable, and `StreamingResponse(events, media_type="text/event-stream")`. Any other transport raises `GeneratorError(channel, comm:transport)`; not exactly one path variable raises on `comm:path`. |
 
@@ -223,6 +243,14 @@ branch or loop in any handler, the POST handler's runtime calls being exactly
 `comm:requestMediaType` and no serving container failing through the API and the CLI, and
 the process-less expense model (`tests/processless_model.py`) generating
 `validate`, `write`, `render_fragment` with no `start_process`.
+`tests/test_human_task_generators.py`: for the approval fixture
+(`tests/fixtures/human_task/approval.trig`), the completion handler (task_policy
+dependency, correlation key, `complete_task`, no validate), the task curie expanding to
+the governed IRI, `Identity` imported only when needed, the generated module compiling
+and answering 401/403 through `seams_runtime.host`, the task form partial (hx-post with
+the key, one field per bound property, `sh:in` as a `<select>`, the task label and
+entity, escaping), the completion partial, determinism, and the key-not-a-path-variable,
+no-process, no-body and two-tasks errors.
 `tests/test_compose_generator.py`: byte equality with the `compose.yaml` golden, the
 hash header and `SEAMS_MODEL_HASH`, determinism, no domain literals in the template,
 the parsed structure (read-only model binds, external secrets), bind sources following

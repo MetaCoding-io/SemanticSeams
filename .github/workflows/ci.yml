@@ -34,3 +34,17 @@ jobs:
             echo "$untracked"
             exit 1
           fi
+
+  # docs/tutorial.md end to end: build and start the compose stack (gateway in
+  # stub mode), chat through the generated page and routes, then tear it down.
+  tutorial-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py

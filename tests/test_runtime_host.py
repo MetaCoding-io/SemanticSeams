@@ -108,13 +108,13 @@ def test_send_then_page_shows_user_message_and_reply(client):
     assert "hello host" not in r.text
 
 
-@pytest.mark.xfail(strict=True, reason="the generated compose form posts only content; "
-                   ":routing_decision's dec:input reads :role, which nothing sets (role is "
-                   "system-set per the IFML model, but no graph fact gives its value)")
 def test_send_with_only_the_compose_form_fields_completes(client):
+    # the compose form posts only content: :routing_decision's dec:input reads
+    # :role, which MessageShape's sh:defaultValue "user" supplies
     c, runtime = client
     r = c.post(f"/conversations/{_seed_ids()[0]}/messages", data={"content": "hi"}, headers=USER)
     assert r.status_code == 200, r.text
+    assert '<span class="role">user</span>' in r.text
     (instance,) = _wait_complete(runtime)
     assert instance.result["status"] == "complete", instance.result
 

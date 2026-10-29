@@ -7,7 +7,9 @@ pySHACL against just that shape and raises ``ContractViolation`` with one
 entry per result (shape, focus, path, constraint, value, message).
 
 The boundary is closed-world: a key that names no ``sh:path`` of the shape
-is an "unknown-field" violation, not silently dropped.
+is an "unknown-field" violation, not silently dropped. A field the payload
+omits takes its property's ``sh:defaultValue``, if it has one, before
+validation; nothing else is filled in.
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ class ShapeContract:
     shape: URIRef
     graph: Graph
     fields: dict  # local name -> (path IRI, sh:datatype or None)
+    defaults: dict  # local name -> sh:defaultValue as a Python value
 
 
 def _copy_closure(src: Graph, dst: Graph, node) -> None:
@@ -81,12 +84,15 @@ def shape_contract(model: ModelGraph, shape) -> ShapeContract:
     for prefix, ns in model.ds.namespaces():
         g.bind(prefix, ns)
     _copy_closure(src, g, iri)
-    fields = {}
+    fields, defaults = {}, {}
     for prop in g.objects(iri, SH.property):
         path = g.value(prop, SH.path)
         if isinstance(path, URIRef):
             fields[local_name(path)] = (path, g.value(prop, SH.datatype))
-    contract = ShapeContract(iri, g, fields)
+            default = g.value(prop, SH.defaultValue)
+            if isinstance(default, Literal):
+                defaults[local_name(path)] = default.toPython()
+    contract = ShapeContract(iri, g, fields, defaults)
     model._contract_cache[iri] = contract
     return contract
 
@@ -166,6 +172,8 @@ def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None,
     if errors:
         errors.sort(key=lambda d: (d["path"], d["constraint"]))
         raise ContractViolation(contract.shape, errors, focus=focus, operation=operation)
+    given = {key for key, _value in items}
+    items += [(key, value) for key, value in sorted(contract.defaults.items()) if key not in given]
     g = Graph()
     normalised = {}
     for key, value in items:

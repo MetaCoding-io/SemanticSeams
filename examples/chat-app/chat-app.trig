@@ -149,7 +149,8 @@
     :conversation a ifml:Parameter ; rdfs:label "conversation" ;
         seam:inModel :chat_ifml .
     # The only user-entered field of the compose form; every other MessageShape
-    # property (role, status, timestamp) is system-set (ifml:boundTo rule).
+    # property (role, status, timestamp) is system-set (ifml:boundTo rule):
+    # role by its sh:defaultValue "user", status and timestamp by the runtime.
     :message_input a ifml:Parameter ; rdfs:label "message input" ;
         ifml:boundTo :content ;
         seam:inModel :chat_ifml .
@@ -226,7 +227,9 @@
     :MessageShape a sh:NodeShape ; rdfs:label "Message" ;
         sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
                       sh:maxLength 16000 ; sh:order 0 ; dash:editor dash:TextAreaEditor ] ;
-        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 1 ] ;
+        # A message posted without a role is the user's; the worker writes "assistant".
+        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 1 ;
+                      sh:defaultValue "user" ] ;
         # Values are the rdfs:labels of :message_lifecycle's states (seam:lifecycle).
         sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;
                       sh:in ( "composing" "sending" "streaming" "complete" "failed" ) ] ;

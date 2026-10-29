@@ -70,6 +70,19 @@ def test_multidict_single_values_become_str(model):
     assert all(isinstance(v, str) for v in out.values())
 
 
+def test_omitted_field_takes_its_sh_default_value(model):
+    # the compose form posts only content; :role's sh:defaultValue "user" fills it
+    assert validate(model, ":MessageShape", {"content": "hi"}) == {"content": "hi", "role": "user"}
+    assert validate(model, ":MessageShape", {"content": "hi", "role": "assistant"})["role"] == "assistant"
+    assert shape_contract(model, ":MessageShape").defaults == {"role": "user"}
+
+
+def test_default_value_does_not_satisfy_other_constraints(model):
+    # only :role has a default: a payload with no content still fails sh:minCount
+    v = violation(model, {})
+    assert only(v, "content")["constraint"] == "MinCountConstraintComponent"
+
+
 def test_missing_content_is_min_count(model):
     v = violation(model, {"role": "user"})
     assert v.shape == SHAPE
@@ -158,7 +171,7 @@ def test_to_rdf_builds_one_node_graph(model):
     g, focus, normalised = to_rdf(model, ":MessageShape", {"content": "hi"})
     assert str(focus).startswith("urn:uuid:")
     assert set(g.subjects()) == {focus}
-    assert normalised == {"content": "hi"}
+    assert normalised == {"content": "hi", "role": "user"}  # role's sh:defaultValue
 
 
 def test_unknown_shape_is_resolution_error(model):

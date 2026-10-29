@@ -31,6 +31,7 @@ from pathlib import Path
 from fastapi.responses import HTMLResponse
 
 from .channels import ChannelBus, Subscription
+from .contracts import _items, shape_contract
 from .contracts import validate as _validate
 from .engine import Engine
 from .errors import ModelHashMismatch, ResolutionError
@@ -110,16 +111,21 @@ class Runtime:
         """Validate ``payload`` against the shape and persist it as a new
         entity, for an operation that triggers no process (D026). A shape
         with seam:lifecycle starts in its initial status unless the payload
-        names one, as ``start_process`` does. Returns the stored row (the form
-        ``query`` returns), or raises ContractViolation (422) and stores
-        nothing."""
+        names one, as ``start_process`` does. A shape with an ``:id`` path
+        (the identifier convention) gets the new entity's id there before
+        validation, replacing any the payload sent: a form never enters it.
+        Returns the stored row (the form ``query`` returns), or raises
+        ContractViolation (422) and stores nothing."""
         shape = self.model.curie(shape_curie)
+        entity_id = str(uuid.uuid4())
+        if "id" in shape_contract(self.model, shape).fields:
+            payload = {**dict(_items(payload)), "id": entity_id}
         data = dict(_validate(self.model, shape, payload))
         status = None
         if (shape, SEAM.lifecycle, None) in self.model.ds:
             status = data.get("status") or self.model.lifecycle_for(shape).initial
             data["status"] = status
-        entity = self.store.put_entity(str(uuid.uuid4()), shape, data, status=status)
+        entity = self.store.put_entity(entity_id, shape, data, status=status)
         log.info("wrote %s entity %s (status %s)", shape, entity["id"], status)
         return entity
 

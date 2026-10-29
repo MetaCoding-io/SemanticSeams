@@ -8,7 +8,8 @@ container through templates/fastapi_routes.py.j2 into ``<container local
 name>.py``. The handlers are thin (ADR-0007 rule 1): read the request,
 validate it against the accepted shape, start the process the operation
 triggers (or, when it triggers none and an ``ifml:Form`` that ``seam:writes``
-the accepted shape submits to it, ``runtime.write`` the entity), query the
+the accepted shape submits to it, ``runtime.write`` the entity, which
+validates it and assigns its ``:id``), query the
 returned shape and render the fragment the GAP-19 rule names. Nothing else:
 no branching, no domain names. Every collection is sorted by IRI, and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
@@ -67,7 +68,8 @@ class Start:
 @dataclass(frozen=True)
 class Write:
     shape: str       # curie of the accepted shape the submitting form seam:writes
-    var: str         # the validated var, rebound to the stored entity
+    var: str         # the stored entity's var (the Validate var)
+    source: str      # the Body var; runtime.write validates it, so no separate validate call
 
 
 @dataclass(frozen=True)
@@ -287,7 +289,7 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
 
     write = None
     if start is None and accepts is not None and _form_writes(f, op, accepts):
-        write = Write(shape=validate.shape, var=validate.var)
+        write = Write(shape=validate.shape, var=validate.var, source=validate.source)
 
     returns = f.optional(op, SEAM.returnsShape)
     query = None

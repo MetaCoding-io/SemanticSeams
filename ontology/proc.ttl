@@ -51,7 +51,10 @@ Message-name rule (gaps.md GAP-26): the event's message name is the rdfs:label o
 comm:Channel it seam:publishesTo; no messageRef is added to the BPMN payload.""" .
 
 proc:MessageCatchEvent a rdfs:Class ;
-    rdfs:comment "Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo." .
+    rdfs:comment """Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo.
+Channel start rule (ADR-0010): when the event is the bpmn:startEvent of its process, the process is
+channel-started. The runtime starts it whenever a message throw event publishes on the comm:Channel it
+seam:subscribesTo, with the publisher's correlation key and a copy of its entities and statuses.""" .
 
 #################################################################
 # DMN index types

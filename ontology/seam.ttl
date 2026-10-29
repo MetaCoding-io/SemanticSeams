@@ -200,7 +200,7 @@ seam:publishesTo a rdf:Property ;
 seam:subscribesTo a rdf:Property ;
     seam:reveal seam:Layer ;
     rdfs:label "subscribes to" ;
-    rdfs:comment "proc message catch event -> comm:Channel." .
+    rdfs:comment "proc message catch event -> comm:Channel. On a process's start event it makes the process channel-started: each publish on the channel starts an instance (ADR-0010)." .
 
 seam:reads a rdf:Property ;
     seam:reveal seam:Layer ;

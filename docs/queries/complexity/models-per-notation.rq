@@ -1,0 +1,6 @@
+# How many models does each notation have?
+PREFIX seam: <https://w3id.org/seams/seam#>
+
+SELECT ?notation (COUNT(DISTINCT ?model) AS ?models) WHERE {
+  ?model a seam:Model ; seam:notation ?notation .
+} GROUP BY ?notation ORDER BY DESC(?models)

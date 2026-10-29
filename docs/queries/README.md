@@ -20,3 +20,10 @@ exposed as an inspector button.
 `tests/test_acceptance.py` runs each query against `examples/checkout.ttl` and
 the chat-app model and asserts the exact expected rows; a change that silently
 breaks a traversal breaks CI.
+
+`complexity/` holds the three model-size measurements used by
+`python -m seams_gen.complexity` (models per notation, the most-reached elements and
+the cross-layer seam edge count; see [seams_gen/README.md](../../seams_gen/README.md)).
+They are not focus-node questions and are not rendered on the query reference page,
+which only reads the `.rq` files at this top level. `tests/test_complexity.py` checks
+their results against the chat app and checkout models.

@@ -170,6 +170,40 @@ runtime reads `SEAMS_MODEL` in preference to the path in the generated route mod
 | `deploy` | `replicas` from `deploy:replicas`; `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node (no label: error on the node and `rdfs:label`). |
 | Top level | `secrets:` and `volumes:` after `services:`, sorted, omitted when empty. |
 
+## Complexity check
+
+```
+python -m seams_gen.complexity examples/chat-app/chat-app.trig
+```
+
+Runs the three queries in [`docs/queries/complexity/`](../docs/queries/complexity/)
+against any model (backlog E3, D025) and prints the models per notation, the five
+elements reached from the most distinct models and the cross-layer seam edge count,
+then `PASS` or `FAIL` with one line per failed threshold (actual vs required).
+
+| Measure | Threshold | Chat app |
+|---|---|---|
+| Notations with 2+ models | at least 3 (`MIN_MULTI_MODEL_NOTATIONS`) | 0 |
+| Most models one element is reached from | at least 5 (`MIN_MAX_REACH`) | 3 |
+| Cross-layer seam edges | reported, not gated | 58 |
+
+The chat app fails by design: it is a one-model-per-layer quick start.
+
+**Exit codes.** 0 pass, 1 fail, 2 when the model file is missing, unreadable or not
+valid TriG (the message goes to stderr).
+
+**Model only.** `load_model(trig)` parses only the TriG, as the union of its graphs. It
+never loads `ontology/*.ttl`: the ontology's `seam:reveal` annotations are `seam:`
+triples too and would raise the chat app's edge count from 58 to 82. `most-reached.rq`
+ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, so `measure` drops the limit,
+sorts by count descending then IRI, and takes the top five.
+
+```python
+from seams_gen.complexity import load_model, measure
+r = measure(load_model("examples/checkout.trig"))
+r.multi_model_notations, r.max_reach, r.edges, r.failures   # 1, 4, 36, [...]
+```
+
 ## Tests
 
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines
@@ -193,3 +227,8 @@ the parsed structure (read-only model binds, external secrets), bind sources fol
 missing artifact, `deploy:secretName` and node label failing through the API and the
 CLI, the CLI writing exactly `compose.yaml`, and `docker compose config -q` accepting
 the output (skipped when docker compose is not installed).
+`tests/test_complexity.py`: the chat app (0 / 3 / 58, two failures) and checkout scores,
+determinism, the ontology not being loaded, a synthetic passing model and its
+one-short-of-each-threshold boundary, an empty model, the CLI's exit codes 0, 1 and 2
+(missing file, invalid TriG, a directory), and the complexity queries staying out of
+the top level of `docs/queries/`.

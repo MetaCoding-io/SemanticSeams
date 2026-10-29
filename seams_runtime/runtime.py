@@ -19,6 +19,11 @@ operation triggers no process, D026), ``query`` (persisted entities of a shape) 
 htmx partial from ``templates_dir``, ``SEAMS_TEMPLATES`` or ``./templates``)
 and ``render_page`` (the landmark page, every block bound as its partial is).
 
+Channel-started processes (ADR-0010): when a message throw event publishes on
+a channel, ``start_subscribed`` starts every process whose start event
+seam:subscribesTo it, with the publisher's correlation key, entities and
+statuses.
+
 Human tasks (ADR-0009): ``user_tasks`` lists the open BPMN user tasks an
 identity may complete, ``complete_task`` checks the task's policies,
 validates the payload against its output shape and completes it on the
@@ -29,6 +34,7 @@ FastAPI dependency for a completion route.
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import os
 import uuid
@@ -71,6 +77,7 @@ class Runtime:
                                evaluator)
         self.llm = llm if llm is not None else LLMClient()
         self.worker = Worker(model, self.engine, store, self.bus, self.guard, self.llm)
+        self.worker.on_published = self._on_published
         self.instances: dict[str, Instance] = {}
         self._task_locks: dict[str, asyncio.Lock] = {}
         self.templates_dir = Path(templates_dir if templates_dir is not None
@@ -164,6 +171,57 @@ class Runtime:
         self.worker._checkpoint(instance, RUNNING)
         log.info("started %s instance %s (correlation %s)", process, instance.id, correlation_key)
         return self._launch(instance)
+
+    async def start_subscribed(self, process_curie, correlation_key: str, current: dict,
+                               status: dict, *, stop_after=None) -> Instance:
+        """Start a channel-started process (ADR-0010) as the worker does when a
+        message throw event publishes on the channel its start event
+        seam:subscribesTo: the same correlation key, and a copy of the
+        publisher's ``current`` entities (ids kept) and ``status`` map. No
+        operation accepts the payload, so nothing is re-validated. The new
+        instance is checkpointed before its worker task runs."""
+        return self._start_subscribed(self.model.curie(process_curie), correlation_key, current,
+                                      status, stop_after)
+
+    def _start_subscribed(self, process, correlation_key, current, status, stop_after=None) -> Instance:
+        start = self.model.start_channel(process)
+        if not correlation_key:
+            raise ResolutionError(process, "proc:correlationKey", "empty correlation key")
+        wf = self.engine.new_workflow(process)
+        self.engine.deliver_start(wf, start.event)
+        state = new_state(process, correlation_key)
+        state["current"] = copy.deepcopy(dict(current))
+        state["status"] = dict(status)
+        state["history"] = {shape: [value] for shape, value in status.items()}
+        wf.data["seams"] = state
+        instance = Instance(str(uuid.uuid4()), correlation_key, process, wf, stop_after)
+        self.worker._checkpoint(instance, RUNNING)
+        log.info("started %s instance %s from %s on %s (correlation %s)", process, instance.id,
+                 start.event, start.channel, correlation_key)
+        return self._launch(instance)
+
+    def _on_published(self, publisher: Instance, channel) -> list[dict]:
+        """Worker rule 6a: start every process subscribed to ``channel``. A
+        subscriber that cannot start is logged and recorded with its error;
+        it never fails the publisher."""
+        started = []
+        try:
+            processes = self.model.subscribed_processes(channel)
+        except Exception as exc:  # noqa: BLE001 - a broken subscription never fails the publisher
+            log.exception("instance %s: resolving subscribers of %s failed", publisher.id, channel)
+            return [{"process": None, "instance": None,
+                     "error": {"type": type(exc).__name__, "message": str(exc)}}]
+        for process in processes:
+            try:
+                inst = self._start_subscribed(process, publisher.correlation_key,
+                                              publisher.state["current"], publisher.state["status"])
+                started.append({"process": str(process), "instance": inst.id})
+            except Exception as exc:  # noqa: BLE001 - the publisher's element already completed
+                log.exception("instance %s: starting subscriber %s on %s failed", publisher.id,
+                              process, channel)
+                started.append({"process": str(process), "instance": None,
+                                "error": {"type": type(exc).__name__, "message": str(exc)}})
+        return started
 
     async def resume(self, instance_id: str, *, stop_after=None) -> Instance:
         """Continue a checkpointed instance (e.g. after a restart) in this runtime."""

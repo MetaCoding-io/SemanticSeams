@@ -40,11 +40,14 @@ from SpiffWorkflow.bpmn.serializer import BpmnWorkflowSerializer
 from SpiffWorkflow.bpmn.serializer.config import DEFAULT_CONFIG
 from SpiffWorkflow.bpmn.serializer.default.task_spec import BpmnTaskSpecConverter
 from SpiffWorkflow.bpmn.specs.defaults import ServiceTask
+from SpiffWorkflow.bpmn.specs.event_definitions.message import MessageEventDefinition
 from SpiffWorkflow.bpmn.specs.mixins import BpmnSpecMixin
+from SpiffWorkflow.bpmn.util.event import BpmnEvent
 from SpiffWorkflow.bpmn.workflow import BpmnWorkflow
 from SpiffWorkflow.dmn.parser.BpmnDmnParser import BpmnDmnParser
 from SpiffWorkflow.dmn.serializer import BaseBusinessRuleTaskConverter
 from SpiffWorkflow.dmn.specs import BusinessRuleTaskMixin
+from SpiffWorkflow.util.task import TaskState
 
 from .errors import ResolutionError
 from .model import DEC, SEAM, DecisionBinding, ModelGraph, ProcessFacts
@@ -201,6 +204,29 @@ class Engine:
         mapped = self.map_outputs(self.binding(task), task.data)
         log.debug("decision %s -> %s", self.binding(task).decision_id, mapped)
 
+    @staticmethod
+    def deliver_start(wf: BpmnWorkflow, start_event: URIRef) -> bool:
+        """Run Spiff's internal start and deliver the (empty) message the
+        message start event ``start_event`` (``<BPMN model>#<bpmn id>``) waits
+        for, leaving it READY for the worker (ADR-0010). The worker state
+        carries the entities, not the message. A start event without a
+        message definition is already reachable: returns False, changes nothing."""
+        start_id = str(start_event).rsplit("#", 1)[-1]
+        ready = [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.bpmn_id is None]
+        spec = wf.spec.task_specs.get(start_id)
+        definition = getattr(spec, "event_definition", None)
+        if not isinstance(definition, MessageEventDefinition):
+            return False
+        for t in ready:
+            t.run()
+        wf.catch(BpmnEvent(definition, {}))
+        waiting = [t for t in wf.get_tasks(spec_name=start_id) if t.state != TaskState.READY]
+        if waiting:
+            raise ResolutionError(start_event, "bpmn:messageEventDefinition",
+                                  f"start event is {TaskState.get_name(waiting[0].state)} "
+                                  f"after its message was delivered")
+        return True
+
     def serialize(self, wf: BpmnWorkflow) -> str:
         return self.serializer.serialize_json(wf)
 
@@ -217,7 +243,16 @@ class Engine:
         for facts, pid, _spec, _subs in self._specs.values():
             if pid == task.workflow.spec.name:
                 return URIRef(f"{facts.model}#{bpmn_id}")
-        # A deserialized workflow whose process this engine never parsed.
+        # A deserialized workflow whose process this engine never parsed (a
+        # resume after a restart): parse the process its seams state names.
+        top = task.workflow
+        while getattr(top, "parent_workflow", None) is not None:
+            top = top.parent_workflow
+        process = (top.data.get("seams") or {}).get("process")
+        if process is not None and URIRef(process) not in self._specs:
+            facts, pid, _spec, _subs = self._spec(URIRef(process))
+            if pid == task.workflow.spec.name:
+                return URIRef(f"{facts.model}#{bpmn_id}")
         return self.model.task_iri(bpmn_id)
 
     def binding(self, task) -> DecisionBinding:

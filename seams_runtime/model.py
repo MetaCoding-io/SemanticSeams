@@ -113,6 +113,13 @@ class ChannelBinding:
 
 
 @dataclass(frozen=True)
+class ChannelStart:
+    process: URIRef
+    event: URIRef    # the proc:MessageCatchEvent start event
+    channel: URIRef  # the comm:Channel it seam:subscribesTo
+
+
+@dataclass(frozen=True)
 class ProcessFacts:
     iri: URIRef
     label: str
@@ -461,6 +468,55 @@ class ModelGraph:
                                   f"found {[str(o) for o in ops]}")
         return ops[0]
 
+    # ── channel-started processes (ADR-0010) ──
+
+    def _start_subscriptions(self, process) -> list[ChannelStart]:
+        """(start event, channel) for each proc:MessageCatchEvent of the
+        process's BPMN model that seam:subscribesTo a comm:Channel and is a
+        bpmn:startEvent of its payload, sorted by (event, channel)."""
+        iri = self.curie(process)
+        if (iri, SEAM.detailedBy, None) not in self.ds:
+            return []
+        facts = self.process_for(iri)
+        prefix = f"{facts.model}#"
+        starts = bpmn_start_event_ids(facts.bpmn_path)
+        found = set()
+        for el, ch in self.ds.subject_objects(SEAM.subscribesTo):
+            if str(el).startswith(prefix) and (el, RDF.type, PROC.MessageCatchEvent) in self.ds \
+                    and (ch, RDF.type, COMM.Channel) in self.ds and str(el)[len(prefix):] in starts:
+                found.add((el, ch))
+        return [ChannelStart(facts.iri, el, ch) for el, ch in sorted(found)]
+
+    def is_channel_started(self, process) -> bool:
+        """True when the process has one channel start (``start_channel``),
+        False when it has none. More than one raises ResolutionError."""
+        subs = self._start_subscriptions(process)
+        if len(subs) > 1:
+            raise ResolutionError(self.curie(process), SEAM.subscribesTo,
+                                  f"expected at most one subscribed start event, found "
+                                  f"{[(str(s.event), str(s.channel)) for s in subs]}")
+        return bool(subs)
+
+    def start_channel(self, process) -> ChannelStart:
+        """The start event of a channel-started process and the comm:Channel
+        it seam:subscribesTo (there must be exactly one)."""
+        subs = self._start_subscriptions(process)
+        if len(subs) != 1:
+            raise ResolutionError(self.curie(process), SEAM.subscribesTo,
+                                  f"expected one proc:MessageCatchEvent start event subscribed to a "
+                                  f"comm:Channel, found {[(str(s.event), str(s.channel)) for s in subs]}")
+        return subs[0]
+
+    def subscribed_processes(self, channel) -> list[URIRef]:
+        """The channel-started processes whose start event seam:subscribesTo
+        ``channel``, sorted by IRI."""
+        ch = self.curie(channel)
+        found = set()
+        for process in self.ds.subjects(RDF.type, PROC.Process):
+            if any(s.channel == ch for s in self._start_subscriptions(process)):
+                found.add(process)
+        return sorted(found)
+
     def accepted_shape(self, operation) -> URIRef:
         return self._one(self.curie(operation), SEAM.acceptsShape, "operation accepts no shape")
 
@@ -591,6 +647,13 @@ def dmn_decision_ids(dmn_path) -> list[str]:
     root = etree.parse(str(dmn_path)).getroot()
     return [el.get("id") for el in root.iter()
             if isinstance(el.tag, str) and etree.QName(el).localname == "decision"]
+
+
+def bpmn_start_event_ids(bpmn_path) -> set[str]:
+    """ids of every bpmn:startEvent in the file."""
+    root = etree.parse(str(bpmn_path)).getroot()
+    return {el.get("id") for el in root.iter()
+            if isinstance(el.tag, str) and etree.QName(el).localname == "startEvent"}
 
 
 def dmn_input_types(dmn_path, decision_id: str) -> dict[str, str]:

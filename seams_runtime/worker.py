@@ -30,6 +30,9 @@ is completed) and applies these rules to each BPMN element, in this order:
    entity of that shape the instance has written.
 6. ``seam:publishesTo`` a comm:Channel from a message throw event: publish a
    completion event named after the channel's ``rdfs:label`` (gaps.md GAP-26).
+   Then ``on_published`` (set by Runtime) starts every channel-started process
+   subscribed to that channel (ADR-0010); the trace row records them under
+   ``started`` as ``[{process, instance}]``.
 7. Any exception while dispatching: apply ``LifecycleGuard.on_error`` for
    each tracked status that has an "error" exit (status becomes "failed"),
    record the error as JSON, close the channel scope and mark the instance
@@ -112,6 +115,9 @@ class Worker:
         self.bus = bus
         self.guard = guard
         self.llm = llm
+        # Set by Runtime: called as on_published(instance, channel IRI) after
+        # rule 6 publishes; returns [{process, instance}] for the trace row.
+        self.on_published = None
 
     # ── the loop ──
 
@@ -239,6 +245,11 @@ class Worker:
                     "status": {self.model.label(URIRef(s)): v for s, v in st["status"].items()}}
             self.bus.publish(ch.iri, instance.correlation_key, ch.label, data)
             row["published"] = {"channel": str(ch.iri), "event": ch.label}
+            # 6a. start the channel-started processes subscribed to it (ADR-0010)
+            if self.on_published is not None:
+                started = self.on_published(instance, ch.iri)
+                if started:
+                    row["started"] = started
         st["trace"].append(row)
 
     def _read_entity(self, iri, st) -> dict | None:

@@ -13,7 +13,8 @@ validates it and assigns its ``:id``; or, when the submitting form is the one
 a ``proc:UserTask`` ``seam:completedOn``, ``runtime.complete_task`` the task
 as the identity its ``task_policy`` dependency yields, ADR-0009), query the
 returned shape and render the fragment the GAP-19 rule names. Nothing else:
-no branching, no domain names. Every collection is sorted by IRI, and a missing or ambiguous
+no branching, no domain names. A channel-started process (ADR-0010) gets no
+route: the runtime starts it when its channel is published on. Every collection is sorted by IRI, and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
 """
 
@@ -206,7 +207,9 @@ def _module(f: Facts, model: ModelGraph, container) -> RouteModule:
 def _triggered(f: Facts, model: ModelGraph, processes) -> dict:
     """{operation: process} for each executed process's triggering operation
     (ModelGraph.triggering_operation: the operation the event that
-    seam:triggers the process seam:submitsTo)."""
+    seam:triggers the process seam:submitsTo). A channel-started process
+    (ADR-0010: its start event seam:subscribesTo a channel) has no route and
+    is skipped; a process that is neither raises GeneratorError."""
     found = {}
     for process in processes:
         if (process, RDF.type, PROC.Process) not in f.ds:
@@ -214,7 +217,15 @@ def _triggered(f: Facts, model: ModelGraph, processes) -> dict:
         try:
             op = model.triggering_operation(process)
         except ResolutionError as err:
-            raise GeneratorError(process, SEAM.triggers, err.detail) from err
+            try:
+                subscribed = model.is_channel_started(process)
+            except ResolutionError as sub_err:
+                raise GeneratorError(process, SEAM.subscribesTo, sub_err.detail) from sub_err
+            if subscribed:
+                continue
+            raise GeneratorError(process, SEAM.triggers,
+                                 f"{err.detail}, and no proc:MessageCatchEvent start event "
+                                 f"seam:subscribesTo a comm:Channel (ADR-0010)") from err
         if op in found:
             raise GeneratorError(op, SEAM.submitsTo,
                                  f"triggers both {found[op]} and {process}")

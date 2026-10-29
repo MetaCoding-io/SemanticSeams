@@ -241,4 +241,4 @@ To see only what this chapter added:
 diff examples/expenses/chapter-02/expenses.trig examples/expenses/chapter-03/expenses.trig
 ```
 
-Chapter 4, the process, is coming.
+Next, [chapter 4](./04-process) puts a BPMN process between the form and the store.

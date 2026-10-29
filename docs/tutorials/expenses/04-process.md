@@ -318,4 +318,4 @@ To see only what this chapter added:
 diff examples/expenses/chapter-03/expenses.trig examples/expenses/chapter-04/expenses.trig
 ```
 
-Chapter 5, the rules, is coming.
+Next, [chapter 5](./05-rules) lets a decision table choose who approves, by amount.

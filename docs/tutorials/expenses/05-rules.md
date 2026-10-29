@@ -313,4 +313,5 @@ To see only what this chapter added:
 diff examples/expenses/chapter-04/expenses.trig examples/expenses/chapter-05/expenses.trig
 ```
 
-Chapter 6, the lifecycle, is coming.
+Next, [chapter 6](./06-lifecycle) gives an expense a lifecycle, so the process can only
+move it along legal transitions.

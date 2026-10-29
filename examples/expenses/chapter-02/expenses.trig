@@ -1,0 +1,72 @@
+# Expense approval tutorial, chapter 2: the data.
+#
+# Chapter 1's triples are unchanged; this chapter adds the expense_data shape
+# graph model and its notation.
+#
+# A model is a TriG file: Turtle triples grouped into named graphs. Each
+# seam:Model gets its own graph, and every link between models (and every
+# seam: annotation such as seam:notation) lives in the seams graph at the end.
+# See docs/tutorials/expenses/ for the walkthrough.
+
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix :       <https://example.org/expenses/> .
+
+#################################################################
+# Architecture model graph (C4)
+#################################################################
+
+<urn:seams:graph:model:expense_architecture> {
+
+    :expense_architecture a seam:Model ;
+        rdfs:label "Expense Architecture" .
+
+    # The system and the two containers it is built from.
+    :expense_system a arch:System ; rdfs:label "Expense Approval" ;
+        arch:contains :employee_portal , :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :expense_api a arch:Container ; rdfs:label "Expense API" ;
+        arch:technology "FastAPI" ;
+        seam:inModel :expense_architecture .
+}
+
+#################################################################
+# Data model graph (SHACL shape graph)
+#################################################################
+
+<urn:seams:graph:model:expense_data> {
+
+    :expense_data a seam:Model ; rdfs:label "Expense Data" .
+
+    # Identifier convention (as in the chat app): a shape addressed in a URL
+    # carries exactly one string :id. The other properties are what a form asks for.
+    :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :description ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 0 ] ;
+        sh:property [ sh:path :amount ; sh:datatype xsd:decimal ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:minInclusive 0.01 ; sh:order 1 ] ;
+        sh:property [ sh:path :date ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 2 ] ;
+        seam:inModel :expense_data .
+}
+
+#################################################################
+# Seams graph: notations and cross-model links
+#################################################################
+
+<urn:seams:graph:seams> {
+
+    # The viewer opens at the model whose notation is C4.
+    :expense_architecture seam:notation seam:C4 .
+    :expense_data seam:notation seam:ShapeGraph .
+}

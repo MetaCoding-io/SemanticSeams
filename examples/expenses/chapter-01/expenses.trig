@@ -1,0 +1,47 @@
+# Expense approval tutorial, chapter 1: the architecture.
+#
+# A model is a TriG file: Turtle triples grouped into named graphs. Each
+# seam:Model gets its own graph, and every link between models (and every
+# seam: annotation such as seam:notation) lives in the seams graph at the end.
+# See docs/tutorials/expenses/ for the walkthrough.
+
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix :       <https://example.org/expenses/> .
+
+#################################################################
+# Architecture model graph (C4)
+#################################################################
+
+<urn:seams:graph:model:expense_architecture> {
+
+    :expense_architecture a seam:Model ;
+        rdfs:label "Expense Architecture" .
+
+    # The system and the two containers it is built from.
+    :expense_system a arch:System ; rdfs:label "Expense Approval" ;
+        arch:contains :employee_portal , :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :expense_api a arch:Container ; rdfs:label "Expense API" ;
+        arch:technology "FastAPI" ;
+        seam:inModel :expense_architecture .
+}
+
+#################################################################
+# Seams graph: notations and cross-model links
+#################################################################
+
+<urn:seams:graph:seams> {
+
+    # The viewer opens at the model whose notation is C4.
+    :expense_architecture seam:notation seam:C4 .
+}

@@ -49,6 +49,24 @@ The rest group by the layers they join. A few examples:
 `triggers`, `decidedBy` and `invokes` ending in `writes` answers "what can touch this
 data".
 
+## How each seam is revealed
+
+Every seam predicate, apart from the administrative `inModel`, `notation` and
+`renderPayload`, declares a [`seam:reveal`](/reference/seam-predicates#seam-reveal) mode
+in the ontology. The mode tells the viewer what to do with the edge's target:
+
+- **Open** replaces the view with the target's model: `detailedBy`, `triggers`,
+  `decidedBy` and `lifecycle`.
+- **Nest** draws the target inside its source: `presents` and `executes`. This is what
+  the C4 view's L4 level shows.
+- **Layer** overlays the target on the current view. This applies to every other seam.
+  Until layer mode is built, these edges appear only in the inspector.
+
+Open and nest seams navigate on click. A model graph can override a predicate's mode
+with its own `seam:reveal` triple. The mode is an annotation on the predicate, not a new
+seam edge, so the predicate count does not change. See
+[ADR-0005](/adr/0005-navigation-resolution) and [the viewer guide](/guide/the-viewer).
+
 ## The method applied to itself
 
 Constraints on the seams are not written as `rdfs:domain` and `rdfs:range`, because RDFS

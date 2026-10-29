@@ -16,9 +16,15 @@ from seams_runtime import Runtime
 runtime = Runtime.load("/model/chat-app.trig", model_hash=MODEL_HASH)
 ```
 
+If `SEAMS_MODEL` is set and non-empty, `load` reads that file instead of `trig_path`,
+and logs which path it used and where it came from. The hash check still applies, so a
+`SEAMS_MODEL` pointing at a different model raises `ModelHashMismatch` unless the
+mismatch is allowed. A missing model file raises `FileNotFoundError` naming the path
+(and `SEAMS_MODEL` when that chose it).
+
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None)` | Loads the model. Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
@@ -79,6 +85,7 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 
 | Variable | Meaning |
 |---|---|
+| `SEAMS_MODEL` | TriG file `load` reads. When set and non-empty it takes precedence over the `trig_path` argument. The generated compose file sets it to the bind-mounted model, for example `/model/chat-app.trig`. |
 | `SEAMS_DB` | SQLite file for workflow state and entities. The default is `seams.sqlite`. `db_path=` overrides it. |
 | `SEAMS_DEV_USER` | Opt-in static identity for local runs. Without it, the `X-Forwarded-User` header is required (fail closed, D014). |
 | `SEAMS_ALLOW_HASH_MISMATCH` | When set to `1`, `load` warns on a hash mismatch instead of refusing the model. |

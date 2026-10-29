@@ -2,6 +2,12 @@
 
     runtime = Runtime.load("/model/chat-app.trig", model_hash=MODEL_HASH)
 
+``SEAMS_MODEL``, when set and non-empty, takes precedence over ``trig_path``:
+the generated module names the path it was generated against, and the
+deployment (compose sets ``SEAMS_MODEL``) chooses the model actually mounted.
+A missing model file raises ``FileNotFoundError`` naming the path (and
+``SEAMS_MODEL`` when that chose it).
+
 ``load`` refuses a model whose hash differs from the one the code was
 generated from (ADR-0007 rule 2) unless ``allow_hash_mismatch=True`` or
 ``SEAMS_ALLOW_HASH_MISMATCH=1``. The other methods are what a thin handler
@@ -37,6 +43,7 @@ from .worker import RUNNING, Instance, Worker, new_state
 
 log = logging.getLogger(__name__)
 
+MODEL_ENV = "SEAMS_MODEL"
 DB_ENV = "SEAMS_DB"
 ALLOW_MISMATCH_ENV = "SEAMS_ALLOW_HASH_MISMATCH"
 DEFAULT_DB = "seams.sqlite"
@@ -65,6 +72,15 @@ class Runtime:
     def load(cls, trig_path, model_hash: str | None = None, *, allow_hash_mismatch: bool = False,
              db_path=None, authenticator=None, evaluator=None, llm_transport=None,
              llm_base_url: str | None = None, templates_dir=None) -> "Runtime":
+        override = os.environ.get(MODEL_ENV)
+        if override:
+            log.info("model path %s from %s (overrides argument %s)", override, MODEL_ENV, trig_path)
+            trig_path = override
+        else:
+            log.info("model path %s from argument (%s unset)", trig_path, MODEL_ENV)
+        if not Path(trig_path).is_file():
+            source = f" (from {MODEL_ENV})" if override else ""
+            raise FileNotFoundError(f"model file {trig_path} not found{source}")
         model = ModelGraph(trig_path)
         if model_hash is not None and model_hash != model.hash:
             if allow_hash_mismatch or os.environ.get(ALLOW_MISMATCH_ENV) == "1":

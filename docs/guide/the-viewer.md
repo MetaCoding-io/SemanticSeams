@@ -94,9 +94,13 @@ predicate labels. Edges along a navigational predicate are links.
 
 ## How a click is resolved
 
-Navigation follows [ADR-0005](/adr/0005-navigation-resolution). Four predicates are
-navigational: `seam:detailedBy`, `seam:triggers`, `seam:presents` and
-`seam:decidedBy`. When you click an element:
+Navigation follows [ADR-0005](/adr/0005-navigation-resolution). The viewer does not keep
+its own list of navigational predicates. Each seam predicate declares a reveal mode
+(`seam:reveal`) in `ontology/seam.ttl`, and a predicate whose mode is open or nest
+navigates. Today that is `seam:detailedBy`, `seam:triggers`, `seam:decidedBy` and
+`seam:lifecycle` (open), and `seam:presents` and `seam:executes` (nest). Every other seam
+predicate is layer, so it shows in the inspector but does not navigate. The JSON view
+gives each seam edge its `reveal` mode beside `navigational`. When you click an element:
 
 1. If it is detailed by exactly one model, the viewer opens that model.
 2. If it is detailed by more than one, the viewer shows the choice.

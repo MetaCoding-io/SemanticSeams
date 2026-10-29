@@ -23,7 +23,7 @@ CHAT_BPMN = f"{CHAT}chat_bpmn"
 ROUTING_DMN = f"{CHAT}routing_dmn"
 BPMN_FILE = viewer_app.DATA_DIR / "chat_process.bpmn"
 DMN_FILE = viewer_app.DATA_DIR / "routing.dmn"
-SEAM_KEYS = {"predicate", "predicateLabel", "target", "targetLabel", "targetLayer"}
+SEAM_KEYS = {"predicate", "predicateLabel", "target", "targetLabel", "targetLayer", "reveal"}
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def test_self_targets_dropped_and_empty_ids_omitted():
     assert all(seams.values())
 
 
-def test_every_seam_entry_has_the_five_keys():
+def test_every_seam_entry_has_the_six_keys():
     for lst in viewer_app.payload_element_seams(CHAT_BPMN).values():
         for s in lst:
             assert set(s) == SEAM_KEYS

@@ -187,6 +187,25 @@ def test_what_moves_state(model):
 SEAMS_GRAPH = URIRef("urn:seams:graph:seams")
 
 
+def _leaked_seam_quads(ds: rdflib.Dataset) -> list[tuple]:
+    """Quads using a seam: predicate outside the seams graph.
+
+    seam:inModel is allowed in model graphs. seam:reveal annotates the seam
+    predicates themselves (ADR-0005 as amended), so it is allowed in the default
+    graph, where the ontology files load.
+    """
+    allowed_in_model_graphs = {SEAM.inModel}
+    leaked = []
+    for s, p, o, ctx in ds.quads((None, None, None, None)):
+        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
+        if p == SEAM.reveal and str(graph_id) == "urn:x-rdflib:default":
+            continue
+        if str(p).startswith(str(SEAM)) and p not in allowed_in_model_graphs:
+            if graph_id != SEAMS_GRAPH:
+                leaked.append((graph_id, s, p, o))
+    return leaked
+
+
 def test_seam_predicates_isolated_to_seams_graph(dataset):
     """Cross-layer seam predicates must only appear in the seams graph.
 
@@ -194,13 +213,7 @@ def test_seam_predicates_isolated_to_seams_graph(dataset):
     resources to their owning model). Every other seam: predicate must live in
     the dedicated seams graph per ADR-0001.
     """
-    ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
-    leaked = []
-    for s, p, o, ctx in dataset.quads((None, None, None, None)):
-        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
-        if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
-            if graph_id != SEAMS_GRAPH:
-                leaked.append((graph_id, s, p, o))
+    leaked = _leaked_seam_quads(dataset)
     assert not leaked, (
         f"seam predicates leaked into model graphs:\n"
         + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
@@ -293,13 +306,7 @@ def test_chat_app_conforms_to_seam_shapes(chat_model):
 
 def test_chat_app_seam_predicates_isolated(chat_dataset):
     """Cross-layer seam predicates in chat-app must only appear in the seams graph."""
-    ALLOWED_IN_MODEL_GRAPHS = {SEAM.inModel}
-    leaked = []
-    for s, p, o, ctx in chat_dataset.quads((None, None, None, None)):
-        graph_id = ctx.identifier if hasattr(ctx, "identifier") else ctx
-        if str(p).startswith(str(SEAM)) and p not in ALLOWED_IN_MODEL_GRAPHS:
-            if graph_id != SEAMS_GRAPH:
-                leaked.append((graph_id, s, p, o))
+    leaked = _leaked_seam_quads(chat_dataset)
     assert not leaked, (
         f"seam predicates leaked into model graphs:\n"
         + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)

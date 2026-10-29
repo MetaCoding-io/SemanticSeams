@@ -36,6 +36,7 @@ The `/view/{iri}` endpoint returns a JSON-LD response with the following structu
         "predicate": "seam:triggers",
         "target": "<target IRI>",
         "targetLabel": "Target Label",
+        "reveal": "open",
         "navigational": true
       }
     ],
@@ -44,6 +45,7 @@ The `/view/{iri}` endpoint returns a JSON-LD response with the following structu
         "predicate": "seam:decidedBy",
         "source": "<source IRI>",
         "sourceLabel": "Source Label",
+        "reveal": "open",
         "navigational": true
       }
     ]
@@ -71,7 +73,7 @@ The `/view/{iri}` endpoint returns a JSON-LD response with the following structu
 
 6. **`renderPayload`** — Payload IRI for the element's renderable content (resolved via ADR-0003). Absent if the element has no native visual representation.
 
-7. **`seamEdges`** — All seam predicates connecting this element to other elements, split into outgoing and incoming. Each edge includes whether it is `navigational` (ADR-0005) to guide click behavior.
+7. **`seamEdges`** — All seam predicates connecting this element to other elements, split into outgoing and incoming. Each edge carries its predicate's `reveal` mode (`open`, `nest` or `layer`, from `seam:reveal` in the ontology; ADR-0005 as amended 2026-10-29) and whether it is `navigational`, to guide click behavior. `navigational` is derived: it is true exactly when `reveal` is `open` or `nest`.
 
 8. **`breadcrumbs`** — Traversal path from the entry point to the current element. Represents the user's navigation history, not a strict hierarchy (multiple parents are possible in a graph).
 

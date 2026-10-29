@@ -62,6 +62,47 @@ seamsh:InModelShape a sh:NodeShape ;
     sh:message "seam:inModel points at a seam:Model." .
 
 #################################################################
+# Reveal modes
+#################################################################
+
+seamsh:RevealShape a sh:NodeShape ;
+    rdfs:comment """Every non-administrative seam predicate declares exactly one reveal
+mode (ADR-0005 as amended): the viewer derives click navigation from it. Validate
+with ontology/seam.ttl merged into the data graph, as the annotations live there.
+A seam predicate added to seam.ttl is added here too.""" ;
+    sh:targetNode
+        seam:detailedBy ,
+        seam:presents ,
+        seam:exposes ,
+        seam:consumes ,
+        seam:deployedTo ,
+        seam:executes ,
+        seam:triggers ,
+        seam:visibleWhen ,
+        seam:submitsTo ,
+        seam:rendersComponent ,
+        seam:decidedBy ,
+        seam:invokes ,
+        seam:publishesTo ,
+        seam:subscribesTo ,
+        seam:reads ,
+        seam:writes ,
+        seam:lifecycle ,
+        seam:fires ,
+        seam:acceptsShape ,
+        seam:returnsShape ,
+        seam:mediaKind ,
+        seam:governedBy ,
+        seam:conformsTo ,
+        seam:realizes ;
+    sh:property [
+        sh:path seam:reveal ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( seam:Open seam:Nest seam:Layer ) ;
+        sh:message "Every seam predicate declares exactly one seam:reveal, one of seam:Open, seam:Nest or seam:Layer." ;
+    ] .
+
+#################################################################
 # Architecture <-> everything
 #################################################################
 

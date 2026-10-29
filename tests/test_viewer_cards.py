@@ -23,6 +23,7 @@ CHAT_ARCHITECTURE = f"{CHAT}chat_architecture"
 MESSAGE_LIFECYCLE = f"{CHAT}message_lifecycle"
 CHAT_UI = f"{CHAT}chat_ui"
 CHAT_API = f"{CHAT}chat_api"
+SEND_MESSAGE_OP = f"{CHAT}send_message_op"
 UI_TECHNOLOGY = "htmx + server-rendered fragments"
 
 
@@ -196,8 +197,12 @@ def test_statechart_fragment_keeps_vis_card_renderer(client):
 
 
 def test_inspector_seam_dots_carry_layers(client):
-    # chat_api self-lands (chat_ui auto-navigates into chat_ifml, ADR-0005).
-    html = _fragment(client, CHAT_API)
+    # send_message_op self-lands: it has no open or nest seam (ADR-0005 as
+    # amended). chat_api no longer does, since seam:executes now navigates it
+    # into chat_bpmn. Its rows span the three layers: persist_user_msg
+    # (process) invokes it, chat_api (architecture) exposes it, and it is
+    # governedBy user_send_policy, which sits in no model ("other").
+    html = _fragment(client, SEND_MESSAGE_OP)
     assert '<span class="seam-dot" data-layer="process"' in html
     assert '<span class="seam-dot" data-layer="architecture"' in html
     assert '<span class="seam-dot" data-layer="other"' in html
@@ -210,7 +215,7 @@ def test_inspector_seam_dots_carry_layers(client):
 def test_seam_dot_layers_are_known_values(client):
     import re
 
-    html = _fragment(client, CHAT_API)
+    html = _fragment(client, SEND_MESSAGE_OP)
     layers = re.findall(r'class="seam-dot" data-layer="([^"]*)"', html)
     assert layers
     assert set(layers) <= set(LAYERS)

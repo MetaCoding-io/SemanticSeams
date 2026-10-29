@@ -146,7 +146,9 @@ def seam_predicates() -> str:
         for qname in sec.terms:
             node = resolve(g, qname)
             types = set(g.objects(node, RDF.type))
-            if types & {RDFS.Class, RDF.Property, OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty}:
+            if types & {
+                RDFS.Class, RDF.Property, OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.AnnotationProperty
+            }:
                 kind = "class" if types & {RDFS.Class, OWL.Class} else "predicate"
                 lbl = g.value(node, RDFS.label)
                 out.append(f"### `{qname}` {{#{anchor(qname, clash)}}}\n\n")
@@ -159,6 +161,9 @@ def seam_predicates() -> str:
                     vals = [f"`{q(g, v)}`" for v in g.objects(node, pred)]
                     if vals:
                         facts.append(f"{name}: {', '.join(vals)}")
+                reveal = g.value(node, SEAM.reveal)
+                if reveal is not None:
+                    facts.append(f"Reveal: {g.value(reveal, RDFS.label) or q(g, reveal)}")
                 if facts:
                     out.append(" · ".join(facts) + "\n\n")
             else:

@@ -51,8 +51,11 @@ NOTATION_LABELS = {
     SEAM.ShapeGraph: "shapegraph",
 }
 
-# ADR-0005: predicates that trigger navigation on click.
-NAVIGATIONAL_PREDICATES = {SEAM.detailedBy, SEAM.triggers, SEAM.presents, SEAM.decidedBy}
+# ADR-0005 (amended M007/S02): each seam predicate declares a seam:reveal mode
+# in ontology/seam.ttl. Open and nest predicates navigate on click; layer
+# predicates stay inspector-only. See reveal_mode() and navigational_predicates().
+REVEAL_MODES = {SEAM.Open: "open", SEAM.Nest: "nest", SEAM.Layer: "layer"}
+NAVIGATING_MODES = {"open", "nest"}
 
 # Administrative seam predicates excluded from the seamEdges inspector list —
 # they drive rendering/dispatch rather than representing a cross-layer edge.
@@ -134,6 +137,41 @@ def ontology_labels() -> dict[str, str]:
             g.parse(p, format="turtle")
         _ontology_labels = {str(s): str(o) for s, o in g.subject_objects(RDFS.label)}
     return _ontology_labels
+
+
+# Reveal modes come from the same ontology side lookup as labels (D004, D006):
+# the annotations never enter the ModelStore.
+_ontology_reveal: dict[str, str] | None = None
+
+
+def ontology_reveal() -> dict[str, str]:
+    """Predicate IRI -> "open" | "nest" | "layer", from seam:reveal in ontology/*.ttl."""
+    global _ontology_reveal
+    if _ontology_reveal is None:
+        from rdflib import Graph
+
+        g = Graph()
+        for p in sorted((BASE_DIR.parent / "ontology").glob("*.ttl")):
+            g.parse(p, format="turtle")
+        _ontology_reveal = {
+            str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES
+        }
+    return _ontology_reveal
+
+
+def reveal_mode(p) -> str:
+    """Reveal mode of a predicate: a model-graph seam:reveal wins, then the
+    ontology default, then "layer" (unannotated predicates never navigate)."""
+    local = get_graph().value(URIRef(str(p)), SEAM.reveal)
+    if local in REVEAL_MODES:
+        return REVEAL_MODES[local]
+    return ontology_reveal().get(str(p), "layer")
+
+
+def navigational_predicates() -> set[URIRef]:
+    """Seam predicates whose reveal mode is open or nest (ADR-0005 as amended)."""
+    preds = set(ontology_reveal()) | {str(s) for s in get_graph().subjects(SEAM.reveal, None)}
+    return {URIRef(p) for p in preds if reveal_mode(p) in NAVIGATING_MODES}
 
 
 def predicate_label(p) -> str:
@@ -251,7 +289,8 @@ def seam_edges(iri: str) -> dict:
                     "target": str(o),
                     "targetLabel": label(str(o)),
                     "targetLayer": layer_of(str(o)),
-                    "navigational": p in NAVIGATIONAL_PREDICATES,
+                    "reveal": reveal_mode(p),
+                    "navigational": reveal_mode(p) in NAVIGATING_MODES,
                 }
             )
     incoming = []
@@ -264,7 +303,8 @@ def seam_edges(iri: str) -> dict:
                     "source": str(s),
                     "sourceLabel": label(str(s)),
                     "sourceLayer": layer_of(str(s)),
-                    "navigational": p in NAVIGATIONAL_PREDICATES,
+                    "reveal": reveal_mode(p),
+                    "navigational": reveal_mode(p) in NAVIGATING_MODES,
                 }
             )
     return {"outgoing": outgoing, "incoming": incoming}
@@ -304,7 +344,7 @@ def resolve_navigation(iri: str) -> dict:
     if direct:
         return {"target": direct[0], "landing": direct[0], "candidates": None}
 
-    for pred in (SEAM.triggers, SEAM.presents, SEAM.decidedBy):
+    for pred in sorted(navigational_predicates() - {SEAM.detailedBy}, key=str):
         for target in graph.objects(subj, pred):
             target = str(target)
             if is_model(target):
@@ -355,6 +395,7 @@ def card_seams(iri: str) -> list[dict]:
             "target": o,
             "targetLabel": label(o),
             "targetLayer": layer_of(o),
+            "reveal": reveal_mode(p),
         }
         for p, o in sorted(edges, key=lambda e: (str(e[0]), e[1]))
     ]

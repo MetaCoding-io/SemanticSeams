@@ -44,6 +44,15 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
    [seam predicates reference](/reference/seam-predicates) describes each predicate's
    intended source and target.
 
+::: tip Adding a seam predicate
+A model only uses the seam predicates that already exist. If you extend
+`ontology/seam.ttl` with a new one, give it a `seam:reveal` of `seam:Open`, `seam:Nest`
+or `seam:Layer`, and add it to the `seamsh:RevealShape` target list in
+`ontology/shapes/seam-shapes.ttl`. Open and nest predicates navigate on click
+([ADR-0005](/adr/0005-navigation-resolution)). A predicate without a mode counts as
+layer, so it only appears in the inspector.
+:::
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

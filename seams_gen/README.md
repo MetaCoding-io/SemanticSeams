@@ -18,6 +18,14 @@ python -m seams_gen compose examples/chat-app/chat-app.trig --out .
 # -> ./compose.yaml   (bind-mount sources are relative to --out, so `docker compose up` works there)
 ```
 
+**Committed outputs.** The chat-app outputs are committed at stable paths for the
+docker images and `docker compose up`: `examples/chat-app/generated/chat_api.py`,
+`examples/chat-app/generated/templates/*.html` and the root `compose.yaml`
+([generated/README.md](../examples/chat-app/generated/README.md) lists the regenerate
+commands). `tests/test_generated_outputs_current.py` regenerates each and requires the
+same file set, byte for byte, failing with a diff and the command to run; CI also reruns
+the three commands and fails on `git diff` or an untracked file under those paths.
+
 ```python
 from seams_gen import generate_page, generate_fragments, fragment_for, extract_page, GeneratorError
 html = generate_page("examples/chat-app/chat-app.trig")

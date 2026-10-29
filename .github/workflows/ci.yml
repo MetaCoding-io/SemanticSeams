@@ -20,3 +20,17 @@ jobs:
       # The viewer tests import the FastAPI app, so the viewer's dependencies are needed too.
       - run: pip install -r requirements-dev.txt -r viewer/requirements.txt
       - run: pytest -q
+      # The generated chat-app code and compose.yaml are committed; regenerating must change nothing.
+      - name: Generated outputs are current
+        run: |
+          trig=examples/chat-app/chat-app.trig
+          python -m seams_gen fastapi "$trig" --out examples/chat-app/generated
+          python -m seams_gen htmx "$trig" --out examples/chat-app/generated/templates
+          python -m seams_gen compose "$trig" --out .
+          git diff --exit-code -- examples/chat-app/generated compose.yaml
+          untracked=$(git status --porcelain --untracked-files=all -- examples/chat-app/generated compose.yaml)
+          if [ -n "$untracked" ]; then
+            echo "Regeneration left untracked or modified files; commit or delete them:"
+            echo "$untracked"
+            exit 1
+          fi

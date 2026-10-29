@@ -92,6 +92,14 @@ Results appear inline with each value linked. The catalog is on the
 payload where it has them, and its outgoing and incoming seam edges with readable
 predicate labels. Edges along a navigational predicate are links.
 
+**Relations.** Under Details, the same seam edges grouped by the reveal mode
+each predicate declares in `ontology/seam.ttl` (`seam:reveal`). **Open** edges
+replace the view with the target's model. **Nest** edges (`presents`,
+`executes`) draw the target inside its source. **Layer** edges overlay the target
+on the view; until layer mode is built, a layer row is a plain link to the
+target, resolved like any click. Each row shows the other end's layer colour, the predicate, an arrow
+for direction and the label. Empty groups are left out.
+
 ## How a click is resolved
 
 Navigation follows [ADR-0005](/adr/0005-navigation-resolution). The viewer does not keep

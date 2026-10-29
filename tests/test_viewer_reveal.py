@@ -5,6 +5,7 @@ ontology/seam.ttl gives every non-administrative seam predicate one seam:reveal
 click navigation and the seamEdges "reveal" field from it.
 """
 
+import re
 import sys
 from pathlib import Path
 from urllib.parse import quote
@@ -199,3 +200,79 @@ def test_layer_only_element_stays_put():
     nav = viewer_app.resolve_navigation(f"{CHAT}send_message_op")
     assert nav["target"] is None
     assert nav["landing"] == f"{CHAT}send_message_op"
+
+
+# ---------------------------------------------------------------- relations panel
+
+# routing_decision self-lands (two seam:detailedBy candidates, so the view asks
+# which to open) and has open edges (detailedBy, incoming decidedBy) and a
+# layer edge (reads) but no nest edge.
+ROUTING = CHAT + "routing_decision"
+FRAGMENT = {"hx-request": "true"}
+
+
+def view_html(client, iri, headers=None):
+    resp = client.get(f"/view/{quote(iri, safe='')}", headers=headers or {})
+    assert resp.status_code == 200
+    return resp.text
+
+
+def relations_section(html: str) -> str:
+    start = html.index('<section id="relations"')
+    return html[start : html.index("</section>", start)]
+
+
+def test_relations_panel_groups_by_mode(client):
+    section = relations_section(view_html(client, ROUTING, FRAGMENT))
+    assert 'aria-label="Relations"' in section
+    assert '<h4 data-reveal="open">' in section
+    assert '<h4 data-reveal="layer">' in section
+    assert 'data-reveal="nest"' not in section  # empty group omitted
+    assert section.index('<h4 data-reveal="open">') < section.index('<h4 data-reveal="layer">')
+
+
+def test_relations_rows_carry_mode_and_direction(client):
+    section = relations_section(view_html(client, ROUTING, FRAGMENT))
+    assert section.count('class="relation-row"') == 4
+    assert 'data-reveal="layer" data-direction="out" data-predicate="seam:reads"' in section
+    assert 'data-reveal="open" data-direction="in" data-predicate="seam:decidedBy"' in section
+    assert 'title="inspect' in section  # layer rows hint at the inspector
+
+
+def test_relations_groups_are_sorted_and_merged():
+    out = [
+        {"predicateLabel": "reads", "targetLabel": "B", "targetLayer": "data", "target": "b", "reveal": "layer", "href": "/view/b"},
+        {"predicateLabel": "detailed by", "targetLabel": "Z", "targetLayer": "x", "target": "z", "reveal": "open", "href": "/view/z"},
+    ]
+    inc = [
+        {"predicateLabel": "decided by", "sourceLabel": "A", "sourceLayer": "process", "source": "a", "reveal": "open", "href": "/view/a"},
+    ]
+    groups = viewer_app.relation_groups(out, inc)
+    assert [g["mode"] for g in groups] == ["open", "layer"]
+    assert [(e["predicateLabel"], e["direction"]) for e in groups[0]["edges"]] == [
+        ("decided by", "in"),
+        ("detailed by", "out"),
+    ]
+    assert viewer_app.relation_groups([], []) == []
+
+
+def test_relations_panel_is_per_view(client):
+    assert '<section id="relations"' in view_html(client, ROUTING)
+    assert '<section id="relations"' in view_html(client, ROUTING, FRAGMENT)
+
+
+def test_relations_rows_link_to_views(client):
+    section = relations_section(view_html(client, ROUTING, FRAGMENT))
+    hrefs = re.findall(r'class="relation-row" href="([^"]+)"', section)
+    assert hrefs and all(h.startswith("/view/") for h in hrefs)
+
+
+def test_chat_ifml_relations_show_the_nest_group(client):
+    section = relations_section(view_html(client, CHAT + "chat_ifml", FRAGMENT))
+    assert '<h4 data-reveal="nest">' in section
+    assert 'data-reveal="nest" data-direction="in" data-predicate="seam:presents"' in section
+
+
+def test_json_has_no_relations(client):
+    resp = client.get(f"/view/{quote(ROUTING, safe='')}?format=json")
+    assert "relations" not in resp.json()

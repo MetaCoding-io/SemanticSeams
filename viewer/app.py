@@ -695,6 +695,36 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
     return templates.TemplateResponse(request, "query-results.html", ctx)
 
 
+# Relations panel (M007/S02): the focused element's seam edges grouped by
+# reveal mode. Hints follow docs/research/2026-10-15-reveal-modes.md section 2.
+RELATION_GROUPS = (
+    ("open", "Open", "opens the target's model"),
+    ("nest", "Nest", "draws the target inside its source"),
+    ("layer", "Layer", "overlays the target on this view; opens the inspector for now"),
+)
+
+
+def relation_groups(outgoing: list[dict], incoming: list[dict]) -> list[dict]:
+    """Template-only context: outgoing and incoming edges (already carrying href)
+    merged with a direction key, grouped open, nest, layer, empty groups omitted."""
+    rows = [
+        {**e, "direction": "out", "label": e["targetLabel"], "layer": e["targetLayer"], "iri": e["target"]}
+        for e in outgoing
+    ] + [
+        {**e, "direction": "in", "label": e["sourceLabel"], "layer": e["sourceLayer"], "iri": e["source"]}
+        for e in incoming
+    ]
+    groups = []
+    for mode, title, hint in RELATION_GROUPS:
+        edges = sorted(
+            (r for r in rows if r["reveal"] == mode),
+            key=lambda r: (r["predicateLabel"], r["label"], r["direction"], r["iri"]),
+        )
+        if edges:
+            groups.append({"mode": mode, "title": title, "hint": hint, "edges": edges})
+    return groups
+
+
 @app.get("/view/{iri:path}")
 def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", hide: str = ""):
     clicked = unquote(iri)
@@ -796,6 +826,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     ctx["detailed_by_candidates"] = [
         {**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]
     ]
+    ctx["relations"] = relation_groups(ctx["outgoing"], ctx["incoming"])
 
     template = "fragment.html" if request.headers.get("hx-request") == "true" else "page.html"
     return templates.TemplateResponse(request, template, ctx)

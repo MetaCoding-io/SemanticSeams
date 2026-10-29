@@ -599,6 +599,29 @@
         {% endfor %}
       </ul>
     {% endif %}
+
+    {% if relations %}
+      {# Relations panel (M007/S02): the same seam edges grouped by the
+         predicate's seam:reveal mode. Per-view, so it lives in the fragment. #}
+      <section id="relations" class="relations" aria-label="Relations">
+        <h3>Relations</h3>
+        {% for g in relations %}
+          <h4 data-reveal="{{ g.mode }}">{{ g.title }} <span class="relations-hint">{{ g.hint }}</span></h4>
+          <ul data-reveal="{{ g.mode }}">
+            {% for e in g.edges %}
+              <li>
+                <a class="relation-row" href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#view-content" hx-push-url="true" data-reveal="{{ e.reveal }}" data-direction="{{ e.direction }}" data-predicate="{{ e.predicate }}"{% if e.reveal == "layer" %} title="inspect: layer mode is not built yet, so this opens the target"{% endif %}>
+                  <span class="seam-dot" data-layer="{{ e.layer }}"></span>
+                  <code class="predicate-label">{{ e.predicateLabel }}</code>
+                  {% if e.direction == "out" %}&rarr;{% else %}&larr;{% endif %}
+                  {{ e.label }}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endfor %}
+      </section>
+    {% endif %}
   </aside>
   </div>
 </main>

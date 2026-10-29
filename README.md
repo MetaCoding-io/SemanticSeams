@@ -55,8 +55,9 @@ gateway's built-in stub). CI runs the same stack end to end.
 
 [`docs/tutorials/expenses/`](docs/tutorials/expenses/index.md) is the slower track: build
 an expense approval app yourself, one layer per chapter, from an empty TriG file to a
-generated form that rejects invalid input. Chapters 1 to 3 (architecture, data, screens)
-are written; CI checks each chapter's checkpoint model in `examples/expenses/`.
+generated app with an approval process. Chapters 1 to 6 (architecture, data, screens,
+process, rules, lifecycle) are written; CI checks each chapter's checkpoint model in
+`examples/expenses/`.
 
 ## Generators
 

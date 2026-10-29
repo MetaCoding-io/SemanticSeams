@@ -69,7 +69,7 @@ def test_checkout_scores():
     assert len(r.failures) == 2
 
 
-def test_expense_chapter_8_scores_4_6_109_and_passes():
+def test_expense_chapter_8_scores_4_6_111_and_passes():
     """The finished expense tutorial: two models each of BPMN, DMN, IFML and
     statechart, and ExpenseShape reached from six models (the expense UI,
     both processes, both decisions and the finance console)."""
@@ -88,7 +88,7 @@ def test_expense_chapter_8_scores_4_6_109_and_passes():
         (ex + "ApprovalShape", 2),
     ]
     assert r.max_reach == 6
-    assert r.edges == 109
+    assert r.edges == 111
     assert r.failures == []
 
 
@@ -97,7 +97,7 @@ def test_cli_expense_chapter_8_passes():
     assert p.returncode == 0, p.stdout + p.stderr
     assert p.stdout.splitlines()[-1] == "PASS"
     assert "  ExpenseShape: 6" in p.stdout
-    assert "seam edges: 109 (reported, not gated)" in p.stdout
+    assert "seam edges: 111 (reported, not gated)" in p.stdout
 
 
 def test_measure_is_deterministic():

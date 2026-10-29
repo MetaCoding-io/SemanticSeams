@@ -16,6 +16,12 @@
 # The checkpoint has two models each of BPMN, DMN, IFML and statechart, and
 # passes python -m seams_gen.complexity.
 #
+# The architecture graph also carries deploy facts (images, ports, start
+# order and one environment), so python -m seams_gen compose writes this
+# directory's compose.yaml. There is one environment: the compose generator
+# places containers by seam:deployedTo and has no notion of a second
+# (staging) environment.
+#
 # A model is a TriG file: Turtle triples grouped into named graphs. Each
 # seam:Model gets its own graph, and every link between models (and every
 # seam: annotation such as seam:notation) lives in the seams graph at the end.
@@ -26,6 +32,7 @@
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
 @prefix seam:   <https://w3id.org/seams/seam#> .
 @prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
 @prefix ifml:   <https://w3id.org/seams/ifml#> .
 @prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
 @prefix comm:   <https://w3id.org/seams/comm#> .
@@ -49,13 +56,37 @@
         arch:contains :employee_portal , :expense_api ;
         seam:inModel :expense_architecture .
 
+    # Deploy facts: the image each container runs, its ports and start
+    # order. The portal publishes 8080 on the host; the API is internal.
     :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
         arch:technology "htmx + server-rendered fragments" ;
         arch:dependsOn :expense_api ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/expense-portal" ;
+                          deploy:version "latest" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
+        deploy:dependsOn :expense_api ;
         seam:inModel :expense_architecture .
 
     :expense_api a arch:Container ; rdfs:label "Expense API" ;
         arch:technology "FastAPI" ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/expense-api" ;
+                          deploy:version "0.8.0" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        deploy:placement [ a deploy:PlacementPolicy ;
+                           deploy:targetEnvironment :prod ] ;
+        seam:inModel :expense_architecture .
+
+    # One environment with a node for each container (seam:deployedTo, in
+    # the seams graph, places them).
+    :prod a arch:Environment ; rdfs:label "Production" ;
+        arch:contains :web01 , :app01 ;
+        seam:inModel :expense_architecture .
+
+    :web01 a arch:DeploymentNode ; rdfs:label "web01" ;
+        seam:inModel :expense_architecture .
+    :app01 a arch:DeploymentNode ; rdfs:label "app01" ;
         seam:inModel :expense_architecture .
 }
 
@@ -494,11 +525,13 @@
     :employee_portal seam:presents :expense_ifml , :finance_console ;
         seam:consumes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
             :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
-            :pay_expense_op , :list_payments_op , :paid_expenses_op .
+            :pay_expense_op , :list_payments_op , :paid_expenses_op ;
+        seam:deployedTo :web01 .
     :expense_api seam:exposes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
             :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
             :pay_expense_op , :list_payments_op , :paid_expenses_op , :payouts ;
-        seam:executes :approval_process , :payout_process .
+        seam:executes :approval_process , :payout_process ;
+        seam:deployedTo :app01 .
 
     # UI to data and API: the form writes an ExpenseShape, its event submits
     # it to the operation, and the list reads ExpenseShapes.

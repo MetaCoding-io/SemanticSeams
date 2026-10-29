@@ -60,6 +60,12 @@ examples/expenses/
                              the payouts SSE stream, but no route for the payout process) and
                              templates, including the /payouts page, generated from chapter 8
   chapter-08/seed.json       an empty seed ({})
+  chapter-08/compose.yaml    the docker compose file generated from chapter 8's deploy facts
+                             (do not edit; regenerate it)
+  chapter-08/compose.override.yaml
+                             the hand-written local override: builds the runtime image with
+                             chapter 8's generated code, puts Caddy in front as the portal and
+                             adds the /data volume
 ```
 
 Every checkpoint is a cumulative copy of the one before it, so the diff between
@@ -140,4 +146,48 @@ but not yet paid, starts no payout, and no generated route starts the payout
 process. `GET /payouts`, the finance console page, lists the payment, and the
 viewer opens the new models. The same checkpoint is the passing example of
 `python -m seams_gen.complexity` (4 notations with two models, `:ExpenseShape`
-reached from 6 models, 109 seam edges), pinned by `tests/test_complexity.py`.
+reached from 6 models, 111 seam edges), pinned by `tests/test_complexity.py`.
+
+## Running chapter 8 under docker compose
+
+Chapter 8's architecture graph has deploy facts: an image, ports and start
+order for each container, and one environment (`:prod`, with a node for each
+container). The compose generator writes them to `chapter-08/compose.yaml`:
+
+```
+python -m seams_gen compose examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08
+```
+
+The API container gets the TriG and its four payloads (`approval.bpmn`,
+`approval.dmn`, `payout.bpmn`, `payout.dmn`) bind-mounted read-only at
+`/model`, with the model hash the generated code was built from. The
+generator places containers by `seam:deployedTo` and has no notion of a
+second environment, so the checkpoint models no staging environment.
+
+`chapter-08/compose.override.yaml` is written by hand. It builds
+`docker/runtime.Dockerfile` with `SEAMS_APP_DIR=examples/expenses/chapter-08`
+and `SEAMS_ROUTES_FILE=expense_api.py`, makes the portal a Caddy reverse proxy
+to the API, adds healthchecks and a volume for `/data`, and names the project
+`seams-expenses`. Compose only merges an override from the working directory,
+so pass both files from the repository root:
+
+```
+docker compose -f examples/expenses/chapter-08/compose.yaml \
+  -f examples/expenses/chapter-08/compose.override.yaml up -d --build --wait
+```
+
+There is no auth proxy and no static dev user, so the API's
+`HeaderAuthenticator` reads `X-Forwarded-User` and `X-Forwarded-Groups`, which
+Caddy passes through. Send them yourself (for example
+`curl -H 'X-Forwarded-User: alice' -H 'X-Forwarded-Groups: employee' ...`); a
+request without them is a 401. Keep the stack on localhost.
+
+`tests/test_expense_compose.py` checks that the committed `compose.yaml`
+equals what the generator writes now, and what the override builds.
+`tests/test_expense_e2e.py` runs only with `SEAMS_E2E=1` (CI's `tutorial-e2e`
+job): it brings the stack up, and over `http://localhost:8080` an employee
+submits, the manager approves through the generated form route, finance pays,
+and the test polls `/payouts` until the payout process has batched the
+payment and the expense is paid. An invalid submit is a 422 and a submit with
+no identity a 401. On failure it prints `docker compose logs`; teardown always
+runs `down -v`.

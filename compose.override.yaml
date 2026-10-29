@@ -17,7 +17,8 @@
 #
 # This override is written for the chat app's service names (chat_api, llm_gateway,
 # chat_ui, message_db). Another app's generated compose file needs its own override,
-# passed with -f. The model the runtime loads is the one the generated file mounts at
+# passed with -f: examples/expenses/chapter-08/compose.override.yaml is the expense
+# tutorial's. The model the runtime loads is the one the generated file mounts at
 # /model and names in SEAMS_MODEL.
 
 services:

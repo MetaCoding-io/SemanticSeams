@@ -1,0 +1,68 @@
+# Hand-written local overrides for the generated, prod-shaped compose.yaml next
+# to this file. compose.yaml is generated from the chapter-08 expenses model
+# (python -m seams_gen compose examples/expenses/chapter-08/expenses.trig
+# --out examples/expenses/chapter-08) and must not be edited; everything a
+# laptop or CI run needs that production does not goes here instead.
+#
+# Compose only merges compose.override.yaml automatically from the working
+# directory, so pass both files (from the repository root):
+#
+#   docker compose -f examples/expenses/chapter-08/compose.yaml \
+#     -f examples/expenses/chapter-08/compose.override.yaml up -d --build --wait
+#
+# Requires Docker Compose 2.24+ for the !override merge tag.
+#
+# There is no auth proxy in front of employee_portal. The runtime's default
+# HeaderAuthenticator reads X-Forwarded-User and X-Forwarded-Groups, and Caddy
+# passes them through untouched, so the caller says who it is (employee,
+# manager or finance) on each request; a request without them is a 401.
+# Never expose this stack beyond localhost.
+
+# A project name of its own, so this stack never collides with the chat app's.
+name: seams-expenses
+
+services:
+  expense_api:
+    # ghcr.io/example/expense-api does not exist; build the runtime image from
+    # this checkout with chapter 8's generated code baked in.
+    image: seams/expense-api:local
+    build:
+      context: ../../..
+      dockerfile: docker/runtime.Dockerfile
+      args:
+        SEAMS_APP_DIR: examples/expenses/chapter-08
+        SEAMS_ROUTES_FILE: expense_api.py
+    pull_policy: build
+    volumes:
+      # Process instances and entities live in SQLite (SEAMS_DB=/data/seams.sqlite).
+      - expense_api_data:/data
+    # Placement constraints are swarm-only and ignored here. Process instances
+    # and the SSE bus are in-process, so one replica is the only correct shape.
+    deploy:
+      replicas: 1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  employee_portal:
+    # ghcr.io/example/expense-portal has no implementation: expense_api's host
+    # serves the pages itself, so the portal is a code-free Caddy reverse proxy
+    # for everything (including the SSE streams). Port 8080:8000 comes from
+    # compose.yaml.
+    image: caddy:2-alpine
+    command: caddy reverse-proxy --from :8000 --to expense_api:8000
+    depends_on: !override
+      expense_api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  expense_api_data: {}

@@ -3,6 +3,9 @@
 # The build args choose which app's generated code is baked in (default: the chat app):
 #   docker build -f docker/runtime.Dockerfile \
 #     --build-arg SEAMS_APP_DIR=examples/other-app --build-arg SEAMS_ROUTES_FILE=other_api.py .
+# The second app is the expense tutorial's last checkpoint: its
+# examples/expenses/chapter-08/compose.override.yaml builds this image with
+# SEAMS_APP_DIR=examples/expenses/chapter-08 and SEAMS_ROUTES_FILE=expense_api.py.
 # The app dir must hold generated/<routes file>, generated/templates/ and seed.json;
 # the seed file is required, so an app without seed data commits a seed.json of `{}`.
 # The model (the TriG plus its BPMN/DMN payloads) is not baked in: the generated

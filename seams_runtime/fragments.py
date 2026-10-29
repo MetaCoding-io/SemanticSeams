@@ -10,7 +10,8 @@ as a template path, so an unknown or path-like name never touches the
 filesystem. The bound variables follow the seam.ttl visibleWhen rule: the
 component's seam:reads shape ``:MessageShape`` gives ``messages`` (whole
 component), ``message`` (item partial) and, when the component has
-seam:visibleWhen, ``message_state``.
+seam:visibleWhen, ``message_state``. ``component_context`` applies the
+same rule to a page block (Runtime.render_page).
 """
 
 from __future__ import annotations
@@ -78,9 +79,18 @@ class FragmentRenderer:
         if component is None:
             raise ResolutionError(self.model.subject, SEAM.rendersComponent,
                                   f"no rendered component for template {name!r}")
-        return Fragment(f"{local}{ITEM_SUFFIX if item else ''}.html", component, item,
+        return self._fragment(component, item)
+
+    def _fragment(self, component: URIRef, item: bool = False) -> Fragment:
+        return Fragment(f"{local_name(component)}{ITEM_SUFFIX if item else ''}.html", component, item,
                         self.model.ds.value(component, SEAM.reads),
                         self.model.ds.value(component, SEAM.visibleWhen))
+
+    def component_context(self, component, data, params: Mapping | None = None) -> dict:
+        """The variables a page block for ``component`` needs: the same
+        binding as the component's whole partial (``messages``,
+        ``message_state``), whether or not an operation renders it."""
+        return self._context(self._fragment(self.model.curie(component)), data, params or {})
 
     def context(self, name: str, data, params: Mapping | None = None) -> dict:
         frag = self.resolve(name)
@@ -110,3 +120,8 @@ class FragmentRenderer:
         log.debug("render_fragment %s: component %s, variables %s",
                   frag.template, frag.component, sorted(ctx))
         return self.env.get_template(frag.template).render(ctx)
+
+    def render_template(self, template: str, ctx: Mapping) -> str:
+        """Render a template by name; callers resolve ``template`` from the graph."""
+        log.debug("render %s: variables %s", template, sorted(ctx))
+        return self.env.get_template(template).render(dict(ctx))

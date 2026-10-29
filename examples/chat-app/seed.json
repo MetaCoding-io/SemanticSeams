@@ -1,0 +1,6 @@
+{
+  ":ConversationShape": [
+    {"id": "welcome", "title": "Welcome"},
+    {"id": "scratch", "title": "Scratch pad"}
+  ]
+}

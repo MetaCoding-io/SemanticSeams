@@ -22,7 +22,7 @@ from typing import NamedTuple
 from urllib.parse import unquote, urlsplit
 
 from lxml import etree
-from rdflib import RDF, RDFS, Dataset, Graph, Namespace, URIRef
+from rdflib import RDF, RDFS, Dataset, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import SH
 
 from .errors import ResolutionError
@@ -35,6 +35,7 @@ STATE = Namespace("https://w3id.org/seams/state#")
 HYDRA = Namespace("http://www.w3.org/ns/hydra/core#")
 ODRL = Namespace("http://www.w3.org/ns/odrl/2/")
 DEPLOY = Namespace("https://w3id.org/seams/deploy#")
+IFML = Namespace("https://w3id.org/seams/ifml#")
 
 
 def local_name(iri) -> str:
@@ -511,6 +512,33 @@ class ModelGraph:
                                     assignee, types))
         perms.sort(key=lambda x: (str(x.target), str(x.action), str(x.assignee)))
         return PolicyFacts(p, self.label(p), tuple(perms))
+
+    # ── IFML pages ──
+
+    def landmark_page(self) -> URIRef:
+        """The single ifml:ViewContainer with ifml:isLandmark true (the app entry page)."""
+        pages = sorted({c for c in self.ds.subjects(RDF.type, IFML.ViewContainer)
+                        if (c, IFML.isLandmark, Literal(True)) in self.ds})
+        if len(pages) != 1:
+            raise ResolutionError(self.subject, IFML.isLandmark,
+                                  f"expected one ifml:ViewContainer with ifml:isLandmark true, "
+                                  f"found {[str(p) for p in pages]}")
+        return pages[0]
+
+    def page_path(self, page) -> str:
+        """The ifml:path a page is served at."""
+        return str(self._one(self.curie(page), IFML.path, "page has no ifml:path"))
+
+    def page_components(self, page) -> list[URIRef]:
+        """The components a page ifml:contains, by ifml:order (then IRI)."""
+        def order(c):
+            value = self.ds.value(c, IFML.order)
+            return (int(value) if value is not None else 1 << 30, str(c))
+        return sorted(set(self.ds.objects(self.curie(page), IFML.contains)), key=order)
+
+    def parameter_labels(self, component) -> set[str]:
+        """rdfs:labels of a component's ifml:hasParameter parameters."""
+        return {self.label(p) for p in self.ds.objects(self.curie(component), IFML.hasParameter)}
 
     def shape_graph(self) -> Graph:
         """The named graph(s) holding sh:NodeShape subjects (merged when several)."""

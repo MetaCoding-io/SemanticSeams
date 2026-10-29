@@ -9,7 +9,8 @@ calls: ``policy`` (a FastAPI dependency for seam:governedBy), ``validate``
 (SHACL at the boundary), ``start_process`` / ``resume`` (run the generic
 worker as an asyncio task), ``query`` (persisted entities of a shape) and
 ``subscribe`` (SSE frames of a channel scope) and ``render_fragment`` (an
-htmx partial from ``templates_dir``, ``SEAMS_TEMPLATES`` or ``./templates``).
+htmx partial from ``templates_dir``, ``SEAMS_TEMPLATES`` or ``./templates``)
+and ``render_page`` (the landmark page, every block bound as its partial is).
 """
 
 from __future__ import annotations
@@ -26,10 +27,10 @@ from .channels import ChannelBus, Subscription
 from .contracts import validate as _validate
 from .engine import Engine
 from .errors import ModelHashMismatch, ResolutionError
-from .fragments import FragmentRenderer
+from .fragments import FragmentRenderer, flatten
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient
-from .model import SEAM, ModelGraph
+from .model import SEAM, ModelGraph, local_name
 from .policy import PolicyHook, authenticator_from_env
 from .store import Store
 from .worker import RUNNING, Instance, Worker, new_state
@@ -156,3 +157,46 @@ class Runtime:
         ``data`` bound per the seam.ttl visibleWhen rule. An unknown name
         raises ResolutionError before any template file is opened."""
         return HTMLResponse(self.fragments.render(name, data, params))
+
+    def page_context(self, page=None, **params) -> dict:
+        """The variables of a page template (default: the landmark page).
+
+        Each ifml:contains component that seam:reads a shape is bound by
+        FragmentRenderer's rule. A component whose ifml:hasParameter labels
+        include a proc:correlationKey label is scoped: it reads only entities
+        of that correlation key, taken from ``params`` or, when absent, the
+        smallest id among the unscoped components' entities. The key is bound
+        under its label too (``conversation``)."""
+        page = self.model.landmark_page() if page is None else self.model.curie(page)
+        keys = self.model.correlation_key_labels()
+        blocks = []
+        for component in self.model.page_components(page):
+            shape = self.model.ds.value(component, SEAM.reads)
+            if shape is not None:
+                blocks.append((component, shape, sorted(keys & self.model.parameter_labels(component))))
+        ctx: dict = {}
+        ids = []
+        for component, shape, scope in blocks:
+            if not scope:
+                rows = self.query(shape)
+                ctx.update(self.fragments.component_context(component, rows))
+                ids += [str(i) for i in (flatten(r).get("id") for r in rows) if i is not None]
+        for key in sorted({k for _c, _s, scope in blocks for k in scope}):
+            if params.get(key):
+                ctx[key] = str(params[key])
+            elif ids:
+                ctx[key] = min(ids)
+        for component, shape, scope in blocks:
+            if scope:
+                filters = {k: ctx[k] for k in scope if k in ctx}
+                rows = self.query(shape, **filters) if len(filters) == len(scope) else []
+                ctx.update(self.fragments.component_context(component, rows))
+        return ctx
+
+    def render_page(self, page=None, **params) -> HTMLResponse:
+        """Render ``<page local name>.html`` from the templates dir with
+        ``page_context``. ``params`` are correlation-key values, e.g. the
+        page's ``?conversation=`` query parameter."""
+        page = self.model.landmark_page() if page is None else self.model.curie(page)
+        ctx = self.page_context(page, **params)
+        return HTMLResponse(self.fragments.render_template(f"{local_name(page)}.html", ctx))

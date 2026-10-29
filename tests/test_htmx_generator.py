@@ -1,4 +1,4 @@
-"""The htmx page generator (M004/S04/T02, D016): generating the chat page from
+"""The htmx page generator (M004/S04/T02-T03, D016): generating the chat page from
 the IFML model reproduces the marker-stripped golden byte for byte, carries the
 real model hash, is deterministic, and fails with a GeneratorError naming the
 subject and predicate when a required fact is missing.
@@ -6,11 +6,15 @@ subject and predicate when a required fact is missing.
 
 import difflib
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
+import jinja2
 import pytest
-from rdflib import RDF, Dataset, Literal, URIRef
+from jinja2 import nodes
+from rdflib import RDF, RDFS, Dataset, Literal, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -137,3 +141,147 @@ def test_missing_or_ambiguous_fact_raises(mutate, subject, predicate):
     assert err.value.subject == subject
     assert err.value.predicate == predicate
     assert subject in str(err.value) and predicate in str(err.value)
+
+
+# ── the CLI (T03) ───────────────────────────────────────────────────────────
+
+PAYLOADS = ("chat_process.bpmn", "routing.dmn")
+
+
+def _cli(*args):
+    return subprocess.run([sys.executable, "-m", "seams_gen", *map(str, args)],
+                          cwd=ROOT, capture_output=True, text=True)
+
+
+def test_cli_writes_the_generated_page(tmp_path):
+    out = tmp_path / "gen" / "nested"
+    run = _cli("htmx", TRIG, "--out", out)
+    assert run.returncode == 0, run.stderr
+    written = out / "chat_page.html"
+    assert run.stdout.strip() == str(written)
+    assert written.read_bytes() == generate_page(TRIG).encode("utf-8")
+    assert b"\r\n" not in written.read_bytes()
+
+
+def test_cli_requires_a_generator_and_out():
+    assert _cli().returncode != 0
+    assert _cli("htmx", TRIG).returncode != 0
+
+
+def test_cli_unreadable_model_exits_1(tmp_path):
+    run = _cli("htmx", tmp_path / "missing.trig", "--out", tmp_path / "out")
+    assert run.returncode == 1
+    assert "missing.trig" in run.stderr
+    assert not (tmp_path / "out").exists()
+
+
+# ── no domain logic in the generated template ─────────────────────────────
+
+
+def _guard_labels() -> set[str]:
+    ds = _dataset()
+    return {str(label) for state in ds.objects(None, URIRef(SEAM + "visibleWhen"))
+            for label in ds.objects(state, RDFS.label)}
+
+
+def test_generated_page_has_no_domain_logic():
+    tree = jinja2.Environment().parse(generate_page(TRIG))
+    labels = _guard_labels()
+    ifs = list(tree.find_all(nodes.If))
+    assert ifs, "expected the seam:visibleWhen guard"
+    for node in ifs:
+        test = node.test
+        assert isinstance(test, nodes.Compare), test
+        assert isinstance(test.expr, nodes.Name) and test.expr.name.endswith("_state"), test
+        assert len(test.ops) == 1 and test.ops[0].op == "eq", test
+        assert isinstance(test.ops[0].expr, nodes.Const), test
+        assert test.ops[0].expr.value in labels, test
+        assert not node.elif_
+    banned = (nodes.Assign, nodes.AssignBlock, nodes.BinExpr, nodes.UnaryExpr,
+              nodes.Concat, nodes.Call, nodes.CondExpr, nodes.Macro)
+    found = [type(n).__name__ for n in tree.find_all(banned)]
+    assert not found, f"generated page holds logic nodes: {found}"
+
+
+# ── render smoke: the generated page works as a Jinja2 template ───────────
+
+CONTEXT = dict(
+    conversations=[{"id": "c1", "title": "First"}, {"id": "c2", "title": "Second"}],
+    messages=[
+        {"content": "hello", "role": "user", "status": "sent", "timestamp": "2026-10-28T10:00"},
+        {"content": "hi there", "role": "assistant", "status": "sent", "timestamp": "2026-10-28T10:01"},
+    ],
+    conversation="c1",
+)
+
+
+def _render(**overrides) -> str:
+    env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+    return env.from_string(generate_page(TRIG)).render(**{**CONTEXT, **overrides})
+
+
+def test_rendered_page_wires_the_routes():
+    html = _render(message_state="composing")
+    assert 'hx-get="/conversations/c1/messages"' in html
+    assert 'hx-get="/conversations/c2/messages"' in html
+    assert """hx-vals='{"conversation": "c2"}'""" in html
+    assert 'sse-connect="/conversations/c1/stream"' in html
+    assert 'hx-post="/conversations/c1/messages"' in html
+    assert 'id="message_thread"' in html
+    assert html.count('<li class="message">') == 2
+    assert "<p>hi there</p>" in html
+
+
+def test_guard_hides_the_thread_outside_its_state():
+    html = _render(message_state="sending")
+    assert 'id="message_thread"' not in html
+    assert 'sse-connect=' not in html
+    assert 'id="compose_form"' in html
+
+
+# ── mutation: edits to the model flow through to the output ───────────────
+
+
+def _copy_model(tmp_path, *edits) -> Path:
+    for name in PAYLOADS:
+        shutil.copy(TRIG.parent / name, tmp_path / name)
+    text = TRIG.read_text(encoding="utf-8")
+    for old, new in edits:
+        assert text.count(old) == 1, old
+        text = text.replace(old, new)
+    trig = tmp_path / TRIG.name
+    trig.write_text(text, encoding="utf-8")
+    return trig
+
+
+def test_model_edits_change_title_label_and_hash(tmp_path):
+    trig = _copy_model(tmp_path, ('ifml:title "Chat"@en', 'ifml:title "Talk"@en'),
+                       ('rdfs:label "Compose Message"', 'rdfs:label "Write Note"'))
+    original, mutated = generate_page(TRIG), generate_page(trig)
+    assert "<title>Chat</title>" in original and "<title>Talk</title>" in mutated
+    assert 'aria-label="Write Note"' in mutated and 'aria-label="Compose Message"' not in mutated
+    assert model_hash(trig) != model_hash(TRIG)
+    assert model_hash(trig) in mutated.splitlines()[1]
+
+
+def test_unedited_copy_generates_the_same_page(tmp_path):
+    trig = _copy_model(tmp_path)
+    assert generate_page(trig) == generate_page(TRIG)
+
+
+@pytest.mark.parametrize("edit, subject, predicate", [
+    (("        ifml:isLandmark true ;\n", ""), CHAT + "chat_ifml", _ifml("isLandmark")),
+    (("        seam:submitsTo :send_message_op ;\n", ""), CHAT + "send_message", SEAM + "submitsTo"),
+], ids=["no-landmark", "no-submitsTo"])
+def test_missing_fact_in_a_model_file_fails_api_and_cli(tmp_path, edit, subject, predicate):
+    trig = _copy_model(tmp_path, edit)
+    with pytest.raises(GeneratorError) as err:
+        generate_page(trig)
+    assert err.value.subject == subject and err.value.predicate == predicate
+
+    out = tmp_path / "out"
+    run = _cli("htmx", trig, "--out", out)
+    assert run.returncode == 2
+    assert subject in run.stderr and predicate in run.stderr
+    assert run.stdout == ""
+    assert not (out / "chat_page.html").exists()

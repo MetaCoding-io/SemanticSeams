@@ -45,6 +45,13 @@ pytest
 
 The suite (also run in CI) parses every Turtle file, validates the example against `ontology/shapes/seam-shapes.ttl`, proves the shapes reject invalid seams, checks every non-reserved seam predicate is exercised, and asserts exact expected rows for the canned queries in `docs/queries/` — so the flagship cross-layer traversals can never silently regress to zero rows.
 
+## Generators
+
+`python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/` generates the
+chat page's Jinja2/htmx template from the IFML model and the seams it touches. The output
+matches the golden in `docs/generation/golden/` byte for byte. The rendering rules, each
+keyed on a graph fact, are in [`seams_gen/README.md`](seams_gen/README.md).
+
 ## v1: the viewer
 
 Read-only, navigable, notation-switching browser over a hand-authored model. Stack:

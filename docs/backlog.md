@@ -56,7 +56,7 @@ updated reason.
 
 | # | Item | Merges | Reason | Status |
 |---|---|---|---|---|
-| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it | planned (M008/S03) |
+| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. The candidate is the expense-approval build-along tutorial (E1), and the slice's first check can be the complexity check (E3); see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
 | 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item | planned (M008/S01) |
 | 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief | planned (M008/S04) |
 | 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
@@ -64,6 +64,23 @@ updated reason.
 Resolved open questions from the Levels note: L4 is a preset of reveal
 choices, not a separate level (item 7); rollup queries live in
 `docs/queries/` with acceptance tests (item 2).
+
+## Examples and tutorials
+
+*Added 2026-10-29 from the [build-along tutorial note](research/2026-10-29-build-along-tutorial.md).
+Unscheduled.* The chat app cannot make layer mode (item 11) necessary: it has exactly
+one model per notation, so the descent already shows everything. A second tutorial in
+which the reader builds an expense approval app from an empty file, one layer per
+chapter, would both give the docs a build-it-yourself track and produce the second
+worked example item 11 waits for.
+
+| # | Item | Size | Depends on | Status |
+|---|---|---|---|---|
+| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | proposed |
+| E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | proposed |
+| E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | proposed |
+| E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker skips manual tasks today. | M | ADR first | proposed |
+| E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | proposed |
 
 ## Generation: what is planned, what is not
 

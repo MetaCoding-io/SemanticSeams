@@ -7,12 +7,14 @@ commands the tutorial page shows and the generated README names;
 against the committed copy (helpers shared with
 tests/test_generated_outputs_current.py). ``serve`` builds the host app for a
 chapter's committed route module on a temp store (``serve_directory`` for a
-copied checkpoint), and ``until``/``status``
-poll a running instance, as tests/test_human_task_app.py does.
+copied checkpoint, which ``copy_checkpoint`` makes with one edit and both
+generators rerun), and ``until``/``status`` poll a running instance, as
+tests/test_human_task_app.py does.
 """
 
 from __future__ import annotations
 
+import shutil
 import sys
 import time
 from contextlib import contextmanager
@@ -78,6 +80,28 @@ def assert_generated_current(chapter: str, tmp_path: Path, generator: str) -> No
         committed = committed_files(committed_dir)
     assert_current(regenerate(generator, trig, tmp_path / generator), committed, committed_dir,
                    commands(chapter)[generator])
+
+
+def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str
+                    ) -> tuple[Path, dict[str, str]]:
+    """The chapter's checkpoint copied to tmp_path with ``old`` replaced by
+    ``new`` (exactly once) in ``file``, and both generators rerun into the
+    copy's generated/. Returns the copy and its regenerated files by path
+    (``templates/<name>`` for templates)."""
+    copy = tmp_path / chapter
+    shutil.copytree(chapter_dir(chapter), copy, ignore=shutil.ignore_patterns("__pycache__"))
+    edited = copy / file
+    text = edited.read_text(encoding="utf-8")
+    assert text.count(old) == 1, old
+    edited.write_text(text.replace(old, new), encoding="utf-8")
+    generated = copy / "generated"
+    for name in committed_files(generated, HAND_WRITTEN):
+        (generated / name).unlink()
+    shutil.rmtree(generated / "templates")
+    routes = {name: text for name, text in regenerate("fastapi", copy / "expenses.trig", generated).items()
+              if name not in HAND_WRITTEN}
+    templates = regenerate("htmx", copy / "expenses.trig", generated / "templates")
+    return copy, {**routes, **{f"templates/{n}": t for n, t in templates.items()}}
 
 
 @contextmanager

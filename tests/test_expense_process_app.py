@@ -18,6 +18,12 @@ and regenerating changes only the model-hash lines of the generated code, and
 the regenerated app routes the same amount differently. A table that matches
 no rule, or an output no gateway condition accepts, fails the instance with
 the error recorded.
+
+Chapter 6 adds the expense lifecycle. Every path leaves the stored expense in
+its decided state (auto and approvals: approved; a rejection: rejected), and
+the instance's lifecycle history records the sequence (draft, submitted,
+decided). The guard's refusal and the seam:visibleWhen block are in
+tests/test_expense_lifecycle.py.
 """
 
 import shutil
@@ -32,13 +38,14 @@ from expense_app import (
     assert_generated_current,
     chapter_dir,
     commands,
+    copy_checkpoint,
     serve,
     serve_directory,
     status,
     trace,
     until,
 )
-from test_generated_outputs_current import HAND_WRITTEN, committed_files, regenerate
+from test_generated_outputs_current import HAND_WRITTEN, committed_files
 from viewer import app as viewer_app
 from viewer import validation
 
@@ -358,20 +365,7 @@ def test_dmn_model_opens_in_the_viewer(monkeypatch):
 def _copy_chapter_5(tmp_path, old: str, new: str):
     """chapter-05 copied to tmp_path with ``old`` replaced by ``new`` (once)
     in approval.dmn, and both generators rerun into the copy's generated/."""
-    copy = tmp_path / CHAPTER_5
-    shutil.copytree(chapter_dir(CHAPTER_5), copy, ignore=shutil.ignore_patterns("__pycache__"))
-    dmn = copy / "approval.dmn"
-    text = dmn.read_text(encoding="utf-8")
-    assert text.count(old) == 1, old
-    dmn.write_text(text.replace(old, new), encoding="utf-8")
-    generated = copy / "generated"
-    for name in committed_files(generated, HAND_WRITTEN):
-        (generated / name).unlink()
-    shutil.rmtree(generated / "templates")
-    routes = {name: text for name, text in regenerate("fastapi", copy / "expenses.trig", generated).items()
-              if name not in HAND_WRITTEN}
-    templates = regenerate("htmx", copy / "expenses.trig", generated / "templates")
-    return copy, {**routes, **{f"templates/{n}": t for n, t in templates.items()}}
+    return copy_checkpoint(CHAPTER_5, tmp_path, "approval.dmn", old, new)
 
 
 def _committed_chapter_5() -> dict[str, str]:
@@ -449,3 +443,96 @@ def test_an_output_no_gateway_condition_accepts_fails_the_instance(tmp_path, mon
         error = _failed_error(c, runtime, "large", LARGE)
         assert "route_gateway" in error["message"] or "Route?" in error["message"], error
         assert _decision(runtime, "large") == {"route": "board"}
+
+
+# ── chapter 6: the lifecycle ─────────────────────────────────────────────────
+
+CHAPTER_6 = "chapter-06"
+EXPENSE_SHAPE = EX + "ExpenseShape"
+
+
+def test_chapter_6_is_a_process_chapter():
+    assert CHAPTER_6 in PROCESS_CHAPTERS, PROCESS_CHAPTERS
+
+
+@pytest.fixture
+def lifecycle_app(tmp_path, monkeypatch):
+    with serve(CHAPTER_6, tmp_path, monkeypatch) as served:
+        yield served
+
+
+def _history(runtime, key) -> list[str]:
+    """The expense's lifecycle states, in order, from the instance checkpoint."""
+    [*_, row] = runtime.store.list_instances(correlation_key=key)
+    wf = runtime.engine.deserialize(runtime.store.load_state(row["instance_id"]))
+    return wf.data["seams"]["history"][EXPENSE_SHAPE]
+
+
+def _stored_status(runtime, key) -> str:
+    [expense] = runtime.query(":ExpenseShape", expense=key)
+    assert expense["data"]["status"] == expense["status"], expense
+    return expense["status"]
+
+
+@pytest.mark.parametrize("amount, task, decision, final, recorder", [
+    (SMALL, None, None, "approved", "record_approval"),
+    (MID, "approve_expense", "approved", "approved", "record_approval"),
+    (MID, "approve_expense", "rejected", "rejected", "record_rejection"),
+    (LARGE, "finance_approve_expense", "approved", "approved", "record_approval"),
+    (LARGE, "finance_approve_expense", "rejected", "rejected", "record_rejection"),
+], ids=["auto", "manager-approves", "manager-rejects", "finance-approves", "finance-rejects"])
+def test_each_path_leaves_the_expense_in_its_decided_state(lifecycle_app, amount, task, decision,
+                                                            final, recorder):
+    c, runtime = lifecycle_app
+    if task is None:
+        assert _submit_amount(c, runtime, "e1", amount) == "complete"
+    else:
+        assert _submit_amount(c, runtime, "e1", amount) == "waiting"
+        # waiting on a person: the expense is submitted, not yet decided
+        assert _stored_status(runtime, "e1") == "submitted"
+        r = c.post(f"/expenses/e1/{APPROVAL_ROUTES[task]}", data={"decision": decision}, headers=APPROVER)
+        assert r.status_code == 200, r.text
+        until(lambda: status(runtime, "e1") == "complete")
+
+    assert _stored_status(runtime, "e1") == final
+    assert _history(runtime, "e1") == ["draft", "submitted", final]
+    rows = {row["task"]: row for row in trace(runtime, "e1")}
+    assert rows["persist_expense"]["fires"] == EX + "t_submit"
+    assert rows["persist_expense"]["status"] == "submitted"
+    assert rows[recorder]["fires"] == EX + ("t_approve" if final == "approved" else "t_reject")
+    assert rows[recorder]["status"] == final
+    other = {"record_approval", "record_rejection"} - {recorder}
+    assert not other & rows.keys()
+    if task is not None:
+        assert "decision_gateway" in rows and rows[task]["by"] == "manager"
+
+
+def test_three_amounts_reach_their_states_in_one_app(lifecycle_app):
+    c, runtime = lifecycle_app
+    _submit_amount(c, runtime, "small", SMALL)
+    _submit_amount(c, runtime, "mid", MID)
+    _submit_amount(c, runtime, "large", LARGE)
+    assert {key: _stored_status(runtime, key) for key in ("small", "mid", "large")} == {
+        "small": "approved", "mid": "submitted", "large": "submitted"}
+    c.post("/expenses/mid/approval", data={"decision": "rejected"}, headers=APPROVER)
+    c.post("/expenses/large/finance-approval", data={"decision": "approved"}, headers=APPROVER)
+    until(lambda: status(runtime, "mid") == status(runtime, "large") == "complete")
+    assert {key: _stored_status(runtime, key) for key in ("small", "mid", "large")} == {
+        "small": "approved", "mid": "rejected", "large": "approved"}
+
+
+def test_lifecycle_model_opens_in_the_viewer(monkeypatch):
+    monkeypatch.delenv(viewer_app.MODEL_ENV, raising=False)
+    monkeypatch.delenv(viewer_app.ROOT_ENV, raising=False)
+    original = viewer_app.MODEL_PATH
+    validation._clear_cache()
+    try:
+        viewer_app.configure(chapter_dir(CHAPTER_6) / "expenses.trig")
+        r = TestClient(viewer_app.app).get(f"/view/{quote(EX + 'expense_lifecycle', safe='')}")
+        assert r.status_code == 200, r.text
+        for state in ("draft", "submitted", "approved", "rejected", "paid"):
+            assert state in r.text, state
+    finally:
+        viewer_app.configure(original)
+        validation._clear_cache()
+

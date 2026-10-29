@@ -128,15 +128,18 @@
         seam:inModel :chat_ifml .
 
     :conversation_list a ifml:List ; rdfs:label "Conversations" ;
+        ifml:order 0 ;
         ifml:hasParameter :selected_conversation ;
         ifml:hasEvent :select_conversation ;
         seam:inModel :chat_ifml .
 
     :message_thread a ifml:Details ; rdfs:label "Message Thread" ;
+        ifml:order 1 ;
         ifml:hasParameter :conversation ;
         seam:inModel :chat_ifml .
 
     :compose_form a ifml:Form ; rdfs:label "Compose Message" ;
+        ifml:order 2 ;
         ifml:hasEvent :send_message ;
         ifml:hasParameter :message_input ;
         seam:inModel :chat_ifml .

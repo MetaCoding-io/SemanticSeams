@@ -58,6 +58,11 @@ ifml:contains a rdf:Property ;
     rdfs:domain ifml:ViewElement ; rdfs:range ifml:ViewElement ;
     rdfs:comment "Container nesting and container->component placement. Corresponds to: ViewContainer.viewElements." .
 
+ifml:order a rdf:Property ;
+    rdfs:label "order" ;
+    rdfs:domain ifml:ViewComponent ; rdfs:range xsd:integer ;
+    rdfs:comment "Render order of components within their containing ViewContainer, ascending; at most one per component and unique within a container (seamsh:OrderShape). Generators emit a container's components in this order, never in graph iteration order. Our extension; IFML's viewElements is an unordered association." .
+
 ifml:isLandmark a rdf:Property ; rdfs:range xsd:boolean ;
     rdfs:comment "Reachable from any container (global navigation). Corresponds to: ViewContainer.isLandmark." .
 ifml:isDefault  a rdf:Property ; rdfs:range xsd:boolean ;

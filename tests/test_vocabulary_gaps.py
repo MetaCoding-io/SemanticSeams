@@ -669,6 +669,72 @@ def test_gap_16_state_guard(chat_model):
     )
 
 
+# --- GAP-28: component order within a ViewContainer (M004/S04) ---------------
+
+
+def test_gap_28_component_order(chat_model):
+    """Generators emit a container's components by ascending ifml:order."""
+    rows = select(
+        chat_model,
+        """SELECT ?container ?component ?order WHERE {
+               ?container a ifml:ViewContainer ; ifml:contains ?component .
+               ?component ifml:order ?order .
+           }""",
+    )
+    assert rows == {
+        (CHAT.chat_page, CHAT.conversation_list, lit(0)),
+        (CHAT.chat_page, CHAT.message_thread, lit(1)),
+        (CHAT.chat_page, CHAT.compose_form, lit(2)),
+    }
+    # Every component a container holds has an order, so none falls back to
+    # graph iteration order.
+    assert not ask(
+        chat_model,
+        """ASK { ?container a ifml:ViewContainer ; ifml:contains ?c .
+                 ?c a/rdfs:subClassOf* ifml:ViewComponent .
+                 FILTER NOT EXISTS { ?c ifml:order ?n } }""",
+    )
+
+
+ORDER_MSG = "ifml:order is at most one xsd:integer per component."
+ORDER_UNIQUE_MSG = "ifml:order is unique among the components of one ViewContainer."
+
+
+@pytest.mark.parametrize(
+    "facts, message",
+    [
+        (":page a ifml:ViewContainer ; ifml:contains :a , :b . "
+         ":a a ifml:List ; ifml:order 0 . :b a ifml:Form ; ifml:order 0 .", ORDER_UNIQUE_MSG),
+        (':a a ifml:List ; ifml:order "0" .', ORDER_MSG),
+        (":a a ifml:List ; ifml:order 0 , 1 .", ORDER_MSG),
+        (":a a ifml:List ; ifml:order 1.5 .", ORDER_MSG),
+        (":p a ifml:ViewContainer ; ifml:order 0 .", "Only an ifml:ViewComponent carries ifml:order."),
+    ],
+    ids=["order-duplicate-in-container", "order-string", "order-two-values", "order-decimal",
+         "order-on-container"],
+)
+def test_order_shape_has_teeth(facts, message):
+    """Each malformed ifml:order fact trips its own shape, and nothing else."""
+    data = rdflib.Graph()
+    for path in ONTOLOGY_FILES:
+        data.parse(path, format="turtle")
+    data.parse(data=f"{UI_PREFIXES}\n{facts}", format="turtle")
+    assert shacl_messages(data) == {message}
+
+
+def test_order_shape_allows_equal_orders_in_different_containers():
+    data = rdflib.Graph()
+    for path in ONTOLOGY_FILES:
+        data.parse(path, format="turtle")
+    data.parse(
+        data=f"""{UI_PREFIXES}
+            :p1 a ifml:ViewContainer ; ifml:contains :a . :a a ifml:List ; ifml:order 0 .
+            :p2 a ifml:ViewContainer ; ifml:contains :b . :b a ifml:List ; ifml:order 0 .""",
+        format="turtle",
+    )
+    assert shacl_messages(data) == set()
+
+
 # --- GAP-22..27: runtime bindings the ADR-0007 worker needs ------------------
 
 ROUTING_DMN = ROOT / "examples" / "chat-app" / "routing.dmn"

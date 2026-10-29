@@ -69,9 +69,9 @@ Counts of non-blank lines per marker, updated as gap rows close. M004 drives the
 | Artifact | graph | fixed | gap |
 |----------|------:|------:|----:|
 | compose.yaml | 62 | 7 | 0 |
-| chat_page.html | 60 | 18 | 0 |
+| chat_page.html | 61 | 18 | 0 |
 | chat_api.py | 33 | 14 | 0 |
-| **total** | **155** | **39** | **0** |
+| **total** | **156** | **39** | **0** |
 
 **After M004/S02.** All 27 rows are closed: 22 by vocabulary or model
 additions and 5 by documented rules (GAP-04, GAP-16, GAP-21, GAP-26 and
@@ -80,10 +80,17 @@ line carries a `[gap: ...]` marker and the doc-lint now rejects any `open`
 row. One sub-item is handed on rather than modelled: the authentication scheme
 behind `:authenticated_user` (GAP-20) belongs to the S03 worker.
 
+**After M004/S04/T01.** GAP-28 (component order within a ViewContainer) was
+found while aligning `chat_page.html` with the htmx generator and landed
+closed by `ifml:order`. The same alignment (D016) dropped the hand-chosen
+`message--<role>` class, which no graph fact supports, in favour of the
+shape's `rdfs:label`, and put the message item fields in `sh:order`, which adds
+one `role` line.
+
 ## Feeding M004
 
-The 27 gaps in [`gaps.md`](gaps.md): GAP-01..GAP-22 from the golden dry run
-and GAP-23..GAP-27 from the ADR-0007 spike. M004 closes them row by row and
+The 28 gaps in [`gaps.md`](gaps.md): GAP-01..GAP-22 from the golden dry run,
+GAP-23..GAP-27 from the ADR-0007 spike and GAP-28 from the S04 htmx generator. M004 closes them row by row and
 records the outcome in the `Status` column. Grouped by the vocabulary namespace
 that would close them (a gap that spans two layers is listed under both):
 
@@ -95,7 +102,7 @@ that would close them (a gap that spans two layers is listed under both):
   SSE/channel transport (GAP-15) and request encoding (GAP-18).
 - **`ifml:`**: event-to-operation binding (GAP-09), swap and trigger (GAP-10),
   form field binding and presentation (GAP-12, GAP-13), the page route and
-  title (GAP-17) and the response partial (GAP-19).
+  title (GAP-17), the response partial (GAP-19) and component order (GAP-28).
 - **`seam:`**: event-to-operation binding (GAP-09), state-guard evaluation
   (GAP-16), operation to component (GAP-19), policy on the operation (GAP-20)
   and handler naming (GAP-21).

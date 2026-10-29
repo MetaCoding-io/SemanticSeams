@@ -13,7 +13,7 @@
 <body>  {# [fixed] #}
 <main id="chat_page" data-seam=":chat_page">  {# [graph: :chat_page ifml:ViewContainer] #}
   {# ifml:List :conversation_list, seam:reads :ConversationShape [graph: :conversation_list ifml:List seam:reads :ConversationShape] #}
-  {% block conversation_list %}  {# [graph: :chat_page ifml:contains :conversation_list] #}
+  {% block conversation_list %}  {# [graph: :chat_page ifml:contains :conversation_list ifml:order] #}
   <nav id="conversation_list" aria-label="Conversations">  {# [graph: :conversation_list rdfs:label] #}
     <ul>  {# [graph: :conversation_list ifml:List] #}
       {% for item in conversations %}  {# [graph: :conversation_list ifml:List seam:reads :ConversationShape] #}
@@ -33,16 +33,17 @@
   {% endblock %}  {# [graph: :chat_page ifml:contains :conversation_list] #}
 
   {# ifml:Details :message_thread, seam:reads :MessageShape, seam:visibleWhen :s_composing [graph: :message_thread ifml:Details seam:reads :MessageShape seam:visibleWhen :s_composing] #}
-  {% block message_thread %}  {# [graph: :chat_page ifml:contains :message_thread] #}
+  {% block message_thread %}  {# [graph: :chat_page ifml:contains :message_thread ifml:order] #}
   {% if message_state == "composing" %}  {# [graph: :message_thread seam:visibleWhen :s_composing seam:reads :MessageShape seam:lifecycle :message_lifecycle state:hasState rdfs:label] #}
   <section id="message_thread" aria-label="Message Thread"  {# [graph: :message_thread ifml:Details rdfs:label] #}
            data-conversation="{{ conversation }}">  {# [graph: :message_thread ifml:hasParameter :conversation] #}
     <ol id="message_thread_items">  {# [graph: :message_thread ifml:Details seam:reads :MessageShape] #}
       {% for message in messages %}  {# [graph: :message_thread seam:reads :MessageShape] #}
-      <li class="message message--{{ message.role }}">  {# [graph: :MessageShape sh:property sh:path :role] #}
-        <p>{{ message.content }}</p>  {# [graph: :MessageShape sh:property sh:path :content sh:datatype] #}
-        <time datetime="{{ message.timestamp }}">{{ message.timestamp }}</time>  {# [graph: :MessageShape sh:property sh:path :timestamp sh:datatype] #}
-        <span class="status">{{ message.status }}</span>  {# [graph: :MessageShape sh:property sh:path :status sh:datatype sh:in seam:lifecycle :message_lifecycle] #}
+      <li class="message">  {# [graph: :MessageShape rdfs:label] #}
+        <p>{{ message.content }}</p>  {# [graph: :MessageShape sh:property sh:path :content sh:datatype sh:order] #}
+        <span class="role">{{ message.role }}</span>  {# [graph: :MessageShape sh:property sh:path :role sh:datatype sh:order] #}
+        <span class="status">{{ message.status }}</span>  {# [graph: :MessageShape sh:property sh:path :status sh:datatype sh:in sh:order seam:lifecycle :message_lifecycle] #}
+        <time datetime="{{ message.timestamp }}">{{ message.timestamp }}</time>  {# [graph: :MessageShape sh:property sh:path :timestamp sh:datatype sh:order] #}
       </li>  {# [fixed] #}
       {% endfor %}  {# [graph: :message_thread seam:reads :MessageShape] #}
     </ol>  {# [fixed] #}
@@ -58,7 +59,7 @@
   {% endblock %}  {# [graph: :chat_page ifml:contains :message_thread] #}
 
   {# ifml:Form :compose_form, seam:writes :MessageShape [graph: :compose_form ifml:Form seam:writes :MessageShape] #}
-  {% block compose_form %}  {# [graph: :chat_page ifml:contains :compose_form] #}
+  {% block compose_form %}  {# [graph: :chat_page ifml:contains :compose_form ifml:order] #}
   {# :send_message seam:triggers :send_message_process ; seam:governedBy :user_send_policy [graph: :send_message seam:triggers :send_message_process seam:governedBy :user_send_policy] #}
   {# POST, UIFragment response: :chat_ui seam:consumes :send_message_op [graph: :chat_ui seam:consumes :send_message_op hydra:method seam:mediaKind seam:UIFragment] #}
   {# :send_message seam:submitsTo :send_message_op ; the route enforces seam:governedBy :user_send_policy [graph: :send_message seam:submitsTo :send_message_op seam:governedBy :user_send_policy] #}

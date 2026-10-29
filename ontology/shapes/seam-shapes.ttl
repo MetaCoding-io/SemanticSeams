@@ -25,7 +25,8 @@ comments were already making; validating a model against this file is what turns
 
 Validate with the ontology files merged into the data graph: sh:class checks
 subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data.""" ;
-    sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] .
+    sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] ,
+               [ sh:prefix "ifml" ; sh:namespace "https://w3id.org/seams/ifml#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -147,6 +148,28 @@ seamsh:BoundToShape a sh:NodeShape ;
     sh:property [ sh:path ifml:boundTo ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
         sh:message "ifml:boundTo names at most one property IRI." ] ;
     sh:message "Only an ifml:Parameter is ifml:boundTo a property." .
+
+seamsh:OrderShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:order ;
+    sh:class ifml:ViewComponent ;
+    sh:property [ sh:path ifml:order ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:message "ifml:order is at most one xsd:integer per component." ] ;
+    sh:message "Only an ifml:ViewComponent carries ifml:order." .
+
+# Separate shape so the node-level message above does not attach to its results.
+seamsh:OrderUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:order ;
+    sh:sparql [
+        sh:message "ifml:order is unique among the components of one ViewContainer." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?container ifml:contains $this , ?other .
+                FILTER(?other != $this)
+                $this ifml:order ?n . ?other ifml:order ?m .
+                FILTER(?n = ?m)
+            }""" ;
+    ] .
 
 #################################################################
 # Process <-> decisions, communication, data

@@ -414,8 +414,9 @@
                                     hydra:property :id ] ] .
 
     # Authorization
-    # The authentication scheme that establishes :authenticated_user (session
-    # or token) is deferred to S03 (gaps.md GAP-20).
+    # :authenticated_user is established by a trusted proxy identity header
+    # (X-Forwarded-User), or by SEAMS_DEV_USER for local use (decision D014,
+    # gaps.md GAP-20).
     :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" ;
         odrl:permission [ a odrl:Permission ;
                           odrl:target :send_message_op ;

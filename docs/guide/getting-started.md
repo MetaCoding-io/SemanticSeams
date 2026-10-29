@@ -51,6 +51,10 @@ the top of the descent. From there:
 3. Click the **Route to Provider** task. Its decision is detailed by two models, so the
    viewer asks which one to open. Choose the DMN model, then open its decision table.
 
+The viewer loads its Python code once, at start-up. After pulling new commits or editing
+`viewer/*.py`, restart it, or start it with `--reload` so it restarts itself; a viewer left
+running from an earlier checkout keeps serving the old views.
+
 [Using the viewer](/guide/the-viewer) walks through the same descent with screenshots
 and explains everything else on the page.
 

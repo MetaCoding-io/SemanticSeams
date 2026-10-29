@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <title>SemanticSeams Viewer — {{ label }}</title>
+  <!-- Back and Forward reload the page from the server instead of restoring an
+       htmx snapshot: the canvases are drawn by scripts, and a snapshot brings
+       back blank or dead diagrams. -->
+  <meta name="htmx-config" content='{"historyCacheSize": 0, "refreshOnHistoryMiss": true}'>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
@@ -168,12 +172,16 @@
       });
       return colours;
     })();
+    // htmx only handles popstate for entries marked {htmx: true}. Mark the
+    // entry the page loaded on, and every canvas click below, so Back and
+    // Forward work from any view, not only after an hx-push-url link.
+    history.replaceState({ htmx: true }, "", location.href);
     window.seamsNavigate = function (iri, pathQs, level) {
       var url = "/view/" + encodeURIComponent(iri) + "?path=" + pathQs;
       // Keep the C4 level in the URL across canvas clicks (M006/S03).
       if (level) url += "&level=" + encodeURIComponent(level);
       htmx.ajax("GET", url, { target: "#view-content", swap: "innerHTML" }).then(function () {
-        history.pushState({}, "", url);
+        history.pushState({ htmx: true }, "", url);
       });
     };
   </script>

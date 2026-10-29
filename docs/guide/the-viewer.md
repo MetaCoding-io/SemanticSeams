@@ -98,7 +98,9 @@ navigational: `seam:detailedBy`, `seam:triggers`, `seam:presents` and
 
 ## URLs
 
-Every state is a URL, so any view can be bookmarked or shared.
+Every state is a URL, so any view can be bookmarked or shared. The browser's Back and
+Forward buttons walk the same URLs, and each step is rendered again from the server, so
+the diagram comes back drawn and clickable.
 
 | Route | Returns |
 |---|---|

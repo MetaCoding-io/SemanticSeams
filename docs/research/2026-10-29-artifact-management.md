@@ -1,6 +1,7 @@
 # Research note: managing and deploying generated artifacts
 
-*Status: proposal, 2026-10-29. Not yet triaged into the [backlog](../backlog.md). Companion
+*Status: proposal, 2026-10-29. Its proposed steps are backlog items A1 to A9 in the
+[backlog](../backlog.md) ("Artifact management and deployment"), not yet scheduled. Companion
 to a separately discussed SDK for generation; this note covers everything around the SDK
 rather than the SDK itself. Written against `main` at `dd56985`.*
 
@@ -128,7 +129,7 @@ the tutorial end-to-end job.
 
 ## 3. Proposed next steps
 
-Not yet scheduled. Sizes use the backlog's scale.
+Tracked as A1 to A9 in the backlog, not yet scheduled. Sizes use the backlog's scale.
 
 | # | Item | Size | Depends on | Earns |
 |---|---|---|---|---|

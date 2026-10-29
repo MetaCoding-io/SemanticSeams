@@ -106,6 +106,30 @@ derivation exposed, or that a builder meets after launch.
 U1 to U3 can land together. U9 subsumes U2's vocabulary work, so the two are best done
 as one piece.
 
+## Artifact management and deployment
+
+*Added 2026-10-29 from the [artifact management note](research/2026-10-29-artifact-management.md).
+Not yet scheduled into a milestone.* The generators exist; the workflow around them does
+not. These items extend the model-hash chain that is already in place (stamped outputs, a
+runtime that refuses a different model, `/healthz` reporting the hash) into a record of
+what was generated, checks a user can reuse, and a deployment that can be compared with
+the model.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| A1 | **Project file and `seams` CLI**: one file names the model, generators, output paths and environments; `seams generate` runs them all, `seams check` validates the model and confirms outputs are current | M | E2 | none | proposed |
+| A2 | **Lockfile of generated files**: model hash, generator and version, file hash and source elements per output; orphan cleanup and hand-edit detection | S | A1 | none; generators and runtime gain versions | proposed |
+| A3 | **Reusable CI action and pre-commit hook**: shape validation, regenerate-and-diff, canned queries as gates | S | A1 | none | proposed |
+| A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | proposed |
+| A5 | **Image build and publish** for containers that run generated code, tagged with the model hash or a release version | M | A4 | none expected | proposed |
+| A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | proposed |
+| A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | proposed |
+| A8 | **Secrets and configuration checklist** per environment, checking existence without reading values, plus an example `.env` | S | A4 | none | proposed |
+| A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | proposed |
+
+A1 to A3 belong together and make the generators usable outside this repository. A4 to
+A6 make deployment work end to end.
+
 ## Generation: what is planned, what is not
 
 **Planned already.** The product brief puts generation on the critical path

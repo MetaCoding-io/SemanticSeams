@@ -492,7 +492,8 @@ def ifml_diagram(model_iri: str) -> dict:
 
 # --- ELK port graph (M007/S04, D023) ----------------------------------------
 
-_FIXED = {"elk.algorithm": "fixed", "elk.padding": "[top=0,left=0,bottom=0,right=0]"}
+_FIXED = {"elk.algorithm": "fixed", "elk.padding": "[top=0,left=0,bottom=0,right=0]",
+          "elk.nodeSize.fixedGraphSize": True}
 
 
 def _note_layer(n: dict, owners: dict) -> str:
@@ -514,7 +515,9 @@ def ifml_elk_graph(diagram: dict) -> dict:
     containers and components nest under their parent container with x/y
     relative to it, actions and notes are root children at absolute x/y, and
     events are FIXED_POS ports on their owner's east border. Flows are root
-    edges whose single section follows the Python points.
+    edges whose single section follows the Python points. Compound nodes and
+    the root set elk.nodeSize.fixedGraphSize: without it ELK "fixed"
+    shrink-wraps them to their children's bounding box (M007/S05).
 
     Note: an event whose owner is not drawn (an action; _place_events gives
     it cx = cy = 0) has no box to sit on, so it is left out of the ports and

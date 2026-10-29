@@ -439,6 +439,7 @@ def test_elk_root_is_fixed_and_sized(diagram, elk_graph):
     assert root["id"] == "root" and (root["x"], root["y"]) == (0, 0)
     assert (root["width"], root["height"]) == (diagram["width"], diagram["height"])
     assert root["layoutOptions"]["elk.algorithm"] == "fixed"
+    assert root["layoutOptions"]["elk.nodeSize.fixedGraphSize"] is True
     assert [c["id"] for c in root["children"]] == sorted(c["id"] for c in root["children"])
     assert [e["id"] for e in root["edges"]] == sorted(e["id"] for e in root["edges"])
 
@@ -462,6 +463,19 @@ def test_compound_nodes_nest_components_under_container(elk_graph):
     for n in [page] + page["children"]:
         assert n["layoutOptions"]["elk.algorithm"] == "fixed"
         assert n["layoutOptions"]["elk.padding"] == "[top=0,left=0,bottom=0,right=0]"
+        assert n["layoutOptions"]["elk.nodeSize.fixedGraphSize"] is True
+
+
+def test_action_flow_bottom_run_stays_inside_container(diagram):
+    (page,) = [c for c in diagram["containers"] if c["iri"] == CHAT_PAGE]
+    assert (page["x"], page["y"], page["w"], page["h"]) == (20, 20, 820, 312)
+    lowest = max(c["y"] + c["h"] for c in diagram["components"])
+    flow = max((f for f in diagram["flows"] if f.get("points")), key=lambda f: max(y for _, y in f["points"]))
+    pts = flow["points"]
+    runs = [a[1] for a, b in zip(pts, pts[1:]) if a[1] == b[1] and a[1] > lowest]
+    assert runs, flow
+    for y in runs:
+        assert y < page["y"] + page["h"]
 
 
 def test_elk_round_trip_reproduces_python_geometry(diagram, elk_graph):

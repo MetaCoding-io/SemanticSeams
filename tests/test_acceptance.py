@@ -36,6 +36,9 @@ CHAT_PERSIST_USER_MSG = URIRef("https://example.org/chat/chat_bpmn#persist_user_
 CHAT_PERSIST_RESPONSE = URIRef("https://example.org/chat/chat_bpmn#persist_response")
 
 CHAT_APP_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
+# seam:completedOn (ADR-0009) needs a user task and a form, which checkout does not
+# model; the human-task fixture exercises it instead.
+HUMAN_TASK_TRIG = ROOT / "tests" / "fixtures" / "human_task" / "approval.trig"
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 
@@ -138,9 +141,14 @@ def test_every_nonreserved_seam_predicate_is_exercised(dataset):
     for _s, p, _o, _g in dataset.quads((None, None, None, None)):
         if str(p).startswith(str(SEAM)):
             used.add(p)
+    human_task = rdflib.Dataset()
+    human_task.parse(HUMAN_TASK_TRIG, format="trig")
+    for _s, p, _o, _g in human_task.quads((None, None, None, None)):
+        if str(p).startswith(str(SEAM)):
+            used.add(p)
     missing = declared - RESERVED_PREDICATES - used
     assert not missing, (
-        f"seam predicates never exercised by checkout.trig: {sorted(missing)}"
+        f"seam predicates never exercised by checkout.trig or the human-task fixture: {sorted(missing)}"
     )
 
 
@@ -391,3 +399,31 @@ def test_c4_l1_rollup_depends_on_branch():
     rows = _rollup_rows(g)
     assert rows == {(ex.sysA, ex.sysB, Literal("depends on"))}
     assert not any(frm == to for frm, to, _ in rows)
+
+
+# --- Human tasks (ADR-0009) ---
+
+EXPENSES = Namespace("https://example.org/expenses/")
+
+
+def test_human_task_screens_to_finish_process():
+    """The approval process waits on one screen: the approvals page holding the
+    form its user task seam:completedOn, governed by the manager policy."""
+    g = load(*ONTOLOGY_FILES)
+    ds = rdflib.Dataset()
+    ds.parse(HUMAN_TASK_TRIG, format="trig")
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    rows = g.query(
+        canned("screens-to-finish-process.rq"),
+        initBindings={"process": EXPENSES.approval_process},
+    )
+    assert {(r.task, r.form, r.screen, r.policy) for r in rows} == {
+        (URIRef("https://example.org/expenses/approval_bpmn#approve_expense"),
+         EXPENSES.approve_form, EXPENSES.approvals_page, EXPENSES.manager_approval_policy),
+    }
+
+
+def test_chat_app_has_no_screens_to_finish(chat_model):
+    """The chat app's process has no user task, so no screen waits for a person."""
+    assert list(chat_model.query(canned("screens-to-finish-process.rq"))) == []

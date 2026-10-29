@@ -125,6 +125,20 @@ seam:triggers a rdf:Property ;
     rdfs:label "triggers" ;
     rdfs:comment "ifml:Event -> proc:Process | dec:Decision. IFML's action-reference extension point, made concrete." .
 
+seam:completedOn a rdf:Property ;
+    seam:reveal seam:Open ;
+    rdfs:label "completed on" ;
+    rdfs:comment """proc:UserTask -> ifml:Form on which a person completes the task, at
+most one per task (ADR-0009, decision D027). The mirror of seam:triggers: an event
+starts a process, a user task waits for a form. The screen is the
+ifml:ViewContainer that ifml:contains the form; the form's one event
+seam:submitsTo the completion operation, and the form seam:writes the task's
+output shape. Authorization: the task's seam:governedBy policies are evaluated
+with the task IRI as the odrl:target; an ungoverned task is open to any
+authenticated identity. Earns the query 'which screens must a person visit to
+finish this process' (docs/queries/screens-to-finish-process.rq). (Constraint in
+shapes/seam-shapes.ttl.)""" .
+
 seam:visibleWhen a rdf:Property ;
     seam:reveal seam:Layer ;
     rdfs:label "visible when" ;

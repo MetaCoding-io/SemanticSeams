@@ -34,7 +34,7 @@ ADMIN = {SEAM.inModel, SEAM.notation, SEAM.renderPayload}
 MODES = {SEAM.Open, SEAM.Nest, SEAM.Layer}
 DEFAULTS = {
     "nest": {"presents", "executes"},
-    "open": {"detailedBy", "triggers", "decidedBy", "lifecycle"},
+    "open": {"detailedBy", "triggers", "completedOn", "decidedBy", "lifecycle"},
 }
 
 
@@ -159,6 +159,7 @@ def test_navigational_predicates():
     assert viewer_app.navigational_predicates() == {
         SEAM.detailedBy,
         SEAM.triggers,
+        SEAM.completedOn,
         SEAM.presents,
         SEAM.decidedBy,
         SEAM.executes,

@@ -78,6 +78,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:deployedTo ,
         seam:executes ,
         seam:triggers ,
+        seam:completedOn ,
         seam:visibleWhen ,
         seam:submitsTo ,
         seam:rendersComponent ,
@@ -150,6 +151,13 @@ seamsh:TriggersShape a sh:NodeShape ;
         sh:or ( [ sh:class proc:Process ] [ sh:class dec:Decision ] ) ;
         sh:message "seam:triggers points at a process or a decision." ] ;
     sh:message "Only an ifml:Event seam:triggers behavior." .
+
+seamsh:CompletedOnShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:completedOn ;
+    sh:class proc:UserTask ;
+    sh:property [ sh:path seam:completedOn ; sh:class ifml:Form ; sh:maxCount 1 ;
+        sh:message "seam:completedOn points at one ifml:Form." ] ;
+    sh:message "Only a proc:UserTask seam:completedOn a form." .
 
 seamsh:VisibleWhenShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:visibleWhen ;

@@ -9,7 +9,8 @@ the page links the checkpoint. The pages are chapters 1, 2, 3... with no gap. Ch
 every process chapter (4 onward) show the generator commands
 tests/expense_app.py names for them, and the host command with the
 environment the app tests set. Chapter 2 shows the deliberate mistake
-tests/test_expense_checkpoints.py replays.
+tests/test_expense_checkpoints.py replays, and chapters 5 and 6 show the
+edits their app tests make on a copy of the checkpoint.
 """
 
 import re
@@ -144,3 +145,11 @@ def test_chapter_5_threshold_diff_is_the_edit_ci_makes():
     dmn = (EXPENSES / "chapter-05" / "approval.dmn").read_text(encoding="utf-8").splitlines()
     assert removed[0] in dmn and MANAGER_UP_TO_1000 in removed[0]
     assert added[0] == removed[0].replace(MANAGER_UP_TO_1000, MANAGER_UP_TO_200)
+
+
+def test_chapter_6_refusal_diff_is_the_edit_ci_makes():
+    from test_expense_lifecycle import FIRES_APPROVE, FIRES_PAY
+    [diff] = blocks(PAGES_DIR / "06-lifecycle.md", "diff")
+    removed = [ln[1:].strip() for ln in diff.splitlines() if ln.startswith("-")]
+    added = [ln[1:].strip() for ln in diff.splitlines() if ln.startswith("+")]
+    assert (removed, added) == ([FIRES_APPROVE], [FIRES_PAY]), diff

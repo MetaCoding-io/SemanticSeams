@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
+from expense_app import commands  # noqa: E402
 from seams_runtime.host import build_app  # noqa: E402
 from test_generated_outputs_current import (  # noqa: E402
     HAND_WRITTEN,
@@ -34,11 +35,7 @@ GENERATED = CHAPTER / "generated"
 TEMPLATES = GENERATED / "templates"
 ROUTES = GENERATED / "expense_api.py"
 
-TRIG_ARG = "examples/expenses/chapter-03/expenses.trig"
-COMMANDS = {
-    "fastapi": f"python -m seams_gen fastapi {TRIG_ARG} --out examples/expenses/chapter-03/generated",
-    "htmx": f"python -m seams_gen htmx {TRIG_ARG} --out examples/expenses/chapter-03/generated/templates",
-}
+COMMANDS = commands("chapter-03")
 
 VALID = {"description": "Train to Leeds", "amount": "42.50", "date": "2026-10-01"}
 

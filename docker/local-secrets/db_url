@@ -1,0 +1,1 @@
+postgresql://postgres:seams-dev@message_db:5432/chat

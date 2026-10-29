@@ -1,0 +1,20 @@
+# Build context is the repository root; the images only need seams_runtime,
+# seams_gateway and examples/chat-app.
+.venv
+venv
+.git
+.gsd
+.gsd-*
+.github
+.secrets
+tmp
+site
+orig_convo
+spikes
+node_modules
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.cache

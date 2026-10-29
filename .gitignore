@@ -46,3 +46,6 @@ tmp/
 
 # ── GSD baseline (auto-generated) ──
 .claude/settings.local.json
+
+# Local compose secrets (the LLM key file); see compose.override.yaml.
+.secrets/

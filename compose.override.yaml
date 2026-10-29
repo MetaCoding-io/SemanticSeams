@@ -1,0 +1,96 @@
+# Hand-written local overrides for the generated, prod-shaped compose.yaml.
+# compose.yaml is generated from the chat-app model and must not be edited;
+# everything a laptop run needs that production does not goes here instead.
+# `docker compose up` merges this file automatically.
+#
+# Requires Docker Compose 2.24+ for the !override / !reset merge tags.
+#
+# Host environment knobs (all optional):
+#   LLM_API_KEY_FILE    file holding the upstream key (default ./.secrets/llm_api_key;
+#                       an empty file means the gateway streams its stub reply)
+#   LLM_GATEWAY_STUB    1 forces the stub even when a key is present
+#   UPSTREAM_BASE_URL   OpenAI-compatible base URL (default https://api.openai.com/v1)
+#   LLM_MODEL_OVERRIDE  model name sent upstream regardless of what the worker asks for
+
+services:
+  chat_api:
+    # ghcr.io/example/chat-api does not exist; build the runtime image from this checkout.
+    image: seams/chat-api:local
+    build:
+      context: .
+      dockerfile: docker/runtime.Dockerfile
+    pull_policy: build
+    environment:
+      # No auth proxy in front of chat_ui locally: every request is this user.
+      SEAMS_DEV_USER: builder
+      # Seed the demo conversations once (idempotent on restart).
+      SEAMS_SEED: /app/seed.json
+    volumes:
+      # Process instances and entities live in SQLite (SEAMS_DB=/data/seams.sqlite).
+      - chat_api_data:/data
+    # Placement constraints are swarm-only and ignored here. Process instances and
+    # the SSE bus are in-process, so a single replica is the only correct local shape.
+    deploy:
+      replicas: 1
+    depends_on: !override
+      message_db:
+        condition: service_started
+      llm_gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  llm_gateway:
+    # ghcr.io/example/llm-gateway does not exist; build the gateway image from this checkout.
+    image: seams/llm-gateway:local
+    build:
+      context: .
+      dockerfile: docker/gateway.Dockerfile
+    pull_policy: build
+    # The generated file gives the key only to chat_api; the gateway is what uses it.
+    secrets:
+      - llm_api_key
+    environment:
+      LLM_API_KEY_FILE: /run/secrets/llm_api_key
+      LLM_GATEWAY_STUB: ${LLM_GATEWAY_STUB:-}
+      LLM_MODEL_OVERRIDE: ${LLM_MODEL_OVERRIDE:-}
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:-https://api.openai.com/v1}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  chat_ui:
+    # ghcr.io/example/chat-ui has no implementation: chat_api's host serves the
+    # landmark page itself, so chat_ui is a code-free Caddy reverse proxy for
+    # everything (including the SSE stream). Port 8080:8000 comes from compose.yaml.
+    image: caddy:2-alpine
+    command: caddy reverse-proxy --from :8000 --to chat_api:8000
+    depends_on: !override
+      chat_api:
+        condition: service_healthy
+
+  message_db:
+    # postgres:16 refuses to start without a password; this is a dev-only value.
+    environment:
+      POSTGRES_PASSWORD: seams-dev
+
+# The generated secrets are external (swarm) secrets, which plain compose cannot
+# create; locally they are files.
+secrets:
+  db_url: !override
+    # DB_URL is unused: the runtime's store is SQLite (SEAMS_DB). The committed
+    # placeholder only satisfies the generated chat_api secret reference.
+    file: ./docker/local-secrets/db_url
+  llm_api_key: !override
+    # Created by the tutorial; leave it empty to run the gateway's stub.
+    file: ${LLM_API_KEY_FILE:-./.secrets/llm_api_key}
+
+volumes:
+  chat_api_data: {}

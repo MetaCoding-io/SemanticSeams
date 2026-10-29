@@ -8,7 +8,8 @@ generated from (ADR-0007 rule 2) unless ``allow_hash_mismatch=True`` or
 calls: ``policy`` (a FastAPI dependency for seam:governedBy), ``validate``
 (SHACL at the boundary), ``start_process`` / ``resume`` (run the generic
 worker as an asyncio task), ``query`` (persisted entities of a shape) and
-``subscribe`` (SSE frames of a channel scope).
+``subscribe`` (SSE frames of a channel scope) and ``render_fragment`` (an
+htmx partial from ``templates_dir``, ``SEAMS_TEMPLATES`` or ``./templates``).
 """
 
 from __future__ import annotations
@@ -19,10 +20,13 @@ import os
 import uuid
 from pathlib import Path
 
+from fastapi.responses import HTMLResponse
+
 from .channels import ChannelBus, Subscription
 from .contracts import validate as _validate
 from .engine import Engine
 from .errors import ModelHashMismatch, ResolutionError
+from .fragments import FragmentRenderer
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient
 from .model import SEAM, ModelGraph
@@ -35,11 +39,13 @@ log = logging.getLogger(__name__)
 DB_ENV = "SEAMS_DB"
 ALLOW_MISMATCH_ENV = "SEAMS_ALLOW_HASH_MISMATCH"
 DEFAULT_DB = "seams.sqlite"
+TEMPLATES_ENV = "SEAMS_TEMPLATES"
+DEFAULT_TEMPLATES = "templates"
 
 
 class Runtime:
     def __init__(self, model: ModelGraph, store: Store, *, authenticator=None, evaluator=None,
-                 llm: LLMClient | None = None, bus: ChannelBus | None = None):
+                 llm: LLMClient | None = None, bus: ChannelBus | None = None, templates_dir=None):
         self.model = model
         self.store = store
         self.engine = Engine(model)
@@ -50,11 +56,14 @@ class Runtime:
         self.llm = llm if llm is not None else LLMClient()
         self.worker = Worker(model, self.engine, store, self.bus, self.guard, self.llm)
         self.instances: dict[str, Instance] = {}
+        self.templates_dir = Path(templates_dir if templates_dir is not None
+                                  else os.environ.get(TEMPLATES_ENV) or DEFAULT_TEMPLATES)
+        self.fragments = FragmentRenderer(model, self.templates_dir)
 
     @classmethod
     def load(cls, trig_path, model_hash: str | None = None, *, allow_hash_mismatch: bool = False,
              db_path=None, authenticator=None, evaluator=None, llm_transport=None,
-             llm_base_url: str | None = None) -> "Runtime":
+             llm_base_url: str | None = None, templates_dir=None) -> "Runtime":
         model = ModelGraph(trig_path)
         if model_hash is not None and model_hash != model.hash:
             if allow_hash_mismatch or os.environ.get(ALLOW_MISMATCH_ENV) == "1":
@@ -63,9 +72,11 @@ class Runtime:
             else:
                 raise ModelHashMismatch(model_hash, model.hash, model.path)
         db = Path(db_path if db_path is not None else os.environ.get(DB_ENV) or DEFAULT_DB)
-        log.info("runtime loaded %s (%s), store %s", model.path, model.hash, db)
-        return cls(model, Store(db), authenticator=authenticator, evaluator=evaluator,
-                   llm=LLMClient(llm_base_url, transport=llm_transport))
+        runtime = cls(model, Store(db), authenticator=authenticator, evaluator=evaluator,
+                      llm=LLMClient(llm_base_url, transport=llm_transport), templates_dir=templates_dir)
+        log.info("runtime loaded %s (%s), store %s, templates %s", model.path, model.hash, db,
+                 runtime.templates_dir)
+        return runtime
 
     # ── boundary ──
 
@@ -138,3 +149,10 @@ class Runtime:
     def subscribe(self, channel_curie, scope) -> Subscription:
         """SSE frames of one channel scope (backlog replay, then live)."""
         return self.bus.subscribe(self.model.curie(channel_curie), scope)
+
+    def render_fragment(self, name: str, data, **params) -> HTMLResponse:
+        """Render the htmx partial ``name`` (a seam:rendersComponent target's
+        local name plus ``.html``, or ``_item.html`` for one item) with
+        ``data`` bound per the seam.ttl visibleWhen rule. An unknown name
+        raises ResolutionError before any template file is opened."""
+        return HTMLResponse(self.fragments.render(name, data, params))

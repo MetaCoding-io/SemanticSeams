@@ -18,13 +18,14 @@ runtime = Runtime.load("/model/chat-app.trig", model_hash=MODEL_HASH)
 
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None)` | Loads the model. Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None)` | Loads the model. Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
 | `runtime.query(":MessageShape", conversation="c1")` | Persisted entities of a shape. A filter named after a `proc:correlationKey` parameter label matches the correlation key. |
 | `runtime.subscribe(":stream_events", scope)` | An async iterator of SSE frames for one channel scope: the backlog first, then live frames. |
+| `runtime.render_fragment("message_thread.html", messages, **params)` | An `HTMLResponse` rendering an htmx partial from the templates dir (D017). The name is a `seam:rendersComponent` target's local name, or that plus `_item` for the one-item partial. It is resolved against the graph before any file is read, and an unknown name raises `ResolutionError`. The component's `seam:reads` shape `:MessageShape` binds `messages` (a list) or `message` (one item). Store entity rows are flattened to their payload plus `id` and `status`. A component with `seam:visibleWhen` also gets `message_state`: the last item's status, else the lifecycle's initial state label. Extra keyword params are merged last. |
 
 Errors (`seams_runtime.errors`, plus `LLMError` in `llm.py`) carry `http_status` and
 serialise with `to_dict()`. A generated app maps `RuntimeModelError` to a JSON response
@@ -60,6 +61,7 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 | `SEAMS_DB` | SQLite file for workflow state and entities. The default is `seams.sqlite`. `db_path=` overrides it. |
 | `SEAMS_DEV_USER` | Opt-in static identity for local runs. Without it, the `X-Forwarded-User` header is required (fail closed, D014). |
 | `SEAMS_ALLOW_HASH_MISMATCH` | When set to `1`, `load` warns on a hash mismatch instead of refusing the model. |
+| `SEAMS_TEMPLATES` | Directory of the generated htmx partials `render_fragment` reads. The default is `./templates`. `templates_dir=` overrides it. |
 | `LLM_GATEWAY_URL` | Base URL of `:llm_gateway`. The name comes from `:chat_api`'s `deploy:binding` with `deploy:serviceOf :llm_gateway`. `llm_base_url=` overrides it. |
 
 ## Deferred
@@ -67,5 +69,3 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 - ODRL constraints, duties and prohibitions. The v1 `PresenceEvaluator` checks permission
   presence and assignee only. A full evaluator can be plugged in as a `PolicyEvaluator`.
 - Postgres. The v1 store is stdlib sqlite3.
-- `render_fragment`, which the golden `chat_api.py` calls. It comes with the template
-  generator in M004/S04 and S05.

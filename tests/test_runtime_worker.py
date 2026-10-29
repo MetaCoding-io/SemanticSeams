@@ -320,7 +320,7 @@ def test_golden_chat_api_calls_only_runtime_methods():
             if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
             and node.value.id == "runtime"}
     assert used >= {"policy", "validate", "start_process", "query", "subscribe", "render_fragment"}
-    for name in sorted(used - {"render_fragment"}):  # render_fragment lands in S04/S05
+    for name in sorted(used):
         assert callable(getattr(Runtime, name, None)), name
     assert callable(Runtime.load)
 

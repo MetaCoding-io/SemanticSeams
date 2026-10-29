@@ -1,7 +1,8 @@
 """Runtime.write (D026): an operation that triggers no process persists the
 validated entity itself. A valid payload is stored with its initial lifecycle
 status and returned in the row form query() returns; an invalid one raises
-ContractViolation naming the path and stores nothing.
+ContractViolation naming the path and stores nothing. A shape with a required
+:id (the identifier convention) gets the new entity's id, which no form sends.
 """
 
 import sys
@@ -65,3 +66,47 @@ def test_unknown_field_is_rejected(runtime):
     with pytest.raises(ContractViolation):
         runtime.write(":ExpenseShape", {"description": "Lunch", "amount_due": "12"})
     assert runtime.query(":ExpenseShape") == []
+
+
+ID_SHAPE_TRIG = """\
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix seam: <https://w3id.org/seams/seam#> .
+@prefix :     <https://example.org/expenses/> .
+
+<urn:seams:graph:model:expense_data> {
+    :expense_data a seam:Model ; rdfs:label "Expense Data" .
+    :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :description ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        seam:inModel :expense_data .
+}
+"""
+
+
+@pytest.fixture
+def id_runtime(tmp_path):
+    trig = tmp_path / "ids.trig"
+    trig.write_text(ID_SHAPE_TRIG, encoding="utf-8")
+    return Runtime(ModelGraph.load(trig), Store(tmp_path / "seams.sqlite"), templates_dir=tmp_path)
+
+
+def test_required_id_is_assigned_by_the_runtime(id_runtime):
+    stored = id_runtime.write(":ExpenseShape", {"description": "Taxi"})
+    assert stored["data"] == {"description": "Taxi", "id": stored["id"]}
+    assert flatten(stored)["id"] == stored["id"]
+
+
+def test_sent_id_is_replaced_not_upserted(id_runtime):
+    first = id_runtime.write(":ExpenseShape", {"description": "Taxi"})
+    second = id_runtime.write(":ExpenseShape", {"description": "Hijack", "id": first["id"]})
+    assert second["id"] != first["id"] and second["data"]["id"] == second["id"]
+    assert [e["data"]["description"] for e in id_runtime.query(":ExpenseShape")] == ["Taxi", "Hijack"]
+
+
+def test_assigned_id_does_not_mask_other_violations(id_runtime):
+    with pytest.raises(ContractViolation) as err:
+        id_runtime.write(":ExpenseShape", {})
+    assert [r["path"] for r in err.value.results] == ["description"]
+    assert id_runtime.query(":ExpenseShape") == []

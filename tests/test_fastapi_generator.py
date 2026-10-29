@@ -265,11 +265,12 @@ def test_processless_form_submission_writes_instead_of_starting(tmp_path):
     module = extract_routes(ModelGraph.load(trig)).modules[0]
     assert module.curie == ":expense_api" and module.not_routed == ()
     text = generate_routes(trig)
-    assert 'expense = runtime.write(":ExpenseShape", expense)' in text
-    assert "start_process" not in text
+    # write validates the form itself and assigns the :id a form never sends
+    assert 'expense = runtime.write(":ExpenseShape", form)' in text
+    assert "start_process" not in text and "runtime.validate(" not in text
     tree = ast.parse(text)
     post = next(f for f in _functions(tree) if f.name == "submit_expense")
-    assert [c for stmt in post.body for c in _runtime_calls(stmt)] == ["validate", "write", "render_fragment"]
+    assert [c for stmt in post.body for c in _runtime_calls(stmt)] == ["write", "render_fragment"]
     get = next(f for f in _functions(tree) if f.name == "list_expenses")
     assert [c for stmt in get.body for c in _runtime_calls(stmt)] == ["query", "render_fragment"]
     assert callable(getattr(Runtime, "write", None))

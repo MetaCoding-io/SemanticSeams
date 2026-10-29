@@ -1,0 +1,63 @@
+# Getting started
+
+SemanticSeams is a set of RDF vocabularies, worked example models, SHACL shapes, canned
+SPARQL queries and a read-only viewer that ties them together. This page takes you from
+a fresh clone to the test suite passing and the viewer open in a browser on the chat-app
+example.
+
+## What you need
+
+- Python 3.12 or later. CI runs on 3.12.
+- A browser with internet access. The viewer loads htmx, vis-network, bpmn-js and dmn-js
+  from a CDN.
+- Nothing else: there is no database to start. The viewer reads the example model into
+  memory with rdflib.
+
+## Install
+
+```sh
+git clone https://github.com/MetaCoding-io/SemanticSeams.git
+cd SemanticSeams
+pip install -r requirements-dev.txt -r viewer/requirements.txt
+```
+
+`requirements-dev.txt` brings rdflib, pySHACL and pytest for the model and its tests.
+`viewer/requirements.txt` adds FastAPI, uvicorn and Jinja2 for the viewer.
+
+## Run the tests
+
+```sh
+pytest
+```
+
+The suite is the project's acceptance test. It parses every Turtle and TriG file,
+validates both worked examples against the [seam shapes](/reference/shapes), proves the
+shapes reject deliberately broken seams, checks that every non-reserved seam predicate is
+used somewhere, asserts the exact rows of every [canned query](/reference/queries), and
+exercises the viewer's endpoints. CI runs the same command on every push and pull
+request.
+
+## Open the viewer
+
+```sh
+python3 -m uvicorn viewer.app:app --port 8000
+```
+
+Open <http://localhost:8000>. The root redirects to the chat app's architecture view,
+the top of the descent. From there:
+
+1. Click **Chat Web Interface** to land on the interaction model it presents.
+2. Click **Send Message** to land on the BPMN process the event triggers.
+3. Click the **Route to Provider** task. Its decision is detailed by two models, so the
+   viewer asks which one to open. Choose the DMN model, then open its decision table.
+
+[Using the viewer](/guide/the-viewer) walks through the same descent with screenshots
+and explains everything else on the page.
+
+## What next
+
+- [Using the viewer](/guide/the-viewer): what each part of the page does, and the URLs
+  behind it.
+- [Diagrams are views](/concepts/diagrams-are-views): the idea the project rests on.
+- [Authoring a model](/guide/authoring-a-model): the conventions a model must follow to
+  be navigable and to pass the shapes.

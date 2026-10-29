@@ -1,0 +1,16 @@
+{
+  "name": "semanticseams-docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The documentation site for SemanticSeams, built with VitePress from docs/.",
+  "scripts": {
+    "generate": "python3 scripts/generate.py",
+    "dev": "python3 scripts/generate.py && vitepress dev",
+    "build": "python3 scripts/generate.py && vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}

@@ -2,7 +2,7 @@
 
 *A zoomable, multi-notation application graph. One RDF graph is the source of truth; diagrams are views.*
 
-A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
+A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
 
 **The pitch, in one paragraph.** Every tool that draws software draws one layer: C4 tools stop at the repository link, BPMN modelers never see the UI that fires a process, IFML never wired up its hooks to data, and SHACL lives in its own silo. SemanticSeams puts every element of every layer in one RDF graph, as a resource with an IRI, and treats each diagram as a view over it. Click a C4 container and land on its IFML interaction model; click a UI event and land on the BPMN process it triggers; click a business-rule task and land on the DMN table; click a data object and land on the SHACL shape. The cross-layer edges are the *seams*, a small bridging ontology of 25 predicates, and because the whole system is one graph, the questions no single-notation tool can answer become SPARQL.
 
@@ -19,7 +19,8 @@ Full motivation, landscape survey, and design: [`docs/project-outline.md`](docs/
 ## Layout
 
 ```
-docs/       project outline (vision, pillars, landscape, stack, seam design rules)
+docs/       the docs site (VitePress; reference pages generated from ontology/ and docs/queries/),
+            project outline (vision, pillars, landscape, stack, seam design rules)
   queries/  canned cross-layer queries (*.rq) — the query catalog the viewer's buttons and CI both drive
 ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             arch.ttl        — minimal C4-style architecture vocabulary

@@ -43,3 +43,9 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# ── Docs site (VitePress) ──
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/generated/

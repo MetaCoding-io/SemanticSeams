@@ -1,0 +1,115 @@
+# Using the viewer
+
+The viewer is a read-only browser over one model. Every click is an htmx request for
+`/view/{iri}`, and the server picks a renderer from the `seam:notation` of the model the
+element belongs to. This page walks the canonical descent through the chat-app example,
+then explains the parts of the page and the URLs behind them.
+
+The screenshots were taken from the running viewer in October 2026.
+
+## The descent
+
+### Architecture
+
+![The chat app's architecture view: a system containing four containers, and a production environment containing three deployment nodes](./img/viewer-architecture.webp)
+
+The root of the chat app is its C4 architecture model: a system with four containers,
+and the production environment with the nodes they are deployed to. The green bar above
+the breadcrumbs is the model-health badge.
+
+### Interface
+
+![The chat interface's IFML model drawn as a graph of the page, its components, events, parameters and flows](./img/viewer-interaction.webp)
+
+Clicking **Chat Web Interface** follows `seam:presents` to the IFML model the container
+presents: the chat page, its list, details and form components, the events on them, and
+the flows between them.
+
+### Process
+
+![The message-processing BPMN diagram, from message submitted to done](./img/viewer-process.webp)
+
+Clicking **Send Message** follows `seam:triggers` to the process the event starts, and
+one more hop along `seam:detailedBy` to the BPMN model that details it. The diagram is
+the native XML, drawn by bpmn-js. Clicking a task that takes part in a seam navigates
+again; a task's element ID in the XML is the fragment of its IRI in the graph.
+
+### A choice
+
+![The viewer asking which of two detail views to open for Route to Provider](./img/viewer-disambiguation.webp)
+
+The **Route to Provider** task is `seam:decidedBy` a decision that is detailed by two
+models: the DMN decision model and the chat data model. Rather than pick one, the viewer
+lists both with their notations and lets you choose.
+
+### Decision
+
+![The Route to Provider decision table with hit policy First](./img/viewer-decision-table.webp)
+
+The DMN model opens in dmn-js. From its decision requirements diagram you can open the
+decision table; clicking the table's name returns to the decision it stands for.
+
+### A question
+
+![The db01 deployment node with the question "What breaks if this node goes away?" answered: four impacted results](./img/viewer-impact-question.webp)
+
+Some elements have canned questions. On a deployment node, **What breaks if this node
+goes away?** runs one SPARQL query and lists the containers and the process that depend
+on it, each linked to its own view.
+
+## The parts of the page
+
+**Model-health badge.** Every page validates the whole model against the
+[seam shapes](/reference/shapes). It reads *Conforms*, or a count of violations that
+opens into a list naming each failing element.
+
+**Breadcrumbs.** The path you clicked, not a fixed hierarchy: the same element can be
+reached from more than one parent. Each crumb is a link back.
+
+**The canvas.** Which renderer you get depends on the notation:
+
+| Notation | Renderer |
+|---|---|
+| C4 architecture, IFML interaction, statechart | A node-link graph drawn with vis-network |
+| BPMN | bpmn-js, from the model's native XML payload |
+| DMN | dmn-js, from the model's native XML payload: the decision diagram and its tables |
+| SHACL shape graph | No renderer yet; the page shows the inspector only |
+
+**Questions.** The canned queries that apply to the focused element's type, as buttons.
+Results appear inline with each value linked. The catalog is on the
+[query reference](/reference/queries).
+
+**Details.** The inspector: the element's IRI, its types, its native element ID and
+payload where it has them, and its outgoing and incoming seam edges with readable
+predicate labels. Edges along a navigational predicate are links.
+
+## How a click is resolved
+
+Navigation follows [ADR-0005](/adr/0005-navigation-resolution). Four predicates are
+navigational: `seam:detailedBy`, `seam:triggers`, `seam:presents` and
+`seam:decidedBy`. When you click an element:
+
+1. If it is detailed by exactly one model, the viewer opens that model.
+2. If it is detailed by more than one, the viewer shows the choice.
+3. If it has no detail of its own but a navigational edge leads to something that does,
+   the viewer follows that one extra hop. It never goes further, so you never cross two
+   layers without seeing the step between them.
+4. Otherwise it opens the inspector for the element.
+
+## URLs
+
+Every state is a URL, so any view can be bookmarked or shared.
+
+| Route | Returns |
+|---|---|
+| `/view/{iri}?path=…` | The page for an element. `path` carries the breadcrumb trail. Add `format=json`, or send `Accept: application/json`, for the [view response contract](/adr/0004-view-response-contract) as JSON. |
+| `/queries` | The canned-query catalog as JSON. |
+| `/queries/{name}/{focus_iri}` | One query's rows for one focus element. |
+| `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
+
+## Current limits
+
+The viewer is the v1 proof of concept. It is read-only, it loads one model, the chat-app
+example in `examples/chat-app/chat-app.trig`, set by `DATA_PATH` and `ROOT_IRI` at the
+top of `viewer/app.py`, and the node-link renderer does not yet draw containment as
+nesting. The [backlog](/backlog) lists what comes next for the viewer.

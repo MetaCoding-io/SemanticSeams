@@ -1,0 +1,79 @@
+/*
+ * SemanticSeams colours and type, taken from the project page: IBM Plex, the view
+ * teal for links and actions, and the seam orange for the hero name. Light values on
+ * :root, dark values on .dark (VitePress toggles that class).
+ */
+:root {
+  --vp-font-family-base: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --vp-font-family-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --vp-c-brand-1: #1f6f8b;
+  --vp-c-brand-2: #195d75;
+  --vp-c-brand-3: #144c60;
+  --vp-c-brand-soft: rgba(31, 111, 139, 0.14);
+  --vp-home-hero-name-color: #b4532a;
+  --seams-seam: #b4532a;
+}
+.dark {
+  --vp-c-brand-1: #5fb9d3;
+  --vp-c-brand-2: #4aa6c1;
+  --vp-c-brand-3: #3a8ea8;
+  --vp-c-brand-soft: rgba(95, 185, 211, 0.16);
+  --vp-home-hero-name-color: #e8865c;
+  --seams-seam: #e8865c;
+}
+
+/* Screenshots: a hairline frame so a white capture does not dissolve into the page. */
+.vp-doc img[src*="/img/"] { border: 1px solid var(--vp-c-divider); border-radius: 6px; }
+
+/* The sidebar toggle: a tab on the sidebar's right edge, desktop only. */
+.sidebar-toggle { display: none; }
+
+@media (min-width: 960px) {
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    z-index: 30;
+    top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 14px);
+    left: var(--vp-sidebar-width);
+    width: 20px;
+    height: 30px;
+    margin-left: -1px;
+    border: 1px solid var(--vp-c-divider);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    background: var(--vp-c-bg);
+    color: var(--vp-c-text-3);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.2s, background-color 0.2s;
+  }
+  .sidebar-toggle:hover { color: var(--vp-c-brand-1); background: var(--vp-c-bg-soft); }
+  .sidebar-toggle:focus-visible { outline: 2px solid var(--vp-c-brand-1); outline-offset: 2px; }
+
+  /* Every sidebar-dependent offset in the default theme is a multiple of this variable. */
+  html.sidebar-hidden { --vp-sidebar-width: 0px; }
+  html.sidebar-hidden .VPSidebar { display: none; }
+  html.sidebar-hidden .VPNavBar.has-sidebar .title { position: static; width: auto; padding: 0; }
+  html.sidebar-hidden .VPNavBarTitle.has-sidebar .title { border-bottom-color: transparent; }
+  html.sidebar-hidden .sidebar-toggle { left: 0; margin-left: 0; }
+}
+
+@media (min-width: 1440px) {
+  .sidebar-toggle { left: calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width)); }
+  html.sidebar-hidden .sidebar-toggle { left: 0; }
+}
+
+/*
+ * Wide screens: the document takes the width the layout has, so reference tables and
+ * screenshots are not squeezed into the default 688px column beside an empty outline.
+ */
+@media (min-width: 1280px) {
+  html .VPDoc .aside { flex: 0 0 288px; width: 288px; }
+  html .VPDoc.has-aside .content-container.content-container { max-width: 1040px; }
+}
+@media (min-width: 1600px) {
+  html:root { --vp-layout-max-width: 1760px; }
+}

@@ -49,3 +49,9 @@ tmp/
 
 # Local compose secrets (the LLM key file); see compose.override.yaml.
 .secrets/
+
+# ── Docs site (VitePress) ──
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/generated/

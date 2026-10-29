@@ -1,0 +1,119 @@
+# Authoring a model
+
+A SemanticSeams model is a TriG file: Turtle with named graphs. Each diagram is one named
+graph, and the edges between diagrams live in one more. This page sets out the
+conventions a model has to follow to be navigable in the viewer and to pass the
+[seam shapes](/reference/shapes), then gives a small skeleton to start from.
+
+The two worked examples are the best reference:
+[`examples/chat-app/chat-app.trig`](../../examples/chat-app/chat-app.trig), which the
+viewer loads, and [`examples/checkout.trig`](../../examples/checkout.trig).
+
+## Graphs
+
+[ADR-0001](/adr/0001-named-graph-partitioning) fixes the partitioning.
+
+| Graph | Holds |
+|---|---|
+| `<urn:seams:graph:model:{id}>`, one per model | The layer-internal triples of one diagram: its elements, their labels, and the layer's own predicates (`arch:contains`, `ifml:hasEvent`, `state:from` and so on). |
+| `<urn:seams:graph:seams>` | Every cross-layer edge: all `seam:` predicates except `seam:inModel`, including `seam:notation` and `seam:renderPayload`. |
+
+Keeping the seams in one graph makes "show me every cross-layer connection" a
+single-graph query and lets the seams be audited on their own. The test suite enforces
+it: a `seam:` predicate other than `seam:inModel` found in a model graph fails CI.
+
+## Rules every model follows
+
+1. **Every model is a `seam:Model`** with an `rdfs:label`, and has exactly one
+   `seam:notation`: one of `seam:C4`, `seam:IFML`, `seam:BPMN`, `seam:DMN`,
+   `seam:Statechart` or `seam:ShapeGraph`. The notation picks the renderer.
+2. **Every element states its model** with `seam:inModel`. Membership is data, so SPARQL
+   can walk from a model to its elements; the viewer uses it to decide what to draw.
+3. **BPMN and DMN models carry a `seam:renderPayload`**, a path to the native XML
+   relative to the TriG file. The shapes reject a BPMN or DMN model without one.
+4. **Only seam-participating BPMN and DMN elements get an IRI**, and that IRI is the
+   model IRI with the element's XML `id` as its fragment, for example
+   `<https://example.org/chat/chat_bpmn#persist_user_msg>`
+   ([ADR-0002](/adr/0002-iri-identity-and-migration)). That is what lets a click in
+   bpmn-js resolve to a node in the graph.
+5. **Every element has an `rdfs:label`.** The viewer never shows a raw IRI where a label
+   exists.
+6. **Seams follow the shapes.** For example, `seam:triggers` starts at an
+   `ifml:Event`, and `seam:detailedBy` ends at a `seam:Model`. The
+   [shapes reference](/reference/shapes) lists every constraint, and the
+   [seam predicates reference](/reference/seam-predicates) describes each predicate's
+   intended source and target.
+
+## A skeleton
+
+Two models, an architecture with one container and the interface that container
+presents, and the seams graph joining them:
+
+```turtle
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix seam: <https://w3id.org/seams/seam#> .
+@prefix arch: <https://w3id.org/seams/arch#> .
+@prefix ifml: <https://w3id.org/seams/ifml#> .
+@prefix :     <https://example.org/notes/> .
+
+<urn:seams:graph:model:notes_architecture> {
+    :notes_architecture a seam:Model ; rdfs:label "Notes Architecture" .
+
+    :notes_system a arch:System ; rdfs:label "Notes" ;
+        arch:contains :notes_ui ;
+        seam:inModel :notes_architecture .
+
+    :notes_ui a arch:Container ; rdfs:label "Notes Web Interface" ;
+        seam:inModel :notes_architecture .
+}
+
+<urn:seams:graph:model:notes_ifml> {
+    :notes_ifml a seam:Model , ifml:InteractionModel ; rdfs:label "Notes Interface" ;
+        ifml:contains :notes_page .
+
+    :notes_page a ifml:ViewContainer ; rdfs:label "Notes Page" ;
+        seam:inModel :notes_ifml .
+}
+
+<urn:seams:graph:seams> {
+    :notes_ui seam:presents :notes_ifml .
+
+    :notes_architecture seam:notation seam:C4 .
+    :notes_ifml seam:notation seam:IFML .
+}
+```
+
+Adding a process means a third model graph with `seam:notation seam:BPMN` and a
+`seam:renderPayload <notes_process.bpmn>`, an `ifml:Event` on the page, and a
+`seam:triggers` edge from the event to the process in the seams graph. The chat app does
+exactly that.
+
+## Validate it
+
+The shapes need the ontology files merged into the data, because `sh:class` checks
+subclass closure from triples in the graph. This is what the test suite does for the
+examples:
+
+```python
+from glob import glob
+from pyshacl import validate
+from rdflib import Dataset, Graph
+
+data = Graph()
+for path in glob("ontology/*.ttl"):
+    data.parse(path, format="turtle")
+
+model = Dataset()
+model.parse("my-model.trig", format="trig")
+for s, p, o, _ in model.quads((None, None, None, None)):
+    data.add((s, p, o))
+
+conforms, _, report = validate(data, shacl_graph="ontology/shapes/seam-shapes.ttl", inference="none")
+print(report)
+```
+
+## View it
+
+The viewer currently loads one model, set by `DATA_PATH` and `ROOT_IRI` at the top of
+`viewer/app.py`. Point both at your file and its root model, then start the viewer as in
+[Getting started](/guide/getting-started#open-the-viewer).

@@ -34,6 +34,10 @@ one more hop along `seam:detailedBy` to the BPMN model that details it. The diag
 the native XML, drawn by bpmn-js. Clicking a task that takes part in a seam navigates
 again; a task's element ID in the XML is the fragment of its IRI in the graph.
 
+The shapes take the process layer colour. Each task with a seam carries small badges at
+its top edge, one per seam, coloured by the layer the seam leads to. Clicking a badge
+follows that seam, and hovering one names it.
+
 ### A choice
 
 ![The viewer asking which of two detail views to open for Route to Provider](./img/viewer-disambiguation.webp)

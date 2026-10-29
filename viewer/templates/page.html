@@ -59,6 +59,20 @@
     .seam-dot[data-layer="data"] { background: var(--layer-data); }
     .seam-dot[data-layer="lifecycle"] { background: var(--layer-lifecycle); }
     .seam-dot[data-layer="other"] { background: var(--layer-other); }
+    /* BPMN/DMN layer tint (bpmn-js/dmn-js set inline styles, hence !important) */
+    .payload-canvas[data-layer="process"] .djs-element.seams-tinted .djs-visual > :is(rect, circle, polygon) { stroke: var(--layer-process) !important; fill: color-mix(in srgb, var(--layer-process) 8%, white) !important; }
+    .payload-canvas[data-layer="process"] .djs-element.seams-member .djs-visual > :is(rect, circle, polygon) { stroke-width: 2px !important; fill: color-mix(in srgb, var(--layer-process) 16%, white) !important; }
+    .payload-canvas[data-layer="decision"] .djs-element.seams-tinted .djs-visual > :is(rect, circle, polygon) { stroke: var(--layer-decision) !important; fill: color-mix(in srgb, var(--layer-decision) 8%, white) !important; }
+    .payload-canvas[data-layer="decision"] .djs-element.seams-member .djs-visual > :is(rect, circle, polygon) { stroke-width: 2px !important; fill: color-mix(in srgb, var(--layer-decision) 16%, white) !important; }
+    .seam-badges { display: flex; gap: 2px; }
+    .seam-badge { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 1px solid #fff; cursor: pointer; background: var(--layer-other); }
+    .seam-badge[data-layer="architecture"] { background: var(--layer-architecture); }
+    .seam-badge[data-layer="interaction"] { background: var(--layer-interaction); }
+    .seam-badge[data-layer="process"] { background: var(--layer-process); }
+    .seam-badge[data-layer="decision"] { background: var(--layer-decision); }
+    .seam-badge[data-layer="data"] { background: var(--layer-data); }
+    .seam-badge[data-layer="lifecycle"] { background: var(--layer-lifecycle); }
+    .seam-badge[data-layer="other"] { background: var(--layer-other); }
     .type-pill { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; background: #eef0f3; color: #444; font-size: 0.75rem; font-weight: 600; }
     .warning { color: #8a5300; background: #fff3cd; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; }
     code { background: #f0f0f0; padding: 0.1rem 0.3rem; border-radius: 3px; }

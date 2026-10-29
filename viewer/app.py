@@ -329,6 +329,18 @@ def payload_element_map(model_iri: str) -> dict:
     return {short_name(m): m for m in model_members(model_iri)}
 
 
+def payload_element_seams(model_iri: str) -> dict[str, list[dict]]:
+    """Native element id -> its outgoing seams (card_seams shape), for the
+    overlay badges drawn on BPMN/DMN diagrams. Seams back to model_iri itself
+    are dropped (a badge would only re-open the current view), and so are ids
+    left with no seams, so a badge appears only for a seam in the graph."""
+    seams = {
+        native_id: [s for s in card_seams(iri) if s["target"] != model_iri]
+        for native_id, iri in payload_element_map(model_iri).items()
+    }
+    return {native_id: lst for native_id, lst in seams.items() if lst}
+
+
 def card_seams(iri: str) -> list[dict]:
     """Outgoing seam edges of iri as card dots, sorted by predicate then target."""
     edges = [
@@ -729,6 +741,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     elif render_kind in PAYLOAD_RENDERERS and view["renderPayload"]:
         ctx["payload_url"] = f"/payload/{quote(view['renderPayload'], safe='')}"
         ctx["element_map"] = payload_element_map(focus)
+        # Template-only (not in build_view), so the JSON contract is unchanged.
+        ctx["element_seams"] = payload_element_seams(focus)
 
     def link(iri_str: str) -> str:
         return href_for(iri_str, outgoing_trail, carried_level)

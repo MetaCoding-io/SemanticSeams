@@ -87,6 +87,12 @@ closed by `ifml:order`. The same alignment (D016) dropped the hand-chosen
 shape's `rdfs:label`, and put the message item fields in `sh:order`, which adds
 one `role` line.
 
+**After M004/S05.** `chat_api.py` was aligned with the FastAPI route generator
+(D017): its endpoint blocks and the `seam:exposes` header list are in IRI order,
+and the thread read passes the Details component's path-variable parameter
+(`conversation=conversation`, from `ifml:hasParameter :conversation`) to
+`render_fragment`. The line counts are unchanged.
+
 ## Feeding M004
 
 The 28 gaps in [`gaps.md`](gaps.md): GAP-01..GAP-22 from the golden dry run,

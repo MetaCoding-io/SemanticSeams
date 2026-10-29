@@ -1,7 +1,7 @@
 """Command line: ``python -m seams_gen <generator> <trig> --out <dir>``.
 
-Each generator is a subcommand registered in ``GENERATORS``; S05 and S06 add
-``fastapi`` and ``compose`` the same way. A GeneratorError (a missing or
+Each generator is a subcommand registered in ``GENERATORS``: ``htmx`` (S04),
+``fastapi`` (S05); S06 adds ``compose`` the same way. A GeneratorError (a missing or
 ambiguous graph fact) prints its message, which names the subject IRI and the
 predicate, to stderr and exits 2. A file that cannot be read or written exits 1.
 """
@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from . import GeneratorError
+from .fastapi import route_module
 from .htmx import extract_page, render_fragments, render_page
 from seams_runtime import ModelGraph
 
@@ -27,9 +28,17 @@ def _htmx(trig: Path) -> dict[str, str]:
     return {f"{page.id}.html": render_page(page), **render_fragments(page)}
 
 
+def _fastapi(trig: Path) -> dict[str, str]:
+    """{<container local name>.py: content}: the route module of the one
+    container that seam:executes a process."""
+    name, text = route_module(trig)
+    return {name: text}
+
+
 # subcommand -> (help, generate(trig) -> {relative file name: text})
 GENERATORS = {
     "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
+    "fastapi": ("the thin FastAPI route module of the container that executes the process", _fastapi),
 }
 
 

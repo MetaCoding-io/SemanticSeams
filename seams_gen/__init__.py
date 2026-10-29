@@ -24,6 +24,8 @@ class GeneratorError(Exception):
 
 from .fragments import fragment_for  # noqa: E402  (needs GeneratorError)
 from .htmx import extract_page, generate_fragments, generate_page, render_fragments  # noqa: E402
+from .fastapi import extract_routes, generate_routes, render_routes  # noqa: E402
 
-__all__ = ["GeneratorError", "extract_page", "fragment_for", "generate_fragments", "generate_page",
-           "golden_target", "render_fragments", "strip_markers"]
+__all__ = ["GeneratorError", "extract_page", "extract_routes", "fragment_for", "generate_fragments",
+           "generate_page", "generate_routes", "golden_target", "render_fragments", "render_routes",
+           "strip_markers"]

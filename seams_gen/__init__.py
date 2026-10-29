@@ -22,4 +22,6 @@ class GeneratorError(Exception):
         super().__init__(f"{message}: {detail}" if detail else message)
 
 
-__all__ = ["GeneratorError", "golden_target", "strip_markers"]
+from .htmx import extract_page, generate_page  # noqa: E402  (needs GeneratorError)
+
+__all__ = ["GeneratorError", "extract_page", "generate_page", "golden_target", "strip_markers"]

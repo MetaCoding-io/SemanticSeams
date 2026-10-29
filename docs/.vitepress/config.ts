@@ -35,6 +35,7 @@ const decisions = [
   ["0007", "Execution strategy", "0007-execution-strategy"],
   ["0008", "Node-link renderer", "0008-node-link-renderer"],
   ["0009", "Human tasks", "0009-human-tasks"],
+  ["0010", "Channel-started processes", "0010-channel-started-processes"],
 ] as const;
 
 export default defineConfig({
@@ -98,6 +99,7 @@ export default defineConfig({
               { text: "5 · The rules", link: "/tutorials/expenses/05-rules" },
               { text: "6 · The lifecycle", link: "/tutorials/expenses/06-lifecycle" },
               { text: "7 · People and permissions", link: "/tutorials/expenses/07-permissions" },
+              { text: "8 · Growing up", link: "/tutorials/expenses/08-growing-up" },
             ],
           },
         ],

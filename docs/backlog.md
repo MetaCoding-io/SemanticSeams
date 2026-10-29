@@ -56,7 +56,7 @@ updated reason.
 
 | # | Item | Merges | Reason | Status |
 |---|---|---|---|---|
-| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. The candidate is the expense-approval build-along tutorial (E1), and the slice's first check can be the complexity check (E3); see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
+| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. That example now exists: the expense-approval build-along tutorial's final checkpoint (E1, done in M009/S07) passes the complexity check (E3), and the slice opens by running that check; see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
 | 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item | planned (M008/S01) |
 | 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief | planned (M008/S04) |
 | 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
@@ -77,7 +77,7 @@ worked example item 11 waits for.
 
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
-| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | in progress (M009/S03 done: chapters 1 to 3; E4 done in M009/S04; M009/S05 done: chapters 4 to 6, the process, the rules and the lifecycle; M009/S06 done: chapter 7, roles and the fourth canned query; S07 to come) |
+| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | done (M009/S03 done: chapters 1 to 3; E4 done in M009/S04; M009/S05 done: chapters 4 to 6, the process, the rules and the lifecycle; M009/S06 done: chapter 7, roles and the fourth canned query; M009/S07 done: chapter 8, the channel-started payout process, the finance console and `docker compose up`) |
 | E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | done (M009/S01) |
 | E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | done (M009/S02) |
 | E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker used to skip manual tasks; it now waits on them. | M | ADR first | done (M009/S04) |
@@ -151,8 +151,14 @@ UI work must not eat M3.*
    the runtime's `RoleEvaluator` admits identities by their `X-Forwarded-Groups` roles (or
    `SEAMS_DEV_ROLES`), the viewer's fourth canned query names the screens each role can use
    that eventually write a shape, and [chapter 7](tutorials/expenses/07-permissions.md) adds
-   the employee, manager and finance policies and a payment task.*
+   the employee, manager and finance policies and a payment task.* *E1 done, M009/S07:
+   [chapter 8](tutorials/expenses/08-growing-up.md) adds a payout process that
+   [ADR-0010](adr/0010-channel-started-processes.md) starts from a channel, with its own
+   decision and payment lifecycle, a finance console and a `docker compose up` run in CI.
+   Its checkpoint passes `python -m seams_gen.complexity` (4 notations with two models,
+   a maximum reach of 6), so it is the second worked example item 11 waits for.*
 7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each
    item's parking reason is checked again first: editing is a v1 non-goal in the
-   product brief, and layer mode (S03) opens with the E3 complexity check on the
-   expense app.
+   product brief. *Next:* layer mode (S03) opens by running the E3 complexity
+   measurement on the finished expense app,
+   `python -m seams_gen.complexity examples/expenses/chapter-08/expenses.trig`.

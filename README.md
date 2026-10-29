@@ -54,10 +54,11 @@ http://localhost:8080 and chat with an LLM (OpenAI, any OpenAI-compatible server
 gateway's built-in stub). CI runs the same stack end to end.
 
 [`docs/tutorials/expenses/`](docs/tutorials/expenses/index.md) is the slower track: build
-an expense approval app yourself, one layer per chapter, from an empty TriG file to a
-generated app with an approval process. Chapters 1 to 7 (architecture, data, screens,
-process, rules, lifecycle, permissions) are written; CI checks each chapter's checkpoint model in
-`examples/expenses/`.
+an expense approval app yourself, one layer per chapter, from an empty TriG file to the
+whole system under `docker compose up`. All eight chapters (architecture, data, screens,
+process, rules, lifecycle, permissions, and growing up with an asynchronous payout) are
+written; CI checks each chapter's checkpoint model in `examples/expenses/` and runs the
+last one under docker compose.
 
 ## Generators
 

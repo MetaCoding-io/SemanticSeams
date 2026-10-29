@@ -340,5 +340,6 @@ To see only what this chapter added:
 diff examples/expenses/chapter-06/expenses.trig examples/expenses/chapter-07/expenses.trig
 ```
 
-Chapter 8, Growing up, is coming next. It makes payout asynchronous with a payout process
-and a worker, adds a finance console, and runs the whole system with `docker compose up`.
+[Chapter 8, Growing up](./08-growing-up), makes payout asynchronous. A payout process
+starts on its own when an expense is paid, finance gets a console, and the whole system
+runs with `docker compose up`.

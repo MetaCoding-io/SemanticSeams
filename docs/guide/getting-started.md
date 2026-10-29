@@ -66,7 +66,7 @@ and explains everything else on the page.
 - [Quick start: the chat app](/tutorial): regenerate the chat app from its model and run
   it with Docker Compose.
 - [Build an expense approval app](/tutorials/expenses/): write a model yourself, one layer
-  per chapter, from an empty file to a generated app.
+  per chapter, from an empty file to the whole system under `docker compose up`.
 - [Using the viewer](/guide/the-viewer): what each part of the page does, and the URLs
   behind it.
 - [Diagrams are views](/concepts/diagrams-are-views): the idea the project rests on.

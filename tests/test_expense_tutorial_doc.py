@@ -10,7 +10,9 @@ every process chapter (4 onward) show the generator commands
 tests/expense_app.py names for them, and the host command with the
 environment the app tests set. Chapter 2 shows the deliberate mistake
 tests/test_expense_checkpoints.py replays, and chapters 5 and 6 show the
-edits their app tests make on a copy of the checkpoint.
+edits their app tests make on a copy of the checkpoint. Chapter 8 shows the
+docker compose command tests/test_expense_e2e.py runs, the compose generator
+command, and the complexity command with the report the checkpoint produces.
 """
 
 import re
@@ -153,3 +155,21 @@ def test_chapter_6_refusal_diff_is_the_edit_ci_makes():
     removed = [ln[1:].strip() for ln in diff.splitlines() if ln.startswith("-")]
     added = [ln[1:].strip() for ln in diff.splitlines() if ln.startswith("+")]
     assert (removed, added) == ([FIRES_APPROVE], [FIRES_PAY]), diff
+
+
+def test_chapter_8_shows_the_compose_and_complexity_commands():
+    """Chapter 8 runs the stack with the two files tests/test_expense_e2e.py
+    merges, regenerates compose.yaml as tests/test_expense_compose.py expects,
+    and measures the checkpoint tests/test_complexity.py pins."""
+    page = PAGES_DIR / "08-growing-up.md"
+    app = "examples/expenses/chapter-08"
+    lines = code_lines(page)
+    assert (f"docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml up --build"
+            in lines)
+    assert f"python -m seams_gen compose {app}/expenses.trig --out {app}" in lines
+    assert f"python -m seams_gen.complexity {app}/expenses.trig" in lines
+    # the report shown is the one the checkpoint produces now
+    from seams_gen.complexity import load_model, measure, report
+    shown = report(measure(load_model(ROOT / app / "expenses.trig")))
+    assert shown in [body for info, body in FENCE.findall(page.read_text(encoding="utf-8"))
+                     if not info.strip()], f"08-growing-up.md must show the report:\n{shown}"

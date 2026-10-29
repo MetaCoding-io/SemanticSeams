@@ -129,7 +129,8 @@ def test_thread_fragment_renders_inside_its_guard():
     html = _render("message_thread.html", message_state="composing", **context)
     assert 'id="message_thread"' in html and "<p>hello</p>" in html
     assert 'sse-connect="/conversations/c1/stream"' in html
-    assert 'id="message_thread"' not in _render("message_thread.html", message_state="sending", **context)
+    assert 'id="message_thread"' in _render("message_thread.html", message_state="complete", **context)
+    assert 'id="message_thread"' not in _render("message_thread.html", message_state="failed", **context)
 
 
 def test_list_fragment_renders_links():

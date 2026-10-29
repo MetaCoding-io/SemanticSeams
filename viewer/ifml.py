@@ -13,7 +13,8 @@ template only draws and pytest can check everything:
 - actions: one hexagon per distinct seam:triggers target of an event;
 - navigation flows (solid), data flows (dashed, with a «ParamBindingGroup»
   note) and event → action flows;
-- activation notes "[state = …]" from seam:visibleWhen.
+- activation notes "[state = …]" from seam:visibleWhen, one per component
+  ("[state in (…)]" when it has several guard states).
 
 Geometry is deterministic and Python-only (no ELK): every box carries integer
 x, y, w, h and the root carries the overall width and height. The graph
@@ -184,10 +185,15 @@ def _derive(model_iri: str) -> dict:
             )
 
     notes = []
+    guards: dict[str, list[str]] = {}
     for s, o in graph.subject_objects(SEAM.visibleWhen):
         if str(s) in boxes:
-            text = f"[state = {app.label(str(o))}]"
-            notes.append({"iri": str(o), "kind": "activation", "for": str(s), "state": str(o), "text": text})
+            guards.setdefault(str(s), []).append(str(o))
+    for s, states in sorted(guards.items()):
+        states.sort()
+        labels = sorted(app.label(o) for o in states)
+        text = f"[state = {labels[0]}]" if len(labels) == 1 else f"[state in ({', '.join(labels)})]"
+        notes.append({"iri": states[0], "kind": "activation", "for": s, "state": states[0], "text": text})
     for f in flows:
         if f["kind"] == "data" and f["bindings"]:
             text = "«ParamBindingGroup» " + "; ".join(f["bindings"])

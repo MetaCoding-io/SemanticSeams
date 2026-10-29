@@ -95,11 +95,13 @@ seam:triggers a rdf:Property ;
 seam:visibleWhen a rdf:Property ;
     rdfs:label "visible when" ;
     rdfs:comment """ifml:ViewComponent -> state:State. Conditional rendering as a graph edge.
+Multi-valued: the component is visible when the state is any one of its values.
 Evaluation rule: the guard is evaluated server-side, at render time, against the
 lifecycle of the shape the component seam:reads (shape seam:lifecycle machine, which
-must state:hasState the guard state). The template variable is the shape's local name,
+must state:hasState every guard state). The template variable is the shape's local name,
 lowercased, minus a trailing 'shape', plus '_state' (:MessageShape -> message_state),
-compared with the guard state's rdfs:label. The value is the state of the current
+compared with the guard state's rdfs:label (one state: ==, several: in a tuple of the
+labels, sorted). The value is the state of the current
 instance in the component's render context (for the message thread, the conversation's
 latest message). A state change re-renders the component through the channel events
 the client consumes (comm:eventName on a seam:consumes channel); no client-side guard.""" .

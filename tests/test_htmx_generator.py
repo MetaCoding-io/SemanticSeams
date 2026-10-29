@@ -101,6 +101,12 @@ def _remove(graph, s, p):
     graph.remove((URIRef(s), URIRef(p), None))
 
 
+def _remove_everywhere(ds, s, p):
+    assert (URIRef(s), URIRef(p), None) in ds
+    for g in ds.graphs():
+        g.remove((URIRef(s), URIRef(p), None))
+
+
 def _add_landmark(ds, iri):
     g = _ifml_graph(ds)
     g.add((URIRef(iri), RDF.type, IFML.ViewContainer))
@@ -128,11 +134,13 @@ def _ifml(local):
      CHAT + "chat_ifml", SEAM + "presents"),
     (lambda ds: _seams_graph(ds).add((URIRef(CHAT + "message_thread"), URIRef(SEAM + "visibleWhen"),
                                       URIRef(CHAT + "s_bogus"))),
-     CHAT + "message_thread", SEAM + "visibleWhen"),
+     CHAT + "message_lifecycle", "https://w3id.org/seams/state#hasState"),
+    (lambda ds: _remove_everywhere(ds, CHAT + "s_complete", str(RDFS.label)),
+     CHAT + "s_complete", str(RDFS.label)),
     (lambda ds: _add_landmark(ds, CHAT + "other_page"),
      CHAT + "chat_ifml", _ifml("isLandmark")),
 ], ids=["no-landmark", "no-submitsTo", "no-order", "no-title", "no-swap", "no-read-op",
-        "no-presenter", "two-guards", "two-landmarks"])
+        "no-presenter", "guard-outside-lifecycle", "guard-state-unlabelled", "two-landmarks"])
 def test_missing_or_ambiguous_fact_raises(mutate, subject, predicate):
     ds = _dataset()
     mutate(ds)
@@ -193,12 +201,19 @@ def test_generated_page_has_no_domain_logic():
         test = node.test
         assert isinstance(test, nodes.Compare), test
         assert isinstance(test.expr, nodes.Name) and test.expr.name.endswith("_state"), test
-        assert len(test.ops) == 1 and test.ops[0].op == "eq", test
-        assert isinstance(test.ops[0].expr, nodes.Const), test
-        assert test.ops[0].expr.value in labels, test
-        assert not node.elif_
+        assert len(test.ops) == 1 and test.ops[0].op in ("eq", "in"), test
+        operand = test.ops[0].expr
+        if test.ops[0].op == "eq":
+            consts = [operand]
+        else:
+            assert isinstance(operand, nodes.Tuple) and len(operand.items) > 1, test
+            consts = operand.items
+        assert all(isinstance(c, nodes.Const) for c in consts), test
+        values = [c.value for c in consts]
+        assert set(values) <= labels and values == sorted(values), test
+        assert not node.elif_ and not node.else_
     banned = (nodes.Assign, nodes.AssignBlock, nodes.BinExpr, nodes.UnaryExpr,
-              nodes.Concat, nodes.Call, nodes.CondExpr, nodes.Macro)
+              nodes.Concat, nodes.Call, nodes.CondExpr, nodes.Macro, nodes.Filter, nodes.Test)
     found = [type(n).__name__ for n in tree.find_all(banned)]
     assert not found, f"generated page holds logic nodes: {found}"
 
@@ -232,11 +247,28 @@ def test_rendered_page_wires_the_routes():
     assert "<p>hi there</p>" in html
 
 
-def test_guard_hides_the_thread_outside_its_state():
-    html = _render(message_state="sending")
+@pytest.mark.parametrize("state", ["composing", "sending", "streaming", "complete"])
+def test_guard_shows_the_thread_in_its_states(state):
+    assert 'id="message_thread"' in _render(message_state=state)
+
+
+def test_guard_hides_the_thread_outside_its_states():
+    html = _render(message_state="failed")
     assert 'id="message_thread"' not in html
     assert 'sse-connect=' not in html
     assert 'id="compose_form"' in html
+
+
+def test_single_guard_state_renders_an_equality():
+    ds = _dataset()
+    thread = URIRef(CHAT + "message_thread")
+    for g in ds.graphs():
+        for state in ("s_sending", "s_streaming", "s_complete"):
+            g.remove((thread, URIRef(SEAM + "visibleWhen"), URIRef(CHAT + state)))
+    out = render_page(extract_page(ModelGraph(TRIG, dataset=ds)))
+    assert '{% if message_state == "composing" %}' in out
+    assert "seam:visibleWhen :s_composing #}" in out
+    assert " in (" not in out
 
 
 # ── mutation: edits to the model flow through to the output ───────────────

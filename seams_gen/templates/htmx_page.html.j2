@@ -24,7 +24,7 @@
 [% if not loop.first %]
 
 [% endif %]
-  {# [[ c.type_curie ]] [[ c.curie ]][[ ", seam:reads " ~ c.reads if c.reads else "" ]][[ ", seam:writes " ~ c.writes if c.writes else "" ]][[ ", seam:visibleWhen " ~ c.guard_state_curie if c.guard_state_curie else "" ]] #}
+  {# [[ c.type_curie ]] [[ c.curie ]][[ ", seam:reads " ~ c.reads if c.reads else "" ]][[ ", seam:writes " ~ c.writes if c.writes else "" ]][[ ", seam:visibleWhen " ~ c.guard_state_curies|join(" , ") if c.guard_state_curies else "" ]] #}
   {% block [[ c.id ]] %}
 [% include "htmx_component.html.j2" %]
   {% endblock %}

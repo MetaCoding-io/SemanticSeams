@@ -144,16 +144,16 @@ def test_generated_app_serves_the_chat_flow(generated):
     assert [m["data"]["content"] for m in stored if m["data"].get("role") == "user"] == ["hi"]
     assert stored[-1]["data"]["status"] == "complete"
 
-    # thread: message_thread is guarded by seam:visibleWhen :s_composing, and
-    # the latest stored status is now "complete", so the partial renders no
-    # section. This is the documented D017 behaviour; showing a finished thread
-    # is the S07 follow-up, and the model is deliberately left unchanged here.
+    # thread: message_thread is seam:visibleWhen every message state but
+    # :s_failed, so after the reply completes the thread still renders, with
+    # the user's message and the stored reply.
     r = client.get(URL)
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("text/html")
     assert "component partial of ifml:Details :message_thread" not in r.text  # Jinja comments stripped
-    assert "<section" not in r.text
-    assert "hi" not in r.text
+    assert '<section id="message_thread"' in r.text
+    assert "<p>hi</p>" in r.text
+    assert r.text.count('<li class="message">') == len(stored)
 
     r = client.get("/conversations")
     assert r.status_code == 200, r.text
@@ -177,6 +177,21 @@ def test_thread_partial_shows_stored_messages_while_composing(generated):
     assert '<section id="message_thread"' in r.text
     assert 'data-conversation="c2"' in r.text
     assert "&lt;b&gt;draft&lt;/b&gt;" in r.text and "<b>draft</b>" not in r.text
+
+
+def test_thread_partial_hides_a_failed_conversation(generated):
+    """The hidden branch: the latest stored message failed, which is outside
+    the thread's seam:visibleWhen states, so the partial renders no section."""
+    module, client, _app = generated
+    shape = module.runtime.model.curie(":MessageShape")
+    module.runtime.store.put_entity("m1", shape, {"role": "user", "content": "hi", "status": "complete"},
+                                    correlation_key="c3", status="complete")
+    module.runtime.store.put_entity("m2", shape, {"role": "assistant", "content": "oops", "status": "failed"},
+                                    correlation_key="c3", status="failed")
+    r = client.get("/conversations/c3/messages")
+    assert r.status_code == 200, r.text
+    assert "<section" not in r.text
+    assert "oops" not in r.text
 
 
 def test_generated_module_refuses_a_different_model_hash(tmp_path, monkeypatch):

@@ -125,8 +125,8 @@ def test_notes(diagram):
     notes = {n["kind"]: n for n in diagram["notes"]}
     act = notes["activation"]
     assert act["for"] == THREAD
-    assert act["state"] == f"{CHAT}s_composing"
-    assert act["text"] == "[state = composing]"
+    assert act["state"] == f"{CHAT}s_complete"
+    assert act["text"] == "[state in (complete, composing, sending, streaming)]"
     assert notes["bindings"]["text"] == "«ParamBindingGroup» selected conversation → conversation"
 
 
@@ -313,7 +313,7 @@ def test_fragment_draws_ifml_svg(ifml_html):
         "«DataBinding» Message",
         "«DataBinding» Conversation",
         "[L] Chat Page",
-        "[state = composing]",
+        "[state in (complete, composing, sending, streaming)]",
         "«ParamBindingGroup» selected conversation → conversation",
         "Send Message Process",
     ],
@@ -346,7 +346,7 @@ def test_fragment_groups_carry_kind_and_layer(ifml_html):
     assert (SEND_MESSAGE, "event") in by_iri
     assert (SELECT_CONVERSATION, "event") in by_iri
     # Activation note descends to the state; it takes the state's layer.
-    assert re.search(r'data-iri="https://example.org/chat/s_composing" data-kind="note"[^>]*data-layer="lifecycle"', ifml_html)
+    assert re.search(r'data-iri="https://example.org/chat/s_complete" data-kind="note"[^>]*data-layer="lifecycle"', ifml_html)
 
 
 def test_fragment_flows_solid_and_dashed(ifml_html):

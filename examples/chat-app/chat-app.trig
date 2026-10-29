@@ -304,8 +304,10 @@
 
     :conversation_list seam:reads :ConversationShape .
     :compose_form seam:writes :MessageShape .
+    # The thread shows in every message state but :s_failed: before a send,
+    # while the reply is sent and streamed, and after it completes.
     :message_thread seam:reads :MessageShape ;
-        seam:visibleWhen :s_composing .
+        seam:visibleWhen :s_composing , :s_sending , :s_streaming , :s_complete .
 
     # Process → Decision/Data seam edges
     # The correlation key is the IFML parameter whose name is the comm:path

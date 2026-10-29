@@ -659,7 +659,8 @@ def test_gap_16_state_guard(chat_model):
                               SUBSTR(?local, 1, STRLEN(?local) - 5), ?local), "_state") AS ?var)
            }""",
     )
-    assert rows == {(CHAT.message_thread, lit("message_state"), lit("composing"))}
+    assert rows == {(CHAT.message_thread, lit("message_state"), lit(label))
+                    for label in ("composing", "sending", "streaming", "complete")}
     # Every guard resolves through that chain: none names a state outside the
     # lifecycle of a shape its component reads.
     assert not ask(

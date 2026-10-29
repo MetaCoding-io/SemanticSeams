@@ -32,9 +32,9 @@
   </nav>  {# [graph: :conversation_list] #}
   {% endblock %}  {# [graph: :chat_page ifml:contains :conversation_list] #}
 
-  {# ifml:Details :message_thread, seam:reads :MessageShape, seam:visibleWhen :s_composing [graph: :message_thread ifml:Details seam:reads :MessageShape seam:visibleWhen :s_composing] #}
+  {# ifml:Details :message_thread, seam:reads :MessageShape, seam:visibleWhen :s_complete , :s_composing , :s_sending , :s_streaming [graph: :message_thread ifml:Details seam:reads :MessageShape seam:visibleWhen :s_complete :s_composing :s_sending :s_streaming] #}
   {% block message_thread %}  {# [graph: :chat_page ifml:contains :message_thread ifml:order] #}
-  {% if message_state == "composing" %}  {# [graph: :message_thread seam:visibleWhen :s_composing seam:reads :MessageShape seam:lifecycle :message_lifecycle state:hasState rdfs:label] #}
+  {% if message_state in ("complete", "composing", "sending", "streaming") %}  {# [graph: :message_thread seam:visibleWhen :s_complete :s_composing :s_sending :s_streaming seam:reads :MessageShape seam:lifecycle :message_lifecycle state:hasState rdfs:label] #}
   <section id="message_thread" aria-label="Message Thread"  {# [graph: :message_thread ifml:Details rdfs:label] #}
            data-conversation="{{ conversation }}">  {# [graph: :message_thread ifml:hasParameter :conversation] #}
     <ol id="message_thread_items">  {# [graph: :message_thread ifml:Details seam:reads :MessageShape] #}
@@ -55,7 +55,7 @@
          hx-swap="beforeend">  {# [graph: :chat_ui seam:consumes :stream_events comm:Channel] #}
     </div>  {# [fixed] #}
   </section>  {# [fixed] #}
-  {% endif %}  {# [graph: :message_thread seam:visibleWhen :s_composing] #}
+  {% endif %}  {# [graph: :message_thread seam:visibleWhen :s_complete :s_composing :s_sending :s_streaming] #}
   {% endblock %}  {# [graph: :chat_page ifml:contains :message_thread] #}
 
   {# ifml:Form :compose_form, seam:writes :MessageShape [graph: :compose_form ifml:Form seam:writes :MessageShape] #}

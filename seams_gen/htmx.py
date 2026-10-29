@@ -122,8 +122,8 @@ class Component:
     reads: str | None
     writes: str | None
     guard_variable: str | None
-    guard_state: str | None
-    guard_state_curie: str | None
+    guard_states: tuple[str, ...]
+    guard_state_curies: tuple[str, ...]
     parameters: tuple[str, ...]
     # List / Details
     collection: str | None = None
@@ -264,24 +264,27 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels) -> Com
     ctype = types[0]
     reads = f.optional(c, SEAM.reads)
     writes = f.optional(c, SEAM.writes)
-    guard_var = guard_state = guard_curie = None
-    state = f.optional(c, SEAM.visibleWhen)
-    if state is not None:
+    guard_var = None
+    guard_states: tuple[str, ...] = ()
+    guard_curies: tuple[str, ...] = ()
+    states = f.objects(c, SEAM.visibleWhen)
+    if states:
         if reads is None:
             raise GeneratorError(c, SEAM.reads, "seam:visibleWhen needs the shape the component reads")
-        machine = f.one(reads, SEAM.lifecycle, f"guard {state} of {c}")
-        if (machine, STATE.hasState, state) not in f.ds:
-            raise GeneratorError(machine, STATE.hasState, f"guard state {state} of {c} is not a state of it")
+        machine = f.one(reads, SEAM.lifecycle, f"guard of {c}")
+        for state in states:
+            if (machine, STATE.hasState, state) not in f.ds:
+                raise GeneratorError(machine, STATE.hasState, f"guard state {state} of {c} is not a state of it")
         guard_var = _shape_name(reads) + "_state"
-        guard_state = f.label(state)
-        guard_curie = f.curie(state)
+        guard_states = tuple(sorted(f.label(state) for state in states))
+        guard_curies = tuple(sorted(f.curie(state) for state in states))
 
     base = dict(
         id=local_name(c), curie=f.curie(c), kind=local_name(ctype), type_curie=f.curie(ctype),
         label=f.label(c), order=order,
         reads=f.curie(reads) if reads is not None else None,
         writes=f.curie(writes) if writes is not None else None,
-        guard_variable=guard_var, guard_state=guard_state, guard_state_curie=guard_curie,
+        guard_variable=guard_var, guard_states=guard_states, guard_state_curies=guard_curies,
         parameters=tuple(sorted(f.label(p) for p in f.objects(c, IFML.hasParameter))),
     )
 

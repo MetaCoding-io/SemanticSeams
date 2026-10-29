@@ -22,7 +22,11 @@
   </nav>
 [% elif c.kind == "Details" %]
 [% if c.guard_variable %]
-  {% if [[ c.guard_variable ]] == "[[ c.guard_state ]]" %}
+[% if c.guard_states|length == 1 %]
+  {% if [[ c.guard_variable ]] == "[[ c.guard_states[0] ]]" %}
+[% else %]
+  {% if [[ c.guard_variable ]] in ([% for s in c.guard_states %]"[[ s ]]"[[ "" if loop.last else ", " ]][% endfor %]) %}
+[% endif %]
 [% endif %]
   <section id="[[ c.id ]]" aria-label="[[ c.label|e ]]"[[ "" if c.parameters else ">" ]]
 [% for p in c.parameters %]

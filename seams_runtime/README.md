@@ -62,7 +62,17 @@ It includes `module.router` and adds:
   skipped, so seeding is idempotent. A bad item fails startup with a `ContractViolation`
   whose `focus` is `<file>#<shape>[<index>] id '<id>'`.
 
-host.py names no model term. The page, its path and its blocks all come from the graph.
+- `GET /tasks`, the task inbox (ADR-0009). It authenticates the request with
+  `runtime.hook.authenticate` and lists `runtime.user_tasks(identity)`: the open user
+  tasks the identity may complete, oldest first. Each task is rendered with its
+  generated form partial (the row's `partial`, for example `approve_form.html`, given
+  `task=row`), so the form posts to the generated completion route. A request that
+  accepts `application/json` gets `{"identity": ..., "tasks": [...rows]}` instead. With
+  no identity the answer is a 401 `PolicyDenied`. A model without user tasks gets an
+  empty inbox.
+
+host.py names no model term. The page, its path and its blocks, and each task's form
+partial, all come from the graph.
 
 ## Dispatch rules
 

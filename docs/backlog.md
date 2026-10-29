@@ -77,10 +77,10 @@ worked example item 11 waits for.
 
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
-| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | in progress (M009/S03 done: chapters 1 to 3; S05, S06, S07 to come) |
+| E1 | **Build-along tutorial: an expense approval app**, eight chapters from an empty file to `docker compose up`, with a checkpoint model per chapter validated in CI. Its final model is the second worked example. | L | E2, E4, E5 | in progress (M009/S03 done: chapters 1 to 3; E4 done in M009/S04; S05, S06, S07 to come) |
 | E2 | **Configurable model path** across the runtime, `compose.yaml`, `docker/runtime.Dockerfile` and the viewer, which all name `examples/chat-app/` today. Useful on its own. | S | none | done (M009/S01) |
 | E3 | **Complexity check**: three SPARQL queries (models per notation, elements reached from the most models, seam-edge count) with thresholds, so item 11's first step is a measurement. The chat app scores 0 notations with 2+ models and a maximum reach of 3. | S | none | done (M009/S02) |
-| E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker skips manual tasks today. | M | ADR first | planned (M009/S04) |
+| E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker used to skip manual tasks; it now waits on them. | M | ADR first | done (M009/S04) |
 | E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | planned (M009/S06) |
 
 ## Generation: what is planned, what is not
@@ -141,7 +141,10 @@ UI work must not eat M3.*
    models per notation, maximum reach and seam edges against thresholds.* *E1 chapters
    1 to 3 done, M009/S03: the [expense tutorial](tutorials/expenses/index.md) goes from an
    empty file to a generated form that rejects invalid input, and CI checks every chapter's
-   checkpoint in `examples/expenses/`.*
+   checkpoint in `examples/expenses/`.* *E4 done, M009/S04: [ADR-0009](adr/0009-human-tasks.md)
+   points a user task at its form with `seam:completedOn`, the runtime lists and completes
+   user tasks under their policies, the generators emit the completion form and route, and
+   the host serves a `/tasks` inbox.*
 7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each
    item's parking reason is checked again first: editing is a v1 non-goal in the
    product brief, and layer mode (S03) opens with the E3 complexity check on the

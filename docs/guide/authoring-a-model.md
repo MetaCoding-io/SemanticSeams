@@ -71,6 +71,34 @@ entity starts in the lifecycle's initial state when `S` has a `seam:lifecycle`
 (decision D026). Once the event `seam:triggers` a process, the
 handler starts the process instead and the worker does the persisting.
 
+### Human tasks
+
+A `proc:UserTask` is work a person does while the process waits. Give the task
+`seam:completedOn F`, where `F` is the one `ifml:Form` the person completes it on
+([ADR-0009](/adr/0009-human-tasks)). The rest follows from facts you already write:
+
+- The **screen** is the `ifml:ViewContainer` that `ifml:contains F`.
+- `F` has one `ifml:hasEvent` whose event `seam:submitsTo` the completion operation.
+  That event has no `seam:triggers`: the process is already running.
+- `F` `seam:writes` the task's output shape, the same shape the task `seam:writes`
+  and the completion operation `seam:acceptsShape`.
+
+The task's `seam:governedBy` policies say who may complete it. Each is evaluated with
+the task IRI as the `odrl:target`, so the permission names the task, not an operation.
+A task with no policy is open to any authenticated identity, and with no identity the
+call fails with 401. `docs/queries/screens-to-finish-process.rq` lists, for a process,
+each user task with its form, screen and policy. `tests/fixtures/human_task/approval.trig`
+is a small complete example.
+
+A person finds their open tasks at `GET /tasks`, the inbox `seams_runtime.host` serves
+next to the landmark page. It lists only the tasks whose policies permit the request's
+identity, each rendered with the form partial the htmx generator makes for `F`. The
+person submits that form to the generated completion route, which checks the policies
+again, validates the payload against the output shape and lets the process continue.
+A task already completed answers 409. The identity comes from the `X-Forwarded-User`
+header your proxy sets. For a local run, set `SEAMS_DEV_USER` to the person you want
+to act as, for example `SEAMS_DEV_USER=manager`. Without either, the inbox answers 401.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

@@ -91,7 +91,9 @@ T03 of M009/S04 builds this:
   form's bound parameters (an `sh:in` field is a `<select>`), with the key filled from
   `task.correlation_key`, so the inbox can render it per task.
 - The runtime host serves **`GET /tasks`**, an inbox that lists
-  `Runtime.user_tasks(identity)` with a link to each task's screen.
+  `Runtime.user_tasks(identity)` and renders each open task with its form partial
+  (the row's `partial`, given `task=row`), so the task is completed in place; JSON
+  when the request accepts `application/json`, 401 without an identity.
 
 ### The earned query
 

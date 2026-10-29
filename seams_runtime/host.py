@@ -11,16 +11,22 @@ app needs but no generated handler holds:
 - ``GET /healthz``;
 - the landmark page at its ifml:path, rendered by ``Runtime.render_page``
   with the page's correlation-key query parameters;
+- ``GET /tasks``, the task inbox (ADR-0009): the open user tasks
+  ``Runtime.user_tasks`` lists for the request's identity, each rendered with
+  its generated form partial (the row's ``partial``, given ``task=row``).
+  JSON (``{"identity": ..., "tasks": [...]}``) when the request accepts
+  ``application/json``; 401 without an identity;
 - a startup seed from the JSON file ``SEAMS_SEED`` names (``seed_store``).
 
-Nothing here names a model term: the page, its path and its blocks come
-from the graph.
+Nothing here names a model term: the page, its path and its blocks, and
+each task's form partial, come from the graph.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import importlib.util
 import json
 import logging
@@ -29,6 +35,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .contracts import shape_contract
@@ -39,6 +46,8 @@ log = logging.getLogger(__name__)
 ROUTES_ENV = "SEAMS_ROUTES"
 SEED_ENV = "SEAMS_SEED"
 DEFAULT_ROUTES = "/app/chat_api.py"  # where the generated compose file mounts the route module
+TASKS_PATH = "/tasks"
+HTMX_SRC = "https://unpkg.com/htmx.org@2.0.4"  # the version the generated pages load
 
 
 def load_routes(routes_path):
@@ -103,6 +112,23 @@ def seed_store(runtime, seed_path) -> int:
     return written
 
 
+def render_inbox(runtime, identity, tasks) -> str:
+    """The task inbox page: one generated form partial per open task, in
+    ``Runtime.user_tasks`` order (oldest first)."""
+    parts = [runtime.fragments.render_template(row["partial"], {"task": row}) for row in tasks]
+    body = "\n".join(parts) if parts else '<p class="empty">No open tasks.</p>'
+    return (
+        '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n'
+        f'  <title>Tasks</title>\n  <script src="{HTMX_SRC}"></script>\n</head>\n<body>\n'
+        f'<main id="tasks" data-identity="{html.escape(identity.id)}">\n'
+        f'<h1>Tasks for {html.escape(identity.id)}</h1>\n{body}\n</main>\n</body>\n</html>\n'
+    )
+
+
+def wants_json(request: Request) -> bool:
+    return "application/json" in request.headers.get("accept", "")
+
+
 def build_app(routes_path) -> FastAPI:
     module = load_routes(routes_path)
     runtime = module.runtime
@@ -135,9 +161,19 @@ def build_app(routes_path) -> FastAPI:
         params = {k: request.query_params[k] for k in keys if request.query_params.get(k)}
         return runtime.render_page(page, **params)
 
+    async def tasks(request: Request):
+        identity = runtime.hook.authenticate(request)
+        rows = runtime.user_tasks(identity)  # PolicyDenied (401) without an identity
+        log.info("GET %s for %s: %d open task(s)", TASKS_PATH, identity.id, len(rows))
+        if wants_json(request):
+            return JSONResponse(jsonable_encoder({"identity": identity.id, "tasks": rows}))
+        return HTMLResponse(render_inbox(runtime, identity, rows))
+
     app.add_api_route(page_path, landmark, methods=["GET"], response_class=HTMLResponse)
+    app.add_api_route(TASKS_PATH, tasks, methods=["GET"])
     app.include_router(module.router)
-    log.info("host: %s at GET %s, routes from %s", page, page_path, module.__file__)
+    log.info("host: %s at GET %s, task inbox at GET %s, routes from %s", page, page_path, TASKS_PATH,
+             module.__file__)
     return app
 
 

@@ -179,10 +179,10 @@ def test_c4_fragment_layout_and_card_renderer(client):
 
 
 def test_ifml_fragment_is_not_vis_network(client):
-    # IFML is drawn as IFML in server-side SVG (M006/S05, D011, ADR-0008).
+    # IFML is drawn as IFML on a diagram-js canvas (M006/S05, D011; M007/S04, D023).
     html = _fragment(client, f"{CHAT}chat_ifml")
     assert "new vis.Network" not in html
-    assert 'class="ifml-diagram"' in html
+    assert 'id="ifml-canvas"' in html
     assert 'class="level-toggle"' not in html
     assert "new ELK()" not in html
 
@@ -193,7 +193,7 @@ def test_statechart_fragment_keeps_vis_card_renderer(client):
     assert "new vis.Network" in html
     assert 'shape: "custom"' in html
     assert "ctxRenderer" in html
-    assert 'class="ifml-diagram"' not in html
+    assert 'id="ifml-canvas"' not in html
 
 
 def test_inspector_seam_dots_carry_layers(client):

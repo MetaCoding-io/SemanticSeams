@@ -1,8 +1,9 @@
-"""IFML diagram projection for server-side SVG (M006/S05, D011).
+"""IFML diagram projection (M006/S05, D011), drawn on diagram-js (M007/S04, D023).
 
 ifml_diagram() reads an IFML model out of the graph and returns a dict that
-already has the IFML derivations and the geometry worked out, so the Jinja
-template only draws and pytest can check everything:
+already has the IFML derivations and the geometry worked out, so the client
+only draws and pytest can check everything (ifml_elk_graph() carries it to the
+diagram-js canvas as a fixed ELK graph):
 
 - containers (ifml:ViewContainer) with [L]/[XOR]/[D] markers, nested by
   ifml:contains;

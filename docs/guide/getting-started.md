@@ -8,8 +8,8 @@ example.
 ## What you need
 
 - Python 3.12 or later. CI runs on 3.12.
-- A browser with internet access. The viewer loads htmx, vis-network, elkjs, bpmn-js and
-  dmn-js from a CDN.
+- A browser with internet access. The viewer loads htmx, vis-network, elkjs, bpmn-js,
+  dmn-js and diagram-js (via esm.sh) from a CDN.
 - Nothing else: there is no database to start. The viewer reads the example model into
   memory with rdflib.
 

@@ -144,17 +144,21 @@
     .c4-legend-count { color: #666; font-variant-numeric: tabular-nums; }
     .c4-legend-item[aria-pressed="true"] { opacity: 0.5; background: #f4f5f7; }
     .c4-legend-item[aria-pressed="true"] .c4-legend-label { text-decoration: line-through; }
-    /* IFML drawn as IFML (M006/S05, D011): server-side SVG from viewer/ifml.py.
+    /* IFML drawn as IFML (M006/S05, D011; M007/S04, D023): geometry from
+       viewer/ifml.py, drawn on a diagram-js canvas by window.seamsRenderIfml.
        Chrome uses the interaction layer token, like the S01 cards. */
-    .ifml-canvas { overflow: auto; border: 1px solid #ccc; background: #fff; }
-    .ifml-diagram { display: block; max-width: 100%; height: auto; font-family: system-ui, sans-serif; }
-    .ifml-diagram [data-iri] { cursor: pointer; }
+    .ifml-canvas { position: relative; height: 520px; overflow: hidden; border: 1px solid #ccc; background: #fff; }
+    .ifml-canvas svg { font-family: system-ui, sans-serif; }
+    .ifml-canvas [data-iri] { cursor: pointer; }
+    .ifml-controls { position: absolute; right: 0.5rem; bottom: 0.5rem; display: flex; gap: 0.25rem; z-index: 10; }
+    .ifml-controls button { width: 2rem; height: 2rem; border: 1px solid #c7ccd4; border-radius: 4px; background: #fff; cursor: pointer; font-size: 1rem; }
+    .ifml-controls button:hover { background: #f4f5f7; }
     .ifml-container-bg { fill: #fffaf2; stroke: var(--layer-interaction); stroke-width: 1.5; }
     .ifml-container-title { fill: var(--layer-interaction); fill-opacity: 0.15; stroke: var(--layer-interaction); stroke-width: 1.5; }
     .ifml-container-name { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
-    .ifml-container:hover > .ifml-container-bg { stroke-width: 2.5; }
+    .ifml-canvas [data-kind="container"]:hover .ifml-container-bg { stroke-width: 2.5; }
     .ifml-component-bg { fill: #fff; stroke: var(--layer-interaction); stroke-width: 1.5; }
-    .ifml-component:hover > .ifml-component-bg { stroke: #555; stroke-width: 2; }
+    .ifml-canvas [data-kind="component"]:hover .ifml-component-bg { stroke: #555; stroke-width: 2; }
     .ifml-stereotype { fill: #555; font: 11px system-ui, sans-serif; }
     .ifml-name { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }
     .ifml-binding-bg { fill: var(--layer-data); fill-opacity: 0.12; stroke: var(--layer-data); stroke-width: 1; }
@@ -165,13 +169,13 @@
     .ifml-event-circle { stroke: #1a1a1a; stroke-width: 1.5; }
     .ifml-event-user .ifml-event-circle { fill: #fff; }
     .ifml-event-system .ifml-event-circle { fill: #1a1a1a; }
-    .ifml-event:hover .ifml-event-circle { stroke-width: 2.5; }
+    .ifml-canvas [data-kind="event"]:hover .ifml-event-circle { stroke-width: 2.5; }
     .ifml-event-label { fill: #1a1a1a; font: 10px system-ui, sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
     .ifml-action { fill: var(--layer-process); fill-opacity: 0.1; stroke: var(--layer-process); stroke-width: 1.5; }
-    .ifml-action-group:hover .ifml-action { stroke-width: 2.5; }
+    .ifml-canvas [data-kind="action"]:hover .ifml-action { stroke-width: 2.5; }
     .ifml-action-label { fill: #1a1a1a; font: 600 12px system-ui, sans-serif; }
     .ifml-flow-line { fill: none; stroke: #555; stroke-width: 1.5; }
-    .ifml-flow:hover .ifml-flow-line { stroke: #1a1a1a; stroke-width: 2.5; }
+    .ifml-canvas [data-kind="flow"]:hover .ifml-flow-line { stroke: #1a1a1a; stroke-width: 2.5; }
     .ifml-arrowhead { fill: #555; }
     .ifml-note-bg { fill: #fffbe6; stroke: #b8a76a; stroke-width: 1; }
     .ifml-note-fold { fill: none; stroke: #b8a76a; stroke-width: 1; }
@@ -244,6 +248,236 @@
         }
       });
     };
+    // The IFML canvas (M007/S04, D023) is drawn by the module script below,
+    // which runs after classic scripts. ifml.html waits on this promise, so
+    // the first page load and every htmx swap both find seamsRenderIfml.
+    window.seamsIfmlReady = new Promise(function (resolve) {
+      window.seamsIfmlResolve = resolve;
+    });
+  </script>
+  <script type="module" onerror="console.error('IFML render failed: the diagram-js modules did not load')">
+    // IFML on diagram-js (M007/S04, D023). The geometry is computed in Python
+    // (viewer/ifml.py) and carried as a fixed ELK graph whose events are
+    // FIXED_POS ports on their owner's east border. diagram-js only draws it:
+    // MoveCanvas pans by drag, the .ifml-controls buttons zoom, overlays carry
+    // the seam badges. There is no scroll-zoom module and no scroll listener,
+    // so page scroll is never trapped.
+    import Diagram from "https://esm.sh/diagram-js@15";
+    import MoveCanvasModule from "https://esm.sh/diagram-js@15/lib/navigation/movecanvas";
+    import OverlaysModule from "https://esm.sh/diagram-js@15/lib/features/overlays";
+    import InteractionEventsModule from "https://esm.sh/diagram-js@15/lib/features/interaction-events";
+    import BaseRenderer from "https://esm.sh/diagram-js@15/lib/draw/BaseRenderer";
+    import { append as svgAppend, attr as svgAttr, create as svgCreate, classes as svgClasses } from "https://esm.sh/tiny-svg@3";
+
+    function el(tag, attrs, parent, text) {
+      var node = svgCreate(tag);
+      svgAttr(node, attrs);
+      if (text !== undefined) node.textContent = text;
+      if (parent) svgAppend(parent, node);
+      return node;
+    }
+    function group(parent, cls) {
+      var g = el("g", {}, parent);
+      svgClasses(g).add(cls);
+      return g;
+    }
+    function pts(points) {
+      return points.map(function (p) { return p[0] + "," + p[1]; }).join(" ");
+    }
+
+    class IfmlRenderer extends BaseRenderer {
+      constructor(eventBus) {
+        super(eventBus, 1500);
+      }
+      canRender(element) {
+        return typeof element.type === "string" && element.type.indexOf("ifml:") === 0;
+      }
+      drawShape(parentGfx, element) {
+        var d = element.ifml, w = element.width, h = element.height, g;
+        if (d.kind === "container") {
+          g = group(parentGfx, "ifml-container");
+          el("rect", { class: "ifml-container-bg", x: 0, y: 0, width: w, height: h }, g);
+          el("rect", { class: "ifml-container-title", x: 0, y: 0, width: w, height: 28 }, g);
+          el("text", { class: "ifml-container-name", x: 10, y: 19 }, g, d.title);
+        } else if (d.kind === "component") {
+          g = group(parentGfx, "ifml-component");
+          el("rect", { class: "ifml-component-bg", x: 0, y: 0, width: w, height: h, rx: 8, ry: 8 }, g);
+          el("text", { class: "ifml-stereotype", x: Math.floor(w / 2), y: 16, "text-anchor": "middle" }, g, d.stereotype);
+          el("text", { class: "ifml-name", x: Math.floor(w / 2), y: 34, "text-anchor": "middle" }, g, d.label);
+          d.bindings.forEach(function (b, i) {
+            var row = group(g, "ifml-binding");
+            svgAttr(row, { "data-predicate": b.predicate });
+            el("rect", { class: "ifml-binding-bg", x: 8, y: 44 + i * 22, width: w - 16, height: 18, rx: 3, ry: 3 }, row);
+            el("text", { class: "ifml-binding-text", x: 14, y: 44 + i * 22 + 13 }, row, b.label);
+          });
+          var fieldY = 44 + d.bindings.length * 22;
+          d.fields.forEach(function (f, i) {
+            var row = group(g, "ifml-field");
+            svgAttr(row, { "data-kind-field": f.kind, "data-path": f.path });
+            el("rect", { class: "ifml-field-bg", x: 8, y: fieldY + i * 20, width: w - 16, height: 16 }, row);
+            el("text", { class: "ifml-field-text", x: 14, y: fieldY + i * 20 + 12 }, row, f.label);
+            el("text", { class: "ifml-field-kind", x: w - 14, y: fieldY + i * 20 + 12, "text-anchor": "end" }, row, f.kind);
+          });
+        } else if (d.kind === "event") {
+          g = group(parentGfx, "ifml-event");
+          svgClasses(g).add("ifml-event-" + d.eventKind);
+          el("circle", { class: "ifml-event-circle", cx: d.r, cy: d.r, r: d.r }, g);
+          el("text", { class: "ifml-event-label", x: d.r - 4, y: -5 }, g, d.label);
+        } else if (d.kind === "action") {
+          g = group(parentGfx, "ifml-action-group");
+          el("polygon", { class: "ifml-action", points: pts(d.points) }, g);
+          el("text", { class: "ifml-action-label", x: Math.floor(w / 2), y: Math.floor(h / 2) + 4, "text-anchor": "middle" }, g, d.label);
+        } else if (d.kind === "note") {
+          g = group(parentGfx, "ifml-note");
+          svgClasses(g).add("ifml-note-" + d.noteKind);
+          // The connector is drawn with the note, in the note's local frame.
+          var local = d.connector.map(function (p) { return [p[0] - element.x, p[1] - element.y]; });
+          el("polyline", { class: "ifml-note-connector", points: pts(local), "stroke-dasharray": "3 3" }, g);
+          el("path", { class: "ifml-note-bg", d: "M 0 0 H " + (w - 8) + " L " + w + " 8 V " + h + " H 0 Z" }, g);
+          el("path", { class: "ifml-note-fold", d: "M " + (w - 8) + " 0 V 8 H " + w }, g);
+          el("text", { class: "ifml-note-text", x: 8, y: 18 }, g, d.text);
+        }
+        return g;
+      }
+      drawConnection(parentGfx, element) {
+        var d = element.ifml;
+        var g = group(parentGfx, "ifml-flow");
+        svgClasses(g).add("ifml-flow-" + d.flowKind);
+        var attrs = {
+          class: "ifml-flow-line",
+          points: element.waypoints.map(function (p) { return p.x + "," + p.y; }).join(" "),
+          "marker-end": "url(#ifml-arrow)",
+        };
+        if (d.flowKind === "data") attrs["stroke-dasharray"] = "6 4";
+        el("polyline", attrs, g);
+        return g;
+      }
+      getShapePath(shape) {
+        return "M" + shape.x + "," + shape.y + "h" + shape.width + "v" + shape.height + "h" + -shape.width + "z";
+      }
+      getConnectionPath(connection) {
+        return connection.waypoints.map(function (p, i) { return (i ? "L" : "M") + p.x + "," + p.y; }).join("");
+      }
+    }
+    IfmlRenderer.$inject = ["eventBus"];
+    var IfmlRendererModule = { __init__: ["ifmlRenderer"], ifmlRenderer: ["type", IfmlRenderer] };
+
+    window.seamsRenderIfml = function (container, canvasData, diagram, pathQs, level) {
+      if (typeof ELK === "undefined") {
+        console.error("IFML render failed: elkjs (ELK) is not loaded");
+        return Promise.resolve(null);
+      }
+      return new ELK().layout(canvasData.elk, { layoutOptions: { "elk.algorithm": "fixed" } }).then(function (layout) {
+        // A previous canvas (an earlier htmx swap) is torn down first.
+        if (window.seamsIfmlCanvas) {
+          try { window.seamsIfmlCanvas.destroy(); } catch (err) { /* already gone with its container */ }
+        }
+        var djs = new Diagram({
+          canvas: { container: container },
+          modules: [MoveCanvasModule, OverlaysModule, InteractionEventsModule, IfmlRendererModule],
+        });
+        window.seamsIfmlCanvas = djs;
+        var canvas = djs.get("canvas"), factory = djs.get("elementFactory");
+        var elements = canvasData.elements;
+        var svg = container.querySelector("svg");
+        var defs = el("defs", {}, svg);
+        var marker = el("marker", { id: "ifml-arrow", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto-start-reverse" }, defs);
+        el("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "ifml-arrowhead" }, marker);
+
+        // diagram-js ids must be plain tokens; idMap keeps the original ids.
+        var idMap = {}, byOriginal = {}, absolute = {}, counter = 0;
+        function shapeFor(id, type, x, y, w, h, extra) {
+          var djsId = "ifml_" + counter++;
+          idMap[djsId] = id;
+          absolute[id] = { x: x, y: y, width: w, height: h };
+          var shape = factory.createShape(Object.assign({ id: djsId, type: type, x: x, y: y, width: w, height: h, ifml: elements[id] }, extra || {}));
+          byOriginal[id] = shape;
+          return shape;
+        }
+        function walk(node, parentShape, ox, oy) {
+          (node.children || []).forEach(function (child) {
+            var d = elements[child.id];
+            if (!d) return;
+            var x = ox + child.x, y = oy + child.y;
+            var shape = shapeFor(child.id, "ifml:" + d.kind, x, y, child.width, child.height);
+            canvas.addShape(shape, parentShape);
+            (child.ports || []).forEach(function (port) {
+              if (!elements[port.id]) return;
+              var ev = shapeFor(port.id, "ifml:event", x + port.x, y + port.y, port.width, port.height, { host: shape });
+              canvas.addShape(ev, parentShape);
+            });
+            walk(child, shape, x, y);
+          });
+        }
+        walk(layout, canvas.getRootElement(), 0, 0);
+        (layout.edges || []).forEach(function (edge) {
+          var d = elements[edge.id];
+          var source = byOriginal[edge.sources[0]], target = byOriginal[edge.targets[0]];
+          if (!d || !source || !target) return;
+          var s = (edge.sections || [])[0];
+          var waypoints = s
+            ? [s.startPoint].concat(s.bendPoints || [], [s.endPoint]).map(function (p) { return { x: p.x, y: p.y }; })
+            : d.points.map(function (p) { return { x: p[0], y: p[1] }; });
+          var djsId = "ifml_" + counter++;
+          idMap[djsId] = edge.id;
+          var conn = factory.createConnection({ id: djsId, type: "ifml:flow", waypoints: waypoints, source: source, target: target, ifml: d });
+          byOriginal[edge.id] = conn;
+          canvas.addConnection(conn, canvas.getRootElement());
+        });
+
+        // data-* hooks on every element group, as the M006/S05 SVG had them.
+        var registry = djs.get("elementRegistry");
+        Object.keys(idMap).forEach(function (djsId) {
+          var d = elements[idMap[djsId]], attrs = { "data-iri": d.iri, "data-kind": d.kind, "data-layer": d.layer };
+          if (d.flowKind) attrs["data-flow-kind"] = d.flowKind;
+          if (d.eventKind) attrs["data-event-kind"] = d.eventKind;
+          if (d.noteKind) attrs["data-note-kind"] = d.noteKind;
+          svgAttr(registry.getGraphics(djsId), attrs);
+        });
+
+        djs.get("eventBus").on("element.click", function (e) {
+          var d = e.element && elements[idMap[e.element.id]];
+          if (d) window.seamsNavigate(d.iri, pathQs, level);
+        });
+
+        // Seam badges: flows and notes carry none.
+        var elementSeams = {}, elementMap = {};
+        Object.keys(idMap).forEach(function (djsId) {
+          var d = elements[idMap[djsId]];
+          if (d.kind === "flow" || d.kind === "note") return;
+          elementMap[djsId] = d.iri;
+          if (d.seams && d.seams.length) elementSeams[djsId] = d.seams;
+        });
+        window.seamsDecorateDiagram(djs, elementSeams, elementMap, pathQs, level);
+
+        // Fit leaves a margin so seam badges on the outer shapes stay visible.
+        function fit() {
+          canvas.zoom("fit-viewport", "auto");
+          canvas.zoom(canvas.zoom() * 0.92, "auto");
+        }
+        container.querySelectorAll(".ifml-controls [data-zoom]").forEach(function (button) {
+          button.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            var how = button.getAttribute("data-zoom");
+            if (how === "fit") fit();
+            else canvas.zoom(canvas.zoom() * (how === "in" ? 1.25 : 0.8), "auto");
+          });
+        });
+        fit();
+
+        // Diagnostic hooks for browser checks.
+        container.seamsIfml = djs;
+        container.seamsIfmlLayout = layout;
+        container.seamsIfmlPositions = absolute;
+        container.seamsIfmlIds = idMap;
+        container.seamsIfmlDiagram = diagram;
+        return djs;
+      }).catch(function (err) {
+        console.error("IFML render failed: " + (err && err.message ? err.message : err), err);
+        return null;
+      });
+    };
+    window.seamsIfmlResolve();
   </script>
   <header>SemanticSeams Viewer</header>
   <div class="health-panel" data-conforms="{{ 'true' if model_conformance.conforms else 'false' }}">

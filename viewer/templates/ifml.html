@@ -1,131 +1,22 @@
-{#- IFML drawn as IFML (M006/S05, D011): server-side SVG from the
-    ifml_diagram() projection in viewer/ifml.py. Geometry is already worked
-    out in Python; this partial only draws. Every element is a <g> with
-    data-iri, data-kind and data-layer so clicks and browser checks can find it. -#}
-{%- macro seam_dots(el, x, y) -%}
-  {%- for s in el.seams %}
-  <circle class="ifml-seam-dot" data-layer="{{ s.targetLayer }}" cx="{{ x + loop.index0 * 10 }}" cy="{{ y }}" r="3.5" style="fill: var(--layer-{{ s.targetLayer }})"><title>{{ s.predicateLabel }} {{ s.targetLabel }}</title></circle>
-  {%- endfor %}
-{%- endmacro -%}
-
-{%- macro component(c) -%}
-  <g class="ifml-component" data-iri="{{ c.iri }}" data-kind="component" data-layer="{{ c.layer }}">
-    <title>{{ c.stereotype }} {{ c.label }}</title>
-    <rect class="ifml-component-bg" x="{{ c.x }}" y="{{ c.y }}" width="{{ c.w }}" height="{{ c.h }}" rx="8" ry="8"/>
-    <text class="ifml-stereotype" x="{{ c.x + c.w // 2 }}" y="{{ c.y + 16 }}" text-anchor="middle">{{ c.stereotype }}</text>
-    <text class="ifml-name" x="{{ c.x + c.w // 2 }}" y="{{ c.y + 34 }}" text-anchor="middle">{{ c.label }}</text>
-    {%- set row_y = c.y + 44 %}
-    {%- for b in c.bindings %}
-    <g class="ifml-binding" data-predicate="{{ b.predicate }}">
-      <rect class="ifml-binding-bg" x="{{ c.x + 8 }}" y="{{ row_y + loop.index0 * 22 }}" width="{{ c.w - 16 }}" height="18" rx="3" ry="3"/>
-      <text class="ifml-binding-text" x="{{ c.x + 14 }}" y="{{ row_y + loop.index0 * 22 + 13 }}">{{ b.label }}</text>
-    </g>
-    {%- endfor %}
-    {%- set field_y = row_y + (c.bindings | length) * 22 %}
-    {%- for f in c.fields %}
-    <g class="ifml-field" data-kind-field="{{ f.kind }}" data-path="{{ f.path }}">
-      <rect class="ifml-field-bg" x="{{ c.x + 8 }}" y="{{ field_y + loop.index0 * 20 }}" width="{{ c.w - 16 }}" height="16"/>
-      <text class="ifml-field-text" x="{{ c.x + 14 }}" y="{{ field_y + loop.index0 * 20 + 12 }}">{{ f.label }}</text>
-      <text class="ifml-field-kind" x="{{ c.x + c.w - 14 }}" y="{{ field_y + loop.index0 * 20 + 12 }}" text-anchor="end">{{ f.kind }}</text>
-    </g>
-    {%- endfor %}
-    {{ seam_dots(c, c.x + c.w - 14 - ((c.seams | length) - 1) * 10, c.y + 10) }}
-  </g>
-{%- endmacro -%}
-
-{%- macro container(k, d) -%}
-  <g class="ifml-container" data-iri="{{ k.iri }}" data-kind="container" data-layer="{{ k.layer }}">
-    <title>{{ k.title }}</title>
-    <rect class="ifml-container-bg" x="{{ k.x }}" y="{{ k.y }}" width="{{ k.w }}" height="{{ k.h }}"/>
-    <rect class="ifml-container-title" x="{{ k.x }}" y="{{ k.y }}" width="{{ k.w }}" height="28"/>
-    <text class="ifml-container-name" x="{{ k.x + 10 }}" y="{{ k.y + 19 }}">{{ k.title }}</text>
-    {{ seam_dots(k, k.x + k.w - 14 - ((k.seams | length) - 1) * 10, k.y + 14) }}
-    {%- for child in d.containers if child.parent == k.iri %}
-    {{ container(child, d) }}
-    {%- endfor %}
-    {%- for c in d.components if c.parent == k.iri %}
-    {{ component(c) }}
-    {%- endfor %}
-  </g>
-{%- endmacro -%}
-
-{%- set d = ifml %}
-{%- set container_iris = d.containers | map(attribute="iri") | list %}
-<div class="ifml-canvas" id="ifml-canvas">
-  <svg class="ifml-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {{ d.width }} {{ d.height }}" width="{{ d.width }}" height="{{ d.height }}" role="img" aria-label="IFML: {{ d.label }}">
-    <defs>
-      <marker id="ifml-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" class="ifml-arrowhead"/>
-      </marker>
-    </defs>
-    {%- for k in d.containers if not k.parent or k.parent not in container_iris %}
-    {{ container(k, d) }}
-    {%- endfor %}
-    {%- for c in d.components if not c.parent or c.parent not in container_iris %}
-    {{ component(c) }}
-    {%- endfor %}
-
-    {%- for fl in d.flows %}
-    {%- set pts = fl.points | map("join", ",") | join(" ") %}
-    <g class="ifml-flow ifml-flow-{{ fl.kind }}" data-iri="{{ fl.iri or fl.to }}" data-kind="flow" data-flow-kind="{{ fl.kind }}" data-layer="{{ fl.layer }}">
-      <title>{{ fl.kind }} flow {{ fl.label }}{% if fl.bindings %}: «ParamBindingGroup» {{ fl.bindings | join("; ") }}{% endif %}</title>
-      {%- if fl.kind == "data" %}
-      <polyline class="ifml-flow-line" points="{{ pts }}" stroke-dasharray="6 4" marker-end="url(#ifml-arrow)"/>
-      {%- else %}
-      <polyline class="ifml-flow-line" points="{{ pts }}" marker-end="url(#ifml-arrow)"/>
-      {%- endif %}
-    </g>
-    {%- endfor %}
-
-    {%- for n in d.notes %}
-    {%- if n.kind == "activation" %}
-      {%- set owner = (d.components + d.containers) | selectattr("iri", "equalto", n["for"]) | first %}
-      {%- set seam = (owner.seams if owner else []) | selectattr("target", "equalto", n.state) | first %}
-      {%- set note_layer = seam.targetLayer if seam else "lifecycle" %}
-    {%- else %}
-      {%- set note_layer = "interaction" %}
-    {%- endif %}
-    {%- set cpts = n.connector | map("join", ",") | join(" ") %}
-    <g class="ifml-note ifml-note-{{ n.kind }}" data-iri="{{ n.iri }}" data-kind="note" data-note-kind="{{ n.kind }}" data-for="{{ n['for'] }}" data-layer="{{ note_layer }}">
-      <title>{{ n.text }}</title>
-      <polyline class="ifml-note-connector" points="{{ cpts }}" stroke-dasharray="3 3"/>
-      <path class="ifml-note-bg" d="M {{ n.x }} {{ n.y }} H {{ n.x + n.w - 8 }} L {{ n.x + n.w }} {{ n.y + 8 }} V {{ n.y + n.h }} H {{ n.x }} Z"/>
-      <path class="ifml-note-fold" d="M {{ n.x + n.w - 8 }} {{ n.y }} V {{ n.y + 8 }} H {{ n.x + n.w }}"/>
-      <text class="ifml-note-text" x="{{ n.x + 8 }}" y="{{ n.y + 18 }}">{{ n.text }}</text>
-    </g>
-    {%- endfor %}
-
-    {%- for e in d.events %}
-    <g class="ifml-event ifml-event-{{ e.kind }}" data-iri="{{ e.iri }}" data-kind="event" data-event-kind="{{ e.kind }}" data-layer="{{ e.layer }}">
-      <title>{{ e.kind }} event {{ e.label }}</title>
-      <circle class="ifml-event-circle" cx="{{ e.cx }}" cy="{{ e.cy }}" r="{{ e.r }}"/>
-      <text class="ifml-event-label" x="{{ e.cx - 4 }}" y="{{ e.cy - e.r - 5 }}">{{ e.label }}</text>
-      {{ seam_dots(e, e.cx + e.r + 6, e.cy + e.r + 2) }}
-    </g>
-    {%- endfor %}
-
-    {%- for a in d.actions %}
-    <g class="ifml-action-group" data-iri="{{ a.iri }}" data-kind="action" data-layer="{{ a.layer }}">
-      <title>Action {{ a.label }}</title>
-      <polygon class="ifml-action" points="{{ a.points | map('join', ',') | join(' ') }}"/>
-      <text class="ifml-action-label" x="{{ a.x + a.w // 2 }}" y="{{ a.y + a.h // 2 + 4 }}" text-anchor="middle">{{ a.label }}</text>
-      {{ seam_dots(a, a.x + a.w // 2 - ((a.seams | length) - 1) * 5, a.y + a.h - 8) }}
-    </g>
-    {%- endfor %}
-  </svg>
+{#- IFML drawn as IFML (M006/S05, D011; M007/S04, D023): the geometry is
+    worked out in Python (ifml_diagram() in viewer/ifml.py) and carried by
+    ifml_elk_graph() as a fixed ELK graph, with events as FIXED_POS ports on
+    their owner's east border. window.seamsRenderIfml (page.html) draws it on a
+    diagram-js canvas: drag to pan, the buttons zoom, seam badges are overlays.
+    Every element group carries data-iri, data-kind and data-layer. -#}
+<div class="ifml-canvas" id="ifml-canvas" data-notation="ifml" aria-label="IFML: {{ ifml.label }}">
+  <div class="ifml-controls">
+    <button type="button" data-zoom="in" title="Zoom in">+</button>
+    <button type="button" data-zoom="out" title="Zoom out">&minus;</button>
+    <button type="button" data-zoom="fit" title="Fit">&#9634;</button>
+  </div>
 </div>
 <script>
   (function () {
     var container = document.getElementById("ifml-canvas");
     if (!container) return;
-    var svg = container.querySelector("svg.ifml-diagram");
-    // Diagnostic hook: the derived diagram (counterpart of seamsLayout).
-    container.seamsIfml = {{ d | tojson }};
-    // One delegated click listener; no wheel listener, so page scroll is never trapped.
-    svg.addEventListener("click", function (ev) {
-      var el = ev.target.closest("[data-iri]");
-      if (!el || !svg.contains(el)) return;
-      window.seamsNavigate(el.getAttribute("data-iri"), "{{ next_path_qs }}", "{{ carried_level }}");
+    window.seamsIfmlReady.then(function () {
+      window.seamsRenderIfml(container, {{ ifml_canvas | tojson }}, {{ ifml | tojson }}, "{{ next_path_qs }}", "{{ carried_level }}");
     });
   })();
 </script>

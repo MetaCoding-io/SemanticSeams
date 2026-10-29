@@ -33,11 +33,14 @@ The nested models' own edges are not drawn. Clicking a nested model still opens 
 
 ### Interface
 
-![The chat interface's IFML model drawn as a graph of the page, its components, events, parameters and flows](./img/viewer-interaction.webp)
+![The chat interface's IFML model in IFML notation: the chat page container with its list, details and form components, events on their borders, the Send Message Process action and the flows between them](./img/viewer-interaction.webp)
 
 Clicking **Chat Web Interface** follows `seam:presents` to the IFML model the container
-presents: the chat page, its list, details and form components, the events on them, and
-the flows between them.
+presents, drawn in IFML notation: the chat page container, its «List», «Details» and
+«Form» components with their data bindings and fields, the events on their right border,
+the Send Message Process action, and the navigation, data and action flows between them.
+Drag to pan and use the +, − and fit buttons to zoom. Seam badges sit on the elements;
+click an element or a badge to follow it.
 
 ### Process
 
@@ -94,7 +97,7 @@ reached from more than one parent. Each crumb is a link back.
 | Notation | Renderer |
 |---|---|
 | C4 architecture | Nested SVG cards laid out by ELK, with the zoom levels above |
-| IFML interaction | IFML notation drawn as SVG on the server |
+| IFML interaction | IFML notation on diagram-js: pan, zoom, seam badges; events on ELK ports, layout computed on the server |
 | Statechart | A node-link graph drawn with vis-network |
 | BPMN | bpmn-js, from the model's native XML payload, tinted with the process colour and badged per seam |
 | DMN | dmn-js, from the model's native XML payload: the decision diagram, tinted with the decision colour and badged per seam, and its tables |

@@ -280,7 +280,7 @@ def test_view_json_ifml_is_null_for_other_notations(client):
     assert "ifml" in body and body["ifml"] is None
 
 
-# --- HTML: the IFML notation drawn as server-side SVG (T02) ---------------
+# --- HTML: the IFML notation on a diagram-js canvas (M007/S04, D023) -------
 
 
 def _fragment(client, iri):
@@ -294,10 +294,41 @@ def ifml_html():
     return _fragment(TestClient(viewer_app.app), CHAT_IFML)
 
 
-def test_fragment_draws_ifml_svg(ifml_html):
-    assert 'class="ifml-diagram"' in ifml_html
+@pytest.fixture(scope="module")
+def ifml_page():
+    resp = TestClient(viewer_app.app).get(f"/view/{quote(CHAT_IFML, safe='')}")
+    assert resp.status_code == 200
+    return resp.text
+
+
+def _canvas_json(html):
+    """The ifml_elk_graph() payload embedded as seamsRenderIfml's second argument."""
+    import json
+
+    call = "window.seamsRenderIfml(container, "
+    assert call in html, "seamsRenderIfml call with embedded canvas JSON missing"
+    data, _ = json.JSONDecoder().raw_decode(html, html.index(call) + len(call))
+    return data
+
+
+def test_fragment_mounts_ifml_canvas(ifml_html):
+    assert 'id="ifml-canvas"' in ifml_html
+    assert 'data-notation="ifml"' in ifml_html
+    assert 'aria-label="IFML: ' in ifml_html
+    for zoom in ("in", "out", "fit"):
+        assert f'data-zoom="{zoom}"' in ifml_html
+    assert "window.seamsIfmlReady.then(" in ifml_html
+    assert "window.seamsRenderIfml(" in ifml_html
+
+
+def test_fragment_drops_server_svg_and_vis(ifml_html):
+    assert 'class="ifml-diagram"' not in ifml_html
+    assert "<svg" not in ifml_html
     assert "new vis.Network" not in ifml_html
-    assert 'viewBox="0 0 ' in ifml_html
+
+
+def test_fragment_embeds_the_elk_graph(ifml_html):
+    assert _canvas_json(ifml_html) == ifml.ifml_elk_graph(ifml.ifml_diagram(CHAT_IFML))
 
 
 @pytest.mark.parametrize(
@@ -318,80 +349,54 @@ def test_fragment_draws_ifml_svg(ifml_html):
         "Send Message Process",
     ],
 )
-def test_fragment_shows_ifml_text(ifml_html, text):
-    # Jinja autoescape leaves «, » and → alone (they are not HTML specials).
-    assert text in ifml_html
+def test_canvas_json_carries_ifml_text(ifml_html, text):
+    # The former visible SVG text now travels in the embedded canvas JSON.
+    import json
+
+    assert text in json.dumps(_canvas_json(ifml_html)["elements"], ensure_ascii=False)
 
 
-def test_fragment_action_is_hexagon_for_send_process(ifml_html):
-    import re
-
-    m = re.search(r'<g [^>]*data-iri="' + re.escape(SEND_PROCESS) + r'" data-kind="action"[^>]*>(.*?)</g>', ifml_html, re.S)
-    assert m, "send_message_process action group missing"
-    assert 'data-layer="process"' in m.group(0)
-    points = re.search(r'<polygon class="ifml-action" points="([^"]+)"', m.group(1))
-    assert points and len(points.group(1).split()) == 6
-
-
-def test_fragment_groups_carry_kind_and_layer(ifml_html):
-    import re
-
-    groups = re.findall(r'<g class="ifml-[^"]*" data-iri="([^"]+)" data-kind="([a-z]+)"[^>]*data-layer="([a-z]+)"', ifml_html)
-    kinds = {k for _, k, _ in groups}
-    assert kinds == {"container", "component", "event", "action", "note", "flow"}
-    layers = {layer for _, _, layer in groups}
-    assert layers <= {"architecture", "interaction", "process", "decision", "data", "lifecycle", "other"}
-    by_iri = {(iri, k) for iri, k, _ in groups}
-    assert (CHAT_PAGE, "container") in by_iri
-    assert (SEND_MESSAGE, "event") in by_iri
-    assert (SELECT_CONVERSATION, "event") in by_iri
-    # Activation note descends to the state; it takes the state's layer.
-    assert re.search(r'data-iri="https://example.org/chat/s_complete" data-kind="note"[^>]*data-layer="lifecycle"', ifml_html)
+def test_canvas_json_kinds_and_layers(ifml_html):
+    elements = _canvas_json(ifml_html)["elements"]
+    assert {e["kind"] for e in elements.values()} == {"container", "component", "event", "action", "note", "flow"}
+    assert {e["layer"] for e in elements.values()} <= {
+        "architecture", "interaction", "process", "decision", "data", "lifecycle", "other"
+    }
+    assert elements[CHAT_PAGE]["kind"] == "container"
+    assert elements[SEND_PROCESS]["kind"] == "action" and elements[SEND_PROCESS]["layer"] == "process"
+    assert len(elements[SEND_PROCESS]["points"]) == 6
+    assert {elements[e]["eventKind"] for e in (SEND_MESSAGE, SELECT_CONVERSATION)} == {"user"}
 
 
-def test_fragment_flows_solid_and_dashed(ifml_html):
-    import re
-
-    nav = re.search(r'data-flow-kind="navigation".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
-    assert "stroke-dasharray" not in nav and "marker-end" in nav
-    data = re.search(r'data-flow-kind="data".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
-    assert "stroke-dasharray" in data
-    action = re.search(r'data-flow-kind="action".*?<polyline ([^>]*)/>', ifml_html, re.S).group(1)
-    assert "stroke-dasharray" not in action and "marker-end" in action
-
-
-def test_fragment_events_white_for_user(ifml_html):
-    assert ifml_html.count('class="ifml-event ifml-event-user"') == 2
-    assert "ifml-event-system" not in ifml_html
+def test_full_page_ships_diagram_js_renderer(ifml_page):
+    assert "https://esm.sh/diagram-js@15" in ifml_page
+    assert "https://esm.sh/tiny-svg@3" in ifml_page
+    assert "window.seamsRenderIfml =" in ifml_page
+    assert "window.seamsIfmlReady = " in ifml_page
+    assert 'id="ifml-canvas"' in ifml_page
+    assert ".ifml-action {" in ifml_page  # IFML CSS lives in page.html
+    assert ".ifml-controls {" in ifml_page
+    # Drawing order is pinned by the renderer: dashed data flows, 22px binding rows.
+    assert '"stroke-dasharray"] = "6 4"' in ifml_page
+    assert "44 + i * 22" in ifml_page
 
 
-def test_fragment_seam_dots_use_layer_tokens(ifml_html):
-    assert 'style="fill: var(--layer-data)"' in ifml_html
-    assert 'style="fill: var(--layer-lifecycle)"' in ifml_html
-    assert 'style="fill: var(--layer-process)"' in ifml_html
+def test_no_scroll_zoom_anywhere(ifml_page, ifml_html):
+    # Pan by drag and zoom by buttons only: page scroll is never trapped.
+    for html in (ifml_page, ifml_html):
+        assert "zoomscroll" not in html.lower()
+        assert '"wheel"' not in html
 
 
-def test_fragment_script_delegates_click_and_never_traps_wheel(ifml_html):
-    assert 'closest("[data-iri]")' in ifml_html
-    assert "window.seamsNavigate(" in ifml_html
-    assert "container.seamsIfml = " in ifml_html
-    assert '"wheel"' not in ifml_html
+def test_renderer_lives_only_in_the_shell(ifml_html):
+    for shell_only in ("https://esm.sh/diagram-js@15", "window.seamsRenderIfml =", ".ifml-action {", "zoomscroll"):
+        assert shell_only not in ifml_html
 
 
-def test_full_page_renders_ifml(client):
-    resp = client.get(f"/view/{quote(CHAT_IFML, safe='')}")
-    assert resp.status_code == 200
-    assert 'class="ifml-diagram"' in resp.text
-    assert ".ifml-action {" in resp.text  # IFML CSS lives in page.html
-
-
-def test_ifml_css_not_in_fragment(ifml_html):
-    assert ".ifml-action {" not in ifml_html
-
-
-def test_non_ifml_model_has_no_ifml_svg(client):
+def test_non_ifml_model_has_no_ifml_canvas(client):
     html = _fragment(client, f"{CHAT}chat_architecture")
-    assert 'class="ifml-diagram"' not in html
+    assert 'id="ifml-canvas"' not in html
+    assert "window.seamsRenderIfml(" not in html
 
 
 # --- ELK port graph (M007/S04, D023) --------------------------------------

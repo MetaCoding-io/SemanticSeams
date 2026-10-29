@@ -82,6 +82,27 @@ worked example item 11 waits for.
 | E4 | **Human tasks**: an ADR on how a BPMN user task points at the screen where it is done, then runtime support for listing and completing user tasks. The worker skips manual tasks today. | M | ADR first | planned (M009/S04) |
 | E5 | **Role policy evaluator** behind the existing `PolicyEvaluator` protocol, for the tutorial's employee, manager and finance roles, plus the outline's compliance question as a fourth canned query. | S | none | planned (M009/S06) |
 
+## Derived views and model gaps
+
+*Added 2026-10-29 from the [UML coverage note](research/2026-10-29-uml-coverage-and-gaps.md).
+Not yet scheduled into a milestone.* The note finds that no UML notation needs authoring:
+each UML diagram is covered by a pillar or derivable from existing seams. The sequence
+diagram is the one worth building, as a derived view. The other items close gaps that the
+derivation exposed, or that a builder meets after launch.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | proposed |
+| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | proposed |
+| U3 | **Declare the LLM delta stream** in the chat app, so the runtime infers no publish the graph does not state | S | none | none expected; may tighten `process_channel` in the runtime | proposed |
+| U4 | **As-executed sequence diagram** from the worker's trace rows, then OpenTelemetry spans carrying element IRIs | M | U1 | none for the diagram; an as-observed named graph later | proposed |
+| U5 | **Scenarios and derived tests**: a small scenario vocabulary, generated DMN, SHACL-example and policy tests, and coverage queries | M | none | a scenario/verification annotation vocabulary | proposed |
+| U6 | **Operation implementation seam** for hand-written code and external endpoints, so service tasks other than LLM calls have a declared home | M | ADR first | one seam predicate plus a convention for where hand-written code lives | proposed; decide before M009's expense chapters reach a non-LLM service task |
+| U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | proposed |
+| U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | proposed |
+
+U1 to U3 can land together.
+
 ## Generation: what is planned, what is not
 
 **Planned already.** The product brief puts generation on the critical path

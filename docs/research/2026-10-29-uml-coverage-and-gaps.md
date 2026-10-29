@@ -1,7 +1,8 @@
 # Research note: UML coverage, derived diagrams, and what a builder still lacks
 
-*Status: proposal, 2026-10-29. Not yet triaged into the [backlog](../backlog.md).
-Written against `main` at `dd56985`.*
+*Status: proposal, 2026-10-29. Its proposed steps are backlog items U1 to U8 in the
+[backlog](../backlog.md) ("Derived views and model gaps"), not yet scheduled into a
+milestone. Written against `main` at `dd56985`.*
 
 ## The question
 
@@ -253,7 +254,7 @@ lifting and runtime support, plus a seam to the container that runs the schedule
 
 ## 5. Proposed next steps
 
-Not yet scheduled. Sizes use the backlog's scale.
+Tracked as U1 to U8 in the backlog, not yet scheduled. Sizes use the backlog's scale.
 
 | # | Item | Size | Earns |
 |---|---|---|---|

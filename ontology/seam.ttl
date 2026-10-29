@@ -97,6 +97,28 @@ seam:visibleWhen a rdf:Property ;
     rdfs:comment "ifml:ViewComponent -> state:State. Conditional rendering as a graph edge." .
 
 #################################################################
+# UI <-> communication
+#################################################################
+
+seam:submitsTo a rdf:Property ;
+    rdfs:label "submits to" ;
+    rdfs:comment """ifml:Event -> hydra:Operation the event calls (the form's hx-post,
+the FastAPI route). seam:triggers names the process the event starts; the
+operation's handler starts it. Earns the query 'which route does this UI event
+call, and which policies must that route enforce' (event -> seam:submitsTo ->
+operation -> seam:governedBy). (Constraint in shapes/seam-shapes.ttl.)""" .
+
+seam:rendersComponent a rdf:Property ;
+    rdfs:label "renders component" ;
+    rdfs:comment """hydra:Operation -> ifml:ViewComponent whose partial is the
+operation's seam:UIFragment response. The template name derives from the
+component (ADR-0007 component -> partial): <component>.html when the flow that
+lands the response swaps ifml:Replace, <component>_item.html when it swaps
+ifml:Append or ifml:Prepend. The inverse earns 'which endpoint loads or updates
+this component' (the hx-get of a list or details). (Constraint in
+shapes/seam-shapes.ttl.)""" .
+
+#################################################################
 # Process <-> decisions, communication, data
 #################################################################
 

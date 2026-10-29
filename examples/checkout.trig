@@ -225,7 +225,10 @@
 
     # UI → Process seam edges
     :submit_order seam:triggers :order_process ;
+        seam:submitsTo :submit_order_op ;
         seam:governedBy :customer_policy .
+
+    :submit_order_op seam:rendersComponent :order_status .
 
     :cart_list seam:reads :OrderShape .
     :order_form seam:writes :OrderShape .

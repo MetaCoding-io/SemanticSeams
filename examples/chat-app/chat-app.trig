@@ -121,6 +121,8 @@
 
     :chat_page a ifml:ViewContainer ; rdfs:label "Chat Page" ;
         ifml:isLandmark true ;
+        ifml:path "/" ;
+        ifml:title "Chat"@en ;
         ifml:contains :conversation_list , :message_thread , :compose_form ;
         seam:inModel :chat_ifml .
 
@@ -146,14 +148,23 @@
         seam:inModel :chat_ifml .
 
     :send_message a ifml:Event ; rdfs:label "Send Message" ;
+        ifml:trigger "submit" ;
         seam:inModel :chat_ifml .
     :select_conversation a ifml:Event ; rdfs:label "Select Conversation" ;
+        ifml:trigger "click" ;
         seam:inModel :chat_ifml .
 
     # Selecting a conversation navigates to (refreshes) the thread; the data flow
     # it triggers carries the selection into the thread's own parameter.
     :select_to_thread a ifml:NavigationFlow ;
         ifml:source :select_conversation ; ifml:target :message_thread ;
+        ifml:swap ifml:Replace ;
+        seam:inModel :chat_ifml .
+
+    # Sending a message appends the new message to the thread's item list.
+    :send_to_thread a ifml:NavigationFlow ;
+        ifml:source :send_message ; ifml:target :message_thread ;
+        ifml:swap ifml:Append ;
         seam:inModel :chat_ifml .
 
     :list_to_thread a ifml:DataFlow ;
@@ -272,7 +283,14 @@
 
     # UI → Process seam edges
     :send_message seam:triggers :send_message_process ;
+        seam:submitsTo :send_message_op ;
         seam:governedBy :user_send_policy .
+
+    # Operation → component whose partial the UIFragment response renders
+    :send_message_op seam:rendersComponent :message_thread ;
+        seam:governedBy :user_send_policy .
+    :list_conversations_op seam:rendersComponent :conversation_list .
+    :message_thread_op seam:rendersComponent :message_thread .
 
     :conversation_list seam:reads :ConversationShape .
     :compose_form seam:writes :MessageShape .
@@ -378,5 +396,12 @@
                                     hydra:property :id ] ] .
 
     # Authorization
-    :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" .
+    # The authentication scheme that establishes :authenticated_user (session
+    # or token) is deferred to S03 (gaps.md GAP-20).
+    :user_send_policy a odrl:Policy ; rdfs:label "Authenticated users may send messages in their own conversations" ;
+        odrl:permission [ a odrl:Permission ;
+                          odrl:target :send_message_op ;
+                          odrl:action odrl:use ;
+                          odrl:assignee :authenticated_user ] .
+    :authenticated_user a odrl:PartyCollection ; rdfs:label "Authenticated users" .
 }

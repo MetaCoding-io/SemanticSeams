@@ -116,6 +116,32 @@ seamsh:VisibleWhenShape a sh:NodeShape ;
         sh:message "seam:visibleWhen points at a state:State." ] .
 
 #################################################################
+# UI <-> communication
+#################################################################
+
+seamsh:SubmitsToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:submitsTo ;
+    sh:class ifml:Event ;
+    sh:property [ sh:path seam:submitsTo ; sh:class hydra:Operation ;
+        sh:message "seam:submitsTo points at a hydra:Operation." ] ;
+    sh:message "Only an ifml:Event seam:submitsTo an operation." .
+
+seamsh:RendersComponentShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:rendersComponent ;
+    sh:class hydra:Operation ;
+    sh:property [ sh:path seam:rendersComponent ; sh:class ifml:ViewComponent ;
+        sh:message "seam:rendersComponent points at an ifml:ViewComponent." ] ;
+    sh:message "Only a hydra:Operation seam:rendersComponent." .
+
+seamsh:SwapShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:swap ;
+    sh:class ifml:NavigationFlow ;
+    sh:property [ sh:path ifml:swap ; sh:maxCount 1 ;
+        sh:in ( ifml:Replace ifml:Append ifml:Prepend ) ;
+        sh:message "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend." ] ;
+    sh:message "Only an ifml:NavigationFlow carries ifml:swap." .
+
+#################################################################
 # Process <-> decisions, communication, data
 #################################################################
 

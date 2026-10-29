@@ -21,7 +21,7 @@ router = APIRouter()  # [fixed]
 @router.post(  # [graph: :send_message_op hydra:method]
     "/conversations/{conversation}/messages",  # [graph: :send_message_op comm:path hydra:IriTemplate hydra:template]
     response_class=HTMLResponse,  # [graph: :send_message_op seam:mediaKind seam:UIFragment]
-    dependencies=[Depends(runtime.policy(":user_send_policy"))],  # [gap: GAP-20]
+    dependencies=[Depends(runtime.policy(":user_send_policy"))],  # [graph: :send_message_op seam:governedBy :user_send_policy odrl:permission]
 )  # [fixed]
 async def send_message(conversation: str, request: Request) -> HTMLResponse:  # [graph: :send_message_op comm:path hydra:mapping hydra:variable]
     form = await request.form()  # [graph: :send_message_op comm:requestMediaType]
@@ -32,7 +32,7 @@ async def send_message(conversation: str, request: Request) -> HTMLResponse:  # 
         correlation_key=conversation,  # [gap: GAP-22]
     )  # [fixed]
     return runtime.render_fragment(  # [graph: :send_message_op seam:returnsShape :MessageShape seam:mediaKind seam:UIFragment]
-        "message_thread_item.html",  # [gap: GAP-19]
+        "message_thread_item.html",  # [graph: :send_message_op seam:rendersComponent :message_thread :send_to_thread ifml:swap ifml:Append]
         message,  # [graph: :send_message_op seam:returnsShape :MessageShape]
     )  # [fixed]
 
@@ -41,14 +41,14 @@ async def send_message(conversation: str, request: Request) -> HTMLResponse:  # 
 @router.get("/conversations", response_class=HTMLResponse)  # [graph: :list_conversations_op hydra:method comm:path hydra:template seam:mediaKind seam:UIFragment]
 async def list_conversations() -> HTMLResponse:  # [graph: :list_conversations_op comm:path hydra:template]
     conversations = runtime.query(":ConversationShape")  # [graph: :list_conversations_op seam:returnsShape :ConversationShape]
-    return runtime.render_fragment("conversation_list.html", conversations)  # [gap: GAP-19]
+    return runtime.render_fragment("conversation_list.html", conversations)  # [graph: :list_conversations_op seam:rendersComponent :conversation_list]
 
 
 # :message_thread_op a hydra:Operation ; hydra:method "GET"  # [graph: :message_thread_op hydra:Operation hydra:method]
 @router.get("/conversations/{conversation}/messages", response_class=HTMLResponse)  # [graph: :message_thread_op hydra:method comm:path hydra:template seam:mediaKind seam:UIFragment]
 async def message_thread(conversation: str) -> HTMLResponse:  # [graph: :message_thread_op comm:path hydra:mapping hydra:variable]
     messages = runtime.query(":MessageShape", conversation=conversation)  # [graph: :message_thread_op seam:returnsShape :MessageShape comm:path hydra:property :id]
-    return runtime.render_fragment("message_thread.html", messages)  # [gap: GAP-19]
+    return runtime.render_fragment("message_thread.html", messages)  # [graph: :message_thread_op seam:rendersComponent :message_thread :select_to_thread ifml:swap ifml:Replace]
 
 
 # :stream_events a comm:Channel ; comm:transport comm:SSE ; seam:acceptsShape :MessageShape  # [graph: :stream_events comm:Channel comm:transport comm:SSE seam:acceptsShape :MessageShape]

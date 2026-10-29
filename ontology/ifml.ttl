@@ -65,6 +65,16 @@ ifml:isDefault  a rdf:Property ; rdfs:range xsd:boolean ;
 ifml:isXOR      a rdf:Property ; rdfs:range xsd:boolean ;
     rdfs:comment "Children are mutually exclusive (tabs, wizard steps). Corresponds to: ViewContainer.isXOR." .
 
+ifml:path a rdf:Property ;
+    rdfs:label "path" ;
+    rdfs:domain ifml:ViewContainer ; rdfs:range xsd:string ;
+    rdfs:comment "URL path of a landmark ViewContainer: the GET route that serves the full page (\"/\" for the app entry point). Our extension; IFML has no URL notion." .
+
+ifml:title a rdf:Property ;
+    rdfs:label "title" ;
+    rdfs:domain ifml:ViewContainer ; rdfs:range rdf:langString ;
+    rdfs:comment "User-facing, language-tagged document title of a ViewContainer (the HTML <title>), distinct from the modeller's rdfs:label. Our extension." .
+
 #################################################################
 # Events and flows
 #################################################################
@@ -92,6 +102,31 @@ ifml:source a rdf:Property ;
 ifml:target a rdf:Property ;
     rdfs:domain ifml:InteractionFlow ;
     rdfs:comment "View element, or — via the seam — a process/decision the event seam:triggers. Corresponds to: InteractionFlow.trgtInteractionFlowElement." .
+
+ifml:trigger a rdf:Property ;
+    rdfs:label "trigger" ;
+    rdfs:domain ifml:Event ; rdfs:range xsd:string ;
+    rdfs:comment "Literal DOM event name that fires the ifml:Event (\"click\", \"submit\"); renders as hx-trigger. Our extension; IFML leaves the concrete UI event to the platform." .
+
+ifml:swap a rdf:Property ;
+    rdfs:label "swap" ;
+    rdfs:domain ifml:NavigationFlow ; rdfs:range ifml:SwapStrategy ;
+    rdfs:comment """How the response of a NavigationFlow lands in its ifml:target
+component; renders as hx-swap. Generator rules: an ifml:Replace flow targets the
+component element #<component> and its response partial is <component>.html; an
+ifml:Append or ifml:Prepend flow targets the component's item list
+#<component>_items and its partial is <component>_item.html (the operation that
+renders the partial is the one whose seam:rendersComponent names the target).
+Channel rule (no flow needed): a comm:Channel subscription a container
+seam:consumes always appends events into its element (hx-swap beforeend), since
+an event stream only adds. Our extension.""" .
+
+ifml:SwapStrategy a rdfs:Class ;
+    rdfs:label "Swap strategy" ;
+    rdfs:comment "Enumeration of ifml:swap values." .
+ifml:Replace a ifml:SwapStrategy ; rdfs:label "replace (outerHTML)" .
+ifml:Append  a ifml:SwapStrategy ; rdfs:label "append (beforeend)" .
+ifml:Prepend a ifml:SwapStrategy ; rdfs:label "prepend (afterbegin)" .
 
 #################################################################
 # Parameters

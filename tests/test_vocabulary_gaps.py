@@ -392,3 +392,167 @@ def test_gap_21_handler_names(chat_model):
     assert all(n.isidentifier() for n in names)
     # The rule needs no term.
     assert not ask(chat_model, "ASK { ?x seam:codeName ?name }")
+
+
+# --- GAP-09/10/17/19/20: UI seams for the page and route goldens -------------
+
+IFML = rdflib.Namespace("https://w3id.org/seams/ifml#")
+
+
+def test_gap_09_event_submits_to_operation(chat_model):
+    """Which route does this UI event call, and which policies must it enforce?"""
+    rows = select(
+        chat_model,
+        """SELECT ?event ?op ?method ?template ?policy WHERE {
+               ?event a ifml:Event ; seam:submitsTo ?op .
+               ?op a hydra:Operation ; hydra:method ?method ;
+                   comm:path/hydra:template ?template .
+               OPTIONAL { ?op seam:governedBy ?policy }
+           }""",
+    )
+    assert rows == {
+        (CHAT.send_message, CHAT.send_message_op, lit("POST"),
+         lit("/conversations/{conversation}/messages"), CHAT.user_send_policy),
+    }
+    # The event still names the process it starts; the operation's handler starts it.
+    assert ask(chat_model, "ASK { :send_message seam:triggers :send_message_process }")
+
+
+def test_gap_10_swap_and_trigger(chat_model):
+    triggers = select(chat_model, "SELECT ?event ?dom WHERE { ?event a ifml:Event ; ifml:trigger ?dom }")
+    assert triggers == {
+        (CHAT.select_conversation, lit("click")),
+        (CHAT.send_message, lit("submit")),
+    }
+    # Swap rule (ifml:swap comment): Replace targets #<component>, Append/Prepend
+    # targets #<component>_items.
+    flows = select(
+        chat_model,
+        """SELECT ?flow ?event ?swap ?target WHERE {
+               ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target ?c ; ifml:swap ?swap .
+               BIND(CONCAT("#", STRAFTER(STR(?c), STR(:)),
+                           IF(?swap = ifml:Replace, "", "_items")) AS ?target)
+           }""",
+    )
+    assert flows == {
+        (CHAT.select_to_thread, CHAT.select_conversation, IFML.Replace, lit("#message_thread")),
+        (CHAT.send_to_thread, CHAT.send_message, IFML.Append, lit("#message_thread_items")),
+    }
+    # Channel rule: a consumed channel subscription appends; no flow lands it.
+    assert select(chat_model, "SELECT ?ch WHERE { :chat_ui seam:consumes ?ch . ?ch a comm:Channel }") == {
+        (CHAT.stream_events,),
+    }
+    assert not ask(chat_model, "ASK { ?flow ifml:source :stream_events }")
+
+
+def test_gap_17_page_route_and_title(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?page ?path ?title WHERE {
+               ?page a ifml:ViewContainer ; ifml:isLandmark true ;
+                     ifml:path ?path ; ifml:title ?title .
+           }""",
+    )
+    assert rows == {(CHAT.chat_page, lit("/"), rdflib.Literal("Chat", lang="en"))}
+    # The user-facing title is not the modeller label.
+    assert ask(chat_model, 'ASK { :chat_page rdfs:label "Chat Page" }')
+
+
+def test_gap_19_renders_component(chat_model):
+    """Operation -> component -> swap of the flow that lands it -> partial name."""
+    rows = select(
+        chat_model,
+        """SELECT ?op ?component ?swap ?partial WHERE {
+               :chat_api seam:exposes ?op .
+               ?op seam:mediaKind seam:UIFragment ; seam:rendersComponent ?component .
+               ?component a/rdfs:subClassOf* ifml:ViewComponent .
+               # The flow that lands ?op's response: the one whose event submits
+               # to ?op, or, for a GET, one whose event submits to nothing.
+               OPTIONAL { ?flow ifml:target ?component ; ifml:swap ?swap ; ifml:source ?event .
+                          FILTER(EXISTS { ?event seam:submitsTo ?op }
+                                 || (NOT EXISTS { ?event seam:submitsTo ?any }
+                                     && EXISTS { ?op hydra:method "GET" })) }
+               BIND(CONCAT(STRAFTER(STR(?component), STR(:)),
+                           IF(BOUND(?swap) && ?swap != ifml:Replace, "_item", ""), ".html") AS ?partial)
+           }""",
+    )
+    assert rows == {
+        (CHAT.send_message_op, CHAT.message_thread, IFML.Append, lit("message_thread_item.html")),
+        (CHAT.message_thread_op, CHAT.message_thread, IFML.Replace, lit("message_thread.html")),
+        # Loaded with the page: no flow lands it, so it renders the whole component.
+        (CHAT.list_conversations_op, CHAT.conversation_list, None, lit("conversation_list.html")),
+    }
+    # GAP-11's component -> read-operation link is the inverse.
+    reads = select(
+        chat_model,
+        """SELECT ?component ?op WHERE {
+               ?component seam:reads ?shape . ?op seam:rendersComponent ?component ;
+                   hydra:method "GET" ; seam:returnsShape ?shape .
+           }""",
+    )
+    assert reads == {
+        (CHAT.conversation_list, CHAT.list_conversations_op),
+        (CHAT.message_thread, CHAT.message_thread_op),
+    }
+
+
+def test_gap_20_policy_on_operation(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?op ?policy ?target ?action ?assignee WHERE {
+               ?op a hydra:Operation ; seam:governedBy ?policy .
+               ?policy a odrl:Policy ; odrl:permission ?perm .
+               ?perm a odrl:Permission ; odrl:target ?target ;
+                     odrl:action ?action ; odrl:assignee ?assignee .
+           }""",
+    )
+    odrl = rdflib.Namespace("http://www.w3.org/ns/odrl/2/")
+    assert rows == {
+        (CHAT.send_message_op, CHAT.user_send_policy, CHAT.send_message_op, odrl.use, CHAT.authenticated_user),
+    }
+    # The route's policy agrees with the event's: derived through seam:submitsTo.
+    assert ask(
+        chat_model,
+        "ASK { :send_message seam:governedBy ?p ; seam:submitsTo ?op . ?op seam:governedBy ?p }",
+    )
+
+
+UI_PREFIXES = """
+@prefix :      <https://example.org/bad/> .
+@prefix arch:  <https://w3id.org/seams/arch#> .
+@prefix ifml:  <https://w3id.org/seams/ifml#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix seam:  <https://w3id.org/seams/seam#> .
+"""
+
+
+@pytest.mark.parametrize(
+    "facts, message",
+    [
+        (":e a arch:Container ; seam:submitsTo :op . :op a hydra:Operation .",
+         "Only an ifml:Event seam:submitsTo an operation."),
+        (":e a ifml:Event ; seam:submitsTo :c . :c a arch:Container .",
+         "seam:submitsTo points at a hydra:Operation."),
+        (":e a ifml:Event ; seam:rendersComponent :v . :v a ifml:List .",
+         "Only a hydra:Operation seam:rendersComponent."),
+        (":op a hydra:Operation ; seam:rendersComponent :p . :p a ifml:ViewContainer .",
+         "seam:rendersComponent points at an ifml:ViewComponent."),
+        (":f a ifml:NavigationFlow ; ifml:swap :sideways .",
+         "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend."),
+        (":f a ifml:NavigationFlow ; ifml:swap ifml:Replace , ifml:Append .",
+         "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend."),
+        (":f a ifml:DataFlow ; ifml:swap ifml:Replace .",
+         "Only an ifml:NavigationFlow carries ifml:swap."),
+    ],
+    ids=[
+        "submits-from-non-event", "submits-to-non-operation", "renders-from-non-operation",
+        "renders-non-component", "swap-unknown-value", "swap-two-values", "swap-on-data-flow",
+    ],
+)
+def test_ui_seam_shapes_have_teeth(facts, message):
+    """Each malformed UI seam fact trips its own shape, and nothing else."""
+    data = rdflib.Graph()
+    for path in ONTOLOGY_FILES:
+        data.parse(path, format="turtle")
+    data.parse(data=f"{UI_PREFIXES}\n{facts}", format="turtle")
+    assert shacl_messages(data) == {message}

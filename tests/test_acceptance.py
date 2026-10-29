@@ -333,6 +333,19 @@ def test_chat_app_what_writes_shape(chat_model):
     }
 
 
+def test_chat_app_screens_by_role_writing_shape(chat_model):
+    """Authenticated users reach MessageShape from the chat page's send_message,
+    governed through the operation it submits to."""
+    rows = chat_model.query(
+        canned("screens-by-role-writing-shape.rq"),
+        initBindings={"shape": CHAT.MessageShape},
+    )
+    assert {(r.role, r.screen, r.event, r.writer) for r in rows} == {
+        (CHAT.authenticated_user, CHAT.chat_page, CHAT.send_message, CHAT_PERSIST_USER_MSG),
+        (CHAT.authenticated_user, CHAT.chat_page, CHAT.send_message, CHAT_PERSIST_RESPONSE),
+    }
+
+
 def test_chat_app_impact_of_node(chat_model):
     """'What breaks if db01 goes away' — must reach message_db, chat_api, chat_ui,
     and the send_message_process."""
@@ -427,3 +440,68 @@ def test_human_task_screens_to_finish_process():
 def test_chat_app_has_no_screens_to_finish(chat_model):
     """The chat app's process has no user task, so no screen waits for a person."""
     assert list(chat_model.query(canned("screens-to-finish-process.rq"))) == []
+
+
+APPROVAL_PERSIST_EXPENSE = URIRef("https://example.org/expenses/approval_bpmn#persist_expense")
+APPROVAL_APPROVE_EXPENSE = URIRef("https://example.org/expenses/approval_bpmn#approve_expense")
+SCREENS_BY_ROLE_SUBMIT_POLICY = (
+    EXPENSES.submit_expense, SEAM.governedBy, EXPENSES.employee_submit_policy
+)
+
+
+def _human_task_model() -> rdflib.Graph:
+    g = load(*ONTOLOGY_FILES)
+    ds = rdflib.Dataset()
+    ds.parse(HUMAN_TASK_TRIG, format="trig")
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    return g
+
+
+def _screens_by_role(g: rdflib.Graph, shape: URIRef) -> set:
+    rows = g.query(
+        canned("screens-by-role-writing-shape.rq"), initBindings={"shape": shape}
+    )
+    return {(r.role, r.screen, r.event, r.writer) for r in rows}
+
+
+def test_human_task_screens_by_role_writing_shape():
+    """Only the employee's Submit Expense, on the Expenses page, eventually writes
+    either shape: submitting starts the process whose tasks write both. The
+    manager's Submit Approval triggers nothing, so it reaches no writer."""
+    g = _human_task_model()
+    assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
+         APPROVAL_PERSIST_EXPENSE),
+    }
+    assert _screens_by_role(g, EXPENSES.ApprovalShape) == {
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
+         APPROVAL_APPROVE_EXPENSE),
+    }
+
+
+def test_screens_by_role_via_operation_policy_only():
+    """With the event's own seam:governedBy removed, the role still comes from
+    the operation it seam:submitsTo."""
+    g = _human_task_model()
+    g.remove(SCREENS_BY_ROLE_SUBMIT_POLICY)
+    assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
+         APPROVAL_PERSIST_EXPENSE),
+    }
+
+
+def test_screens_by_role_ungoverned_writer_has_no_role():
+    """No model ships an ungoverned writing event, so drop both policy links in
+    memory: the row survives with ?role unbound (open to any identity)."""
+    g = _human_task_model()
+    g.remove(SCREENS_BY_ROLE_SUBMIT_POLICY)
+    g.remove((EXPENSES.submit_expense_op, SEAM.governedBy, EXPENSES.employee_submit_policy))
+    assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
+        (None, EXPENSES.submit_page, EXPENSES.submit_expense, APPROVAL_PERSIST_EXPENSE),
+    }
+
+
+def test_screens_by_role_unrelated_shape_has_no_rows(chat_model):
+    """A focus no event writes returns nothing, governed or not."""
+    assert _screens_by_role(chat_model, CHAT.ConversationShape) == set()

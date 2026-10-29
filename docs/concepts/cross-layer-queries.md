@@ -6,7 +6,7 @@ them, because no single tool holds both ends.
 
 ## The questions
 
-Three ship today as canned queries. Each leaves one variable free, the element you are
+Four ship today as canned queries. Each leaves one variable free, the element you are
 asking about, and the viewer binds it to whatever you are looking at.
 
 | Question | Why it matters |
@@ -14,6 +14,7 @@ asking about, and the viewer binds it to whatever you are looking at.
 | Which UI events can eventually write this data shape, and through which task? | Compliance and security review: everything a user can do that changes this data |
 | What breaks, containers and processes both, if this deployment node goes away? | Impact analysis, and later drift detection between designed and deployed state |
 | Which process tasks may move an entity out of this state? | Lifecycle audit, and the inverse view of `seam:fires` |
+| Which screens can each role use to eventually write this data shape? | Access review: which roles can reach a write to this data, and from which screen |
 
 The [query catalog](/reference/queries) shows each one in full, generated from
 [`docs/queries/`](../queries/).

@@ -1,6 +1,6 @@
 """Canned cross-layer query catalog + execution engine (S03 T01).
 
-Exposes the three docs/queries/ SPARQL queries as a browsable catalog and
+Exposes four docs/queries/ SPARQL queries as a browsable catalog and
 runs them against the viewer's loaded model with a focus element bound via
 initBindings. The focus IRI never reaches the query text by string
 interpolation — initBindings with a URIRef is the SPARQL-injection guard.
@@ -62,6 +62,16 @@ QUERIES: dict[str, CannedQuery] = {
         question="Which process tasks may move an entity out of this state?",
         focusVariable="state",
         focusType=STATE.State,
+    ),
+    "screens-by-role-writing-shape": CannedQuery(
+        name="screens-by-role-writing-shape",
+        label="Which screens can each role use to write this shape?",
+        question=(
+            "Which screens can each role use whose events eventually write "
+            "this data shape, and through which task?"
+        ),
+        focusVariable="shape",
+        focusType=SH.NodeShape,
     ),
 }
 

@@ -453,7 +453,19 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
                 parents[str(o)] = min(parents.get(str(o), str(s)), str(s))
         visible |= {o for o, p in parents.items() if p in visible}
 
-    nodes = [{**n, "parent": parents.get(n["id"])} for n in nodes_for(visible)]
+    nested_via: dict[str, str] = {}
+    if spec.nest:
+        nested_via, nested_layers = _nest_targets(visible, parents)
+        visible |= set(nested_via) | {o for o, p in parents.items() if p in nested_via}
+
+    nodes = [
+        {**n, "parent": parents.get(n["id"]), "nestedVia": nested_via.get(n["id"])}
+        for n in nodes_for(visible)
+    ]
+    if spec.nest:
+        for n in nodes:
+            if n["id"] in nested_layers and n["layer"] == "other":
+                n["layer"] = nested_layers[n["id"]]
     nodes.sort(key=lambda n: (n["parent"] or "", n["id"]))
 
     if spec.rollup:
@@ -470,6 +482,61 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         ]
     edges.sort(key=lambda e: (e["from"], e["to"], e["label"]))
     return nodes, edges
+
+
+# Containment predicates that make a model member a child of another member;
+# L4 nests only a nested model's top-level members (the ones no sibling holds).
+NEST_CONTAINMENT_PREDICATES = (IFML.contains, IFML.hasEvent, IFML.hasParameter, ARCH.contains)
+
+
+def nested_model_of(iri: str) -> str | None:
+    """Model a nest-mode target stands for: itself, else its single detailedBy model."""
+    if is_model(iri):
+        return iri
+    targets = detailedby_targets(iri)
+    return targets[0] if len(targets) == 1 else None
+
+
+def top_level_members(model_iri: str) -> list[str]:
+    """Labelled members of model_iri that no other member of it contains."""
+    graph = get_graph()
+    members = set(model_members(model_iri))
+    held = {
+        str(o)
+        for pred in NEST_CONTAINMENT_PREDICATES
+        for s, o in graph.subject_objects(pred)
+        if str(s) in members and str(s) != str(o)
+    }
+    return sorted(
+        m for m in members - held if (URIRef(m), RDFS.label, None) in graph
+    )
+
+
+def _nest_targets(visible: set[str], parents: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """L4: adds nest-mode seam targets of visible nodes (and their models'
+    top-level members) to parents. Returns (target -> qname of the nesting
+    predicate, target -> layer of its nested model)."""
+    graph = get_graph()
+    nested_via: dict[str, str] = {}
+    layers: dict[str, str] = {}
+    for m in sorted(visible):
+        for p, t in sorted(graph.predicate_objects(URIRef(m)), key=lambda po: (str(po[0]), str(po[1]))):
+            target = str(t)
+            if not isinstance(t, URIRef) or target in visible or reveal_mode(p) != "nest":
+                continue
+            if target in parents and parents[target] <= m:
+                continue
+            parents[target] = m
+            nested_via[target] = qname(p)
+    for target in sorted(nested_via):
+        model = nested_model_of(target)
+        if model is None:
+            continue
+        layers[target] = LAYER_BY_NOTATION.get(notation_of(model), "other")
+        for member in top_level_members(model):
+            if member not in visible and member not in nested_via and member != target:
+                parents.setdefault(member, target)
+    return nested_via, layers
 
 
 def ifml_graph_data(model_iri: str) -> tuple[list[dict], list[dict]]:

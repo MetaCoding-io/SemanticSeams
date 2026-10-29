@@ -43,7 +43,7 @@ renderer choice is recorded in [ADR-0008](adr/0008-node-link-renderer.md).*
 
 | # | Item | Merges | Size | Depends on | Why not P0 | Status |
 |---|---|---|---|---|---|---|
-| 7 | **Per-predicate reveal setting** (`open` / `nest` / `layer`) replacing the boolean `seam:navigational`; Relations panel; nest for `presents` and `executes` gives L4. | Reveal 3 · Levels 1 (L4) · open question 1 | M | 2, 3 | Changes an ADR-0005 annotation. Nest needs ELK compound layout, so it waits for 2 | planned (M007/S02) |
+| 7 | **Per-predicate reveal setting** (`open` / `nest` / `layer`) replacing the boolean `seam:navigational`; Relations panel; nest for `presents` and `executes` gives L4. | Reveal 3 · Levels 1 (L4) · open question 1 | M | 2, 3 | Changes an ADR-0005 annotation. Nest needs ELK compound layout, so it waits for 2 | done (M007/S02) |
 | 8 | **Tint bpmn-js and dmn-js and add overlay badges**, so process and decision views join the language and show their seams. | Reveal 5 | S | 1 | Cheap, but only reads as consistent once 1 and 2 define the language | done (M007/S01) |
 | 9 | **ShapeGraph renderer** using the same card; the data layer has no view at all today. | Reveal 6 | M | 1, 2 | Needed for the descent to bottom out somewhere other than an inspector; after 2 because it reuses the ELK renderer | planned (M007/S03) |
 | 10 | **IFML on diagram-js with ELK ports for events**, geometry carried over from 3. | IFML 4 | M | 3 | Only worth it once pan, zoom and overlays are needed on the IFML view, and as the base for editing | planned (M007/S04) |
@@ -62,7 +62,8 @@ updated reason.
 | 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
 
 Resolved open questions from the Levels note: L4 is a preset of reveal
-choices, not a separate level (item 7); rollup queries live in
+choices, not a separate level (item 7, delivered in M007/S02: L4 applies nest
+mode to `presents` and `executes`); rollup queries live in
 `docs/queries/` with acceptance tests (item 2).
 
 ## Examples and tutorials
@@ -132,7 +133,7 @@ UI work must not eat M3.*
    M004/S04, S05, S06: htmx templates, the FastAPI route module and the compose
    file, each passing the golden outputs.* *Tutorial done, M004/S07:
    [`docs/tutorial.md`](tutorial.md) runs end to end in CI.*
-5. P1 items 8, 7, 9, 10 as M007, The Differentiators (S01 to S04, in that order). *Item 8 done, M007/S01.*
+5. P1 items 8, 7, 9, 10 as M007, The Differentiators (S01 to S04, in that order). *Item 8 done, M007/S01.* *Item 7 done, M007/S02.*
 6. The build-along tutorial, E2, E3, E4, E5 and E1, as M009 (S01 to S07), after
    M007. Its final model is the second worked example that item 11 waits for.
 7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each

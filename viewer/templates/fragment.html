@@ -183,6 +183,8 @@
             "data-layer": n.layer || "other",
             "data-parent": n.parent || "",
           }, world);
+          // L4: a nest-mode seam target (seam:presents, seam:executes) nested in its source.
+          if (n.nestedVia) g.setAttribute("data-nested-via", n.nestedVia);
           el("title", {}, g).textContent = n.label + (n.typeLabel ? " (" + n.typeLabel + ")" : "");
           g.addEventListener("click", function (ev) {
             ev.stopPropagation();
@@ -193,7 +195,12 @@
         }
         function drawFrame(n, x, y, w, h) {
           var g = nodeGroup(n, x, y, "c4-frame");
-          el("rect", { "class": "c4-frame-bg", width: w, height: h, rx: 8 }, g);
+          var bg = el("rect", { "class": "c4-frame-bg", width: w, height: h, rx: 8 }, g);
+          // Frames outside the architecture layer (L4 nested models) take their layer's stroke and tint.
+          if (n.layer && n.layer !== "architecture") {
+            bg.style.stroke = layerColour(n.layer);
+            bg.style.fill = "color-mix(in srgb, " + layerColour(n.layer) + " 6%, white)";
+          }
           el("rect", { "class": "c4-accent", x: 1, y: 1, width: w - 2, height: 4, rx: 2, fill: layerColour(n.layer) }, g);
           var dots = drawSeamDots(g, n, w);
           var pillW = drawPill(g, PAD + 4, 10, n.typeLabel || "Element", 120);

@@ -17,6 +17,20 @@ The root of the chat app is its C4 architecture model: a system with four contai
 and the production environment with the nodes they are deployed to. The green bar above
 the breadcrumbs is the model-health badge.
 
+The architecture view has four zoom levels, chosen with the level toggle above the
+canvas or `?level=` in the URL (default L2). Each level adds to the one before:
+
+| Level | Shows |
+|---|---|
+| L1 System context | Systems, people and environments, with container edges rolled up to them |
+| L2 Containers | Containers nested in their system, deployment nodes in their environment, `depends on` and `deployed to` edges |
+| L3 Components and operations | The operations each container `seam:exposes`, nested in it, and `consumes` edges |
+| L4 Seams | The targets of nest-mode seams nested in their source: the IFML model a container `seam:presents` and the process it `seam:executes`, each holding its model's top-level members in that layer's colour |
+
+L4 is the nest reveal mode applied to the whole diagram: every seam predicate whose
+`seam:reveal` is nest draws its target inside its source instead of as a separate view.
+The nested models' own edges are not drawn. Clicking a nested model still opens it.
+
 ### Interface
 
 ![The chat interface's IFML model drawn as a graph of the page, its components, events, parameters and flows](./img/viewer-interaction.webp)
@@ -79,7 +93,9 @@ reached from more than one parent. Each crumb is a link back.
 
 | Notation | Renderer |
 |---|---|
-| C4 architecture, IFML interaction, statechart | A node-link graph drawn with vis-network |
+| C4 architecture | Nested SVG cards laid out by ELK, with the zoom levels above |
+| IFML interaction | IFML notation drawn as SVG on the server |
+| Statechart | A node-link graph drawn with vis-network |
 | BPMN | bpmn-js, from the model's native XML payload, tinted with the process colour and badged per seam |
 | DMN | dmn-js, from the model's native XML payload: the decision diagram, tinted with the decision colour and badged per seam, and its tables |
 | SHACL shape graph | No renderer yet; the page shows the inspector only |
@@ -134,5 +150,5 @@ the diagram comes back drawn and clickable.
 
 The viewer is the v1 proof of concept. It is read-only, it loads one model, the chat-app
 example in `examples/chat-app/chat-app.trig`, set by `DATA_PATH` and `ROOT_IRI` at the
-top of `viewer/app.py`, and the node-link renderer does not yet draw containment as
+top of `viewer/app.py`, and the statechart renderer does not yet draw containment as
 nesting. The [backlog](/backlog) lists what comes next for the viewer.

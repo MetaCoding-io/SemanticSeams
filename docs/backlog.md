@@ -41,21 +41,25 @@ renderer choice is recorded in [ADR-0008](adr/0008-node-link-renderer.md).*
 
 ## P1: the differentiators, once the base is consistent
 
-| # | Item | Merges | Size | Depends on | Why not P0 |
-|---|---|---|---|---|---|
-| 7 | **Per-predicate reveal setting** (`open` / `nest` / `layer`) replacing the boolean `seam:navigational`; Relations panel; nest for `presents` and `executes` gives L4. | Reveal 3 · Levels 1 (L4) · open question 1 | M | 2, 3 | Changes an ADR-0005 annotation. Nest needs ELK compound layout, so it waits for 2 |
-| 8 | **Tint bpmn-js and dmn-js and add overlay badges**, so process and decision views join the language and show their seams. | Reveal 5 | S | 1 | Cheap, but only reads as consistent once 1 and 2 define the language |
-| 9 | **ShapeGraph renderer** using the same card; the data layer has no view at all today. | Reveal 6 | M | 1, 2 | Needed for the descent to bottom out somewhere other than an inspector; after 2 because it reuses the ELK renderer |
-| 10 | **IFML on diagram-js with ELK ports for events**, geometry carried over from 3. | IFML 4 | M | 3 | Only worth it once pan, zoom and overlays are needed on the IFML view, and as the base for editing |
+| # | Item | Merges | Size | Depends on | Why not P0 | Status |
+|---|---|---|---|---|---|---|
+| 7 | **Per-predicate reveal setting** (`open` / `nest` / `layer`) replacing the boolean `seam:navigational`; Relations panel; nest for `presents` and `executes` gives L4. | Reveal 3 · Levels 1 (L4) · open question 1 | M | 2, 3 | Changes an ADR-0005 annotation. Nest needs ELK compound layout, so it waits for 2 | planned (M007/S02) |
+| 8 | **Tint bpmn-js and dmn-js and add overlay badges**, so process and decision views join the language and show their seams. | Reveal 5 | S | 1 | Cheap, but only reads as consistent once 1 and 2 define the language | planned (M007/S01) |
+| 9 | **ShapeGraph renderer** using the same card; the data layer has no view at all today. | Reveal 6 | M | 1, 2 | Needed for the descent to bottom out somewhere other than an inspector; after 2 because it reuses the ELK renderer | planned (M007/S03) |
+| 10 | **IFML on diagram-js with ELK ports for events**, geometry carried over from 3. | IFML 4 | M | 3 | Only worth it once pan, zoom and overlays are needed on the IFML view, and as the base for editing | planned (M007/S04) |
 
 ## P2: parked, with the reason
 
-| # | Item | Merges | Reason |
-|---|---|---|---|
-| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it |
-| 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item |
-| 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief |
-| 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need |
+Scheduled as M008 after M007. Each slice first checks whether its reason for
+being parked still holds, and may end by parking the item again here with an
+updated reason.
+
+| # | Item | Merges | Reason | Status |
+|---|---|---|---|---|
+| 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it | planned (M008/S03) |
+| 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item | planned (M008/S01) |
+| 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief | planned (M008/S04) |
+| 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
 
 Resolved open questions from the Levels note: L4 is a preset of reveal
 choices, not a separate level (item 7); rollup queries live in
@@ -107,7 +111,11 @@ UI work must not eat M3.*
    *Spike done, M004/S01: it held, and ADR-0007 is Accepted.* *Vocabulary additions
    done, M004/S02: every row of G2's gap list and the spike's findings (GAP-01..GAP-27)
    is closed.* *Runtime worker done, M004/S03: [`seams_runtime`](../seams_runtime/README.md)
-   runs the send-message process end to end from graph facts.* Next come the three
-   generators against the golden outputs.
-5. P1 items 8, 7, 9, 10 and the P2 list, re-triaged once M3 lands and as the
-   second worked example demands.
+   runs the send-message process end to end from graph facts.* *Generators done,
+   M004/S04, S05, S06: htmx templates, the FastAPI route module and the compose
+   file, each passing the golden outputs.* *Tutorial done, M004/S07:
+   [`docs/tutorial.md`](tutorial.md) runs end to end in CI.*
+5. P1 items 8, 7, 9, 10 as M007, The Differentiators (S01 to S04, in that order).
+6. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M007. Each
+   item's parking reason is checked again first: editing is a v1 non-goal in the
+   product brief, and layer mode may need a second worked example.

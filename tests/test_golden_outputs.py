@@ -261,6 +261,13 @@ def test_open_gap_rows_for_golden_files_are_cited():
     assert not orphans, f"gaps.md: open/deferred rows not referenced by any golden artifact line: {orphans}"
 
 
+def test_no_gap_row_is_open():
+    # M004/S02 closed or deferred every row; a new gap must land closed or
+    # deferred with a reason, never silently open.
+    still_open = [gap for gap, (_, status) in gap_rows().items() if status == "open"]
+    assert not still_open, f"gaps.md: rows still open: {still_open}"
+
+
 def test_gap_rows_name_a_golden_file_or_runtime():
     problems = [
         f"{gap}: Artifact {artifact!r} is neither a golden file nor runtime"

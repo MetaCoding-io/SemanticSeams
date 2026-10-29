@@ -305,7 +305,10 @@
         seam:visibleWhen :s_composing .
 
     # Process → Decision/Data seam edges
-    :send_message_process seam:detailedBy :chat_bpmn .
+    # The correlation key is the IFML parameter whose name is the comm:path
+    # variable of the operation :send_message submits to (gaps.md GAP-22).
+    :send_message_process seam:detailedBy :chat_bpmn ;
+        proc:correlationKey :conversation .
 
     <https://example.org/chat/chat_bpmn#persist_user_msg>
         seam:invokes :send_message_op ;
@@ -338,6 +341,14 @@
         # disambiguation popover (decision table vs. the data shape it reads).
         seam:detailedBy :routing_dmn , :chat_data_shapes ;
         seam:inModel :routing_dmn .
+    # Runtime bindings into routing.dmn (gaps.md GAP-23..GAP-25): the native
+    # decision id, each table input's expression variable and the source
+    # path, and the output (named by its label "Provider") feeding "provider".
+    :routing_decision dec:payloadElement "routing_decision" ;
+        dec:input [ a dec:InputBinding ; dec:variable "message_role" ; dec:fromPath :role ] ,
+                  [ a dec:InputBinding ; dec:variable "message_length" ; dec:fromPath :content ;
+                    dec:measure dec:Length ] ;
+        dec:output [ a dec:OutputBinding ; dec:variable "Provider" ; dec:processVariable "provider" ] .
     :routing_dmn seam:notation seam:DMN ;
         seam:renderPayload <routing.dmn> .
 

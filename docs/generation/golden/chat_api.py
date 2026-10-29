@@ -29,7 +29,7 @@ async def send_message(conversation: str, request: Request) -> HTMLResponse:  # 
     await runtime.start_process(  # [graph: :chat_api seam:executes :send_message_process]
         ":send_message_process",  # [graph: :send_message_process proc:Process seam:detailedBy :chat_bpmn]
         message,  # [graph: :send_message_op seam:acceptsShape :MessageShape]
-        correlation_key=conversation,  # [gap: GAP-22]
+        correlation_key=conversation,  # [graph: :send_message_process proc:correlationKey :conversation]
     )  # [fixed]
     return runtime.render_fragment(  # [graph: :send_message_op seam:returnsShape :MessageShape seam:mediaKind seam:UIFragment]
         "message_thread_item.html",  # [graph: :send_message_op seam:rendersComponent :message_thread :send_to_thread ifml:swap ifml:Append]

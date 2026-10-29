@@ -92,6 +92,8 @@ Evidence: [`spikes/adr0007/spike.py`](../../spikes/adr0007/spike.py) (throwaway,
 - **Message reference.** `stream_complete_event`'s `messageEventDefinition` has no `messageRef`, so Spiff names the event after the element ("Stream Complete"). The link to the channel exists only in the graph (`seam:publishesTo`).
 - **Implementation binding.** Service-task handlers are keyed on bpmn id and only cross-checked against `seam:invokes` / `seam:fires`. The graph says *what* a task invokes, but not which runtime implementation serves that operation. The S03 worker needs that binding.
 
+*Follow-up (M004/S02):* all five are closed as [gaps.md](../generation/golden/gaps.md) GAP-23..GAP-27 (`dec:payloadElement`, `dec:input`, `dec:output`, and the message-name and implementation rules in `ontology/proc.ttl`); the process correlation key is GAP-22 (`proc:correlationKey`).
+
 ## Consequences
 
 - **Positive:** The BPMN and DMN the viewer shows are the code that runs. Editing the diagram changes behaviour without regenerating anything.

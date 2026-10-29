@@ -88,7 +88,7 @@ rather than a stub.
 | # | Item | Size | Output |
 |---|---|---|---|
 | G1 | **ADR-0007, execution strategy.** Record the hybrid: interpret BPMN/DMN with SpiffWorkflow, validate with pySHACL, generate templates, routes and compose. Amend M3 accordingly. | S | Accepted after the M004/S01 spike: [ADR-0007](adr/0007-execution-strategy.md). Its Spike Findings resolve all four open items: parser-hook decision binding, streaming, SQLite state and licence. |
-| G2 | **Golden-output dry run.** Hand-write the three target artifacts for the chat app (the htmx page, the FastAPI module, the compose file), then walk the model and mark every line the graph can and cannot produce. The cannot list becomes the vocabulary additions (operation paths, event-to-operation binding, form fields or their SHACL derivation, SSE and channel transport, artifacts for the other three containers, ports) and the generators get a test to pass before they exist. | M | [`docs/generation/golden/`](generation/golden/) plus a [gap table](generation/golden/gaps.md) (done: 22 gaps) |
+| G2 | **Golden-output dry run.** Hand-write the three target artifacts for the chat app (the htmx page, the FastAPI module, the compose file), then walk the model and mark every line the graph can and cannot produce. The cannot list becomes the vocabulary additions (operation paths, event-to-operation binding, form fields or their SHACL derivation, SSE and channel transport, artifacts for the other three containers, ports) and the generators get a test to pass before they exist. | M | [`docs/generation/golden/`](generation/golden/) plus a [gap table](generation/golden/gaps.md) (done: 22 gaps, plus 5 from the ADR-0007 spike; all closed in M004/S02) |
 
 G2 is a documentation exercise that can run in parallel with P0 and should,
 because its gap list will change the vocabulary before the renderers harden
@@ -104,8 +104,8 @@ UI work must not eat M3.*
 2. P0 item 2 and G2 in parallel. *Done, M006/S02 and S06.*
 3. P0 items 4, 5, 3. *Done, M006/S03, S04, S05.*
 4. M3 (tracked as M004, The Payoff), opening with the ADR-0007 spike (its open items).
-   *Spike done, M004/S01: it held, and ADR-0007 is Accepted.* Next come the vocabulary
-   additions from G2's gap list and the spike's findings, the worker, and the three
-   generators against the golden outputs.
+   *Spike done, M004/S01: it held, and ADR-0007 is Accepted.* *Vocabulary additions
+   done, M004/S02: every row of G2's gap list and the spike's findings (GAP-01..GAP-27)
+   is closed.* Next come the worker and the three generators against the golden outputs.
 5. P1 items 8, 7, 9, 10 and the P2 list, re-triaged once M3 lands and as the
    second worked example demands.

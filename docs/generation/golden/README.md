@@ -69,9 +69,16 @@ Counts of non-blank lines per marker, updated as gap rows close. M004 drives the
 | Artifact | graph | fixed | gap |
 |----------|------:|------:|----:|
 | compose.yaml | 62 | 7 | 0 |
-| chat_page.html | 43 | 18 | 17 |
-| chat_api.py | 28 | 14 | 5 |
-| **total** | **133** | **39** | **22** |
+| chat_page.html | 60 | 18 | 0 |
+| chat_api.py | 33 | 14 | 0 |
+| **total** | **155** | **39** | **0** |
+
+**After M004/S02.** All 27 rows are closed: 22 by vocabulary or model
+additions and 5 by documented rules (GAP-04, GAP-16, GAP-21, GAP-26 and
+GAP-27; GAP-10 and GAP-15 also carry rule halves). No row is deferred, so no golden
+line carries a `[gap: ...]` marker and the doc-lint now rejects any `open`
+row. One sub-item is handed on rather than modelled: the authentication scheme
+behind `:authenticated_user` (GAP-20) belongs to the S03 worker.
 
 ## Feeding M004
 

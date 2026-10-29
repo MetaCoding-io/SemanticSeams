@@ -667,3 +667,137 @@ def test_gap_16_state_guard(chat_model):
         """ASK { ?component seam:visibleWhen ?state .
                  FILTER NOT EXISTS { ?component seam:reads/seam:lifecycle/state:hasState ?state } }""",
     )
+
+
+# --- GAP-22..27: runtime bindings the ADR-0007 worker needs ------------------
+
+ROUTING_DMN = ROOT / "examples" / "chat-app" / "routing.dmn"
+DMN_NS = {"dmn": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
+
+
+def dmn_root():
+    import xml.etree.ElementTree as ET
+
+    return ET.parse(ROUTING_DMN).getroot()
+
+
+def test_gap_22_correlation_key(chat_model):
+    """The correlation key is an IFML parameter named like the submitted operation's path variable."""
+    rows = select(
+        chat_model,
+        """SELECT ?process ?key ?var WHERE {
+               ?event seam:triggers ?process ; seam:submitsTo ?op .
+               ?process proc:correlationKey ?key .
+               ?key a ifml:Parameter ; rdfs:label ?var .
+               ?op comm:path/hydra:mapping/hydra:variable ?var .
+           }""",
+    )
+    assert rows == {(CHAT.send_message_process, CHAT.conversation, lit("conversation"))}
+    # The executing container is the one exposing that operation.
+    assert ask(
+        chat_model,
+        "ASK { ?c seam:executes :send_message_process ; seam:exposes :send_message_op }",
+    )
+
+
+def test_gap_23_decision_payload_element(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?decision ?id ?payload WHERE {
+               ?task seam:decidedBy ?decision .
+               ?decision dec:payloadElement ?id ; seam:inModel ?model .
+               ?model seam:notation seam:DMN ; seam:renderPayload ?payload .
+           }""",
+    )
+    assert {(decision, pid) for decision, pid, _ in rows} == {(CHAT.routing_decision, lit("routing_decision"))}
+    assert [str(payload).rsplit("/", 1)[-1] for _, _, payload in rows] == [ROUTING_DMN.name]
+    # The payload declares exactly that decision id: graph and DMN cannot drift.
+    ids = {d.get("id") for d in dmn_root().findall("dmn:decision", DMN_NS)}
+    assert ids == {"routing_decision"}
+
+
+def test_gap_24_decision_inputs(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?var ?path ?measure WHERE {
+               :routing_decision dec:input ?b .
+               ?b a dec:InputBinding ; dec:variable ?var ; dec:fromPath ?path .
+               OPTIONAL { ?b dec:measure ?measure }
+           }""",
+    )
+    assert rows == {
+        (lit("message_role"), CHAT.role, None),
+        (lit("message_length"), CHAT.content, rdflib.URIRef("https://w3id.org/seams/dec#Length")),
+    }
+    # Every bound path is a property of a shape the decision reads.
+    assert not ask(
+        chat_model,
+        """ASK { ?d dec:input/dec:fromPath ?path .
+                 FILTER NOT EXISTS { ?d seam:reads/sh:property/sh:path ?path } }""",
+    )
+    # The DMN table's inputExpression texts are exactly the bound variables.
+    texts = {
+        t.text.strip()
+        for t in dmn_root().findall(
+            "dmn:decision[@id='routing_decision']/dmn:decisionTable/dmn:input/dmn:inputExpression/dmn:text", DMN_NS
+        )
+    }
+    assert texts == {str(r[0]) for r in rows}
+
+
+def test_gap_25_decision_output(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?var ?pvar WHERE {
+               :routing_decision dec:output [ a dec:OutputBinding ; dec:variable ?var ; dec:processVariable ?pvar ] .
+           }""",
+    )
+    assert rows == {(lit("Provider"), lit("provider"))}
+    # The DMN output has no name attribute, so its label is the result key.
+    outputs = dmn_root().findall("dmn:decision[@id='routing_decision']/dmn:decisionTable/dmn:output", DMN_NS)
+    assert [(o.get("name") or o.get("label")) for o in outputs] == ["Provider"]
+
+
+def test_gap_26_message_name(chat_model):
+    """Rule: a throw event's message name is the label of the channel it publishes to."""
+    rows = select(
+        chat_model,
+        """SELECT ?event ?name WHERE {
+               ?event a proc:MessageThrowEvent ; seam:publishesTo ?channel .
+               ?channel a comm:Channel ; rdfs:label ?name .
+           }""",
+    )
+    assert rows == {(rdflib.URIRef("https://example.org/chat/chat_bpmn#stream_complete_event"), lit("stream.events"))}
+    # Every throw event resolves a name (exactly one channel each).
+    assert not ask(
+        chat_model,
+        """ASK { ?event a proc:MessageThrowEvent .
+                 FILTER NOT EXISTS { ?event seam:publishesTo/rdfs:label ?name } }""",
+    )
+
+
+def test_gap_27_implementation_binding(chat_model):
+    """Rule: an invoked operation is implemented by the container exposing it, at its comm:path."""
+    rows = select(
+        chat_model,
+        """SELECT ?task ?op ?container ?path ?inproc WHERE {
+               ?task a proc:ServiceTask ; seam:invokes ?op .
+               ?container a arch:Container ; seam:exposes ?op .
+               ?op comm:path/hydra:template ?path .
+               ?task seam:inModel ?model .
+               ?process seam:detailedBy ?model .
+               BIND(EXISTS { ?container seam:executes ?process } AS ?inproc)
+           }""",
+    )
+    bpmn = rdflib.Namespace("https://example.org/chat/chat_bpmn#")
+    assert rows == {
+        (bpmn.persist_user_msg, CHAT.send_message_op, CHAT.chat_api,
+         lit("/conversations/{conversation}/messages"), lit(True)),
+        (bpmn.invoke_llm, CHAT.completion_op, CHAT.llm_gateway, lit("/v1/chat/completions"), lit(False)),
+    }
+    # No invoked operation is left without exactly one exposing container.
+    assert not ask(
+        chat_model,
+        """ASK { ?task seam:invokes ?op .
+                 FILTER NOT EXISTS { ?c seam:exposes ?op } }""",
+    )

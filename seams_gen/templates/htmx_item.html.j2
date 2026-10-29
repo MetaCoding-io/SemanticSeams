@@ -1,0 +1,15 @@
+[#- One item of an ifml:Details item list (D016), included inside the
+    Details {% for %} loop and by htmx_fragment.html.j2 as an item partial
+    (GAP-19). Expects `c`, a Details Component. #]
+      <li class="[[ c.item_class ]]">
+[% for fl in c.fields %]
+[% set value = "{{ " ~ c.loop_var ~ "." ~ fl.name ~ " }}" %]
+[% if fl.kind == "textarea" %]
+        <p>[[ value ]]</p>
+[% elif fl.kind == "datetime" %]
+        <time datetime="[[ value ]]">[[ value ]]</time>
+[% else %]
+        <span class="[[ fl.name ]]">[[ value ]]</span>
+[% endif %]
+[% endfor %]
+      </li>

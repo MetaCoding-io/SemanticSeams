@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from . import GeneratorError
-from .htmx import extract_page, render_page
+from .htmx import extract_page, render_fragments, render_page
 from seams_runtime import ModelGraph
 
 EXIT_GENERATOR_ERROR = 2
@@ -21,14 +21,15 @@ EXIT_IO_ERROR = 1
 
 
 def _htmx(trig: Path) -> dict[str, str]:
-    """{file name: content}: the landmark page as <page local name>.html."""
+    """{file name: content}: the landmark page as <page local name>.html, plus
+    the fragment partials its UIFragment operations render (GAP-19)."""
     page = extract_page(ModelGraph.load(trig))
-    return {f"{page.id}.html": render_page(page)}
+    return {f"{page.id}.html": render_page(page), **render_fragments(page)}
 
 
 # subcommand -> (help, generate(trig) -> {relative file name: text})
 GENERATORS = {
-    "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer", _htmx),
+    "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
 }
 
 

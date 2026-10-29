@@ -22,6 +22,8 @@ class GeneratorError(Exception):
         super().__init__(f"{message}: {detail}" if detail else message)
 
 
-from .htmx import extract_page, generate_page  # noqa: E402  (needs GeneratorError)
+from .fragments import fragment_for  # noqa: E402  (needs GeneratorError)
+from .htmx import extract_page, generate_fragments, generate_page, render_fragments  # noqa: E402
 
-__all__ = ["GeneratorError", "extract_page", "generate_page", "golden_target", "strip_markers"]
+__all__ = ["GeneratorError", "extract_page", "fragment_for", "generate_fragments", "generate_page",
+           "golden_target", "render_fragments", "strip_markers"]

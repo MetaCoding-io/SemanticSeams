@@ -10,17 +10,20 @@ byte for byte.
 
 ```
 python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/
-# -> build/chat_page.html   (the path written is printed on stdout)
+# -> build/chat_page.html, build/conversation_list.html, build/message_thread.html,
+#    build/message_thread_item.html   (each path written is printed on stdout, sorted)
 ```
 
 ```python
-from seams_gen import generate_page, extract_page, GeneratorError
+from seams_gen import generate_page, generate_fragments, fragment_for, extract_page, GeneratorError
 html = generate_page("examples/chat-app/chat-app.trig")
+partials = generate_fragments("examples/chat-app/chat-app.trig")  # {file name: text}
 ```
 
 | Generator | Writes | From |
 |---|---|---|
 | `htmx` | `<out>/<page local name>.html`, a Jinja2/htmx template (UTF-8, `\n` newlines) | the landmark `ifml:ViewContainer` and the seam, shape, comm and lifecycle facts it touches |
+| `htmx` (fragments) | `<out>/<component>.html` and `<out>/<component>_item.html` partials, one per name the fragment rule gives | each operation the presenting container `seam:consumes` that `seam:rendersComponent` a page component |
 
 Each generator is one subcommand in `GENERATORS` in `__main__.py`; `fastapi` (S05) and
 `compose` (S06) are added the same way.
@@ -66,9 +69,44 @@ that `extract_page` builds.
 Every collection is sorted explicitly: components by `ifml:order`, fields by `sh:order`,
 everything else by IRI, never by graph iteration order.
 
+## Fragments
+
+A `seam:UIFragment` response renders a partial, and its name is one shared rule
+(`fragment_for` in `fragments.py`, GAP-19 in
+[gaps.md](../docs/generation/golden/gaps.md), decision D017). The FastAPI route
+generator calls the same helper, so a route can never name a partial that was not
+generated.
+
+- The operation's one `seam:rendersComponent` target C names the component. None or
+  several raise `GeneratorError(operation, seam:rendersComponent)`.
+- If some `ifml:Event` that `seam:submitsTo` the operation has an `ifml:NavigationFlow`
+  to C with `ifml:swap ifml:Append` or `ifml:Prepend`, the partial is one item:
+  `<C local name>_item.html` (kind `item`). C must be an `ifml:Details`.
+- Otherwise it is the whole component: `<C local name>.html` (kind `component`).
+
+`generate_fragments` / `render_fragments(page)` emit one file per name. Operations
+that render the same name are listed together, and an operation whose component is
+not on the page is skipped. Each file starts with the page's two header lines (the
+generated notice and the model hash), then
+`{# <kind> partial of <component type> <component>, rendered by <operations> #}`. The
+body is the page's own lines. A component partial is everything strictly between
+`{% block C %}` and its `{% endblock %}`. An item partial is the `<li …>` … `</li>`
+lines of the Details `{% for %}` loop, keeping their indentation. For the chat app
+that gives `conversation_list.html` (`:list_conversations_op`), `message_thread.html`
+(`:message_thread_op`) and `message_thread_item.html` (`:send_message_op`, through
+the `:send_to_thread` Append flow).
+
+The partials are the same template files the page uses, not slices of its output.
+`htmx_page.html.j2` includes `htmx_component.html.j2` as each block body, and that
+includes `htmx_item.html.j2` inside the Details loop. `htmx_fragment.html.j2` writes
+the header and includes one of the two.
+
 ## Tests
 
-`tests/test_golden_target.py` (the stripping rule) and `tests/test_htmx_generator.py`:
+`tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines
+equality, a render of each partial, the CLI, the swap and `submitsTo` mutations and the
+`seam:rendersComponent` errors. Also `tests/test_golden_target.py` (the stripping rule)
+and `tests/test_htmx_generator.py`:
 byte equality with the golden, the hash header, determinism, no domain literals in the
 template, no logic nodes but the `visibleWhen` guard in the output (Jinja2 AST walk), a
 render smoke test of the generated template, model-edit mutation, and missing or

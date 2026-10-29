@@ -2,7 +2,9 @@
 
 ``extract_page`` reads the landmark IFML ViewContainer and the seam, shape,
 communication and lifecycle facts it touches into frozen dataclasses;
-``generate_page`` renders them through templates/htmx_page.html.j2. The
+``generate_page`` renders them through templates/htmx_page.html.j2 and
+``generate_fragments`` renders the partials the presenting container's
+UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2. The
 template holds the fixed text only: every model-specific string comes from the
 ``PageModel``, and every collection is sorted explicitly (components by
 ifml:order, fields by sh:order, everything else by IRI), never by graph
@@ -17,19 +19,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import jinja2
-from rdflib import RDF, RDFS, XSD, Literal, Namespace, URIRef
+from rdflib import RDF, XSD, Literal
 from rdflib.namespace import SH
 
 from seams_runtime import ModelGraph
 from seams_runtime.model import COMM, HYDRA, SEAM, STATE, local_name
 
 from . import GeneratorError
+from .facts import DASH, IFML
+from .facts import Facts as _Facts
+from .fragments import fragment_for
 
-IFML = Namespace("https://w3id.org/seams/ifml#")
-DASH = Namespace("http://datashapes.org/dash#")
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "htmx_page.html.j2"
+FRAGMENT_TEMPLATE_NAME = "htmx_fragment.html.j2"
 
 # ifml:swap value -> (hx-swap, targets the component's item list); the rule
 # documented on ifml:swap in ontology/ifml.ttl.
@@ -136,6 +140,15 @@ class Component:
 
 
 @dataclass(frozen=True)
+class Fragment:
+    """A partial named by the GAP-19 rule (seams_gen.fragments.fragment_for)."""
+    name: str        # file name, <component>.html or <component>_item.html
+    component: str   # local name of the seam:rendersComponent target
+    kind: str        # "component" or "item"
+    operations: tuple[str, ...]  # curies of the operations that render it, by IRI
+
+
+@dataclass(frozen=True)
 class PageModel:
     model_stem: str
     model_hash: str
@@ -146,70 +159,10 @@ class PageModel:
     title: str
     uses_sse: bool
     components: tuple[Component, ...]
+    fragments: tuple[Fragment, ...] = ()
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
-
-
-class _Facts:
-    def __init__(self, model: ModelGraph):
-        self.m = model
-        self.ds = model.ds
-        self._ns = sorted(((str(ns), prefix) for prefix, ns in self.ds.namespaces()),
-                          key=lambda p: (-len(p[0]), p[1]))
-
-    def curie(self, iri) -> str:
-        """prefix:local for the longest bound namespace; the local part is the
-        IRI's last fragment/segment (a BPMN element <model#id> shows as :id)."""
-        s = str(iri)
-        for ns, prefix in self._ns:
-            if s.startswith(ns):
-                return f"{prefix}:{local_name(s)}"
-        return f"<{s}>"
-
-    def objects(self, s, p) -> list:
-        return sorted(set(self.ds.objects(s, p)), key=str)
-
-    def subjects(self, p, o) -> list:
-        return sorted(set(self.ds.subjects(p, o)), key=str)
-
-    def one(self, s, p, detail: str = ""):
-        values = self.objects(s, p)
-        if len(values) != 1:
-            found = "none" if not values else ", ".join(str(v) for v in values)
-            raise GeneratorError(s, p, f"{detail}: expected exactly one, found {found}"
-                                 if detail else f"expected exactly one, found {found}")
-        return values[0]
-
-    def optional(self, s, p):
-        values = self.objects(s, p)
-        if len(values) > 1:
-            raise GeneratorError(s, p, f"expected at most one, found {', '.join(map(str, values))}")
-        return values[0] if values else None
-
-    def int_value(self, s, p) -> int | None:
-        v = self.optional(s, p)
-        if v is None:
-            return None
-        if not isinstance(v, Literal) or not isinstance(v.toPython(), int):
-            raise GeneratorError(s, p, f"expected an integer, found {v!r}")
-        return int(v.toPython())
-
-    def label(self, s) -> str:
-        return str(self.one(s, RDFS.label))
-
-    def path_template(self, s) -> tuple[str, dict[str, str]]:
-        """comm:path hydra:template and {variable: local name of hydra:property}."""
-        node = self.one(s, COMM.path)
-        template = str(self.one(node, HYDRA.template, f"comm:path of {s}"))
-        mappings = {}
-        for m in self.objects(node, HYDRA.mapping):
-            mappings[str(self.one(m, HYDRA.variable))] = local_name(self.one(m, HYDRA.property))
-        variables = re.findall(r"\{(\w+)\}", template)
-        missing = [v for v in variables if v not in mappings]
-        if missing:
-            raise GeneratorError(node, HYDRA.mapping, f"no mapping for template variable(s) {missing}")
-        return template, mappings
 
 
 def _shape_name(shape) -> str:
@@ -256,7 +209,23 @@ def extract_page(model: ModelGraph) -> PageModel:
         title=str(f.one(page, IFML.title)),
         uses_sse=bool(sse_channels),
         components=built,
+        fragments=_fragments(f, presenter, {c.id for c in built}),
     )
+
+
+def _fragments(f: _Facts, presenter, component_ids) -> tuple[Fragment, ...]:
+    """Every partial an operation the presenter seam:consumes renders onto a
+    page component, grouped by file name and sorted by it."""
+    found: dict[str, tuple[str, str, list]] = {}
+    for op in f.objects(presenter, SEAM.consumes):
+        if not f.objects(op, SEAM.rendersComponent):
+            continue
+        name, component, kind = fragment_for(f, op)
+        if local_name(component) not in component_ids:
+            continue
+        found.setdefault(name, (local_name(component), kind, []))[2].append(f.curie(op))
+    return tuple(Fragment(name=name, component=comp, kind=kind, operations=tuple(ops))
+                 for name, (comp, kind, ops) in sorted(found.items()))
 
 
 def _landmark(f: _Facts, model: ModelGraph):
@@ -513,6 +482,19 @@ def render_page(page: PageModel) -> str:
     return _environment().get_template(TEMPLATE_NAME).render(page=page)
 
 
+def render_fragments(page: PageModel) -> dict[str, str]:
+    """{file name: text} for every partial in ``page.fragments``."""
+    template = _environment().get_template(FRAGMENT_TEMPLATE_NAME)
+    by_id = {c.id: c for c in page.components}
+    return {fr.name: template.render(page=page, fr=fr, c=by_id[fr.component])
+            for fr in page.fragments}
+
+
 def generate_page(trig_path) -> str:
     """Load the model and render its landmark page."""
     return render_page(extract_page(ModelGraph.load(trig_path)))
+
+
+def generate_fragments(trig_path) -> dict[str, str]:
+    """Load the model and render the partials its UIFragment operations name."""
+    return render_fragments(extract_page(ModelGraph.load(trig_path)))

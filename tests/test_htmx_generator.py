@@ -158,7 +158,7 @@ def test_cli_writes_the_generated_page(tmp_path):
     run = _cli("htmx", TRIG, "--out", out)
     assert run.returncode == 0, run.stderr
     written = out / "chat_page.html"
-    assert run.stdout.strip() == str(written)
+    assert str(written) in run.stdout.splitlines()  # the fragments: tests/test_htmx_fragments.py
     assert written.read_bytes() == generate_page(TRIG).encode("utf-8")
     assert b"\r\n" not in written.read_bytes()
 

@@ -110,6 +110,7 @@ export default defineConfig({
             items: decisions.map(([n, title, slug]) => ({ text: `${n} · ${title}`, link: `/adr/${slug}` })),
           },
           { text: "Status", link: `${PROJECT_PAGE}#status` },
+          { text: "Publishing the site", link: "/project/publishing" },
         ],
       },
     ],

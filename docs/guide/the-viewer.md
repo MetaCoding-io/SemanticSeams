@@ -153,7 +153,9 @@ the diagram comes back drawn and clickable.
 
 ## Current limits
 
-The viewer is the v1 proof of concept. It is read-only, it loads one model, the chat-app
-example in `examples/chat-app/chat-app.trig`, set by `DATA_PATH` and `ROOT_IRI` at the
-top of `viewer/app.py`, and the statechart renderer does not yet draw containment as
-nesting. The [backlog](/backlog) lists what comes next for the viewer.
+The viewer is the v1 proof of concept. It is read-only and loads one model, chosen by
+the `SEAMS_MODEL` environment variable (default the chat-app example in
+`examples/chat-app/chat-app.trig`), with its payload files beside it. The root view is
+the model's single C4 `seam:Model`, or `SEAMS_VIEWER_ROOT` when set; with no C4 model,
+or more than one, the viewer refuses to start and names the candidates. The statechart
+renderer does not yet draw containment as nesting. The [backlog](/backlog) lists what comes next for the viewer.

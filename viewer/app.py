@@ -1,13 +1,18 @@
 """SemanticSeams viewer — Phase A POC.
 
 FastAPI server implementing the /view/{iri} contract (ADR-0004) over an
-in-process rdflib graph loaded from examples/chat-app/chat-app.trig. The
-graph load is behind get_graph() so a Fuseki-backed store can drop in later
-without touching routes or resolution logic.
+in-process rdflib graph loaded from one TriG model. SEAMS_MODEL chooses the
+model (default examples/chat-app/chat-app.trig); its payload files must sit
+beside it. The root view is the model's single C4 seam:Model, or
+SEAMS_VIEWER_ROOT when set. The graph load is behind get_graph() so a
+Fuseki-backed store can drop in later without touching routes or resolution
+logic.
 """
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
@@ -23,15 +28,29 @@ from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.validation import get_model_conformance
 
+# uvicorn configures handlers for its own loggers only, so log through
+# uvicorn.error to have the startup line show up in the server output.
+logger = logging.getLogger("uvicorn.error")
+
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR.parent / "examples" / "chat-app"
-DATA_PATH = DATA_DIR / "chat-app.trig"
-ROOT_IRI = "https://example.org/chat/chat_architecture"
+MODEL_ENV = "SEAMS_MODEL"
+ROOT_ENV = "SEAMS_VIEWER_ROOT"
+DEFAULT_MODEL_PATH = BASE_DIR.parent / "examples" / "chat-app" / "chat-app.trig"
+
+
+def model_path_from_env() -> Path:
+    """SEAMS_MODEL when set and non-empty, else the chat app's TriG."""
+    value = os.environ.get(MODEL_ENV)
+    return Path(value).resolve() if value else DEFAULT_MODEL_PATH
+
+
+MODEL_PATH = model_path_from_env()
+MODEL_DIR = MODEL_PATH.parent
 
 # ADR-0003 specifies manifest-graph resolution (path/checksum/mediaType via a
 # dedicated <urn:seams:graph:manifest> graph). Phase B takes a simplified path:
 # seam:renderPayload values are relative IRIs resolved by rdflib against the
-# trig file's own path, which already yields a file:// URI under DATA_DIR — so
+# trig file's own path, which already yields a file:// URI under MODEL_DIR — so
 # that URI is trusted directly instead of introducing manifest predicates.
 PAYLOAD_MEDIA_TYPES = {
     ".bpmn": "application/bpmn+xml",
@@ -95,13 +114,51 @@ class ModelStore:
 
 
 _store: ModelStore | None = None
+_root_iri: str | None = None
+
+
+def configure(path: Path) -> None:
+    """Point the viewer at another model and drop the loaded graph and root."""
+    global MODEL_PATH, MODEL_DIR, _store, _root_iri
+    MODEL_PATH = Path(path).resolve()
+    MODEL_DIR = MODEL_PATH.parent
+    _store = None
+    _root_iri = None
 
 
 def get_graph() -> Dataset:
     global _store
     if _store is None:
-        _store = ModelStore(DATA_PATH)
+        if not MODEL_PATH.is_file():
+            source = f" (from {MODEL_ENV})" if os.environ.get(MODEL_ENV) else ""
+            raise FileNotFoundError(f"viewer model not found: {MODEL_PATH}{source}")
+        _store = ModelStore(MODEL_PATH)
     return _store.graph
+
+
+def root_iri() -> str:
+    """The IRI the viewer opens at: SEAMS_VIEWER_ROOT, else the model's single
+    C4 seam:Model. Computed once per loaded model."""
+    global _root_iri
+    if _root_iri is None:
+        override = os.environ.get(ROOT_ENV)
+        if override:
+            _root_iri = override
+        else:
+            graph = get_graph()
+            candidates = sorted(
+                str(s)
+                for s in set(graph.subjects(RDF.type, SEAM.Model))
+                if (s, SEAM.notation, SEAM.C4) in graph
+            )
+            if len(candidates) != 1:
+                found = ", ".join(candidates) if candidates else "none"
+                raise RuntimeError(
+                    f"{MODEL_PATH} must have exactly one seam:Model with seam:notation seam:C4 "
+                    f"to use as the viewer root (found: {found}); set {ROOT_ENV} to choose one"
+                )
+            _root_iri = candidates[0]
+    return _root_iri
 
 
 def short_name(iri: str) -> str:
@@ -258,12 +315,12 @@ def render_payload_of(iri: str) -> str | None:
 
 def resolve_payload_path(payload_iri: str) -> Path:
     """Resolve a seam:renderPayload file:// IRI to a path, rejecting anything
-    outside DATA_DIR so an unexpected payload IRI can't read arbitrary files."""
+    outside MODEL_DIR so an unexpected payload IRI can't read arbitrary files."""
     parts = urlsplit(payload_iri)
     if parts.scheme != "file":
         raise HTTPException(status_code=404, detail=f"payload {payload_iri} is not a resolvable file")
     candidate = Path(unquote(parts.path)).resolve()
-    if DATA_DIR.resolve() not in candidate.parents:
+    if MODEL_DIR.resolve() not in candidate.parents:
         raise HTTPException(status_code=404, detail=f"payload {payload_iri} is outside the model root")
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail=f"payload file not found: {candidate}")
@@ -692,11 +749,13 @@ def toggled(hidden: list[str], type_qname: str) -> list[str]:
 @app.on_event("startup")
 def startup() -> None:
     get_graph()
+    logger.info("viewer model %s (%s), root %s", MODEL_PATH,
+                f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default", root_iri())
 
 
 @app.get("/")
 def index() -> RedirectResponse:
-    return RedirectResponse(url=f"/view/{quote(ROOT_IRI, safe='')}")
+    return RedirectResponse(url=f"/view/{quote(root_iri(), safe='')}")
 
 
 @app.get("/payload/{iri:path}")
@@ -827,6 +886,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
             render_kind = "shapegraph"
             shape_model = model
 
+    root = root_iri()
     ctx = {
         "request": request,
         "focus_iri": focus,
@@ -864,9 +924,9 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "breadcrumbs": [
             {"label": c["label"], "href": href_for(c["iri"], incoming_trail[:i], carried_level)}
             for i, c in enumerate(view["breadcrumbs"])
-            if c["iri"] != ROOT_IRI
+            if c["iri"] != root
         ],
-        "root_href": href_for(ROOT_IRI, [], carried_level),
+        "root_href": href_for(root, [], carried_level),
         "next_path_qs": quote(",".join(outgoing_trail), safe=""),
         "applicable_queries": [
             {

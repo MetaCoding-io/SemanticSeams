@@ -43,6 +43,9 @@ request.
 python3 -m uvicorn viewer.app:app --port 8000
 ```
 
+The viewer loads the chat app unless `SEAMS_MODEL` names another TriG file
+(see [Authoring a model](/guide/authoring-a-model#view-it)).
+
 Open <http://localhost:8000>. The root redirects to the chat app's architecture view,
 the top of the descent. From there:
 

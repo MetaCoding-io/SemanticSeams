@@ -21,8 +21,8 @@ from viewer import app as viewer_app  # noqa: E402
 CHAT = "https://example.org/chat/"
 CHAT_BPMN = f"{CHAT}chat_bpmn"
 ROUTING_DMN = f"{CHAT}routing_dmn"
-BPMN_FILE = viewer_app.DATA_DIR / "chat_process.bpmn"
-DMN_FILE = viewer_app.DATA_DIR / "routing.dmn"
+BPMN_FILE = viewer_app.MODEL_DIR / "chat_process.bpmn"
+DMN_FILE = viewer_app.MODEL_DIR / "routing.dmn"
 SEAM_KEYS = {"predicate", "predicateLabel", "target", "targetLabel", "targetLayer", "reveal"}
 
 

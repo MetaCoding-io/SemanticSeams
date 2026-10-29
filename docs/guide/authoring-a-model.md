@@ -128,6 +128,13 @@ print(report)
 
 ## View it
 
-The viewer currently loads one model, set by `DATA_PATH` and `ROOT_IRI` at the top of
-`viewer/app.py`. Point both at your file and its root model, then start the viewer as in
-[Getting started](/guide/getting-started#open-the-viewer).
+The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your
+`seam:renderPayload` values name beside the TriG file, then start the viewer:
+
+```sh
+SEAMS_MODEL=path/to/model.trig python3 -m uvicorn viewer.app:app --port 8000
+```
+
+The root view is your model's C4 `seam:Model`. If the file has none, or more than one,
+set `SEAMS_VIEWER_ROOT` to the IRI the viewer should open at. See
+[Getting started](/guide/getting-started#open-the-viewer) for a tour of the views.

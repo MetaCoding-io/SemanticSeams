@@ -23,8 +23,8 @@ from viewer import app as viewer_app  # noqa: E402
 CHAT = "https://example.org/chat/"
 CHAT_BPMN = f"{CHAT}chat_bpmn"
 ROUTING_DMN = f"{CHAT}routing_dmn"
-BPMN_FILE = viewer_app.DATA_DIR / "chat_process.bpmn"
-DMN_FILE = viewer_app.DATA_DIR / "routing.dmn"
+BPMN_FILE = viewer_app.MODEL_DIR / "chat_process.bpmn"
+DMN_FILE = viewer_app.MODEL_DIR / "routing.dmn"
 
 
 @pytest.fixture
@@ -65,9 +65,9 @@ def test_view_payload_url_round_trips_through_payload_route(client):
     "payload_iri",
     [
         "https://example.org/chat/routing.dmn",  # not a file:// IRI
-        (viewer_app.DATA_DIR.parent.parent / "README.md").resolve().as_uri(),  # outside DATA_DIR
-        (viewer_app.DATA_DIR / ".." / ".." / "README.md").as_uri(),  # traversal
-        (viewer_app.DATA_DIR / "missing.bpmn").resolve().as_uri(),  # absent
+        (viewer_app.MODEL_DIR.parent.parent / "README.md").resolve().as_uri(),  # outside MODEL_DIR
+        (viewer_app.MODEL_DIR / ".." / ".." / "README.md").as_uri(),  # traversal
+        (viewer_app.MODEL_DIR / "missing.bpmn").resolve().as_uri(),  # absent
     ],
 )
 def test_payload_rejects_unresolvable_iris(client, payload_iri):

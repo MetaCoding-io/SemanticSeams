@@ -15,8 +15,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
+from rdflib.namespace import SH
 
 from viewer import ifml, legend
+from viewer.shapegraph import shapegraph_graph_data
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.validation import get_model_conformance
@@ -72,7 +74,7 @@ LAYER_BY_NOTATION = {
     "statechart": "lifecycle",
 }
 
-RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn"}
+RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn", "shapegraph"}
 PAYLOAD_RENDERERS = {"bpmn", "dmn"}
 
 app = FastAPI(title="SemanticSeams Viewer")
@@ -578,6 +580,7 @@ GRAPH_BUILDERS = {
     "c4": c4_graph_data,
     "ifml": ifml_graph_data,
     "statechart": statechart_graph_data,
+    "shapegraph": shapegraph_graph_data,
 }
 
 
@@ -810,6 +813,19 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     carried_level = view["level"] or (level if level in C4_LEVELS else "")
     notation = view["notation"]
     render_kind = notation if notation in RENDERERS_IMPLEMENTED else "none"
+    # D022: a NodeShape that self-lands (no detail model, e.g. ConversationShape)
+    # draws its model's shape graph with itself highlighted. Template-only:
+    # build_view and the ADR-0004 JSON keep notation "none" for it.
+    shape_model = None
+    if render_kind == "none" and not is_model(focus):
+        model = focused_model(focus)
+        if (
+            model is not None
+            and (URIRef(focus), RDF.type, SH.NodeShape) in get_graph()
+            and notation_of(model) == "shapegraph"
+        ):
+            render_kind = "shapegraph"
+            shape_model = model
 
     ctx = {
         "request": request,
@@ -866,6 +882,10 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     if render_kind == "c4":
         nodes, edges = c4_graph_data(focus, view["level"])
         nodes, edges = legend.contract_hidden(nodes, edges, view["hiddenTypes"])
+        ctx["nodes"] = nodes
+        ctx["edges"] = edges
+    elif render_kind == "shapegraph":
+        nodes, edges = shapegraph_graph_data(shape_model or focus, focus=focus)
         ctx["nodes"] = nodes
         ctx["edges"] = edges
     elif render_kind in GRAPH_BUILDERS:

@@ -14,6 +14,8 @@ import difflib
 import shutil
 from pathlib import Path
 
+import pytest
+
 from seams_gen import generate_compose
 from seams_gen.__main__ import main
 

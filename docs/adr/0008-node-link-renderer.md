@@ -64,5 +64,5 @@ M007/S03 gives the data layer a view on the same ELK card renderer (decision D02
 - **Positive:** The renderer is plain DOM, so htmx navigation, `data-iri` hooks and the shared card all carry over.
 - **Positive:** Levels and the L1 rollup are server-side and tested in pytest; the level is in the URL from the start.
 - **Negative:** The project owns pan and zoom. v1 is drag to pan plus +, − and fit buttons. There is no wheel listener, so the diagram never traps page scroll.
-- **Negative:** Several renderers live side by side for a while: C4 on elkjs + SVG, IFML on diagram-js over a fixed ELK layout (M007/S04, see "IFML" below), and the statechart still on vis-network.
-- **Follow-up:** If pan, zoom and editing needs grow (backlog item 10), move the SVG drawing onto diagram-js and keep the ELK geometry.
+- **Negative:** Several renderers live side by side for a while: C4 on elkjs + SVG, IFML on diagram-js over a fixed ELK layout (M007/S04, see "IFML" above), and the statechart still on vis-network.
+- **Follow-up (done, M007/S04):** backlog item 10 moved the IFML drawing onto diagram-js and kept the Python geometry, carried as a fixed ELK layout with ports for events. diagram-js is also the base if IFML editing is wanted later.

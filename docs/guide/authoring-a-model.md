@@ -64,9 +64,11 @@ A form can store what it submits before the model has any BPMN process. Give the
 form `seam:writes S` and an `ifml:hasEvent` whose event `seam:submitsTo` a POST
 `hydra:Operation` with `seam:acceptsShape S`, and do not give that event a
 `seam:triggers`. The container that `seam:exposes` the operation is then routed, and
-its generated handler validates the input against `S` (a 422 on failure) and calls
-`runtime.write` to store it as a new entity, in the lifecycle's initial state when `S`
-has a `seam:lifecycle` (decision D026). Once the event `seam:triggers` a process, the
+its generated handler calls `runtime.write`, which validates the input against `S` (a 422
+naming the failing paths) and stores it as a new entity. If `S` has an `:id` property the
+runtime fills it with the new entity's id first, so the form does not ask for it. The
+entity starts in the lifecycle's initial state when `S` has a `seam:lifecycle`
+(decision D026). Once the event `seam:triggers` a process, the
 handler starts the process instead and the worker does the persisting.
 
 ## A skeleton

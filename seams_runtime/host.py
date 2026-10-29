@@ -10,7 +10,9 @@ app needs but no generated handler holds:
   with ``exc.http_status``;
 - ``GET /healthz``;
 - the landmark page at its ifml:path, rendered by ``Runtime.render_page``
-  with the page's correlation-key query parameters;
+  with the page's correlation-key query parameters, and each of
+  ``ModelGraph.secondary_pages`` (a pathed page holding no task form) the
+  same way at its own path;
 - ``GET /tasks``, the task inbox (ADR-0009): the open user tasks
   ``Runtime.user_tasks`` lists for the request's identity, each rendered with
   its generated form partial (the row's ``partial``, given ``task=row``).
@@ -156,10 +158,12 @@ def build_app(routes_path) -> FastAPI:
     async def healthz() -> dict:
         return {"status": "ok", "model_hash": runtime.model.hash}
 
-    async def landmark(request: Request) -> HTMLResponse:
-        # only correlation-key parameters reach the template context
-        params = {k: request.query_params[k] for k in keys if request.query_params.get(k)}
-        return runtime.render_page(page, **params)
+    def page_route(served):
+        async def render(request: Request) -> HTMLResponse:
+            # only correlation-key parameters reach the template context
+            params = {k: request.query_params[k] for k in keys if request.query_params.get(k)}
+            return runtime.render_page(served, **params)
+        return render
 
     async def tasks(request: Request):
         identity = runtime.hook.authenticate(request)
@@ -169,7 +173,11 @@ def build_app(routes_path) -> FastAPI:
             return JSONResponse(jsonable_encoder({"identity": identity.id, "tasks": rows}))
         return HTMLResponse(render_inbox(runtime, identity, rows))
 
-    app.add_api_route(page_path, landmark, methods=["GET"], response_class=HTMLResponse)
+    app.add_api_route(page_path, page_route(page), methods=["GET"], response_class=HTMLResponse)
+    for other in runtime.model.secondary_pages():
+        app.add_api_route(runtime.model.page_path(other), page_route(other), methods=["GET"],
+                          response_class=HTMLResponse)
+        log.info("host: %s at GET %s", other, runtime.model.page_path(other))
     app.add_api_route(TASKS_PATH, tasks, methods=["GET"])
     app.include_router(module.router)
     log.info("host: %s at GET %s, task inbox at GET %s, routes from %s", page, page_path, TASKS_PATH,

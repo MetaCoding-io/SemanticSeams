@@ -611,6 +611,21 @@ class ModelGraph:
                                   f"found {[str(p) for p in pages]}")
         return pages[0]
 
+    def secondary_pages(self) -> list[URIRef]:
+        """The other ifml:ViewContainers served as pages: each one with an
+        ifml:path that is not the landmark and holds no form a user task is
+        seam:completedOn (such a screen is reached through the task inbox,
+        ADR-0009). Sorted by IRI."""
+        landmark = self.landmark_page()
+        pages = []
+        for c in set(self.ds.subjects(RDF.type, IFML.ViewContainer)):
+            if c == landmark or (c, IFML.path, None) not in self.ds:
+                continue
+            if any((None, SEAM.completedOn, part) in self.ds for part in self.ds.objects(c, IFML.contains)):
+                continue
+            pages.append(c)
+        return sorted(pages, key=str)
+
     def page_path(self, page) -> str:
         """The ifml:path a page is served at."""
         return str(self._one(self.curie(page), IFML.path, "page has no ifml:path"))

@@ -7,7 +7,9 @@ communication and lifecycle facts it touches into frozen dataclasses;
 UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2, plus,
 for each ``ifml:Form`` a ``proc:UserTask`` ``seam:completedOn`` (ADR-0009), a
 task form partial through htmx_task_form.html.j2 and the partials of the
-components its completion renders on the form's screen. The
+components its completion renders on the form's screen. ``generate_pages``
+adds each ``ModelGraph.secondary_pages`` page (an ``ifml:path`` and no task
+form), extracted the same way and rendered with its own partials. The
 template holds the fixed text only: every model-specific string comes from the
 ``PageModel``, and every collection is sorted explicitly (components by
 ifml:order, fields by sh:order, everything else by IRI), never by graph
@@ -192,6 +194,7 @@ class PageModel:
     fragments: tuple[Fragment, ...] = ()
     task_forms: tuple[TaskForm, ...] = ()
     screen_components: tuple[Component, ...] = ()  # rendered components of task form screens
+    landmark: bool = True  # False for a ModelGraph.secondary_pages page
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
@@ -210,9 +213,13 @@ def _fill(template: str, fill) -> str:
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
-def extract_page(model: ModelGraph) -> PageModel:
+def extract_page(model: ModelGraph, page=None) -> PageModel:
+    """The landmark page, or ``page`` (one of ``ModelGraph.secondary_pages``).
+    Only the landmark's PageModel carries the task forms and their screens'
+    components; a secondary page carries its own components and partials."""
     f = _Facts(model)
-    page = _landmark(f, model)
+    landmark = page is None
+    page = _landmark(f, model) if landmark else model.curie(page)
     imodel = _interaction_model(f, page)
     presenter = _presenter(f, imodel)
 
@@ -231,7 +238,7 @@ def extract_page(model: ModelGraph) -> PageModel:
 
     built = tuple(_component(f, c, order, presenter, page_params, sse_channels)
                   for order, c in components)
-    task_forms = _task_forms(f, presenter)
+    task_forms = _task_forms(f, presenter) if landmark else ()
     screens = _screen_components(f, presenter, task_forms, {c.id for c in built}, sse_channels)
     return PageModel(
         model_stem=model.path.stem,
@@ -246,6 +253,7 @@ def extract_page(model: ModelGraph) -> PageModel:
         fragments=_fragments(f, presenter, {c.id for c in built + screens}),
         task_forms=task_forms,
         screen_components=screens,
+        landmark=landmark,
     )
 
 
@@ -646,6 +654,23 @@ def render_task_forms(page: PageModel) -> dict[str, str]:
     """{file name: text} for every task form partial in ``page.task_forms``."""
     template = _environment().get_template(TASK_FORM_TEMPLATE_NAME)
     return {tf.name: template.render(page=page, t=tf) for tf in page.task_forms}
+
+
+def generate_pages(model: ModelGraph) -> dict[str, str]:
+    """{file name: text}: the landmark page as <page local name>.html with
+    its partials and task form partials, then each secondary page and its
+    partials. Two pages naming the same partial must render it identically."""
+    files: dict[str, str] = {}
+    for page in [extract_page(model)] + [extract_page(model, p) for p in model.secondary_pages()]:
+        rendered = {f"{page.id}.html": render_page(page), **render_fragments(page)}
+        if page.landmark:
+            rendered.update(render_task_forms(page))
+        for name, text in rendered.items():
+            if files.get(name, text) != text:
+                raise GeneratorError(model.curie(page.curie), IFML.contains,
+                                     f"{name} would be generated twice with different content")
+            files[name] = text
+    return files
 
 
 def generate_page(trig_path) -> str:

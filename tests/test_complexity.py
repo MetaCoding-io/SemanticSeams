@@ -1,5 +1,6 @@
 """The complexity check (backlog E3, D025): seams_gen.complexity against the
-chat app, the checkout example and a synthetic passing model, plus the CLI."""
+chat app, the checkout example, the chapter-08 expense model (the passing
+worked example) and a synthetic passing model, plus the CLI."""
 
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ from seams_gen.complexity import (
 ROOT = Path(__file__).resolve().parents[1]
 CHAT = ROOT / "examples" / "chat-app" / "chat-app.trig"
 CHECKOUT = ROOT / "examples" / "checkout.trig"
+EXPENSES = ROOT / "examples" / "expenses" / "chapter-08" / "expenses.trig"
 SEAM = "https://w3id.org/seams/seam#"
 NOTATIONS = ["BPMN", "C4", "DMN", "IFML", "ShapeGraph", "Statechart"]
 
@@ -65,6 +67,37 @@ def test_checkout_scores():
         (shop + "app01", 1),
     ]
     assert len(r.failures) == 2
+
+
+def test_expense_chapter_8_scores_4_6_109_and_passes():
+    """The finished expense tutorial: two models each of BPMN, DMN, IFML and
+    statechart, and ExpenseShape reached from six models (the expense UI,
+    both processes, both decisions and the finance console)."""
+    r = measure(load_model(EXPENSES))
+    assert r.models_per_notation == [
+        (SEAM + "BPMN", 2), (SEAM + "DMN", 2), (SEAM + "IFML", 2), (SEAM + "Statechart", 2),
+        (SEAM + "C4", 1), (SEAM + "ShapeGraph", 1),
+    ]
+    assert r.multi_model_notations == 4
+    ex = "https://example.org/expenses/"
+    assert r.most_reached == [
+        (ex + "ExpenseShape", 6),
+        (ex + "PaymentShape", 4),
+        (ex + "payouts", 3),
+        (ex + "submit_expense_op", 3),
+        (ex + "ApprovalShape", 2),
+    ]
+    assert r.max_reach == 6
+    assert r.edges == 109
+    assert r.failures == []
+
+
+def test_cli_expense_chapter_8_passes():
+    p = _cli("examples/expenses/chapter-08/expenses.trig")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert p.stdout.splitlines()[-1] == "PASS"
+    assert "  ExpenseShape: 6" in p.stdout
+    assert "seam edges: 109 (reported, not gated)" in p.stdout
 
 
 def test_measure_is_deterministic():

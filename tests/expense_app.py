@@ -46,6 +46,12 @@ PROCESS_CHAPTERS = sorted(
 # user tasks with role policies. From there only the "manager" identity sees
 # the approval task, and an approved expense waits on pay_expense for finance.
 FIRST_ROLES_CHAPTER = 7
+# The first chapter with a second, channel-started process (ADR-0010): from
+# there a paid expense's correlation key also names a payout instance, so
+# ``status`` and ``trace`` read the approval instance by default.
+FIRST_PAYOUT_CHAPTER = 8
+APPROVAL_PROCESS = "https://example.org/expenses/approval_process"
+PAYOUT_PROCESS = "https://example.org/expenses/payout_process"
 
 
 def chapter_number(chapter: str) -> int:
@@ -54,6 +60,10 @@ def chapter_number(chapter: str) -> int:
 
 def has_roles(chapter: str) -> bool:
     return chapter_number(chapter) >= FIRST_ROLES_CHAPTER
+
+
+def has_payout(chapter: str) -> bool:
+    return chapter_number(chapter) >= FIRST_PAYOUT_CHAPTER
 
 
 def chapter_dir(chapter: str) -> Path:
@@ -150,14 +160,19 @@ def until(predicate, timeout=5.0):
     raise AssertionError(f"timed out waiting for {predicate.__doc__ or predicate}")
 
 
-def status(runtime, key):
+def instances(runtime, key, process=APPROVAL_PROCESS) -> list[dict]:
+    """The stored instances of ``process`` with correlation key ``key``, oldest update first."""
+    return [r for r in runtime.store.list_instances(correlation_key=key) if r["process"] == process]
+
+
+def status(runtime, key, process=APPROVAL_PROCESS):
     """the instance's stored status"""
-    rows = runtime.store.list_instances(correlation_key=key)
+    rows = instances(runtime, key, process)
     return rows[-1]["status"] if rows else None
 
 
-def trace(runtime, key) -> list[dict]:
+def trace(runtime, key, process=APPROVAL_PROCESS) -> list[dict]:
     """The latest instance's trace rows, read back from its checkpoint."""
-    [*_, row] = runtime.store.list_instances(correlation_key=key)
+    [*_, row] = instances(runtime, key, process)
     wf = runtime.engine.deserialize(runtime.store.load_state(row["instance_id"]))
     return wf.data["seams"]["trace"]

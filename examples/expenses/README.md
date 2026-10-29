@@ -47,6 +47,19 @@ examples/expenses/
   chapter-07/generated/      the route module (chapter 6's plus the payment completion route, and the
                              employee policy on the submit route) and templates generated from chapter 7
   chapter-07/seed.json       an empty seed ({})
+  chapter-08/expenses.trig   growing up: chapter 7 plus the payouts channel, the payout_bpmn process it
+                             starts, the payout_dmn decision, the payment_lifecycle statechart and the
+                             finance_console interaction model with its /payouts page
+  chapter-08/approval.bpmn   chapter 7's process with the paid end event made a message end event
+                             that publishes on payouts
+  chapter-08/approval.dmn    chapter 7's routing table, unchanged
+  chapter-08/payout.bpmn     the payout process: a message start event, schedule_payout, the
+                             choose_payout business-rule task and a gateway to add_to_batch or send_now
+  chapter-08/payout.dmn      the payout method table: up to 500 batch, above that now
+  chapter-08/generated/      the route module (chapter 7's plus two finance console read routes and
+                             the payouts SSE stream, but no route for the payout process) and
+                             templates, including the /payouts page, generated from chapter 8
+  chapter-08/seed.json       an empty seed ({})
 ```
 
 Every checkpoint is a cumulative copy of the one before it, so the diff between
@@ -114,3 +127,17 @@ that leaves the instance waiting. An approved expense waits on `pay_expense`,
 and paying stores a `PaymentShape` and leaves the expense `paid`. The same
 file runs the viewer's `screens-by-role-writing-shape` query on `PaymentShape`
 and gets one row: the employee's Submit Expense on the Expenses page.
+
+For chapter 8, `tests/test_expense_payout.py` serves the checkpoint and runs
+an expense through both processes. An employee submits 250.00, the manager
+approves and finance pays. The approval instance completes, and its message end
+event's trace row shows `published` on `:payouts` and the payout instance it
+`started`. That instance runs with nobody taking part, under the same
+correlation key: it schedules the payment, `payout.dmn` answers `batch` (or
+`now` for 750.00), and the stored payment ends `batched` (or `sent`), having
+been stored `recorded` when finance paid. A rejected expense, or one approved
+but not yet paid, starts no payout, and no generated route starts the payout
+process. `GET /payouts`, the finance console page, lists the payment, and the
+viewer opens the new models. The same checkpoint is the passing example of
+`python -m seams_gen.complexity` (4 notations with two models, `:ExpenseShape`
+reached from 6 models, 109 seam edges), pinned by `tests/test_complexity.py`.

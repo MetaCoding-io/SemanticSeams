@@ -1,0 +1,766 @@
+# Expense approval tutorial, chapter 8: growing up.
+#
+# Chapter 7's graphs are kept; this chapter adds a second process that runs
+# on its own. When finance has paid an approved expense, the approval
+# process ends on a message end event that seam:publishesTo the new
+# :payouts channel. The new :payout_process has no UI event: its message
+# start event seam:subscribesTo :payouts, so the runtime starts it with the
+# expense's correlation key, entities and statuses (ADR-0010). It schedules
+# the payment, asks the new :payout_method decision (payout.dmn) how to send
+# it, and either batches it or sends it now. A payment has its own
+# statechart, :payment_lifecycle (recorded, scheduled, then batched or
+# sent), and finance watches payments on a second interaction model, the
+# :finance_console, whose /payouts page lists them. A rejected expense ends
+# on a plain end event, so it publishes nothing and starts no payout.
+#
+# The checkpoint has two models each of BPMN, DMN, IFML and statechart, and
+# passes python -m seams_gen.complexity.
+#
+# A model is a TriG file: Turtle triples grouped into named graphs. Each
+# seam:Model gets its own graph, and every link between models (and every
+# seam: annotation such as seam:notation) lives in the seams graph at the end.
+# See docs/tutorials/expenses/ for the walkthrough.
+
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix ifml:   <https://w3id.org/seams/ifml#> .
+@prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
+@prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix state:  <https://w3id.org/seams/state#> .
+@prefix dec:    <https://w3id.org/seams/dec#> .
+@prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix :       <https://example.org/expenses/> .
+
+#################################################################
+# Architecture model graph (C4)
+#################################################################
+
+<urn:seams:graph:model:expense_architecture> {
+
+    :expense_architecture a seam:Model ;
+        rdfs:label "Expense Architecture" .
+
+    # The system and the two containers it is built from.
+    :expense_system a arch:System ; rdfs:label "Expense Approval" ;
+        arch:contains :employee_portal , :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :expense_api ;
+        seam:inModel :expense_architecture .
+
+    :expense_api a arch:Container ; rdfs:label "Expense API" ;
+        arch:technology "FastAPI" ;
+        seam:inModel :expense_architecture .
+}
+
+#################################################################
+# Data model graph (SHACL shape graph)
+#################################################################
+
+<urn:seams:graph:model:expense_data> {
+
+    :expense_data a seam:Model ; rdfs:label "Expense Data" .
+
+    # Identifier convention (as in the chat app): a shape addressed in a URL
+    # carries one string :id. It is optional from chapter 4: the submit path's
+    # {expense} variable maps to it, and the process stores the expense under
+    # that correlation key. The other properties are what a form asks for.
+    :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :description ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 0 ] ;
+        sh:property [ sh:path :amount ; sh:datatype xsd:decimal ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:minInclusive 0.01 ; sh:order 1 ] ;
+        sh:property [ sh:path :date ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 2 ] ;
+        # Set by the runtime, never entered: the rdfs:label of the expense's
+        # current state in :expense_lifecycle.
+        sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 3 ;
+                      sh:in ( "draft" "submitted" "approved" "rejected" "paid" ) ] ;
+        seam:inModel :expense_data .
+
+    # What the approver enters: a decision from the list, and an optional comment.
+    :ApprovalShape a sh:NodeShape ; rdfs:label "Approval" ;
+        sh:property [ sh:path :decision ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:in ( "approved" "rejected" ) ; sh:order 0 ] ;
+        sh:property [ sh:path :comment ; sh:datatype xsd:string ; sh:maxCount 1 ;
+                      sh:maxLength 500 ; sh:order 1 ] ;
+        seam:inModel :expense_data .
+
+    # What finance records when it pays an approved expense: the payment
+    # reference and the day it was paid.
+    :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
+        sh:property [ sh:path :reference ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:maxLength 100 ; sh:order 0 ] ;
+        sh:property [ sh:path :paid_on ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:order 1 ] ;
+        # Set by the runtime, never entered: the rdfs:label of the payment's
+        # current state in :payment_lifecycle.
+        sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;
+                      sh:in ( "recorded" "scheduled" "batched" "sent" ) ] ;
+        seam:inModel :expense_data .
+}
+
+#################################################################
+# Interaction model graph (IFML)
+#################################################################
+
+<urn:seams:graph:model:expense_ifml> {
+
+    :expense_ifml a seam:Model , ifml:InteractionModel ;
+        rdfs:label "Expense Interface" ;
+        ifml:contains :expenses_page , :approvals_page .
+
+    # The landmark page: the generated app serves it at ifml:path.
+    :expenses_page a ifml:ViewContainer ; rdfs:label "Expenses Page" ;
+        ifml:isLandmark true ;
+        ifml:path "/" ;
+        ifml:title "Expenses"@en ;
+        ifml:contains :expense_list , :expense_form ;
+        seam:inModel :expense_ifml .
+
+    # The expenses submitted so far, one item per expense.
+    :expense_list a ifml:Details ; rdfs:label "My Expenses" ;
+        ifml:order 0 ;
+        seam:inModel :expense_ifml .
+
+    # The form asks for the three fields its parameters are bound to.
+    :expense_form a ifml:Form ; rdfs:label "New Expense" ;
+        ifml:order 1 ;
+        ifml:hasEvent :submit_expense ;
+        ifml:hasParameter :expense , :description_input , :amount_input , :date_input ;
+        seam:inModel :expense_ifml .
+
+    # The correlation key: its label is the {expense} variable of the submit
+    # and approval paths, and it names the process instance.
+    :expense a ifml:Parameter ; rdfs:label "expense" ;
+        seam:inModel :expense_ifml .
+
+    :description_input a ifml:Parameter ; rdfs:label "description" ;
+        ifml:boundTo :description ;
+        seam:inModel :expense_ifml .
+    :amount_input a ifml:Parameter ; rdfs:label "amount" ;
+        ifml:boundTo :amount ;
+        seam:inModel :expense_ifml .
+    :date_input a ifml:Parameter ; rdfs:label "date" ;
+        ifml:boundTo :date ;
+        seam:inModel :expense_ifml .
+
+    :submit_expense a ifml:Event ; rdfs:label "Submit Expense" ;
+        ifml:trigger "submit" ;
+        seam:inModel :expense_ifml .
+
+    # Submitting appends the stored expense to the list.
+    :submit_to_list a ifml:NavigationFlow ;
+        ifml:source :submit_expense ; ifml:target :expense_list ;
+        ifml:swap ifml:Append ;
+        seam:inModel :expense_ifml .
+
+    # The approver's page. The approval task is completed here, because the
+    # page ifml:contains :approve_form (ADR-0009).
+    :approvals_page a ifml:ViewContainer ; rdfs:label "Approvals" ;
+        ifml:path "/approvals" ;
+        ifml:title "Approvals"@en ;
+        ifml:contains :expense_details , :approve_form , :finance_approve_form ,
+            :awaiting_approval , :payment_form ;
+        seam:inModel :expense_ifml .
+
+    # One expense, named by the correlation key.
+    :expense_details a ifml:Details ; rdfs:label "Expense" ;
+        ifml:order 0 ;
+        ifml:hasParameter :approved_expense ;
+        seam:inModel :expense_ifml .
+    :approved_expense a ifml:Parameter ; rdfs:label "expense" ;
+        seam:inModel :expense_ifml .
+
+    :approve_form a ifml:Form ; rdfs:label "Approve Expense" ;
+        ifml:order 1 ;
+        ifml:hasEvent :submit_approval ;
+        ifml:hasParameter :decision_input , :comment_input ;
+        seam:inModel :expense_ifml .
+    :decision_input a ifml:Parameter ; rdfs:label "decision" ;
+        ifml:boundTo :decision ;
+        seam:inModel :expense_ifml .
+    :comment_input a ifml:Parameter ; rdfs:label "comment" ;
+        ifml:boundTo :comment ;
+        seam:inModel :expense_ifml .
+
+    :submit_approval a ifml:Event ; rdfs:label "Submit Approval" ;
+        ifml:trigger "submit" ;
+        seam:inModel :expense_ifml .
+
+    # Approving replaces the details with the decided expense.
+    :approval_to_details a ifml:NavigationFlow ;
+        ifml:source :submit_approval ; ifml:target :expense_details ;
+        ifml:swap ifml:Replace ;
+        seam:inModel :expense_ifml .
+
+    # Finance's form for large expenses. A form completes at most one user
+    # task (ADR-0009), so the finance task gets its own form and parameters.
+    :finance_approve_form a ifml:Form ; rdfs:label "Finance Approve Expense" ;
+        ifml:order 2 ;
+        ifml:hasEvent :submit_finance_approval ;
+        ifml:hasParameter :finance_decision_input , :finance_comment_input ;
+        seam:inModel :expense_ifml .
+    :finance_decision_input a ifml:Parameter ; rdfs:label "decision" ;
+        ifml:boundTo :decision ;
+        seam:inModel :expense_ifml .
+    :finance_comment_input a ifml:Parameter ; rdfs:label "comment" ;
+        ifml:boundTo :comment ;
+        seam:inModel :expense_ifml .
+
+    :submit_finance_approval a ifml:Event ; rdfs:label "Submit Finance Approval" ;
+        ifml:trigger "submit" ;
+        seam:inModel :expense_ifml .
+
+    :finance_approval_to_details a ifml:NavigationFlow ;
+        ifml:source :submit_finance_approval ; ifml:target :expense_details ;
+        ifml:swap ifml:Replace ;
+        seam:inModel :expense_ifml .
+
+    # The same expense, shown only while it waits for a decision: its
+    # seam:visibleWhen guard is in the seams graph.
+    :awaiting_approval a ifml:Details ; rdfs:label "Awaiting approval" ;
+        ifml:order 3 ;
+        ifml:hasParameter :awaiting_expense ;
+        seam:inModel :expense_ifml .
+    :awaiting_expense a ifml:Parameter ; rdfs:label "expense" ;
+        seam:inModel :expense_ifml .
+
+    # Finance's form for paying an approved expense: it completes the
+    # :pay_expense task.
+    :payment_form a ifml:Form ; rdfs:label "Record Payment" ;
+        ifml:order 4 ;
+        ifml:hasEvent :submit_payment ;
+        ifml:hasParameter :reference_input , :paid_on_input ;
+        seam:inModel :expense_ifml .
+    :reference_input a ifml:Parameter ; rdfs:label "reference" ;
+        ifml:boundTo :reference ;
+        seam:inModel :expense_ifml .
+    :paid_on_input a ifml:Parameter ; rdfs:label "paid_on" ;
+        ifml:boundTo :paid_on ;
+        seam:inModel :expense_ifml .
+
+    :submit_payment a ifml:Event ; rdfs:label "Submit Payment" ;
+        ifml:trigger "submit" ;
+        seam:inModel :expense_ifml .
+
+    # Paying replaces the details with the paid expense.
+    :payment_to_details a ifml:NavigationFlow ;
+        ifml:source :submit_payment ; ifml:target :expense_details ;
+        ifml:swap ifml:Replace ;
+        seam:inModel :expense_ifml .
+}
+
+#################################################################
+# Process model graph (BPMN)
+#################################################################
+
+<urn:seams:graph:model:approval_bpmn> {
+
+    :approval_bpmn a seam:Model ; rdfs:label "Expense Approval (BPMN)" .
+
+    # The process and its tasks. Their IRIs are the BPMN element ids in
+    # approval.bpmn, under the model's namespace. The exclusive gateways are
+    # in approval.bpmn only: their conditions read the "route" and
+    # "decision" process variables, so they need no triples.
+    :approval_process a proc:Process ; rdfs:label "Expense Approval" ;
+        seam:inModel :approval_bpmn .
+
+    <https://example.org/expenses/approval_bpmn#persist_expense> a proc:ServiceTask ;
+        rdfs:label "Persist Expense" ;
+        seam:inModel :approval_bpmn .
+
+    <https://example.org/expenses/approval_bpmn#route_expense> a proc:BusinessRuleTask ;
+        rdfs:label "Route Expense" ;
+        seam:inModel :approval_bpmn .
+
+    <https://example.org/expenses/approval_bpmn#approve_expense> a proc:UserTask ;
+        rdfs:label "Approve Expense" ;
+        seam:inModel :approval_bpmn .
+
+    <https://example.org/expenses/approval_bpmn#finance_approve_expense> a proc:UserTask ;
+        rdfs:label "Finance Approve Expense" ;
+        seam:inModel :approval_bpmn .
+
+    # They do nothing but move the expense to its decided state.
+    <https://example.org/expenses/approval_bpmn#record_approval> a proc:ServiceTask ;
+        rdfs:label "Record Approval" ;
+        seam:inModel :approval_bpmn .
+
+    <https://example.org/expenses/approval_bpmn#record_rejection> a proc:ServiceTask ;
+        rdfs:label "Record Rejection" ;
+        seam:inModel :approval_bpmn .
+
+    # After the approval is recorded, finance pays the expense.
+    <https://example.org/expenses/approval_bpmn#pay_expense> a proc:UserTask ;
+        rdfs:label "Pay Expense" ;
+        seam:inModel :approval_bpmn .
+
+    # The paid path ends on a message end event: it publishes on :payouts.
+    # The rejected end stays a plain end event, so rejecting publishes nothing.
+    <https://example.org/expenses/approval_bpmn#approved_end> a proc:MessageThrowEvent ;
+        rdfs:label "Paid" ;
+        seam:inModel :approval_bpmn .
+}
+
+#################################################################
+# Second process model graph (BPMN): the payout
+#################################################################
+
+<urn:seams:graph:model:payout_bpmn> {
+
+    :payout_bpmn a seam:Model ; rdfs:label "Expense Payout (BPMN)" .
+
+    # No person takes part: the process starts from the channel and runs to
+    # its end. The gateway on "method" is in payout.bpmn only.
+    :payout_process a proc:Process ; rdfs:label "Expense Payout" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#payout_requested> a proc:MessageCatchEvent ;
+        rdfs:label "Payout Requested" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#schedule_payout> a proc:ServiceTask ;
+        rdfs:label "Schedule Payout" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#choose_payout> a proc:BusinessRuleTask ;
+        rdfs:label "Choose Payout" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#add_to_batch> a proc:ServiceTask ;
+        rdfs:label "Add to Batch" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#send_now> a proc:ServiceTask ;
+        rdfs:label "Send Now" ;
+        seam:inModel :payout_bpmn .
+}
+
+#################################################################
+# Second lifecycle model graph (statechart): the payment
+#################################################################
+
+<urn:seams:graph:model:payment_lifecycle> {
+
+    # A payment is recorded when finance pays the expense. The payout
+    # process schedules it, then either adds it to the next batch or sends
+    # it at once.
+    :payment_lifecycle a state:StateMachine , seam:Model ;
+        rdfs:label "Payment Lifecycle" ;
+        state:initial :s_recorded ;
+        state:hasState :s_recorded , :s_scheduled , :s_batched , :s_sent ;
+        state:final :s_batched , :s_sent ;
+        state:hasTransition :t_schedule , :t_batch , :t_send .
+
+    :s_recorded  a state:State ; rdfs:label "recorded"  ; seam:inModel :payment_lifecycle .
+    :s_scheduled a state:State ; rdfs:label "scheduled" ; seam:inModel :payment_lifecycle .
+    :s_batched   a state:State ; rdfs:label "batched"   ; seam:inModel :payment_lifecycle .
+    :s_sent      a state:State ; rdfs:label "sent"      ; seam:inModel :payment_lifecycle .
+
+    :t_schedule a state:Transition ; state:from :s_recorded  ; state:to :s_scheduled ; state:trigger "schedule" ; seam:inModel :payment_lifecycle .
+    :t_batch    a state:Transition ; state:from :s_scheduled ; state:to :s_batched   ; state:trigger "batch"    ; seam:inModel :payment_lifecycle .
+    :t_send     a state:Transition ; state:from :s_scheduled ; state:to :s_sent      ; state:trigger "send"     ; seam:inModel :payment_lifecycle .
+}
+
+#################################################################
+# Second decision model graph (DMN): the payout method
+#################################################################
+
+<urn:seams:graph:model:payout_dmn> {
+
+    :payout_dmn a seam:Model , dec:DecisionModel ;
+        rdfs:label "Payout Method (DMN)" .
+
+    # The table in payout.dmn reads the expense's :amount and answers
+    # "batch" or "now" in its "Method" column, copied into the process
+    # variable "method" that the payout gateway reads.
+    :payout_method a dec:Decision ; rdfs:label "Choose Payout Method" ;
+        dec:payloadElement "payout_method" ;
+        dec:input [ a dec:InputBinding ; dec:variable "amount" ; dec:fromPath :amount ] ;
+        dec:output [ a dec:OutputBinding ; dec:variable "Method" ; dec:processVariable "method" ] ;
+        seam:inModel :payout_dmn .
+}
+
+#################################################################
+# Second interaction model graph (IFML): the finance console
+#################################################################
+
+<urn:seams:graph:model:finance_console> {
+
+    :finance_console a seam:Model , ifml:InteractionModel ;
+        rdfs:label "Finance Console" ;
+        ifml:contains :payouts_page .
+
+    # Finance's page. It holds no task form, so the generated app serves it
+    # as a page at its ifml:path, as it serves the landmark page.
+    :payouts_page a ifml:ViewContainer ; rdfs:label "Payouts" ;
+        ifml:path "/payouts" ;
+        ifml:title "Payouts"@en ;
+        ifml:contains :payment_list , :paid_expenses ;
+        seam:inModel :finance_console .
+
+    # Every payment and the state the payout process has left it in.
+    :payment_list a ifml:Details ; rdfs:label "Payments" ;
+        ifml:order 0 ;
+        seam:inModel :finance_console .
+
+    # The expenses, so finance can match a payment to what was claimed.
+    :paid_expenses a ifml:Details ; rdfs:label "Expenses" ;
+        ifml:order 1 ;
+        seam:inModel :finance_console .
+}
+
+#################################################################
+# Lifecycle model graph (statechart)
+#################################################################
+
+<urn:seams:graph:model:expense_lifecycle> {
+
+    # Every expense starts as a draft. The runtime compares states by their
+    # rdfs:label, so the labels are the values :status and the
+    # seam:visibleWhen guard use.
+    :expense_lifecycle a state:StateMachine , seam:Model ;
+        rdfs:label "Expense Lifecycle" ;
+        state:initial :s_draft ;
+        state:hasState :s_draft , :s_submitted , :s_approved , :s_rejected , :s_paid ;
+        state:final :s_rejected , :s_paid ;
+        state:hasTransition :t_submit , :t_approve , :t_reject , :t_pay .
+
+    :s_draft     a state:State ; rdfs:label "draft"     ; seam:inModel :expense_lifecycle .
+    :s_submitted a state:State ; rdfs:label "submitted" ; seam:inModel :expense_lifecycle .
+    :s_approved  a state:State ; rdfs:label "approved"  ; seam:inModel :expense_lifecycle .
+    :s_rejected  a state:State ; rdfs:label "rejected"  ; seam:inModel :expense_lifecycle .
+    :s_paid      a state:State ; rdfs:label "paid"      ; seam:inModel :expense_lifecycle .
+
+    :t_submit  a state:Transition ; state:from :s_draft     ; state:to :s_submitted ; state:trigger "submit"  ; seam:inModel :expense_lifecycle .
+    :t_approve a state:Transition ; state:from :s_submitted ; state:to :s_approved  ; state:trigger "approve" ; seam:inModel :expense_lifecycle .
+    :t_reject  a state:Transition ; state:from :s_submitted ; state:to :s_rejected  ; state:trigger "reject"  ; seam:inModel :expense_lifecycle .
+    :t_pay     a state:Transition ; state:from :s_approved  ; state:to :s_paid      ; state:trigger "pay"     ; seam:inModel :expense_lifecycle .
+}
+
+#################################################################
+# Decision model graph (DMN)
+#################################################################
+
+<urn:seams:graph:model:approval_dmn> {
+
+    :approval_dmn a seam:Model , dec:DecisionModel ;
+        rdfs:label "Approval Routing (DMN)" .
+
+    # The decision and how the runtime binds it to approval.dmn: the DMN
+    # decision id, the table's input variable "amount" filled from the
+    # expense's :amount, and the output column "Route" copied into the
+    # process variable "route" that the gateway reads.
+    :approval_routing a dec:Decision ; rdfs:label "Route Approval" ;
+        dec:payloadElement "approval_routing" ;
+        dec:input [ a dec:InputBinding ; dec:variable "amount" ; dec:fromPath :amount ] ;
+        dec:output [ a dec:OutputBinding ; dec:variable "Route" ; dec:processVariable "route" ] ;
+        seam:inModel :approval_dmn .
+}
+
+#################################################################
+# Seams graph: notations and cross-model links
+#################################################################
+
+<urn:seams:graph:seams> {
+
+    # The viewer opens at the model whose notation is C4.
+    :expense_architecture seam:notation seam:C4 .
+    :expense_data seam:notation seam:ShapeGraph .
+    :expense_ifml seam:notation seam:IFML .
+    :approval_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <approval.bpmn> .
+    :approval_dmn seam:notation seam:DMN ;
+        seam:renderPayload <approval.dmn> .
+    :expense_lifecycle seam:notation seam:Statechart .
+    :payout_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <payout.bpmn> .
+    :payout_dmn seam:notation seam:DMN ;
+        seam:renderPayload <payout.dmn> .
+    :payment_lifecycle seam:notation seam:Statechart .
+    :finance_console seam:notation seam:IFML .
+
+    # Architecture to UI and API: the portal presents the screens of both
+    # interaction models and calls the operations the API exposes. The API
+    # also exposes the payout channel and runs both processes.
+    :employee_portal seam:presents :expense_ifml , :finance_console ;
+        seam:consumes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
+            :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
+            :pay_expense_op , :list_payments_op , :paid_expenses_op .
+    :expense_api seam:exposes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
+            :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
+            :pay_expense_op , :list_payments_op , :paid_expenses_op , :payouts ;
+        seam:executes :approval_process , :payout_process .
+
+    # UI to data and API: the form writes an ExpenseShape, its event submits
+    # it to the operation, and the list reads ExpenseShapes.
+    :expense_form seam:writes :ExpenseShape .
+    :expense_list seam:reads :ExpenseShape .
+    :submit_expense seam:submitsTo :submit_expense_op .
+
+    # The approvals page: the details read the expense, the form writes the
+    # approval, and its event submits it. The event has no seam:triggers:
+    # the process is already running and waiting for it.
+    :expense_details seam:reads :ExpenseShape .
+    :approve_form seam:writes :ApprovalShape .
+    :submit_approval seam:submitsTo :approve_expense_op .
+    :finance_approve_form seam:writes :ApprovalShape .
+    :submit_finance_approval seam:submitsTo :finance_approve_expense_op .
+    :payment_form seam:writes :PaymentShape .
+    :submit_payment seam:submitsTo :pay_expense_op .
+
+    # Data to lifecycle, and the guard: the block reads the expense and
+    # renders only while its lifecycle state is "submitted".
+    :ExpenseShape seam:lifecycle :expense_lifecycle .
+    :PaymentShape seam:lifecycle :payment_lifecycle .
+    :awaiting_approval seam:reads :ExpenseShape ;
+        seam:visibleWhen :s_submitted .
+
+    # UI to process: submitting the form starts the approval process, which
+    # the API container runs. Each instance is keyed by :expense.
+    :submit_expense seam:triggers :approval_process .
+    :approval_process seam:detailedBy :approval_bpmn ;
+        proc:correlationKey :expense .
+
+    # Process to API, data and lifecycle: the service task calls the submit
+    # operation, stores the expense and moves it from draft to submitted.
+    <https://example.org/expenses/approval_bpmn#persist_expense>
+        seam:invokes :submit_expense_op ;
+        seam:writes :ExpenseShape ;
+        seam:fires :t_submit .
+
+    # Process to decision: the business-rule task evaluates :approval_routing
+    # on the stored expense. The decision reads the same shape.
+    <https://example.org/expenses/approval_bpmn#route_expense>
+        seam:decidedBy :approval_routing ;
+        seam:reads :ExpenseShape .
+    :approval_routing seam:reads :ExpenseShape ;
+        seam:detailedBy :approval_dmn .
+
+    # The human task (ADR-0009): it shows the expense, waits for someone to
+    # submit :approve_form, and stores what they entered as an ApprovalShape.
+    <https://example.org/expenses/approval_bpmn#approve_expense>
+        seam:reads :ExpenseShape ;
+        seam:completedOn :approve_form ;
+        seam:writes :ApprovalShape .
+
+    # The finance task, for the amounts the table routes to "finance".
+    <https://example.org/expenses/approval_bpmn#finance_approve_expense>
+        seam:reads :ExpenseShape ;
+        seam:completedOn :finance_approve_form ;
+        seam:writes :ApprovalShape .
+
+    # Process to lifecycle: the tasks that move the expense. The runtime
+    # checks each transition against the expense's current state before the
+    # task runs, and stores the new state after it.
+    <https://example.org/expenses/approval_bpmn#record_approval> seam:fires :t_approve .
+    <https://example.org/expenses/approval_bpmn#record_rejection> seam:fires :t_reject .
+
+    # The payment task: finance sees the approved expense, submits
+    # :payment_form, and the task stores the PaymentShape and moves the
+    # expense from approved to paid.
+    <https://example.org/expenses/approval_bpmn#pay_expense>
+        seam:reads :ExpenseShape ;
+        seam:completedOn :payment_form ;
+        seam:writes :PaymentShape ;
+        seam:fires :t_pay .
+
+    # Process to channel: once the expense is paid, the approval process
+    # ends by publishing on :payouts (ADR-0010).
+    <https://example.org/expenses/approval_bpmn#approved_end> seam:publishesTo :payouts .
+
+    # The payout process has no seam:triggers event: its message start event
+    # subscribes to :payouts, so the runtime starts one instance per
+    # publish, keyed by the same :expense, with the expense and the payment
+    # the approval instance holds. No route starts it.
+    :payout_process seam:detailedBy :payout_bpmn ;
+        proc:correlationKey :expense .
+    <https://example.org/expenses/payout_bpmn#payout_requested> seam:subscribesTo :payouts .
+
+    # Process to lifecycle and data: scheduling moves the payment from
+    # recorded to scheduled and stores it (the stored payment keeps its id).
+    <https://example.org/expenses/payout_bpmn#schedule_payout>
+        seam:reads :PaymentShape ;
+        seam:writes :PaymentShape ;
+        seam:fires :t_schedule .
+
+    # Process to decision: the business-rule task evaluates :payout_method
+    # on the expense. The decision reads the same shape.
+    <https://example.org/expenses/payout_bpmn#choose_payout>
+        seam:decidedBy :payout_method ;
+        seam:reads :ExpenseShape .
+    :payout_method seam:reads :ExpenseShape ;
+        seam:detailedBy :payout_dmn .
+
+    # The two ways out of the gateway, each into a final payment state.
+    <https://example.org/expenses/payout_bpmn#add_to_batch>
+        seam:writes :PaymentShape ;
+        seam:fires :t_batch .
+    <https://example.org/expenses/payout_bpmn#send_now>
+        seam:writes :PaymentShape ;
+        seam:fires :t_send .
+
+    # The finance console: the payments, and the expenses they pay. Both
+    # blocks are read-only, so the page has no event and no policy.
+    :payment_list seam:reads :PaymentShape .
+    :paid_expenses seam:reads :ExpenseShape .
+
+    # Roles and policies. Each policy has one permission whose odrl:target
+    # is what it governs: the submit operation, or a user task (ADR-0009).
+    # The runtime admits an identity whose id or role (X-Forwarded-Groups)
+    # names the assignee party. Read operations stay ungoverned, and the
+    # lifecycle transitions are governed through the tasks that fire them
+    # (D028), so they carry no policy of their own.
+    :employee a odrl:Party ; rdfs:label "Employee" .
+    :manager a odrl:Party ; rdfs:label "Manager" .
+    :finance a odrl:Party ; rdfs:label "Finance" .
+
+    :employee_submit_policy a odrl:Policy ; rdfs:label "Employees may submit expenses" ;
+        odrl:permission [ a odrl:Permission ;
+                          odrl:target :submit_expense_op ;
+                          odrl:action odrl:use ;
+                          odrl:assignee :employee ] .
+    :manager_approval_policy a odrl:Policy ; rdfs:label "Managers may approve expenses" ;
+        odrl:permission [ a odrl:Permission ;
+                          odrl:target <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                          odrl:action odrl:use ;
+                          odrl:assignee :manager ] .
+    :finance_approval_policy a odrl:Policy ; rdfs:label "Finance may approve large expenses" ;
+        odrl:permission [ a odrl:Permission ;
+                          odrl:target <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                          odrl:action odrl:use ;
+                          odrl:assignee :finance ] .
+    :finance_payment_policy a odrl:Policy ; rdfs:label "Finance may pay expenses" ;
+        odrl:permission [ a odrl:Permission ;
+                          odrl:target <https://example.org/expenses/approval_bpmn#pay_expense> ;
+                          odrl:action odrl:use ;
+                          odrl:assignee :finance ] .
+
+    :submit_expense_op seam:governedBy :employee_submit_policy .
+    <https://example.org/expenses/approval_bpmn#approve_expense> seam:governedBy :manager_approval_policy .
+    <https://example.org/expenses/approval_bpmn#finance_approve_expense> seam:governedBy :finance_approval_policy .
+    <https://example.org/expenses/approval_bpmn#pay_expense> seam:governedBy :finance_payment_policy .
+
+    # Operation to the component whose partial its response renders.
+    :submit_expense_op seam:rendersComponent :expense_list .
+    :list_expenses_op seam:rendersComponent :expense_list .
+    :approve_expense_op seam:rendersComponent :expense_details .
+    :finance_approve_expense_op seam:rendersComponent :expense_details .
+    :expense_details_op seam:rendersComponent :expense_details .
+    :awaiting_approval_op seam:rendersComponent :awaiting_approval .
+    :pay_expense_op seam:rendersComponent :expense_details .
+    :list_payments_op seam:rendersComponent :payment_list .
+    :paid_expenses_op seam:rendersComponent :paid_expenses .
+
+    # Communication contract: the nine operations. The submit path carries
+    # the correlation key, mapped to the expense's :id.
+    :submit_expense_op a hydra:Operation ; rdfs:label "Submit Expense" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :ExpenseShape ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+
+    :list_expenses_op a hydra:Operation ; rdfs:label "List Expenses" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses" ] .
+
+    :approve_expense_op a hydra:Operation ; rdfs:label "Approve Expense" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :ApprovalShape ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}/approval" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+
+    :finance_approve_expense_op a hydra:Operation ; rdfs:label "Finance Approve Expense" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :ApprovalShape ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}/finance-approval" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+
+    :expense_details_op a hydra:Operation ; rdfs:label "Expense Details" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+
+    :awaiting_approval_op a hydra:Operation ; rdfs:label "Awaiting Approval" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}/awaiting-approval" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+
+    :pay_expense_op a hydra:Operation ; rdfs:label "Pay Expense" ;
+        hydra:method "POST" ;
+        seam:acceptsShape :PaymentShape ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:requestMediaType "application/x-www-form-urlencoded" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}/payment" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+
+    :list_payments_op a hydra:Operation ; rdfs:label "List Payments" ;
+        hydra:method "GET" ;
+        seam:returnsShape :PaymentShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/payments" ] .
+
+    :paid_expenses_op a hydra:Operation ; rdfs:label "Paid Expenses" ;
+        hydra:method "GET" ;
+        seam:returnsShape :ExpenseShape ;
+        seam:mediaKind seam:UIFragment ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/payouts/expenses" ] .
+
+    # The payout channel: the event the approval process publishes when an
+    # expense is paid (its rdfs:label names the event). The API serves it as
+    # a server-sent event stream scoped by the correlation key, so a client
+    # can watch one expense's payouts.
+    :payouts a comm:Channel ; rdfs:label "payout requested" ;
+        comm:transport comm:SSE ;
+        comm:eventName "payout" ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/expenses/{expense}/payouts" ;
+                    hydra:mapping [ a hydra:IriTemplateMapping ;
+                                    hydra:variable "expense" ;
+                                    hydra:property :id ] ] .
+}

@@ -24,7 +24,9 @@ is completed) and applies these rules to each BPMN element, in this order:
    The request's ``model`` is the value of the most recent decision when it
    produced exactly one output (the routed provider), else omitted.
 4. ``seam:writes Shape``: persist the current entity of that shape (the
-   first write persists the user message; after an invoke, the reply).
+   first write persists the user message; after an invoke, the reply). A
+   shape with a ``seam:lifecycle`` and no status yet (a user task's output,
+   say) is stored in, and from then on tracked at, its ``state:initial``.
 5. After dispatch, the fired transition is applied: the status becomes T's
    ``state:to`` label (for example "sending") and is persisted on every
    entity of that shape the instance has written.
@@ -308,6 +310,12 @@ class Worker:
         if cur["id"] is None:
             cur["id"] = str(uuid.uuid4())
         status = st["status"].get(str(shape))
+        if status is None and (shape, SEAM.lifecycle, None) in self.model.ds:
+            # first write of a lifecycle shape no transition has moved yet
+            # (e.g. a user task's output): it is stored in state:initial
+            status = self.model.lifecycle_for(shape).initial
+            st["status"][str(shape)] = status
+            st["history"].setdefault(str(shape), []).append(status)
         data = dict(cur["data"])
         if status is not None:
             data["status"] = status

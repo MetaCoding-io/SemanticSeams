@@ -7,6 +7,7 @@ from .errors import (
     PolicyDenied,
     ResolutionError,
     RuntimeModelError,
+    TaskNotOpen,
 )
 from .channels import ChannelBus
 from .contracts import validate
@@ -51,6 +52,7 @@ __all__ = [
     "RuntimeModelError",
     "StaticUserAuthenticator",
     "Store",
+    "TaskNotOpen",
     "Worker",
     "authenticator_from_env",
     "model_hash",

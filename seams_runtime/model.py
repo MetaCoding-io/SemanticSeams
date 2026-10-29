@@ -319,6 +319,30 @@ class ModelGraph:
     def written_shapes(self, task) -> list[URIRef]:
         return sorted(set(self.ds.objects(self._task(task), SEAM.writes)))
 
+    # ── user tasks (ADR-0009) ──
+
+    def user_task_form(self, task) -> URIRef:
+        """The ifml:Form a user task is seam:completedOn."""
+        return self._one(self._task(task), SEAM.completedOn, "user task names no form it is completed on")
+
+    def task_output_shape(self, task) -> URIRef:
+        """The shape completing a user task writes: its form's seam:writes,
+        else the task's own seam:writes (there must be exactly one)."""
+        iri = self._task(task)
+        shapes = sorted(set(self.ds.objects(self.user_task_form(iri), SEAM.writes)))
+        if not shapes:
+            shapes = self.written_shapes(iri)
+        if len(shapes) != 1:
+            raise ResolutionError(iri, SEAM.writes,
+                                  f"expected one output shape for the user task, found {[str(s) for s in shapes]}")
+        return shapes[0]
+
+    def form_screen(self, form) -> URIRef | None:
+        """The ifml:ViewContainer that ifml:contains ``form``, or None."""
+        pages = sorted(p for p in self.ds.subjects(IFML.contains, self.curie(form))
+                       if (p, RDF.type, IFML.ViewContainer) in self.ds)
+        return pages[0] if pages else None
+
     # ── decisions ──
 
     def decision_binding(self, task) -> DecisionBinding:

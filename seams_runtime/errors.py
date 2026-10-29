@@ -138,3 +138,18 @@ class PolicyDenied(RuntimeModelError):
 
     def _fields(self) -> dict:
         return {"policy": self.policy, "operation": self.operation, "reason": self.reason}
+
+
+class TaskNotOpen(RuntimeModelError):
+    """No open user task matches (already completed, never reached, or an
+    unknown correlation key)."""
+
+    http_status = 409
+
+    def __init__(self, task, correlation_key):
+        self.task = str(task)
+        self.correlation_key = None if correlation_key is None else str(correlation_key)
+        super().__init__(f"user task {self.task} is not open for correlation key {self.correlation_key!r}")
+
+    def _fields(self) -> dict:
+        return {"task": self.task, "correlation_key": self.correlation_key}

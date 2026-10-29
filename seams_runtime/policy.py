@@ -13,6 +13,12 @@ so without it a request with no header is refused (fail closed).
 wraps it for FastAPI; fastapi is imported only there, so the rest of the
 runtime does not depend on it.
 
+A BPMN user task is governed directly (ADR-0009): ``check_element`` and
+``allows`` evaluate every seam:governedBy policy of the task with the task
+IRI as the odrl:target. An ungoverned task is open to any authenticated
+identity; no identity is always 401. ``task_dependency`` is the FastAPI
+wrapper.
+
 This module deliberately avoids ``from __future__ import annotations``:
 FastAPI reads the dependency's ``request: Request`` annotation at runtime,
 and ``Request`` is only bound inside ``dependency``.
@@ -25,7 +31,7 @@ from typing import Mapping, Protocol, runtime_checkable
 from rdflib import URIRef
 
 from .errors import PolicyDenied, ResolutionError
-from .model import ODRL, ModelGraph, PolicyFacts, local_name
+from .model import ODRL, SEAM, ModelGraph, PolicyFacts, local_name
 
 DEV_USER_ENV = "SEAMS_DEV_USER"
 DEFAULT_IDENTITY_HEADER = "X-Forwarded-User"
@@ -169,6 +175,51 @@ class PolicyHook:
             if not allowed:
                 raise PolicyDenied(policy.iri, op, 403, reason)
         return identity
+
+    # ── governed elements (user tasks, ADR-0009) ──
+
+    def authenticate(self, request) -> Identity | None:
+        return self.authenticator(request)
+
+    def check_element(self, element, identity: Identity | None) -> Identity:
+        """Raise PolicyDenied unless ``identity`` passes every seam:governedBy
+        policy of ``element`` (evaluated with the element as the target).
+        None is 401; an ungoverned element admits any identity."""
+        iri = self.model.curie(element)
+        policies = [self.model.policy(p) for p in sorted(set(self.model.ds.objects(iri, SEAM.governedBy)))]
+        if identity is None:
+            policy = policies[0].iri if policies else iri
+            raise PolicyDenied(policy, iri, 401, f"no authenticated identity ({self.authenticator!r})")
+        for policy in policies:
+            allowed, reason = self.evaluator(policy, iri, identity)
+            if not allowed:
+                raise PolicyDenied(policy.iri, iri, 403, reason)
+        return identity
+
+    def allows(self, element, identity: Identity | None) -> tuple[bool, str]:
+        """(allowed, reason) of ``check_element``, without raising."""
+        try:
+            self.check_element(element, identity)
+        except PolicyDenied as denied:
+            return False, denied.reason
+        governed = (self.model.curie(element), SEAM.governedBy, None) in self.model.ds
+        return True, ("every governing policy permits it" if governed
+                      else "ungoverned element: any authenticated identity")
+
+    def task_dependency(self, task_curie):
+        """A FastAPI dependency: ``Depends(hook.task_dependency(":approve"))``
+        authenticates (401) and checks the task's policies (403), yielding the
+        Identity."""
+        from fastapi import HTTPException, Request
+
+        def _task_dependency(request: Request) -> Identity:
+            try:
+                return self.check_element(task_curie, self.authenticate(request))
+            except PolicyDenied as denied:
+                raise HTTPException(status_code=denied.http_status, detail=denied.to_dict()) from denied
+
+        _task_dependency.__name__ = f"task_policy_{local_name(self.model.curie(task_curie))}"
+        return _task_dependency
 
     def dependency(self, policy_curie, operation_iri=None):
         """A FastAPI dependency: ``Depends(hook.dependency(":user_send_policy"))``

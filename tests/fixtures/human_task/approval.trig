@@ -273,6 +273,9 @@
                           odrl:target <https://example.org/expenses/approval_bpmn#approve_expense> ;
                           odrl:action odrl:use ;
                           odrl:assignee :manager ] .
-    :employee a odrl:PartyCollection ; rdfs:label "Employees" .
-    :manager a odrl:PartyCollection ; rdfs:label "Managers" .
+    # Specific parties, not odrl:PartyCollection: the v1 PresenceEvaluator lets
+    # any authenticated identity satisfy a collection, and matches a party by
+    # its local name, so only the identity "manager" may complete the task.
+    :employee a odrl:Party ; rdfs:label "Employee" .
+    :manager a odrl:Party ; rdfs:label "Manager" .
 }

@@ -35,7 +35,15 @@ is completed) and applies these rules to each BPMN element, in this order:
    record the error as JSON, close the channel scope and mark the instance
    failed. The error is not re-raised; ``Instance.wait()`` returns it.
 8. After each element the workflow is checkpointed with the engine's
-   serializer into the store, so ``Runtime.resume`` can continue it.
+   serializer into the store, so ``Runtime.resume`` can continue it. The
+   checkpoint also replaces the instance's open ``user_tasks`` rows with its
+   READY manual tasks (none once it completes or fails).
+9. User tasks (``proc:UserTask``, manual in Spiff) are never stepped by the
+   loop: the instance ends "waiting" on them. ``complete_user_task`` makes
+   the person's validated payload the current entity of the task's output
+   shape (the seam:completedOn form's seam:writes) and merges it into the
+   task data so gateways can route on it, then applies rules 1 and 3-6 to the
+   task with the trace row's ``by`` set to the completing identity (ADR-0009).
 
 The worker's own state (current entities, statuses, decision outputs and a
 trace row per element) lives in ``workflow.data["seams"]``, which Spiff
@@ -123,6 +131,9 @@ class Worker:
             return self._finish(instance, FAILED)
         status = COMPLETE if wf.is_completed() else WAITING
         self._checkpoint(instance, status)
+        if status == WAITING:
+            log.info("instance %s waiting on user task(s) %s", instance.id,
+                     [t.task_spec.bpmn_id for t in self.open_user_tasks(wf)] or "(none)")
         return self._finish(instance, status)
 
     @staticmethod
@@ -133,6 +144,28 @@ class Worker:
         ready = [t for t in wf.get_tasks(state=TaskState.READY) if not t.task_spec.manual]
         return ready[0] if ready else None
 
+    @staticmethod
+    def open_user_tasks(wf) -> list:
+        """READY manual tasks with a BPMN element (the open user tasks)."""
+        return [t for t in wf.get_tasks(state=TaskState.READY)
+                if t.task_spec.manual and t.task_spec.bpmn_id is not None]
+
+    async def complete_user_task(self, instance: Instance, task_iri, shape, payload: dict,
+                                 by: str) -> None:
+        """Complete the open user task ``task_iri`` with an already validated
+        ``payload`` of ``shape``, then checkpoint. The caller resumes the loop.
+        LookupError when the instance has no such READY task."""
+        task_iri = str(task_iri)
+        tasks = [t for t in self.open_user_tasks(instance.workflow)
+                 if str(self.engine.task_iri(t)) == task_iri]
+        if not tasks:
+            raise LookupError(f"instance {instance.id} has no open user task {task_iri}")
+        task = tasks[0]
+        instance.state["current"][str(shape)] = {"id": None, "data": dict(payload)}
+        task.data.update(payload)
+        await self._element(instance, task, by=by)
+        self._checkpoint(instance, RUNNING)
+
     def _is_stop(self, instance: Instance, task) -> bool:
         if instance.stop_after is None:
             return False
@@ -141,7 +174,7 @@ class Worker:
 
     # ── one element ──
 
-    async def _element(self, instance: Instance, task) -> None:
+    async def _element(self, instance: Instance, task, by: str | None = None) -> None:
         st = instance.state
         bpmn_id = task.task_spec.bpmn_id
         if bpmn_id is None:  # Spiff's internal Start / End.* specs carry no graph facts
@@ -152,7 +185,9 @@ class Worker:
             return
         iri = self.engine.task_iri(task)
         row = {"task": bpmn_id, "iri": str(iri)}
-        log.info("instance %s: %s", instance.id, bpmn_id)
+        if by is not None:
+            row["by"] = by
+        log.info("instance %s: %s%s", instance.id, bpmn_id, "" if by is None else f" (by {by})")
 
         # 1. the fired transition must be enabled
         transition = shape = None
@@ -310,10 +345,16 @@ class Worker:
             log.exception("instance %s: checkpoint after failure failed", instance.id)
             self.store.save_state(instance.id, instance.process, "{}",
                                   correlation_key=instance.correlation_key, status=FAILED)
+            self.store.replace_user_tasks(instance.id, [])
 
     def _checkpoint(self, instance: Instance, status: str) -> None:
         self.store.save_state(instance.id, instance.process, self.engine.serialize(instance.workflow),
                               correlation_key=instance.correlation_key, status=status)
+        tasks = [] if status in (COMPLETE, FAILED) else self.open_user_tasks(instance.workflow)
+        self.store.replace_user_tasks(instance.id, [
+            {"task": str(self.engine.task_iri(t)), "bpmn_id": t.task_spec.bpmn_id,
+             "process": str(instance.process), "correlation_key": instance.correlation_key}
+            for t in tasks])
 
     def _finish(self, instance: Instance, status: str) -> dict:
         st = instance.state

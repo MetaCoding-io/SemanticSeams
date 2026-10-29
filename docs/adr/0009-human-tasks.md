@@ -64,13 +64,15 @@ happens to call.
 T02 of M009/S04 builds this:
 
 - The `Store` gains a `user_tasks` table: one row per open user task, with the instance
-  id, the task IRI, the BPMN id, the correlation key, the form, and the time it opened.
-  The worker writes the row when an instance stops on a user task, and deletes it when
-  the task completes.
+  id, the task IRI, the BPMN id, the process, the correlation key, and the time it
+  opened. The form is not stored, because it follows from the task. Every worker
+  checkpoint replaces the instance's rows with its open user tasks, so a row appears
+  when an instance stops on a user task and is gone once the task completes.
 - `Runtime.user_tasks(identity)` lists the open tasks that identity may complete.
-- `Runtime.complete_task(instance_id, task, payload, identity)` validates the payload
-  against the task's output shape, applies the policy, writes the shape, completes the
-  Spiff task and resumes the worker. A task that is not open (already completed, or
+- `Runtime.complete_task(task, payload, correlation_key, identity)` applies the policy,
+  finds the open task of the instance with that correlation key (the key is in the
+  completion route's path), validates the payload against the task's output shape,
+  writes the shape, completes the Spiff task and resumes the worker. A task that is not open (already completed, or
   unknown) raises `TaskNotOpen`, which the host answers with 409.
 - The trace row of a completed user task carries `"by"`: the identity that completed it.
 

@@ -30,13 +30,18 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
+| `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
+| `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once. |
+| `runtime.task_policy(task)` | A FastAPI dependency for a completion route. It authenticates the request (401) and checks the task's policies (403), answering with `PolicyDenied.to_dict()`, and yields the `Identity`. |
 | `runtime.query(":MessageShape", conversation="c1")` | Persisted entities of a shape. A filter named after a `proc:correlationKey` parameter label matches the correlation key. |
 | `runtime.subscribe(":stream_events", scope)` | An async iterator of SSE frames for one channel scope: the backlog first, then live frames. |
 | `runtime.render_fragment("message_thread.html", messages, **params)` | An `HTMLResponse` rendering an htmx partial from the templates dir (D017). The name is a `seam:rendersComponent` target's local name, or that plus `_item` for the one-item partial. It is resolved against the graph before any file is read, and an unknown name raises `ResolutionError`. The component's `seam:reads` shape `:MessageShape` binds `messages` (a list) or `message` (one item). Store entity rows are flattened to their payload plus `id` and `status`. A component with `seam:visibleWhen` also gets `message_state`: the last item's status, else the lifecycle's initial state label. Extra keyword params are merged last. |
 | `runtime.render_page(page=None, **params)` | An `HTMLResponse` rendering `<page local name>.html` (default: the single `ifml:ViewContainer` with `ifml:isLandmark true`). Each `ifml:contains` component that `seam:reads` a shape is bound by the `render_fragment` rule (`conversations`, `messages`, `message_state`). A component whose `ifml:hasParameter` labels include a `proc:correlationKey` label reads only that key's entities. The key comes from `params` (for example `conversation="c1"`), or else it is the smallest id among the unscoped components' entities. It is also bound under its label. `runtime.page_context(...)` returns the dict without rendering. |
 
 Errors (`seams_runtime.errors`, plus `LLMError` in `llm.py`) carry `http_status` and
-serialise with `to_dict()`. A generated app maps `RuntimeModelError` to a JSON response
+serialise with `to_dict()`. `TaskNotOpen` (409, with `task` and `correlation_key`)
+means no open user task matches: it was already completed, never reached, or the
+correlation key is unknown. A generated app maps `RuntimeModelError` to a JSON response
 with one exception handler.
 
 ## Host
@@ -80,7 +85,12 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    `rdfs:label` (GAP-26).
 7. Exceptions: the lifecycle's `"error"` exit is applied (status becomes `failed`), the
    error is recorded, the channel scope is closed and the instance is marked failed.
-8. After each element, the workflow is checkpointed into SQLite.
+8. After each element, the workflow is checkpointed into SQLite. The checkpoint also
+   replaces the instance's rows in the `user_tasks` table with its open user tasks, so
+   the rows are empty once it completes or fails.
+9. User tasks are not run by the loop. The instance ends `waiting` on them, and the log
+   names them. `complete_task` finishes one with the person's payload, applying rules
+   1 and 3 to 6 to it with the completing identity as the trace row's `by`.
 
 ## Environment
 

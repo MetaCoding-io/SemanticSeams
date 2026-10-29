@@ -13,6 +13,7 @@
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix dash:   <http://datashapes.org/dash#> .
 @prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix seam:   <https://w3id.org/seams/seam#> .
@@ -144,7 +145,10 @@
         seam:inModel :chat_ifml .
     :conversation a ifml:Parameter ; rdfs:label "conversation" ;
         seam:inModel :chat_ifml .
+    # The only user-entered field of the compose form; every other MessageShape
+    # property (role, status, timestamp) is system-set (ifml:boundTo rule).
     :message_input a ifml:Parameter ; rdfs:label "message input" ;
+        ifml:boundTo :content ;
         seam:inModel :chat_ifml .
 
     :send_message a ifml:Event ; rdfs:label "Send Message" ;
@@ -217,10 +221,13 @@
     :chat_data_shapes a seam:Model ; rdfs:label "Chat Data Model" .
 
     :MessageShape a sh:NodeShape ; rdfs:label "Message" ;
-        sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :status ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :timestamp ; sh:datatype xsd:dateTime ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :content ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
+                      sh:maxLength 4000 ; sh:order 0 ; dash:editor dash:TextAreaEditor ] ;
+        sh:property [ sh:path :role ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 1 ] ;
+        # Values are the rdfs:labels of :message_lifecycle's states (seam:lifecycle).
+        sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;
+                      sh:in ( "composing" "sending" "streaming" "complete" "failed" ) ] ;
+        sh:property [ sh:path :timestamp ; sh:datatype xsd:dateTime ; sh:maxCount 1 ; sh:order 3 ] ;
         seam:inModel :chat_data_shapes .
 
     # Identifier convention: a shape that is addressed in a URL carries exactly

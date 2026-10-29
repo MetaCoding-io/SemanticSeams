@@ -139,6 +139,18 @@ ifml:hasParameter a rdf:Property ;
     rdfs:range ifml:Parameter ;
     rdfs:comment "Corresponds to: InteractionFlowElement.parameters." .
 
+ifml:boundTo a rdf:Property ;
+    rdfs:label "bound to" ;
+    rdfs:domain ifml:Parameter ; rdfs:range rdf:Property ;
+    rdfs:comment """The sh:path property a Form parameter fills (an ifml:Parameter -> the
+property IRI of a property shape of the shape the Form seam:writes). Form rule: a Form
+renders an input only for properties that some ifml:hasParameter of the Form is
+ifml:boundTo; every other property of the written shape is system-set and never
+rendered as input. Presentation comes from the bound property shape: sh:order (field
+order), sh:minCount 1 (required), sh:maxLength (maxlength), dash:editor (widget, e.g.
+dash:TextAreaEditor -> <textarea>, default single-line <input>). Our extension; IFML
+leaves Parameter -> domain attribute binding to its DataBinding machinery.""" .
+
 ifml:ParameterBinding a rdfs:Class ;
     rdfs:comment "sourceParameter -> targetParameter along a flow. Maps to htmx params/vals. Corresponds to: ParameterBinding." .
 

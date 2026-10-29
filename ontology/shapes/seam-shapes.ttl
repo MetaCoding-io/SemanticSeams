@@ -141,6 +141,13 @@ seamsh:SwapShape a sh:NodeShape ;
         sh:message "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend." ] ;
     sh:message "Only an ifml:NavigationFlow carries ifml:swap." .
 
+seamsh:BoundToShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:boundTo ;
+    sh:class ifml:Parameter ;
+    sh:property [ sh:path ifml:boundTo ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "ifml:boundTo names at most one property IRI." ] ;
+    sh:message "Only an ifml:Parameter is ifml:boundTo a property." .
+
 #################################################################
 # Process <-> decisions, communication, data
 #################################################################

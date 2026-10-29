@@ -25,6 +25,7 @@ PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd:    <http://www.w3.org/2001/XMLSchema#>
 PREFIX sh:     <http://www.w3.org/ns/shacl#>
+PREFIX dash:   <http://datashapes.org/dash#>
 PREFIX hydra:  <http://www.w3.org/ns/hydra/core#>
 PREFIX odrl:   <http://www.w3.org/ns/odrl/2/>
 PREFIX seam:   <https://w3id.org/seams/seam#>
@@ -543,10 +544,17 @@ UI_PREFIXES = """
          "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend."),
         (":f a ifml:DataFlow ; ifml:swap ifml:Replace .",
          "Only an ifml:NavigationFlow carries ifml:swap."),
+        (":p ifml:boundTo :content .",
+         "Only an ifml:Parameter is ifml:boundTo a property."),
+        (":p a ifml:Parameter ; ifml:boundTo :content , :role .",
+         "ifml:boundTo names at most one property IRI."),
+        (':p a ifml:Parameter ; ifml:boundTo "content" .',
+         "ifml:boundTo names at most one property IRI."),
     ],
     ids=[
         "submits-from-non-event", "submits-to-non-operation", "renders-from-non-operation",
         "renders-non-component", "swap-unknown-value", "swap-two-values", "swap-on-data-flow",
+        "bound-from-non-parameter", "bound-to-two", "bound-to-literal",
     ],
 )
 def test_ui_seam_shapes_have_teeth(facts, message):
@@ -556,3 +564,106 @@ def test_ui_seam_shapes_have_teeth(facts, message):
         data.parse(path, format="turtle")
     data.parse(data=f"{UI_PREFIXES}\n{facts}", format="turtle")
     assert shacl_messages(data) == {message}
+
+
+# GAP-12/13/14/16: form fields and data shapes (T05).
+
+DASH = rdflib.Namespace("http://datashapes.org/dash#")
+
+
+def test_gap_12_form_fields(chat_model):
+    """Form rule: inputs only for properties a form parameter is ifml:boundTo."""
+    entered = select(
+        chat_model,
+        """SELECT ?form ?param ?path WHERE {
+               ?form a ifml:Form ; seam:writes ?shape ; ifml:hasParameter ?param .
+               ?param ifml:boundTo ?path .
+               ?shape sh:property/sh:path ?path .
+           }""",
+    )
+    assert entered == {(CHAT.compose_form, CHAT.message_input, CHAT.content)}
+    system_set = select(
+        chat_model,
+        """SELECT ?path WHERE {
+               :compose_form seam:writes ?shape .
+               ?shape sh:property/sh:path ?path .
+               FILTER NOT EXISTS { :compose_form ifml:hasParameter/ifml:boundTo ?path }
+           }""",
+    )
+    assert system_set == {(CHAT.role,), (CHAT.status,), (CHAT.timestamp,)}
+    required = select(
+        chat_model,
+        """SELECT ?path WHERE {
+               :MessageShape sh:property [ sh:path ?path ; sh:minCount ?min ] .
+               FILTER(?min >= 1)
+           }""",
+    )
+    assert required == {(CHAT.content,)}
+    # Every boundTo lands on a property of a shape its own form writes.
+    assert not ask(
+        chat_model,
+        """ASK { ?form ifml:hasParameter ?param . ?param ifml:boundTo ?path .
+                 FILTER NOT EXISTS { ?form seam:writes/sh:property/sh:path ?path } }""",
+    )
+
+
+def test_gap_13_field_presentation(chat_model):
+    rows = select(
+        chat_model,
+        """SELECT ?path ?order ?max ?editor WHERE {
+               :MessageShape sh:property ?p .
+               ?p sh:path ?path ; sh:order ?order .
+               OPTIONAL { ?p sh:maxLength ?max }
+               OPTIONAL { ?p dash:editor ?editor }
+           }""",
+    )
+    assert rows == {
+        (CHAT.content, lit(0), lit(4000), DASH.TextAreaEditor),
+        (CHAT.role, lit(1), None, None),
+        (CHAT.status, lit(2), None, None),
+        (CHAT.timestamp, lit(3), None, None),
+    }
+
+
+def test_gap_14_status_values(chat_model):
+    """sh:in on :status equals the state labels of the shape's lifecycle machine."""
+    allowed = select(
+        chat_model,
+        """SELECT ?v WHERE {
+               :MessageShape sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:in ?list ] .
+               ?list rdf:rest*/rdf:first ?v .
+           }""",
+    )
+    labels = select(
+        chat_model,
+        """SELECT ?label WHERE {
+               :MessageShape seam:lifecycle ?machine .
+               ?machine state:hasState/rdfs:label ?label .
+           }""",
+    )
+    assert allowed == labels
+    assert allowed == {(lit(v),) for v in ("composing", "sending", "streaming", "complete", "failed")}
+
+
+def test_gap_16_state_guard(chat_model):
+    """Guard rule: component -> reads shape -> lifecycle -> state label -> template variable."""
+    rows = select(
+        chat_model,
+        """SELECT ?component ?var ?label WHERE {
+               ?component seam:visibleWhen ?state ; seam:reads ?shape .
+               ?shape seam:lifecycle ?machine .
+               ?machine state:hasState ?state .
+               ?state rdfs:label ?label .
+               BIND(LCASE(STRAFTER(STR(?shape), STR(:))) AS ?local)
+               BIND(CONCAT(IF(STRENDS(?local, "shape"),
+                              SUBSTR(?local, 1, STRLEN(?local) - 5), ?local), "_state") AS ?var)
+           }""",
+    )
+    assert rows == {(CHAT.message_thread, lit("message_state"), lit("composing"))}
+    # Every guard resolves through that chain: none names a state outside the
+    # lifecycle of a shape its component reads.
+    assert not ask(
+        chat_model,
+        """ASK { ?component seam:visibleWhen ?state .
+                 FILTER NOT EXISTS { ?component seam:reads/seam:lifecycle/state:hasState ?state } }""",
+    )

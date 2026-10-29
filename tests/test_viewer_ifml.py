@@ -81,7 +81,7 @@ def test_form_fields_come_only_from_message_shape(diagram):
     assert [(f["name"], f["kind"]) for f in fields] == [
         ("content", "text"),
         ("role", "text"),
-        ("status", "field"),
+        ("status", "text"),  # sh:datatype xsd:string (GAP-14)
         ("timestamp", "datetime"),
     ]
     assert [f["label"] for f in fields] == [f"«SimpleField» {n}" for n in ("content", "role", "status", "timestamp")]

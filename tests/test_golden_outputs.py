@@ -39,6 +39,7 @@ PREFIXES = {
     "dec": "https://w3id.org/seams/dec#",
     "state": "https://w3id.org/seams/state#",
     "sh": "http://www.w3.org/ns/shacl#",
+    "dash": "http://datashapes.org/dash#",
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "odrl": "http://www.w3.org/ns/odrl/2/",
 }

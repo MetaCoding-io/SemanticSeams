@@ -34,7 +34,7 @@
 
   {# ifml:Details :message_thread, seam:reads :MessageShape, seam:visibleWhen :s_composing [graph: :message_thread ifml:Details seam:reads :MessageShape seam:visibleWhen :s_composing] #}
   {% block message_thread %}  {# [graph: :chat_page ifml:contains :message_thread] #}
-  {% if message_state == "composing" %}  {# [gap: GAP-16] #}
+  {% if message_state == "composing" %}  {# [graph: :message_thread seam:visibleWhen :s_composing seam:reads :MessageShape seam:lifecycle :message_lifecycle state:hasState rdfs:label] #}
   <section id="message_thread" aria-label="Message Thread"  {# [graph: :message_thread ifml:Details rdfs:label] #}
            data-conversation="{{ conversation }}">  {# [graph: :message_thread ifml:hasParameter :conversation] #}
     <ol id="message_thread_items">  {# [graph: :message_thread ifml:Details seam:reads :MessageShape] #}
@@ -42,7 +42,7 @@
       <li class="message message--{{ message.role }}">  {# [graph: :MessageShape sh:property sh:path :role] #}
         <p>{{ message.content }}</p>  {# [graph: :MessageShape sh:property sh:path :content sh:datatype] #}
         <time datetime="{{ message.timestamp }}">{{ message.timestamp }}</time>  {# [graph: :MessageShape sh:property sh:path :timestamp sh:datatype] #}
-        <span class="status">{{ message.status }}</span>  {# [gap: GAP-14] #}
+        <span class="status">{{ message.status }}</span>  {# [graph: :MessageShape sh:property sh:path :status sh:datatype sh:in seam:lifecycle :message_lifecycle] #}
       </li>  {# [fixed] #}
       {% endfor %}  {# [graph: :message_thread seam:reads :MessageShape] #}
     </ol>  {# [fixed] #}
@@ -54,7 +54,7 @@
          hx-swap="beforeend">  {# [graph: :chat_ui seam:consumes :stream_events comm:Channel] #}
     </div>  {# [fixed] #}
   </section>  {# [fixed] #}
-  {% endif %}  {# [gap: GAP-16] #}
+  {% endif %}  {# [graph: :message_thread seam:visibleWhen :s_composing] #}
   {% endblock %}  {# [graph: :chat_page ifml:contains :message_thread] #}
 
   {# ifml:Form :compose_form, seam:writes :MessageShape [graph: :compose_form ifml:Form seam:writes :MessageShape] #}
@@ -67,11 +67,11 @@
         hx-target="#message_thread_items"  {# [graph: :send_to_thread ifml:source :send_message ifml:target :message_thread ifml:swap ifml:Append] #}
         hx-swap="beforeend">  {# [graph: :send_to_thread ifml:NavigationFlow ifml:swap ifml:Append] #}
     <label for="compose_content">content</label>  {# [graph: :MessageShape sh:property sh:path :content] #}
-    <textarea id="compose_content"  {# [gap: GAP-13] #}
+    <textarea id="compose_content"  {# [graph: :MessageShape sh:property sh:path :content dash:editor dash:TextAreaEditor sh:order] #}
               name="content"  {# [graph: :compose_form seam:writes :MessageShape sh:property sh:path :content] #}
-              maxlength="4000"  {# [gap: GAP-13] #}
-              required></textarea>  {# [gap: GAP-12] #}
-    {# role, status and timestamp are set by the runtime, not entered [gap: GAP-12] #}
+              maxlength="4000"  {# [graph: :MessageShape sh:property sh:path :content sh:maxLength] #}
+              required></textarea>  {# [graph: :message_input ifml:boundTo :content sh:minCount] #}
+    {# role, status and timestamp are set by the runtime, not entered: no parameter is ifml:boundTo them [graph: :compose_form ifml:hasParameter :message_input ifml:boundTo :content] #}
     <button type="submit">Send Message</button>  {# [graph: :compose_form ifml:hasEvent :send_message rdfs:label] #}
   </form>  {# [fixed] #}
   {% endblock %}  {# [graph: :chat_page ifml:contains :compose_form] #}

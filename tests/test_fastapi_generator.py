@@ -216,15 +216,17 @@ NO_PATH = ('        seam:mediaKind seam:UIFragment ;\n'
 BAD_MEDIA = ('comm:requestMediaType "application/x-www-form-urlencoded"',
              'comm:requestMediaType "text/plain"')
 NO_EXECUTES = ("        seam:executes :send_message_process ;\n", "")
+# Without seam:executes and without the event's seam:submitsTo, no container serves (D026).
+NO_SUBMITS = ("        seam:submitsTo :send_message_op ;\n", "")
 
 
-@pytest.mark.parametrize("edit, subject, predicate", [
-    (NO_PATH, CHAT + "list_conversations_op", str(COMM.path)),
-    (BAD_MEDIA, CHAT + "send_message_op", str(COMM.requestMediaType)),
-    (NO_EXECUTES, None, str(SEAM.executes)),
-], ids=["no-comm-path", "unknown-request-media-type", "no-executes"])
-def test_missing_fact_fails_api_and_cli(tmp_path, edit, subject, predicate):
-    trig = _copy_model(tmp_path, edit)
+@pytest.mark.parametrize("edits, subject, predicate", [
+    ((NO_PATH,), CHAT + "list_conversations_op", str(COMM.path)),
+    ((BAD_MEDIA,), CHAT + "send_message_op", str(COMM.requestMediaType)),
+    ((NO_EXECUTES, NO_SUBMITS), None, str(SEAM.executes)),
+], ids=["no-comm-path", "unknown-request-media-type", "no-serving-container"])
+def test_missing_fact_fails_api_and_cli(tmp_path, edits, subject, predicate):
+    trig = _copy_model(tmp_path, *edits)
     subject = subject or trig.as_uri()  # model-level errors name the model file
     with pytest.raises(GeneratorError) as err:
         generate_routes(trig)
@@ -251,3 +253,47 @@ def test_cli_writes_the_route_module(tmp_path):
     assert run.stdout.splitlines() == [str(written)]
     assert written.read_bytes() == generate_routes(TRIG).encode("utf-8")
     assert b"\r\n" not in written.read_bytes()
+
+
+# ── a process-less model: the write rule (D026) ───────────────────────────
+
+
+def test_processless_form_submission_writes_instead_of_starting(tmp_path):
+    from processless_model import write_model
+
+    trig = write_model(tmp_path)
+    module = extract_routes(ModelGraph.load(trig)).modules[0]
+    assert module.curie == ":expense_api" and module.not_routed == ()
+    text = generate_routes(trig)
+    assert 'expense = runtime.write(":ExpenseShape", expense)' in text
+    assert "start_process" not in text
+    tree = ast.parse(text)
+    post = next(f for f in _functions(tree) if f.name == "submit_expense")
+    assert [c for stmt in post.body for c in _runtime_calls(stmt)] == ["validate", "write", "render_fragment"]
+    get = next(f for f in _functions(tree) if f.name == "list_expenses")
+    assert [c for stmt in get.body for c in _runtime_calls(stmt)] == ["query", "render_fragment"]
+    assert callable(getattr(Runtime, "write", None))
+
+
+def test_processless_model_without_submissions_raises(tmp_path):
+    from processless_model import write_model
+
+    trig = write_model(tmp_path, submits=False)
+    with pytest.raises(GeneratorError) as err:
+        generate_routes(trig)
+    assert err.value.subject == trig.as_uri() and err.value.predicate == str(SEAM.executes)
+
+
+def test_untriggered_operation_without_a_writing_form_does_not_write(tmp_path):
+    from processless_model import TRIG as EXPENSE_TRIG
+
+    trig = tmp_path / "expenses.trig"
+    trig.write_text(EXPENSE_TRIG.replace("    :expense_form seam:writes :ExpenseShape .\n", ""),
+                    encoding="utf-8")
+    text = generate_routes(trig)
+    assert "runtime.write(" not in text and "start_process" not in text
+    assert 'expense = runtime.validate(":ExpenseShape", form)' in text
+
+
+def test_chat_app_has_no_write_step():
+    assert all(e.write is None for e in extract_routes(ModelGraph.load(TRIG)).modules[0].endpoints)

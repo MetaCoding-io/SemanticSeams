@@ -1,13 +1,16 @@
 """The FastAPI route generator (M004/S05, D016, D017).
 
-``extract_routes`` reads, for each ``arch:Container`` that ``seam:executes`` a
-``proc:Process``, the operations and channels it ``seam:exposes`` into frozen
-dataclasses; ``render_routes`` renders each container through
-templates/fastapi_routes.py.j2 into ``<container local name>.py``. The handlers
-are thin (ADR-0007 rule 1): read the request, validate it against the accepted
-shape, start the process the operation triggers, query the returned shape and
-render the fragment the GAP-19 rule names. Nothing else: no branching, no
-domain names. Every collection is sorted by IRI, and a missing or ambiguous
+``extract_routes`` reads, for each serving ``arch:Container`` (one that
+``seam:executes`` a ``proc:Process``, or ``seam:exposes`` a ``hydra:Operation``
+some ``ifml:Event`` ``seam:submitsTo``; D026), the operations and channels it
+``seam:exposes`` into frozen dataclasses; ``render_routes`` renders each
+container through templates/fastapi_routes.py.j2 into ``<container local
+name>.py``. The handlers are thin (ADR-0007 rule 1): read the request,
+validate it against the accepted shape, start the process the operation
+triggers (or, when it triggers none and an ``ifml:Form`` that ``seam:writes``
+the accepted shape submits to it, ``runtime.write`` the entity), query the
+returned shape and render the fragment the GAP-19 rule names. Nothing else:
+no branching, no domain names. Every collection is sorted by IRI, and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
 """
 
@@ -62,6 +65,12 @@ class Start:
 
 
 @dataclass(frozen=True)
+class Write:
+    shape: str       # curie of the accepted shape the submitting form seam:writes
+    var: str         # the validated var, rebound to the stored entity
+
+
+@dataclass(frozen=True)
 class Query:
     var: str         # <shape name>s
     shape: str       # curie
@@ -88,6 +97,7 @@ class Endpoint:
     body: Body | None = None
     validate: Validate | None = None
     start: Start | None = None
+    write: Write | None = None
     query: Query | None = None
     render: Render | None = None
     accepts: str | None = None  # a channel's seam:acceptsShape curie
@@ -122,14 +132,33 @@ class RoutesModel:
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
+def _submitted(f: Facts, op) -> list:
+    """The ifml:Events that seam:submitsTo ``op``, sorted by IRI."""
+    return [e for e in f.subjects(SEAM.submitsTo, op) if (e, RDF.type, IFML.Event) in f.ds]
+
+
+def serving_containers(f: Facts) -> list:
+    """The arch:Containers that serve routes (D026): each one that
+    seam:executes a proc:Process or seam:exposes a hydra:Operation some
+    ifml:Event seam:submitsTo, sorted by IRI. An operation only a task
+    seam:invokes (the chat app's :completion_op) does not make its container
+    serving."""
+    found = set()
+    for c in f.subjects(RDF.type, ARCH.Container):
+        if any((p, RDF.type, PROC.Process) in f.ds for p in f.objects(c, SEAM.executes)) \
+                or any((op, RDF.type, HYDRA.Operation) in f.ds and _submitted(f, op)
+                       for op in f.objects(c, SEAM.exposes)):
+            found.add(c)
+    return sorted(found, key=str)
+
+
 def extract_routes(model: ModelGraph) -> RoutesModel:
     f = Facts(model)
-    containers = sorted({c for c, p in f.ds.subject_objects(SEAM.executes)
-                         if (c, RDF.type, ARCH.Container) in f.ds
-                         and (p, RDF.type, PROC.Process) in f.ds}, key=str)
+    containers = serving_containers(f)
     if not containers:
         raise GeneratorError(model.subject, SEAM.executes,
-                             "no arch:Container seam:executes a proc:Process")
+                             "no arch:Container seam:executes a proc:Process or seam:exposes "
+                             "a hydra:Operation an ifml:Event seam:submitsTo")
     return RoutesModel(
         model_stem=model.path.stem,
         model_file=model.path.name,
@@ -256,6 +285,10 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
                                  f"{key!r} is not a path variable of {op} ({template})")
         start = Start(process=f.curie(process), payload=validate.var, key=key)
 
+    write = None
+    if start is None and accepts is not None and _form_writes(f, op, accepts):
+        write = Write(shape=validate.shape, var=validate.var)
+
     returns = f.optional(op, SEAM.returnsShape)
     query = None
     if method == "GET" and returns is not None:
@@ -280,27 +313,35 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
     return Endpoint(
         curie=f.curie(op), name=_handler_name(op), channel=False, method=method, path=template,
         arguments=arguments, policies=tuple(f.curie(p) for p in f.objects(op, SEAM.governedBy)),
-        body=body, validate=validate, start=start, query=query, render=render,
+        body=body, validate=validate, start=start, write=write, query=query, render=render,
     )
+
+
+def _form_writes(f: Facts, op, shape) -> bool:
+    """Whether an ifml:Form that seam:writes ``shape`` has an event that
+    seam:submitsTo ``op`` (the D026 write rule)."""
+    return any((form, RDF.type, IFML.Form) in f.ds and (form, SEAM.writes, shape) in f.ds
+               for event in _submitted(f, op)
+               for form in f.subjects(IFML.hasEvent, event))
 
 
 # ── rendering ───────────────────────────────────────────────────────────────
 
 
 def render_routes(routes: RoutesModel) -> dict[str, str]:
-    """{file name: text}, one route module per executing container."""
+    """{file name: text}, one route module per serving container."""
     template = _environment().get_template(TEMPLATE_NAME)
     return {m.file_name: template.render(r=routes, m=m) for m in routes.modules}
 
 
 def route_module(trig_path) -> tuple[str, str]:
     """(file name, text) of the model's one route module; no or several
-    executing containers raise GeneratorError(model, seam:executes)."""
+    serving containers raise GeneratorError(model, seam:executes)."""
     model = ModelGraph.load(trig_path)
     routes = extract_routes(model)
     if len(routes.modules) != 1:
         raise GeneratorError(model.subject, SEAM.executes,
-                             f"expected one executing container, found {[m.curie for m in routes.modules]}")
+                             f"expected one serving container, found {[m.curie for m in routes.modules]}")
     name = routes.modules[0].file_name
     return name, render_routes(routes)[name]
 
@@ -312,4 +353,4 @@ def generate_routes(trig_path) -> str:
 
 
 __all__ = ["RoutesModel", "RouteModule", "Endpoint", "extract_routes", "generate_routes",
-           "render_routes", "route_module", "TEMPLATE_NAME"]
+           "render_routes", "route_module", "serving_containers", "TEMPLATE_NAME"]

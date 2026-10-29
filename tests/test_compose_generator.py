@@ -373,3 +373,28 @@ def test_docker_compose_config_accepts_output():
         assert run.returncode == 0, run.stderr
     finally:
         Path(fh.name).unlink()
+
+
+# ── a process-less model (D026) ───────────────────────────────────────────
+
+
+def test_processless_serving_container_gets_the_model_mounts(tmp_path):
+    from processless_model import write_model
+
+    trig = write_model(tmp_path)
+    doc = yaml.safe_load(generate_compose(trig, base_dir=tmp_path))
+    api, portal = doc["services"]["expense_api"], doc["services"]["expense_portal"]
+    assert api["environment"]["SEAMS_MODEL"] == "/model/expenses.trig"
+    assert api["environment"]["SEAMS_MODEL_HASH"] == model_hash(trig)
+    assert api["volumes"] == ["./expenses.trig:/model/expenses.trig:ro"]
+    assert "SEAMS_MODEL" not in portal.get("environment", {})
+    assert not any(":/model/" in v for v in portal.get("volumes", []))
+
+
+def test_processless_model_without_submissions_mounts_nothing(tmp_path):
+    from processless_model import write_model
+
+    doc = yaml.safe_load(generate_compose(write_model(tmp_path, submits=False), base_dir=tmp_path))
+    for service in doc["services"].values():
+        assert "SEAMS_MODEL" not in service.get("environment", {})
+        assert not any(":/model/" in v for v in service.get("volumes", []))

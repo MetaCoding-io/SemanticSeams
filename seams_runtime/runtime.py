@@ -13,7 +13,8 @@ generated from (ADR-0007 rule 2) unless ``allow_hash_mismatch=True`` or
 ``SEAMS_ALLOW_HASH_MISMATCH=1``. The other methods are what a thin handler
 calls: ``policy`` (a FastAPI dependency for seam:governedBy), ``validate``
 (SHACL at the boundary), ``start_process`` / ``resume`` (run the generic
-worker as an asyncio task), ``query`` (persisted entities of a shape) and
+worker as an asyncio task), ``write`` (persist a validated entity when the
+operation triggers no process, D026), ``query`` (persisted entities of a shape) and
 ``subscribe`` (SSE frames of a channel scope) and ``render_fragment`` (an
 htmx partial from ``templates_dir``, ``SEAMS_TEMPLATES`` or ``./templates``)
 and ``render_page`` (the landmark page, every block bound as its partial is).
@@ -104,6 +105,23 @@ class Runtime:
     def validate(self, shape_curie, payload) -> dict:
         """The normalised payload, or ContractViolation (422)."""
         return _validate(self.model, shape_curie, payload)
+
+    def write(self, shape_curie, payload) -> dict:
+        """Validate ``payload`` against the shape and persist it as a new
+        entity, for an operation that triggers no process (D026). A shape
+        with seam:lifecycle starts in its initial status unless the payload
+        names one, as ``start_process`` does. Returns the stored row (the form
+        ``query`` returns), or raises ContractViolation (422) and stores
+        nothing."""
+        shape = self.model.curie(shape_curie)
+        data = dict(_validate(self.model, shape, payload))
+        status = None
+        if (shape, SEAM.lifecycle, None) in self.model.ds:
+            status = data.get("status") or self.model.lifecycle_for(shape).initial
+            data["status"] = status
+        entity = self.store.put_entity(str(uuid.uuid4()), shape, data, status=status)
+        log.info("wrote %s entity %s (status %s)", shape, entity["id"], status)
+        return entity
 
     # ── processes ──
 

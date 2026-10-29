@@ -55,6 +55,9 @@ async def [[ e.name ]]([[ e.arguments|join(", ") ]]) -> HTMLResponse:
         correlation_key=[[ e.start.key ]],
     )
 [% endif %]
+[% if e.write %]
+    [[ e.write.var ]] = runtime.write("[[ e.write.shape ]]", [[ e.write.var ]])
+[% endif %]
 [% if e.query %]
     [[ e.query.var ]] = runtime.query("[[ e.query.shape ]]"[% for v in e.query.filters %], [[ v ]]=[[ v ]][% endfor %])
 [% endif %]

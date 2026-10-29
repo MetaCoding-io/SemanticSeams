@@ -7,7 +7,9 @@ ports, ``deploy:dependsOn``, the ``deploy:configuration`` bindings (plain
 values, external secrets, and service URLs), named volumes, the healthcheck,
 replicas and the ``seam:deployedTo`` node's placement constraint.
 ``render_compose`` renders it through templates/compose.yaml.j2. The
-container that ``seam:executes`` a process also gets the TriG and every
+serving container (``seams_gen.fastapi.serving_containers``: it
+``seam:executes`` a process or exposes an operation a UI event submits to,
+D026) also gets the TriG and every
 ``seam:renderPayload`` bind-mounted read-only under /model, with
 SEAMS_MODEL/SEAMS_MODEL_HASH pointing the runtime at them (D018). Bind
 sources are relative to ``base_dir``, the directory the compose file is
@@ -28,11 +30,11 @@ import yaml
 from rdflib import RDF, RDFS
 
 from seams_runtime import ModelGraph, ResolutionError
-from seams_runtime.model import DEPLOY, PROC, SEAM, _payload_files, local_name
+from seams_runtime.model import DEPLOY, SEAM, _payload_files, local_name
 
 from . import GeneratorError
 from .facts import Facts
-from .fastapi import ARCH
+from .fastapi import ARCH, serving_containers
 from .htmx import _environment
 
 TEMPLATE_NAME = "compose.yaml.j2"
@@ -125,12 +127,10 @@ def extract_compose(model: ModelGraph, base_dir) -> ComposeModel:
     if not containers:
         raise GeneratorError(systems[0], ARCH.contains, "the arch:System contains no arch:Container")
 
-    executing = sorted({c for c, p in f.ds.subject_objects(SEAM.executes)
-                        if (c, RDF.type, ARCH.Container) in f.ds
-                        and (p, RDF.type, PROC.Process) in f.ds}, key=str)
+    executing = serving_containers(f)
     if len(executing) > 1:
         raise GeneratorError(model.subject, SEAM.executes,
-                             f"expected at most one executing container, found {[str(c) for c in executing]}")
+                             f"expected at most one serving container, found {[str(c) for c in executing]}")
     mounts = _model_mounts(model, base_dir) if executing else ()
     try:
         model_hash = model.hash

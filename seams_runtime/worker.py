@@ -33,7 +33,10 @@ is completed) and applies these rules to each BPMN element, in this order:
 7. Any exception while dispatching: apply ``LifecycleGuard.on_error`` for
    each tracked status that has an "error" exit (status becomes "failed"),
    record the error as JSON, close the channel scope and mark the instance
-   failed. The error is not re-raised; ``Instance.wait()`` returns it.
+   failed. The error is not re-raised; ``Instance.wait()`` returns it. When
+   Spiff wrapped a model error (a ``ResolutionError`` raised inside a
+   business-rule task becomes a ``WorkflowTaskException``), the model error
+   is the one recorded, so the error names the decision.
 8. After each element the workflow is checkpointed with the engine's
    serializer into the store, so ``Runtime.resume`` can continue it. The
    checkpoint also replaces the instance's open ``user_tasks`` rows with its
@@ -320,8 +323,20 @@ class Worker:
 
     # ── failure, checkpoints, results ──
 
+    @staticmethod
+    def _model_error(exc: BaseException) -> BaseException:
+        """The first RuntimeModelError in ``exc``'s cause/context chain, else ``exc``."""
+        seen, cur = set(), exc
+        while cur is not None and id(cur) not in seen:
+            if isinstance(cur, RuntimeModelError):
+                return cur
+            seen.add(id(cur))
+            cur = cur.__cause__ or cur.__context__
+        return exc
+
     def _fail(self, instance: Instance, exc: Exception) -> None:
         st = instance.state
+        exc = self._model_error(exc)
         log.error("instance %s failed: %s", instance.id, exc, exc_info=not isinstance(exc, RuntimeModelError))
         st["error"] = exc.to_dict() if isinstance(exc, RuntimeModelError) else {
             "type": type(exc).__name__, "message": str(exc), "http_status": 500}

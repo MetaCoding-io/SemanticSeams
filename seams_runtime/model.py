@@ -58,6 +58,9 @@ class InputBinding:
     from_path: str  # local name of the dec:fromPath property, e.g. "content"
     from_path_iri: URIRef
     measure: URIRef | None  # e.g. dec:Length, or None for the raw value
+    # typeRef of the DMN inputExpression whose text is this variable (e.g.
+    # "number"), or None when the table has no such input expression.
+    type_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -364,12 +367,15 @@ class ModelGraph:
                 f"{decision_id!r} not among DMN decision ids {ids} in {dmn_path.name}, via {iri}",
             )
         inputs = []
+        types = dmn_input_types(dmn_path, decision_id)
         for node in self.ds.objects(decision, DEC.input):
             path = self._one(node, DEC.fromPath, f"input of {decision}")
+            variable = str(self._one(node, DEC.variable, f"input of {decision}"))
             inputs.append(InputBinding(
-                variable=str(self._one(node, DEC.variable, f"input of {decision}")),
+                variable=variable,
                 from_path=local_name(path), from_path_iri=path,
                 measure=self.ds.value(node, DEC.measure),
+                type_ref=types.get(variable),
             ))
         outputs = []
         for node in self.ds.objects(decision, DEC.output):
@@ -585,3 +591,21 @@ def dmn_decision_ids(dmn_path) -> list[str]:
     root = etree.parse(str(dmn_path)).getroot()
     return [el.get("id") for el in root.iter()
             if isinstance(el.tag, str) and etree.QName(el).localname == "decision"]
+
+
+def dmn_input_types(dmn_path, decision_id: str) -> dict[str, str]:
+    """inputExpression text -> its typeRef, for the decision table of
+    ``decision_id``. An expression without a typeRef is left out."""
+    root = etree.parse(str(dmn_path)).getroot()
+    out = {}
+    for decision in root.iter():
+        if not (isinstance(decision.tag, str) and etree.QName(decision).localname == "decision"
+                and decision.get("id") == decision_id):
+            continue
+        for el in decision.iter():
+            if isinstance(el.tag, str) and etree.QName(el).localname == "inputExpression" \
+                    and el.get("typeRef"):
+                text = "".join(t.text or "" for t in el
+                               if isinstance(t.tag, str) and etree.QName(t).localname == "text")
+                out[text.strip()] = el.get("typeRef")
+    return out

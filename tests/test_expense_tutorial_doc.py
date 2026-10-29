@@ -3,8 +3,9 @@
 docs/tutorials/expenses/NN-*.md walks the reader through chapter NN. Every
 ```trig block on a page is a verbatim excerpt of that chapter's checkpoint,
 examples/expenses/chapter-NN/expenses.trig (compared line by line with
-surrounding whitespace stripped and blank lines ignored), and the page links
-the checkpoint. The pages are chapters 1, 2, 3... with no gap. Chapter 3 and
+surrounding whitespace stripped and blank lines ignored), every ```xml block
+is likewise an excerpt of one of the chapter's BPMN or DMN payload files, and
+the page links the checkpoint. The pages are chapters 1, 2, 3... with no gap. Chapter 3 and
 every process chapter (4 onward) show the generator commands
 tests/expense_app.py names for them, and the host command with the
 environment the app tests set. Chapter 2 shows the deliberate mistake
@@ -76,6 +77,24 @@ def test_every_trig_block_is_an_excerpt_of_the_checkpoint(page):
                          f"examples/expenses/{chapter_of(page)}/expenses.trig:\n" + "\n---\n".join(missing))
 
 
+XML_PAGES = [p for p in PAGES if blocks(p, "xml")]
+
+
+def test_bpmn_and_dmn_chapters_show_xml():
+    assert {"04-process", "05-rules"} <= {p.stem for p in XML_PAGES}, [p.stem for p in XML_PAGES]
+
+
+@pytest.mark.parametrize("page", XML_PAGES, ids=[p.stem for p in XML_PAGES])
+def test_every_xml_block_is_an_excerpt_of_a_payload(page):
+    directory = EXPENSES / chapter_of(page)
+    payloads = [normalised(f.read_text(encoding="utf-8"))
+                for f in sorted([*directory.glob("*.bpmn"), *directory.glob("*.dmn")])]
+    missing = [body for body in blocks(page, "xml")
+               if not any(contains_run(payload, normalised(body)) for payload in payloads)]
+    assert not missing, (f"{page.name}: these ```xml blocks are not verbatim in a .bpmn or .dmn "
+                         f"file of examples/expenses/{chapter_of(page)}/:\n" + "\n---\n".join(missing))
+
+
 @pytest.mark.parametrize("page", PAGES, ids=PAGE_IDS)
 def test_page_links_its_checkpoint(page):
     target = f"examples/expenses/{chapter_of(page)}/expenses.trig"
@@ -114,3 +133,14 @@ def test_chapter_2_shows_the_mistake_as_a_diff():
     assert any(f"-    {CHAPTER_2_MISTAKE_TEXT}" in body for body in diffs), \
         "02-data.md must show deleting the mistake's triple in a ```diff block"
     assert CHAPTER_2_MISTAKE_TEXT in page.read_text(encoding="utf-8")
+
+
+def test_chapter_5_threshold_diff_is_the_edit_ci_makes():
+    from test_expense_process_app import MANAGER_UP_TO_1000, MANAGER_UP_TO_200
+    [diff] = blocks(PAGES_DIR / "05-rules.md", "diff")
+    removed = [ln[1:] for ln in diff.splitlines() if ln.startswith("-")]
+    added = [ln[1:] for ln in diff.splitlines() if ln.startswith("+")]
+    assert len(removed) == len(added) == 1, diff
+    dmn = (EXPENSES / "chapter-05" / "approval.dmn").read_text(encoding="utf-8").splitlines()
+    assert removed[0] in dmn and MANAGER_UP_TO_1000 in removed[0]
+    assert added[0] == removed[0].replace(MANAGER_UP_TO_1000, MANAGER_UP_TO_200)

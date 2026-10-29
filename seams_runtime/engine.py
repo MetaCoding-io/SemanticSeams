@@ -10,7 +10,11 @@ here, and neither file carries a vendor extension:
   (seam:decidedBy -> dec:payloadElement), so a decision id missing from the
   DMN is a ``ResolutionError`` at parse time.
 - ``evaluate_inputs`` fills each dec:input variable from the entity
-  (dec:fromPath, optionally dec:measure), and ``map_outputs`` copies each
+  (dec:fromPath, optionally dec:measure). Validated form values are strings,
+  so an input whose DMN inputExpression has ``typeRef="number"`` is coerced
+  to a ``Decimal`` (registered with the serializer) and compares numerically
+  with entries such as ``<= 100``; a value that is not a number is a
+  ``ResolutionError`` naming the decision. ``map_outputs`` copies each
   dec:output variable into its dec:processVariable. ``before_task`` fills the
   inputs before a business-rule task runs. The output mapping runs inside the
   task, on the spec's run_event, so the children inherit the process
@@ -24,6 +28,7 @@ completes them once its handler has finished.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from lxml import etree
@@ -103,7 +108,10 @@ def make_serializer() -> BpmnWorkflowSerializer:
     # Spiff 3.2's DEFAULT_CONFIG registers only the spiff/camunda service-task
     # flavours. The plain bpmn ServiceTask has no extra state to save.
     config[ServiceTask] = BpmnTaskSpecConverter
-    return BpmnWorkflowSerializer(BpmnWorkflowSerializer.configure(config))
+    registry = BpmnWorkflowSerializer.configure(config)
+    # Numeric DMN inputs (evaluate_inputs) are Decimals in the task data.
+    registry.register(Decimal, lambda v: {"value": str(v)}, lambda v: Decimal(v["value"]))
+    return BpmnWorkflowSerializer(registry)
 
 
 def bpmn_process_ids(bpmn_path: Path) -> list[tuple[str, str | None, bool]]:
@@ -230,7 +238,7 @@ class Engine:
                 )
             value = entity[b.from_path]
             if b.measure is None:
-                out[b.variable] = value
+                out[b.variable] = self._typed(binding, b, value)
             elif b.measure == DEC.Length:
                 try:
                     out[b.variable] = len(value)
@@ -245,6 +253,26 @@ class Engine:
                     f"unknown measure {b.measure} for input {b.variable!r}",
                 )
         return out
+
+    @staticmethod
+    def _typed(binding: DecisionBinding, b, value):
+        """``value`` as the DMN input's typeRef expects: a Decimal for
+        "number" (form values arrive as strings), else unchanged."""
+        if b.type_ref != "number":
+            return value
+        if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+            return value
+        try:
+            number = Decimal(str(value).strip())
+        except InvalidOperation:
+            number = None
+        if isinstance(value, bool) or number is None or not number.is_finite():
+            raise ResolutionError(
+                binding.decision, DEC.input,
+                f"input {b.variable!r} of decision {binding.decision_id!r} is typeRef number, "
+                f"but {b.from_path!r} is {value!r}",
+            )
+        return number
 
     def map_outputs(self, binding: DecisionBinding, task_data: dict) -> dict:
         """Copy each dec:output variable into its dec:processVariable (in place);

@@ -81,8 +81,15 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 1. `seam:fires T`: before dispatch, `LifecycleGuard.check` verifies that T leaves the
    current status of the shape whose `seam:lifecycle` owns T.
 2. Business-rule tasks: the dec:input variables are filled from the current entity of the
-   shape the task `seam:reads`. After the run, the dec:output values become process
-   variables.
+   shape the task `seam:reads`. Validated form values are strings, so an input whose DMN
+   `inputExpression` has `typeRef="number"` becomes a `Decimal` first and compares
+   numerically with entries such as `<= 100`; a value that is not a number fails with a
+   `ResolutionError` naming the decision. After the run, each dec:output value is copied
+   into its `dec:processVariable`, which a following `bpmn:exclusiveGateway` can test in
+   a condition such as `route == "manager"` (Spiff's Python expression engine). A table
+   that matches no rule produces no output and fails with a `ResolutionError`; an output
+   no outgoing condition accepts fails the instance at the gateway. The expense
+   tutorial's chapter 5 (`examples/expenses/chapter-05/`) routes this way.
 3. `seam:invokes op`: when the container that `seam:exposes` op also `seam:executes` the
    process, the call is in-process and needs no remote call. Any other container gets an
    OpenAI-compatible streaming POST to op's `comm:path`. Each delta is published on the
@@ -95,6 +102,8 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    `rdfs:label` (GAP-26).
 7. Exceptions: the lifecycle's `"error"` exit is applied (status becomes `failed`), the
    error is recorded, the channel scope is closed and the instance is marked failed.
+   When Spiff wrapped a model error (a `ResolutionError` raised inside a business-rule
+   task arrives as a `WorkflowTaskException`), the model error is the one recorded.
 8. After each element, the workflow is checkpointed into SQLite. The checkpoint also
    replaces the instance's rows in the `user_tasks` table with its open user tasks, so
    the rows are empty once it completes or fails.

@@ -6,7 +6,8 @@ commands the tutorial page shows and the generated README names;
 ``assert_generated_current`` regenerates both into tmp_path and diffs them
 against the committed copy (helpers shared with
 tests/test_generated_outputs_current.py). ``serve`` builds the host app for a
-chapter's committed route module on a temp store, and ``until``/``status``
+chapter's committed route module on a temp store (``serve_directory`` for a
+copied checkpoint), and ``until``/``status``
 poll a running instance, as tests/test_human_task_app.py does.
 """
 
@@ -84,7 +85,14 @@ def serve(chapter: str, tmp_path: Path, monkeypatch):
     """(TestClient, Runtime) for the chapter's committed route module, with
     SEAMS_MODEL / SEAMS_TEMPLATES on the checkpoint, SEAMS_DB in tmp_path, and
     no dev user or seed, so every identity comes from X-Forwarded-User."""
-    directory = chapter_dir(chapter)
+    with serve_directory(chapter_dir(chapter), tmp_path, monkeypatch) as served:
+        yield served
+
+
+@contextmanager
+def serve_directory(directory: Path, tmp_path: Path, monkeypatch):
+    """``serve`` for a checkpoint directory anywhere (for example a copy in
+    tmp_path): its expenses.trig, generated/expense_api.py and templates."""
     monkeypatch.setenv("SEAMS_MODEL", str(directory / "expenses.trig"))
     monkeypatch.setenv("SEAMS_TEMPLATES", str(directory / "generated" / "templates"))
     monkeypatch.setenv("SEAMS_DB", str(tmp_path / "seams.sqlite"))

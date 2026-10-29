@@ -10,8 +10,17 @@ approve_expense user task, the task is in an identity's GET /tasks inbox with
 its generated form, and completing it through the generated route finishes
 the instance. An invalid approval is a 422 that changes nothing, and the inbox
 without an identity is a 401.
+
+Chapter 5 adds the routing decision table. One served module sends a small,
+a mid and a large amount down three paths (auto-approved, manager, finance),
+with the decision's output in the trace. Editing a threshold in approval.dmn
+and regenerating changes only the model-hash lines of the generated code, and
+the regenerated app routes the same amount differently. A table that matches
+no rule, or an output no gateway condition accepts, fails the instance with
+the error recorded.
 """
 
+import shutil
 from urllib.parse import quote
 
 import pytest
@@ -24,16 +33,21 @@ from expense_app import (
     chapter_dir,
     commands,
     serve,
+    serve_directory,
     status,
     trace,
     until,
 )
+from test_generated_outputs_current import HAND_WRITTEN, committed_files, regenerate
 from viewer import app as viewer_app
 from viewer import validation
 
 EX = "https://example.org/expenses/"
 TASK = EX + "approval_bpmn#approve_expense"
-EXPENSE = {"description": "Train to Leeds", "amount": "42.50", "date": "2026-10-01"}
+FINANCE_TASK = EX + "approval_bpmn#finance_approve_expense"
+# From chapter 5 the amount routes the approval; 250.00 goes to the manager
+# (approve_expense) there, as every submission does in chapter 4.
+EXPENSE = {"description": "Train to Leeds", "amount": "250.00", "date": "2026-10-01"}
 EMPLOYEE = {"X-Forwarded-User": "employee"}
 APPROVER = {"X-Forwarded-User": "manager"}
 JSON = {"Accept": "application/json"}
@@ -116,7 +130,8 @@ def test_submitting_starts_the_process_and_waits_for_approval(app):
     [stored] = runtime.query(":ExpenseShape", expense="e1")
     assert stored["data"]["description"] == "Train to Leeds"
     assert stored["correlation_key"] == "e1" and stored["instance_id"]
-    assert [row["task"] for row in trace(runtime, "e1")] == ["start", "persist_expense"]
+    tasks = [row["task"] for row in trace(runtime, "e1")]
+    assert tasks[:2] == ["start", "persist_expense"] and "approve_expense" not in tasks
     # a missing seam:completedOn would leave no user_tasks row
     [row] = runtime.store.list_user_tasks()
     assert row["task"] == TASK and row["correlation_key"] == "e1"
@@ -217,3 +232,220 @@ def test_completing_without_identity_is_401(app):
     r = c.post("/expenses/e1/approval", data={"decision": "approved"})
     assert r.status_code == 401, r.text
     assert status(runtime, "e1") == "waiting"
+
+
+# ── chapter 5: the routing decision table ────────────────────────────────────
+
+CHAPTER_5 = "chapter-05"
+SMALL, MID, LARGE = "42.50", "250.00", "5000.00"
+# The approval route each path's open task is completed on.
+APPROVAL_ROUTES = {"approve_expense": "approval", "finance_approve_expense": "finance-approval"}
+
+
+def test_chapter_5_is_a_process_chapter():
+    assert CHAPTER_5 in PROCESS_CHAPTERS, PROCESS_CHAPTERS
+
+
+@pytest.fixture
+def rules_app(tmp_path, monkeypatch):
+    with serve(CHAPTER_5, tmp_path, monkeypatch) as served:
+        yield served
+
+
+def _submit_amount(c, runtime, key, amount, final=("waiting", "complete", "failed")):
+    r = c.post(f"/expenses/{key}", data={**EXPENSE, "amount": amount}, headers=EMPLOYEE)
+    assert r.status_code == 200, r.text
+    return until(lambda: status(runtime, key) in final and status(runtime, key))
+
+
+def _decision(runtime, key) -> dict:
+    [row] = [r for r in trace(runtime, key) if r["task"] == "route_expense"]
+    assert row["decision"] == EX + "approval_routing"
+    return row["outputs"]
+
+
+def _open_tasks(runtime) -> dict[str, str]:
+    """correlation key -> bpmn id of its open user task"""
+    return {row["correlation_key"]: row["bpmn_id"] for row in runtime.store.list_user_tasks()}
+
+
+def test_three_amounts_take_three_paths_through_one_module(rules_app):
+    c, runtime = rules_app
+    assert _submit_amount(c, runtime, "small", SMALL) == "complete"
+    assert _submit_amount(c, runtime, "mid", MID) == "waiting"
+    assert _submit_amount(c, runtime, "large", LARGE) == "waiting"
+
+    assert {key: _decision(runtime, key) for key in ("small", "mid", "large")} == {
+        "small": {"route": "auto"}, "mid": {"route": "manager"}, "large": {"route": "finance"}}
+    assert [r["task"] for r in trace(runtime, "small")] == [
+        "start", "persist_expense", "route_expense", "route_gateway", "auto_approved"]
+    assert _open_tasks(runtime) == {"mid": "approve_expense", "large": "finance_approve_expense"}
+    # every amount was stored by the same process, whatever its path
+    assert sorted(e["correlation_key"] for e in runtime.query(":ExpenseShape")) == ["large", "mid", "small"]
+
+    inbox = {row["correlation_key"]: row for row in c.get("/tasks", headers={**APPROVER, **JSON}).json()["tasks"]}
+    assert set(inbox) == {"mid", "large"}
+    assert (inbox["mid"]["task"], inbox["mid"]["partial"]) == (TASK, "approve_form.html")
+    assert (inbox["large"]["task"], inbox["large"]["partial"]) == (FINANCE_TASK, "finance_approve_form.html")
+    assert inbox["large"]["screen"] == "/approvals" and inbox["large"]["entity"]["amount"] == LARGE
+    html = c.get("/tasks", headers=APPROVER).text
+    assert 'hx-post="/expenses/mid/approval"' in html
+    assert 'hx-post="/expenses/large/finance-approval"' in html
+
+
+@pytest.mark.parametrize("key, amount, task", [
+    ("mid", MID, "approve_expense"),
+    ("large", LARGE, "finance_approve_expense"),
+])
+def test_completing_the_routed_task_finishes_the_instance(rules_app, key, amount, task):
+    c, runtime = rules_app
+    assert _submit_amount(c, runtime, key, amount) == "waiting"
+    r = c.post(f"/expenses/{key}/{APPROVAL_ROUTES[task]}", data={"decision": "approved"}, headers=APPROVER)
+    assert r.status_code == 200, r.text
+    until(lambda: status(runtime, key) == "complete")
+    rows = {row["task"]: row for row in trace(runtime, key)}
+    assert rows["route_expense"]["outputs"] == {"route": "manager" if task == "approve_expense" else "finance"}
+    assert rows[task]["by"] == "manager"
+    [approval] = runtime.query(":ApprovalShape", expense=key)
+    assert rows[task]["writes"] == [approval["id"]]
+    assert _open_tasks(runtime) == {}
+
+
+@pytest.mark.parametrize("key, amount, wrong", [
+    ("mid", MID, "finance_approve_expense"),
+    ("large", LARGE, "approve_expense"),
+])
+def test_the_other_paths_task_is_not_open(rules_app, key, amount, wrong):
+    c, runtime = rules_app
+    _submit_amount(c, runtime, key, amount)
+    r = c.post(f"/expenses/{key}/{APPROVAL_ROUTES[wrong]}", data={"decision": "approved"}, headers=APPROVER)
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["type"] == "TaskNotOpen"
+    assert status(runtime, key) == "waiting"
+
+
+def test_small_amount_has_nothing_to_approve(rules_app):
+    c, runtime = rules_app
+    _submit_amount(c, runtime, "small", SMALL)
+    assert c.get("/tasks", headers={**APPROVER, **JSON}).json()["tasks"] == []
+    r = c.post("/expenses/small/approval", data={"decision": "approved"}, headers=APPROVER)
+    assert r.status_code == 409, r.text
+
+
+def test_dmn_model_opens_in_the_viewer(monkeypatch):
+    monkeypatch.delenv(viewer_app.MODEL_ENV, raising=False)
+    monkeypatch.delenv(viewer_app.ROOT_ENV, raising=False)
+    original = viewer_app.MODEL_PATH
+    validation._clear_cache()
+    try:
+        viewer_app.configure(chapter_dir(CHAPTER_5) / "expenses.trig")
+        client = TestClient(viewer_app.app)
+        r = client.get(f"/view/{quote(EX + 'approval_dmn', safe='')}")
+        assert r.status_code == 200, r.text
+        assert "approval.dmn" in r.text
+        payload = viewer_app.get_graph().value(URIRef(EX + "approval_dmn"), SEAM.renderPayload)
+        r = client.get(f"/payload/{quote(str(payload), safe='')}")
+        assert r.status_code == 200, r.text
+        assert '<decision id="approval_routing"' in r.text and "dmndi:DMNDI" in r.text
+    finally:
+        viewer_app.configure(original)
+        validation._clear_cache()
+
+
+# ── chapter 5: the threshold lives in the model ──────────────────────────────
+
+
+def _copy_chapter_5(tmp_path, old: str, new: str):
+    """chapter-05 copied to tmp_path with ``old`` replaced by ``new`` (once)
+    in approval.dmn, and both generators rerun into the copy's generated/."""
+    copy = tmp_path / CHAPTER_5
+    shutil.copytree(chapter_dir(CHAPTER_5), copy, ignore=shutil.ignore_patterns("__pycache__"))
+    dmn = copy / "approval.dmn"
+    text = dmn.read_text(encoding="utf-8")
+    assert text.count(old) == 1, old
+    dmn.write_text(text.replace(old, new), encoding="utf-8")
+    generated = copy / "generated"
+    for name in committed_files(generated, HAND_WRITTEN):
+        (generated / name).unlink()
+    shutil.rmtree(generated / "templates")
+    routes = {name: text for name, text in regenerate("fastapi", copy / "expenses.trig", generated).items()
+              if name not in HAND_WRITTEN}
+    templates = regenerate("htmx", copy / "expenses.trig", generated / "templates")
+    return copy, {**routes, **{f"templates/{n}": t for n, t in templates.items()}}
+
+
+def _committed_chapter_5() -> dict[str, str]:
+    generated = chapter_dir(CHAPTER_5) / "generated"
+    templates = committed_files(generated / "templates")
+    return {**committed_files(generated, HAND_WRITTEN), **{f"templates/{n}": t for n, t in templates.items()}}
+
+
+MANAGER_UP_TO_1000 = "<text>&lt;= 1000</text>"
+MANAGER_UP_TO_200 = "<text>&lt;= 200</text>"
+
+
+def test_changing_the_threshold_moves_only_the_hash_lines(tmp_path):
+    _copy, regenerated = _copy_chapter_5(tmp_path, MANAGER_UP_TO_1000, MANAGER_UP_TO_200)
+    committed = _committed_chapter_5()
+    assert regenerated.keys() == committed.keys()
+    changed = []
+    for name in sorted(committed):
+        new, old = regenerated[name].splitlines(), committed[name].splitlines()
+        assert len(new) == len(old), name
+        changed += [(name, a, b) for a, b in zip(old, new) if a != b]
+    assert changed, "the model hash covers approval.dmn, so it must change"
+    for name, old, new in changed:
+        assert "model-hash" in old or "MODEL_HASH" in old, (name, old, new)
+        assert "model-hash" in new or "MODEL_HASH" in new, (name, old, new)
+
+
+def test_the_regenerated_app_routes_the_mid_amount_to_finance(tmp_path, monkeypatch):
+    copy, _ = _copy_chapter_5(tmp_path, MANAGER_UP_TO_1000, MANAGER_UP_TO_200)
+    with serve_directory(copy, tmp_path, monkeypatch) as (c, runtime):
+        assert _submit_amount(c, runtime, "mid", MID) == "waiting"
+        assert _decision(runtime, "mid") == {"route": "finance"}
+        assert _open_tasks(runtime) == {"mid": "finance_approve_expense"}
+        assert _submit_amount(c, runtime, "small", SMALL) == "complete"
+
+
+def test_the_committed_module_refuses_the_edited_model(tmp_path, monkeypatch):
+    copy, _ = _copy_chapter_5(tmp_path, MANAGER_UP_TO_1000, MANAGER_UP_TO_200)
+    shutil.copy(chapter_dir(CHAPTER_5) / "generated" / "expense_api.py", copy / "generated" / "expense_api.py")
+    from seams_runtime import ModelHashMismatch
+    with pytest.raises(ModelHashMismatch):
+        with serve_directory(copy, tmp_path, monkeypatch):
+            pass
+
+
+# ── chapter 5: failure modes ─────────────────────────────────────────────────
+
+
+def _failed_error(c, runtime, key, amount) -> dict:
+    assert _submit_amount(c, runtime, key, amount) == "failed"
+    [row] = runtime.store.list_instances(correlation_key=key)
+    error = runtime.engine.deserialize(runtime.store.load_state(row["instance_id"])).data["seams"]["error"]
+    assert _open_tasks(runtime) == {}
+    return error
+
+
+def test_a_table_that_matches_no_rule_fails_the_instance(tmp_path, monkeypatch):
+    # Without the catch-all finance rule, a large amount matches nothing.
+    rule = """      <rule id="rule_finance">
+        <inputEntry id="rule_finance_amount"><text>-</text></inputEntry>
+        <outputEntry id="rule_finance_out"><text>"finance"</text></outputEntry>
+      </rule>
+"""
+    copy, _ = _copy_chapter_5(tmp_path, rule, "")
+    with serve_directory(copy, tmp_path, monkeypatch) as (c, runtime):
+        error = _failed_error(c, runtime, "large", LARGE)
+        assert error["type"] == "ResolutionError", error
+        assert "'approval_routing' produced no 'Route'" in error["message"], error
+        assert _submit_amount(c, runtime, "mid", MID) == "waiting"
+
+
+def test_an_output_no_gateway_condition_accepts_fails_the_instance(tmp_path, monkeypatch):
+    copy, _ = _copy_chapter_5(tmp_path, '<text>"finance"</text>', '<text>"board"</text>')
+    with serve_directory(copy, tmp_path, monkeypatch) as (c, runtime):
+        error = _failed_error(c, runtime, "large", LARGE)
+        assert "route_gateway" in error["message"] or "Route?" in error["message"], error
+        assert _decision(runtime, "large") == {"route": "board"}

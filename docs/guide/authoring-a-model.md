@@ -87,8 +87,10 @@ The task's `seam:governedBy` policies say who may complete it. Each is evaluated
 the task IRI as the `odrl:target`, so the permission names the task, not an operation.
 A task with no policy is open to any authenticated identity, and with no identity the
 call fails with 401. `docs/queries/screens-to-finish-process.rq` lists, for a process,
-each user task with its form, screen and policy. `tests/fixtures/human_task/approval.trig`
-is a small complete example.
+each user task with its form, screen and policy. Chapter 4 of the expense tutorial,
+[The process](/tutorials/expenses/04-process), builds one step by step (checkpoint
+`examples/expenses/chapter-04/expenses.trig`, with no policy yet), and
+`tests/fixtures/human_task/approval.trig` is a small complete example with a policy.
 
 A person finds their open tasks at `GET /tasks`, the inbox `seams_runtime.host` serves
 next to the landmark page. It lists only the tasks whose policies permit the request's
@@ -98,6 +100,23 @@ again, validates the payload against the output shape and lets the process conti
 A task already completed answers 409. The identity comes from the `X-Forwarded-User`
 header your proxy sets. For a local run, set `SEAMS_DEV_USER` to the person you want
 to act as, for example `SEAMS_DEV_USER=manager`. Without either, the inbox answers 401.
+
+### Decisions and routing
+
+A `proc:BusinessRuleTask` evaluates a DMN decision table. Give the task
+`seam:decidedBy D` and `seam:reads S`, and give the `dec:Decision` `D` its
+`dec:payloadElement` (the DMN decision id), a `dec:input` per table input (its
+`dec:variable` is the input expression's text, its `dec:fromPath` the property of `S`
+that fills it) and a `dec:output` per output column (`dec:variable` is the column's
+label, `dec:processVariable` the name the rest of the process sees). An input whose
+DMN `inputExpression` has `typeRef="number"` is compared as a number, although form
+values arrive as strings. To route on the result, follow the task with a
+`bpmn:exclusiveGateway` whose outgoing flows carry conditions on the process
+variable, such as `route == "manager"`. The routing then lives in the DMN and BPMN
+files, so changing a threshold changes no generated code. A table that matches no rule,
+or an output that no condition accepts, fails the instance. Chapter 5 of the expense
+tutorial, [The rules](/tutorials/expenses/05-rules), builds one (checkpoint
+`examples/expenses/chapter-05/`).
 
 ## A skeleton
 

@@ -98,8 +98,16 @@ identity, each rendered with the form partial the htmx generator makes for `F`. 
 person submits that form to the generated completion route, which checks the policies
 again, validates the payload against the output shape and lets the process continue.
 A task already completed answers 409. The identity comes from the `X-Forwarded-User`
-header your proxy sets. For a local run, set `SEAMS_DEV_USER` to the person you want
-to act as, for example `SEAMS_DEV_USER=manager`. Without either, the inbox answers 401.
+header your proxy sets, and its roles from the comma-separated `X-Forwarded-Groups`
+header. For a local run, set `SEAMS_DEV_USER` to the person you want to act as and
+`SEAMS_DEV_ROLES` to their roles, for example `SEAMS_DEV_USER=bob SEAMS_DEV_ROLES=manager`.
+Without an identity, the inbox answers 401. A permission whose `odrl:assignee` is an
+`odrl:Party` admits an identity whose id or any role matches the party's IRI or local
+name, so a role is modelled as an `odrl:Party`. A permission with no assignee, or an
+`odrl:PartyCollection` assignee, admits any identity. A refused identity gets a 403
+that names its roles and the policy. Chapter 7 of the expense tutorial,
+[People and permissions](/tutorials/expenses/07-permissions), adds employee, manager
+and finance roles this way (checkpoint `examples/expenses/chapter-07/expenses.trig`).
 
 ### Decisions and routing
 

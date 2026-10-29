@@ -27,6 +27,11 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
 1. **Every model is a `seam:Model`** with an `rdfs:label`, and has exactly one
    `seam:notation`: one of `seam:C4`, `seam:IFML`, `seam:BPMN`, `seam:DMN`,
    `seam:Statechart` or `seam:ShapeGraph`. The notation picks the renderer.
+   A `seam:ShapeGraph` model draws each `sh:NodeShape` member as a frame and each
+   `sh:property` that has an `sh:path` as a card inside it, labelled from
+   `sh:datatype`, `sh:minCount`/`sh:maxCount` and `sh:in`, ordered by `sh:order`.
+   An `sh:class` or `sh:node` pointing at another node shape in the same model
+   draws an edge.
 2. **Every element states its model** with `seam:inModel`. Membership is data, so SPARQL
    can walk from a model to its elements; the viewer uses it to decide what to draw.
 3. **BPMN and DMN models carry a `seam:renderPayload`**, a path to the native XML

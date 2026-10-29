@@ -41,6 +41,10 @@ The C4 view has a legend with one entry per node type (the node's `type` qname) 
 
 M006/S05 draws IFML as IFML, not as a node-link graph (decision D011). `viewer/ifml.py` derives the IFML elements from the graph (containers with `[L]`/`[XOR]`/`[D]` markers, «List»/«Details»/«Form» components with «DataBinding» strips and «SimpleField» rows from the bound SHACL shape, events on component borders, Process Action hexagons, navigation/data/action flows, «ParamBindingGroup» and activation notes) and works out integer geometry in Python. `viewer/templates/ifml.html` only draws that dict as SVG. There is no client-side layout and no ELK for IFML, so the picture is deterministic and pytest can check both geometry and markup. Clicks delegate through `window.seamsNavigate` like every other renderer. The statechart stays on vis-network with the S01 card. The follow-up, if IFML needs editing or richer pan and zoom, is diagram-js with ELK ports for events.
 
+### Shape graphs
+
+M007/S03 gives the data layer a view on the same ELK card renderer (decision D022). The renderer script moved out of the C4 branch into a shared partial, `viewer/templates/elk-canvas.html`, included with a canvas id and a label for its aria-label and error messages. `viewer/shapegraph.py` turns a `seam:ShapeGraph` model into frames (node shapes), cards (property shapes) and `sh:class`/`sh:node` edges. Two optional node fields serve it, and C4 ignores them when absent: `navigateTo` (a property card opens its target shape, or its own shape) and `focused` (a self-landing shape, such as ConversationShape, is highlighted in its model's graph).
+
 ## Alternatives Considered
 
 - **(a) elkjs + hand-rolled SVG — chosen.**

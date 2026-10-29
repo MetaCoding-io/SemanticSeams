@@ -125,6 +125,9 @@
     .c4-card:hover .c4-card-bg { stroke: #555; stroke-width: 2; }
     .c4-frame > .c4-frame-bg { fill: #f8f9fb; stroke: #9aa0a8; stroke-width: 1; stroke-dasharray: 6 3; }
     .c4-frame:hover > .c4-frame-bg { stroke: #555; }
+    /* Shape graph (M007/S03): the focused shape keeps a solid, heavier frame. */
+    .c4-frame.focused > .c4-frame-bg { stroke-width: 3; stroke-dasharray: none; }
+    .c4-card.focused .c4-card-bg { stroke: #555; stroke-width: 2; }
     .c4-pill-bg { fill: #eef0f3; }
     .c4-pill { fill: #444; font: 600 10px system-ui, sans-serif; }
     .c4-label { fill: #1a1a1a; font: 600 13px system-ui, sans-serif; }

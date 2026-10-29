@@ -1,11 +1,13 @@
 """Tests for viewer/shapegraph.py (M007/S03, D022): the frames, property cards
 and sh:class/sh:node edges a seam:ShapeGraph model hands to the shared ELK
 card renderer, and the self-landing rule that keeps ConversationShape on
-its own model's shape graph. Template assertions live with T02.
+its own model's shape graph, plus the shape-canvas fragment drawn by the
+shared elk-canvas.html partial.
 """
 
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from rdflib import BNode, Literal, URIRef
@@ -152,3 +154,43 @@ def test_json_contract_keeps_notation(client):
     assert resp.json()["notation"] == "none"
     resp = client.get(f"/view/{MESSAGE_SHAPE}", headers={"accept": "application/json"})
     assert resp.json()["notation"] == "shapegraph"
+
+
+def _fragment(client, iri: str) -> str:
+    resp = client.get(f"/view/{quote(iri, safe='')}", headers={"hx-request": "true"})
+    assert resp.status_code == 200
+    return resp.text
+
+
+def test_message_shape_lands_on_shape_canvas(client):
+    assert viewer_app.resolve_navigation(MESSAGE_SHAPE)["landing"] == CHAT_DATA_SHAPES
+    html = _fragment(client, MESSAGE_SHAPE)
+    assert 'id="shape-canvas"' in html
+    assert 'data-notation="shapegraph"' in html
+    assert "new ELK()" in html
+    assert '"elk.randomSeed"' in html
+    assert "container.seamsLayout" in html
+    assert 'document.getElementById("shape-canvas")' in html
+    assert '"Shape graph render failed:"' in html
+    assert "C4 render failed" not in html
+    assert "No renderer yet" not in html
+    assert 'class="level-toggle"' not in html
+    assert 'id="c4-legend"' not in html
+    assert f'"{prop_id(CONVERSATION_SHAPE, "hasMessage")}"' in html
+
+
+def test_conversation_shape_self_lands_focused(client):
+    html = _fragment(client, CONVERSATION_SHAPE)
+    assert 'id="shape-canvas"' in html
+    assert '"focused": true' in html
+    assert 'id="query-catalog"' in html
+    assert "No renderer yet" not in html
+
+
+def test_c4_root_keeps_its_canvas(client):
+    html = _fragment(client, CHAT_ARCHITECTURE)
+    assert 'id="c4-canvas"' in html
+    assert 'id="shape-canvas"' not in html
+    assert 'document.getElementById("c4-canvas")' in html
+    assert '"C4 render failed:"' in html
+    assert 'class="level-toggle"' in html

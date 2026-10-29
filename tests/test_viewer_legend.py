@@ -286,7 +286,7 @@ def test_level_toggle_carries_hide_and_descent_links_do_not(client):
         assert "hide=arch:DeploymentNode" in href, href
     breadcrumbs = re.search(r'<nav class="breadcrumbs">.*?</nav>', html, re.S).group(0)
     assert "hide=" not in breadcrumbs
-    assert "seamsNavigate(n.id, " in html
+    assert "seamsNavigate(n.navigateTo || n.id, " in html
     assert not re.search(r"seamsNavigate\([^)]*hide", html)
 
 

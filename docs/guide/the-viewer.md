@@ -98,7 +98,7 @@ reached from more than one parent. Each crumb is a link back.
 | Statechart | A node-link graph drawn with vis-network |
 | BPMN | bpmn-js, from the model's native XML payload, tinted with the process colour and badged per seam |
 | DMN | dmn-js, from the model's native XML payload: the decision diagram, tinted with the decision colour and badged per seam, and its tables |
-| SHACL shape graph | No renderer yet; the page shows the inspector only |
+| SHACL shape graph | The same ELK card renderer as C4: a frame per node shape, a card per property shape with its datatype (or target shape) and cardinality, and an edge for each `sh:class`/`sh:node` reference to another shape. A shape with no detail model of its own (e.g. ConversationShape) shows its model's shape graph with itself highlighted |
 
 **Questions.** The canned queries that apply to the focused element's type, as buttons.
 Results appear inline with each value linked. The catalog is on the

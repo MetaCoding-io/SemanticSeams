@@ -10,7 +10,14 @@ A missing model file raises ``FileNotFoundError`` naming the path (and
 
 ``load`` refuses a model whose hash differs from the one the code was
 generated from (ADR-0007 rule 2) unless ``allow_hash_mismatch=True`` or
-``SEAMS_ALLOW_HASH_MISMATCH=1``. The other methods are what a thin handler
+``SEAMS_ALLOW_HASH_MISMATCH=1``. It then opens the store the model declares
+(ADR-0011, ``ModelGraph.store_plan``): embedded SQLite at ``db_path``,
+``SEAMS_DB`` or ``./seams.sqlite`` when the model declares no store or a
+deploy:SQLite one; PostgreSQL at the URL in the environment variable the
+connecting binding's deploy:key names, else in the file ``<key>_FILE`` names.
+``store=`` injects a backend (tests), and ``SEAMS_STORE_OVERRIDE=sqlite``
+forces embedded SQLite; both still resolve the plan first, so a bad model
+fails at load either way. The other methods are what a thin handler
 calls: ``policy`` (a FastAPI dependency for seam:governedBy), ``validate``
 (SHACL at the boundary), ``start_process`` / ``resume`` (run the generic
 worker as an asyncio task), ``write`` (persist a validated entity when the
@@ -50,9 +57,9 @@ from .errors import ModelHashMismatch, PolicyDenied, ResolutionError, TaskNotOpe
 from .fragments import FragmentRenderer, flatten
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient
-from .model import ModelGraph, local_name
+from .model import DEPLOY, ModelGraph, local_name
 from .policy import Identity, PolicyHook, authenticator_from_env
-from .store import SQLiteStore, Store
+from .store import PostgresStore, SQLiteStore, Store
 from .worker import RUNNING, Instance, Worker, new_state
 
 log = logging.getLogger(__name__)
@@ -61,8 +68,35 @@ MODEL_ENV = "SEAMS_MODEL"
 DB_ENV = "SEAMS_DB"
 ALLOW_MISMATCH_ENV = "SEAMS_ALLOW_HASH_MISMATCH"
 DEFAULT_DB = "seams.sqlite"
+STORE_OVERRIDE_ENV = "SEAMS_STORE_OVERRIDE"
+STORE_KINDS = {DEPLOY.SQLite: "sqlite", DEPLOY.PostgreSQL: "postgresql"}  # plan kind -> Store.kind
 TEMPLATES_ENV = "SEAMS_TEMPLATES"
 DEFAULT_TEMPLATES = "templates"
+
+
+def _db(db_path) -> Path:
+    """The embedded SQLite file: ``db_path``, else ``SEAMS_DB``, else ``./seams.sqlite``."""
+    return Path(db_path if db_path is not None else os.environ.get(DB_ENV) or DEFAULT_DB)
+
+
+def _connection_url(plan) -> str:
+    """The PostgreSQL URL for ``plan``: the environment variable its deploy:key
+    names, else the file ``<key>_FILE`` names (stripped), else ResolutionError
+    on the connecting container. The URL itself is never logged."""
+    key = plan.key
+    url = os.environ.get(key)
+    if url:
+        log.info("store connection string from %s", key)
+        return url
+    path = os.environ.get(f"{key}_FILE")
+    if path:
+        log.info("store connection string from the file %s_FILE names (%s)", key, path)
+        return Path(path).read_text(encoding="utf-8").strip()
+    raise ResolutionError(
+        plan.container,
+        DEPLOY.connectsTo,
+        f"store {plan.store} needs its connection string in {key} or a file named by {key}_FILE; neither is set",
+    )
 
 
 class Runtime:
@@ -76,9 +110,13 @@ class Runtime:
         llm: LLMClient | None = None,
         bus: ChannelBus | None = None,
         templates_dir=None,
+        store_plan=None,
+        store_override: bool = False,
     ):
         self.model = model
         self.store = store
+        self.store_plan = store_plan  # the seams StorePlan Runtime.load resolved, else None
+        self.store_override = store_override  # True when the store is not the one the model declares
         self.engine = Engine(model)
         self.bus = bus if bus is not None else ChannelBus()
         self.guard = LifecycleGuard(model)
@@ -108,6 +146,7 @@ class Runtime:
         llm_transport=None,
         llm_base_url: str | None = None,
         templates_dir=None,
+        store: Store | None = None,
     ) -> Runtime:
         override = os.environ.get(MODEL_ENV)
         if override:
@@ -126,16 +165,57 @@ class Runtime:
                 )
             else:
                 raise ModelHashMismatch(model_hash, model.hash, model.path)
-        db = Path(db_path if db_path is not None else os.environ.get(DB_ENV) or DEFAULT_DB)
+        plan = model.store_plan()  # ResolutionError on a bad model, whatever store is used
+        declared = STORE_KINDS[plan.kind]
+        override = False
+        if store is not None:
+            override = store.kind != declared
+            if override:
+                log.warning(
+                    "injected %s store %s replaces the declared %s store %s",
+                    store.kind,
+                    store.location,
+                    declared,
+                    plan.store,
+                )
+        elif mode := os.environ.get(STORE_OVERRIDE_ENV):
+            if mode != "sqlite":
+                raise ValueError(f"{STORE_OVERRIDE_ENV}={mode!r}: the only supported override is 'sqlite'")
+            store = SQLiteStore(_db(db_path))
+            override = True
+            log.warning(
+                "%s=sqlite: embedded SQLite at %s replaces the declared %s store %s",
+                STORE_OVERRIDE_ENV,
+                store.location,
+                declared,
+                plan.store or "(none declared)",
+            )
+        elif plan.kind == DEPLOY.PostgreSQL:
+            store = PostgresStore(_connection_url(plan))
+        else:
+            store = SQLiteStore(_db(db_path))
         runtime = cls(
             model,
-            SQLiteStore(db),
+            store,
             authenticator=authenticator,
             evaluator=evaluator,
             llm=LLMClient(llm_base_url, transport=llm_transport),
             templates_dir=templates_dir,
+            store_plan=plan,
+            store_override=override,
         )
-        log.info("runtime loaded %s (%s), store %s, templates %s", model.path, model.hash, db, runtime.templates_dir)
+        log.info(
+            "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",
+            model.path,
+            model.hash,
+            store.kind,
+            local_name(plan.kind) if plan.declared else "nothing",
+            plan.store,
+            plan.container,
+            plan.key,
+            store.location,
+            runtime.templates_dir,
+        )
         return runtime
 
     # ── boundary ──

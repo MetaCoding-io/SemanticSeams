@@ -49,6 +49,8 @@ def app_dir(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Runtime, "load", classmethod(load))
     monkeypatch.setenv("SEAMS_SEED", str(SEED))
+    # the chat app declares PostgreSQL; these tests need only some store
+    monkeypatch.setenv("SEAMS_STORE_OVERRIDE", "sqlite")
     return out
 
 
@@ -155,7 +157,16 @@ def test_healthz(client):
     c, runtime = client
     r = c.get("/healthz")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "model_hash": runtime.model.hash}
+    assert r.json() == {
+        "status": "ok",
+        "model_hash": runtime.model.hash,
+        "store": {
+            "kind": "sqlite",
+            "declared": "PostgreSQL",
+            "container": "https://example.org/chat/message_db",
+            "override": True,
+        },
+    }
 
 
 def test_second_startup_does_not_duplicate_seed(app_dir):

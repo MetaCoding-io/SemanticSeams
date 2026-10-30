@@ -27,7 +27,6 @@ from seams_runtime import (  # noqa: E402
     ModelGraph,
     ResolutionError,
     Runtime,
-    Store,
 )
 from seams_runtime.model import COMM, SEAM  # noqa: E402
 
@@ -44,9 +43,11 @@ EXPENSE = {"description": "Train to Leeds", "amount": "42.50"}
 MANAGER = Identity("manager")
 
 
-def make_runtime(tmp_path, model=None, db="seams.sqlite") -> Runtime:
+def make_runtime(make_store, tmp_path, model=None) -> Runtime:
+    """A runtime on a store of the current backend; the same ``make_store``
+    gives the same data, as a restart would."""
     model = model if model is not None else ModelGraph.load(TRIG)
-    return Runtime(model, Store(tmp_path / db), authenticator=HeaderAuthenticator(), templates_dir=tmp_path)
+    return Runtime(model, make_store(), authenticator=HeaderAuthenticator(), templates_dir=tmp_path)
 
 
 def fixture_copy(tmp_path, edit) -> Path:
@@ -117,8 +118,8 @@ def test_two_subscribed_starts_are_ambiguous():
 # ── the runtime ──────────────────────────────────────────────────────────────
 
 
-def test_publish_starts_the_subscriber_with_the_key_and_entities(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_publish_starts_the_subscriber_with_the_key_and_entities(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         result = await decide(rt, "approved")
@@ -149,8 +150,8 @@ def test_publish_starts_the_subscriber_with_the_key_and_entities(tmp_path):
     asyncio.run(main())
 
 
-def test_a_path_that_publishes_nothing_starts_nothing(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_a_path_that_publishes_nothing_starts_nothing(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         result = await decide(rt, "rejected")
@@ -163,7 +164,7 @@ def test_a_path_that_publishes_nothing_starts_nothing(tmp_path):
     asyncio.run(main())
 
 
-def test_a_failing_subscriber_fails_alone(tmp_path):
+def test_a_failing_subscriber_fails_alone(make_store, tmp_path):
     # t_pay now leaves "submitted", but the publisher copies "approved".
     trig = fixture_copy(
         tmp_path,
@@ -171,7 +172,7 @@ def test_a_failing_subscriber_fails_alone(tmp_path):
             ":t_pay a state:Transition ; state:from :s_approved", ":t_pay a state:Transition ; state:from :s_submitted"
         ),
     )
-    rt = make_runtime(tmp_path, ModelGraph.load(trig))
+    rt = make_runtime(make_store, tmp_path, ModelGraph.load(trig))
 
     async def main():
         result = await decide(rt, "approved")
@@ -186,12 +187,12 @@ def test_a_failing_subscriber_fails_alone(tmp_path):
     asyncio.run(main())
 
 
-def test_a_subscriber_that_cannot_start_is_recorded_on_the_publisher(tmp_path):
+def test_a_subscriber_that_cannot_start_is_recorded_on_the_publisher(make_store, tmp_path):
     model = ModelGraph.load(TRIG)
     other = URIRef(EX + "other_channel")
     model.ds.add((other, RDF.type, COMM.Channel))
     model.ds.add((START, SEAM.subscribesTo, other))  # two subscribed starts: ambiguous
-    rt = make_runtime(tmp_path, model)
+    rt = make_runtime(make_store, tmp_path, model)
 
     async def main():
         result = await decide(rt, "approved")
@@ -204,8 +205,8 @@ def test_a_subscriber_that_cannot_start_is_recorded_on_the_publisher(tmp_path):
     asyncio.run(main())
 
 
-def test_start_subscribed_refuses_a_process_that_is_not_channel_started(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_start_subscribed_refuses_a_process_that_is_not_channel_started(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         with pytest.raises(ResolutionError):
@@ -217,12 +218,12 @@ def test_start_subscribed_refuses_a_process_that_is_not_channel_started(tmp_path
     asyncio.run(main())
 
 
-def test_a_checkpointed_subscriber_resumes_after_a_restart(tmp_path):
+def test_a_checkpointed_subscriber_resumes_after_a_restart(make_store, tmp_path):
     current = {str(EXPENSE_SHAPE): {"id": "x1", "data": {**EXPENSE, "status": "approved"}}}
     status = {str(EXPENSE_SHAPE): "approved"}
 
     async def first():
-        rt = make_runtime(tmp_path)
+        rt = make_runtime(make_store, tmp_path)
         inst = await rt.start_subscribed(":payout_process", "e9", current, status, stop_after="payment_received")
         assert rt.store.get_instance(inst.id)["status"] == "running"  # checkpointed before it ran
         result = await inst.wait()
@@ -231,7 +232,7 @@ def test_a_checkpointed_subscriber_resumes_after_a_restart(tmp_path):
         return inst.id
 
     async def second(instance_id):
-        rt = make_runtime(tmp_path)  # a fresh runtime: nothing parsed, nothing in memory
+        rt = make_runtime(make_store, tmp_path)  # a fresh runtime: nothing parsed, nothing in memory
         result = await (await rt.resume(instance_id)).wait()
         assert result["status"] == "complete", result["error"]
         assert [r["task"] for r in result["trace"]] == ["payment_received", "pay_expense", "end"]

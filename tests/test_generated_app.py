@@ -56,6 +56,8 @@ def generated(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(Runtime, "load", classmethod(load))
+    # the chat app declares PostgreSQL; these tests need only some store
+    monkeypatch.setenv("SEAMS_STORE_OVERRIDE", "sqlite")
     name = f"generated_chat_api_{tmp_path.name}"
     spec = importlib.util.spec_from_file_location(name, app_dir / "chat_api.py")
     module = importlib.util.module_from_spec(spec)

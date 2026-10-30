@@ -16,16 +16,16 @@ if str(ROOT) not in sys.path:
 
 from processless_model import EXPENSES, write_model  # noqa: E402
 
-from seams_runtime import ContractViolation, ModelGraph, Runtime, Store  # noqa: E402
+from seams_runtime import ContractViolation, ModelGraph, Runtime  # noqa: E402
 from seams_runtime.fragments import flatten  # noqa: E402
 
 SHAPE = EXPENSES + "ExpenseShape"
 
 
 @pytest.fixture
-def runtime(tmp_path):
+def runtime(make_store, tmp_path):
     model = ModelGraph.load(write_model(tmp_path))
-    return Runtime(model, Store(tmp_path / "seams.sqlite"), templates_dir=tmp_path)
+    return Runtime(model, make_store(), templates_dir=tmp_path)
 
 
 def test_valid_payload_is_persisted_and_queryable(runtime):
@@ -91,10 +91,10 @@ ID_SHAPE_TRIG = """\
 
 
 @pytest.fixture
-def id_runtime(tmp_path):
+def id_runtime(make_store, tmp_path):
     trig = tmp_path / "ids.trig"
     trig.write_text(ID_SHAPE_TRIG, encoding="utf-8")
-    return Runtime(ModelGraph.load(trig), Store(tmp_path / "seams.sqlite"), templates_dir=tmp_path)
+    return Runtime(ModelGraph.load(trig), make_store(), templates_dir=tmp_path)
 
 
 def test_required_id_is_assigned_by_the_runtime(id_runtime):

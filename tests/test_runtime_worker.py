@@ -57,10 +57,12 @@ class FakeLLM:
         return httpx.MockTransport(self)
 
 
-def make_runtime(tmp_path, llm=None, **kw) -> Runtime:
+def make_runtime(make_store, llm=None, **kw) -> Runtime:
+    """The chat runtime on a store of the current backend (``store_backend``);
+    the same ``make_store`` gives the same data, as a restart would."""
     llm = llm if llm is not None else FakeLLM()
     kw.setdefault("llm_base_url", "http://llm-gateway.test")
-    return Runtime.load(TRIG, db_path=tmp_path / "seams.sqlite", llm_transport=llm.transport, **kw)
+    return Runtime.load(TRIG, store=make_store(), llm_transport=llm.transport, **kw)
 
 
 async def _frames(sub, until_event: str, timeout: float = 5.0) -> list[str]:
@@ -79,9 +81,9 @@ def _row(result, bpmn_id):
 # ── the demo: a short message ────────────────────────────────────────────────
 
 
-def test_short_message_runs_to_complete(tmp_path):
+def test_short_message_runs_to_complete(make_store):
     llm = FakeLLM()
-    rt = make_runtime(tmp_path, llm)
+    rt = make_runtime(make_store, llm)
 
     async def main():
         sub_c1 = rt.subscribe(":stream_events", "c1")
@@ -135,9 +137,9 @@ def test_short_message_runs_to_complete(tmp_path):
     assert rt.store.get_instance(result["instance"])["status"] == "complete"
 
 
-def test_long_message_routes_to_long_context_provider(tmp_path):
+def test_long_message_routes_to_long_context_provider(make_store):
     llm = FakeLLM()
-    rt = make_runtime(tmp_path, llm)
+    rt = make_runtime(make_store, llm)
 
     async def main():
         return await (await rt.start_process(PROCESS, LONG, correlation_key="c1")).wait()
@@ -148,11 +150,11 @@ def test_long_message_routes_to_long_context_provider(tmp_path):
     assert llm.requests[0][1]["model"] == "long-context-provider"
 
 
-def test_base_url_comes_from_the_deploy_binding_env_var(tmp_path, monkeypatch):
+def test_base_url_comes_from_the_deploy_binding_env_var(make_store, monkeypatch):
     """:chat_api deploy:binding [deploy:key "LLM_GATEWAY_URL"; deploy:serviceOf :llm_gateway]."""
     llm = FakeLLM()
     monkeypatch.setenv("LLM_GATEWAY_URL", "http://from-env.test/")
-    rt = make_runtime(tmp_path, llm, llm_base_url=None)
+    rt = make_runtime(make_store, llm, llm_base_url=None)
 
     async def main():
         return await (await rt.start_process(PROCESS, SHORT, correlation_key="c1")).wait()
@@ -164,8 +166,8 @@ def test_base_url_comes_from_the_deploy_binding_env_var(tmp_path, monkeypatch):
 # ── negative paths ───────────────────────────────────────────────────────────
 
 
-def test_malformed_payload_is_rejected_before_any_instance(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_malformed_payload_is_rejected_before_any_instance(make_store):
+    rt = make_runtime(make_store)
     bad = {"role": "user"}  # no :content (sh:minCount 1)
     with pytest.raises(ContractViolation) as v:
         rt.validate(":MessageShape", bad)
@@ -182,8 +184,8 @@ def test_malformed_payload_is_rejected_before_any_instance(tmp_path):
     assert rt.query(":MessageShape", conversation="c1") == []
 
 
-def test_unknown_field_is_rejected_at_start(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_unknown_field_is_rejected_at_start(make_store):
+    rt = make_runtime(make_store)
 
     async def main():
         await rt.start_process(PROCESS, {**SHORT, "provider": "x"}, correlation_key="c1")
@@ -201,8 +203,8 @@ def test_unknown_field_is_rejected_at_start(tmp_path):
     ],
     ids=["connect-error", "timeout"],
 )
-def test_llm_transport_error_fails_via_t_fail_send(tmp_path, llm):
-    rt = make_runtime(tmp_path, llm)
+def test_llm_transport_error_fails_via_t_fail_send(make_store, llm):
+    rt = make_runtime(make_store, llm)
 
     async def main():
         sub = rt.subscribe(":stream_events", "c1")
@@ -235,9 +237,9 @@ def _http_response(status, body, headers=None):
     ],
     ids=["http-500", "bad-chunk", "no-done"],
 )
-def test_llm_bad_responses_fail_the_instance(tmp_path, handler, reason):
+def test_llm_bad_responses_fail_the_instance(make_store, handler, reason):
     rt = Runtime.load(
-        TRIG, db_path=tmp_path / "s.sqlite", llm_transport=httpx.MockTransport(handler), llm_base_url="http://llm.test"
+        TRIG, store=make_store(), llm_transport=httpx.MockTransport(handler), llm_base_url="http://llm.test"
     )
 
     async def main():
@@ -249,9 +251,9 @@ def test_llm_bad_responses_fail_the_instance(tmp_path, handler, reason):
     assert result["lifecycle"] == {"Message": "failed"}
 
 
-def test_missing_base_url_fails_naming_the_env_key(tmp_path, monkeypatch):
+def test_missing_base_url_fails_naming_the_env_key(make_store, monkeypatch):
     monkeypatch.delenv("LLM_GATEWAY_URL", raising=False)
-    rt = make_runtime(tmp_path, llm_base_url=None)
+    rt = make_runtime(make_store, llm_base_url=None)
 
     async def main():
         return await (await rt.start_process(PROCESS, SHORT, correlation_key="c1")).wait()
@@ -261,14 +263,14 @@ def test_missing_base_url_fails_naming_the_env_key(tmp_path, monkeypatch):
     assert "LLM_GATEWAY_URL" in result["error"]["message"]
 
 
-def test_decision_without_output_fails_with_the_model_error(tmp_path):
+def test_decision_without_output_fails_with_the_model_error(make_store):
     # Spiff wraps errors raised inside a business-rule task in a
     # WorkflowTaskException; the worker records the ResolutionError beneath it.
     from rdflib import Literal, URIRef
 
     from seams_runtime.model import DEC
 
-    rt = make_runtime(tmp_path)
+    rt = make_runtime(make_store)
     node = rt.model.ds.value(URIRef(CHAT + "routing_decision"), DEC.output)
     [(_s, _p, _o, ctx)] = list(rt.model.ds.quads((node, DEC.variable, None, None)))
     rt.model.ds.remove((node, DEC.variable, None, ctx))
@@ -300,18 +302,20 @@ def test_model_error_is_found_through_the_exception_chain():
     assert Worker._model_error(plain) is plain
 
 
-def test_model_hash_is_enforced(tmp_path, monkeypatch):
+def test_model_hash_is_enforced(make_store, monkeypatch):
     monkeypatch.delenv("SEAMS_ALLOW_HASH_MISMATCH", raising=False)
     with pytest.raises(ModelHashMismatch) as e:
-        make_runtime(tmp_path, model_hash="sha256:0000")
+        make_runtime(make_store, model_hash="sha256:0000")
     assert e.value.expected == "sha256:0000" and e.value.actual == model_hash(TRIG)
-    assert make_runtime(tmp_path, model_hash="sha256:0000", allow_hash_mismatch=True)
-    assert make_runtime(tmp_path, model_hash=model_hash(TRIG))
+    assert make_runtime(make_store, model_hash="sha256:0000", allow_hash_mismatch=True)
+    assert make_runtime(make_store, model_hash=model_hash(TRIG))
     monkeypatch.setenv("SEAMS_ALLOW_HASH_MISMATCH", "1")
-    assert make_runtime(tmp_path, model_hash="sha256:0000")
+    assert make_runtime(make_store, model_hash="sha256:0000")
 
 
 def test_db_path_defaults_to_seams_db_env(tmp_path, monkeypatch):
+    # the chat app declares PostgreSQL: SEAMS_DB only applies under the override
+    monkeypatch.setenv("SEAMS_STORE_OVERRIDE", "sqlite")
     monkeypatch.setenv("SEAMS_DB", str(tmp_path / "env.sqlite"))
     rt = Runtime.load(TRIG)
     assert rt.store.path == tmp_path / "env.sqlite"
@@ -320,9 +324,9 @@ def test_db_path_defaults_to_seams_db_env(tmp_path, monkeypatch):
 # ── restart ──────────────────────────────────────────────────────────────────
 
 
-def test_restart_resumes_from_the_checkpoint(tmp_path):
+def test_restart_resumes_from_the_checkpoint(make_store):
     first_llm, second_llm = FakeLLM(), FakeLLM()
-    first = make_runtime(tmp_path, first_llm)
+    first = make_runtime(make_store, first_llm)
 
     async def run_first(rt):
         inst = await rt.start_process(PROCESS, LONG, correlation_key="c1", stop_after="route_to_provider")
@@ -334,7 +338,7 @@ def test_restart_resumes_from_the_checkpoint(tmp_path):
     assert first_llm.requests == []
     del first  # the process is gone; only SQLite remains
 
-    second = make_runtime(tmp_path, second_llm)
+    second = make_runtime(make_store, second_llm)
     assert second.store.get_instance(stopped["instance"])["status"] == "stopped"
 
     async def run_second():
@@ -348,8 +352,8 @@ def test_restart_resumes_from_the_checkpoint(tmp_path):
     assert len(second.query(":MessageShape", conversation="c1")) == 2
 
 
-def test_resume_unknown_instance(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_resume_unknown_instance(make_store):
+    rt = make_runtime(make_store)
 
     async def main():
         await rt.resume("nope")
@@ -374,14 +378,14 @@ def test_golden_chat_api_calls_only_runtime_methods():
     assert callable(Runtime.load)
 
 
-def test_fastapi_route_smoke(tmp_path):
+def test_fastapi_route_smoke(make_store):
     from fastapi import Depends, FastAPI, Request
     from fastapi.responses import JSONResponse
     from fastapi.testclient import TestClient
 
     from seams_runtime import HeaderAuthenticator
 
-    rt = make_runtime(tmp_path, authenticator=HeaderAuthenticator())
+    rt = make_runtime(make_store, authenticator=HeaderAuthenticator())
     app = FastAPI()
 
     @app.exception_handler(RuntimeModelError)

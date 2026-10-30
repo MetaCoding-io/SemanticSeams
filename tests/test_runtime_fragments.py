@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from seams_runtime import ResolutionError, Runtime  # noqa: E402
+from seams_runtime import ResolutionError, Runtime, SQLiteStore  # noqa: E402
 from seams_runtime.fragments import FragmentRenderer, flatten  # noqa: E402
 
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
@@ -41,8 +41,8 @@ def templates(tmp_path):
 
 
 @pytest.fixture
-def runtime(tmp_path, templates):
-    return Runtime.load(TRIG, db_path=tmp_path / "seams.sqlite", templates_dir=templates)
+def runtime(make_store, templates):
+    return Runtime.load(TRIG, store=make_store(), templates_dir=templates)
 
 
 def _html(response) -> str:
@@ -140,16 +140,16 @@ def test_component_without_template_file_raises_template_not_found(runtime, temp
 
 def test_seams_templates_env_is_honoured(tmp_path, templates, monkeypatch):
     monkeypatch.setenv("SEAMS_TEMPLATES", str(templates))
-    rt = Runtime.load(TRIG, db_path=tmp_path / "seams.sqlite")
+    rt = Runtime.load(TRIG, store=SQLiteStore(tmp_path / "seams.sqlite"))
     assert rt.templates_dir == templates
     assert _html(rt.render_fragment("conversation_list.html", [])) == "False"
 
 
 def test_templates_default_and_argument_precedence(tmp_path, templates, monkeypatch):
     monkeypatch.delenv("SEAMS_TEMPLATES", raising=False)
-    assert Runtime.load(TRIG, db_path=tmp_path / "a.sqlite").templates_dir == Path("templates")
+    assert Runtime.load(TRIG, store=SQLiteStore(tmp_path / "a.sqlite")).templates_dir == Path("templates")
     monkeypatch.setenv("SEAMS_TEMPLATES", str(tmp_path / "elsewhere"))
-    rt = Runtime.load(TRIG, db_path=tmp_path / "b.sqlite", templates_dir=templates)
+    rt = Runtime.load(TRIG, store=SQLiteStore(tmp_path / "b.sqlite"), templates_dir=templates)
     assert rt.templates_dir == templates
 
 

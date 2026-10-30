@@ -24,7 +24,6 @@ from seams_runtime import (  # noqa: E402
     ModelGraph,
     PolicyDenied,
     Runtime,
-    Store,
     TaskNotOpen,
 )
 
@@ -37,10 +36,12 @@ MANAGER = Identity("manager")
 EMPLOYEE = Identity("employee")
 
 
-def make_runtime(tmp_path) -> Runtime:
+def make_runtime(make_store, tmp_path) -> Runtime:
+    """A runtime on a store of the current backend; the same ``make_store``
+    gives the same data, as a restart would."""
     return Runtime(
         ModelGraph.load(TRIG),
-        Store(tmp_path / "seams.sqlite"),
+        make_store(),
         authenticator=HeaderAuthenticator(),
         templates_dir=tmp_path,
     )
@@ -53,8 +54,8 @@ async def _waiting(rt, key="e1"):
     return inst
 
 
-def test_instance_waits_and_stores_the_open_task(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_instance_waits_and_stores_the_open_task(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         inst = await _waiting(rt)
@@ -67,8 +68,8 @@ def test_instance_waits_and_stores_the_open_task(tmp_path):
     asyncio.run(main())
 
 
-def test_only_the_manager_sees_the_task(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_only_the_manager_sees_the_task(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         inst = await _waiting(rt)
@@ -89,8 +90,8 @@ def test_only_the_manager_sees_the_task(tmp_path):
     asyncio.run(main())
 
 
-def test_completion_is_authorized(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_completion_is_authorized(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         await _waiting(rt)
@@ -116,8 +117,8 @@ def test_completion_is_authorized(tmp_path):
     ],
     ids=["not-in-list", "missing", "too-long", "unknown-field"],
 )
-def test_invalid_payload_changes_nothing(tmp_path, payload):
-    rt = make_runtime(tmp_path)
+def test_invalid_payload_changes_nothing(make_store, tmp_path, payload):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         await _waiting(rt)
@@ -130,8 +131,8 @@ def test_invalid_payload_changes_nothing(tmp_path, payload):
     asyncio.run(main())
 
 
-def test_valid_completion_finishes_the_process(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_valid_completion_finishes_the_process(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         await _waiting(rt)
@@ -159,8 +160,8 @@ def test_valid_completion_finishes_the_process(tmp_path):
     asyncio.run(main())
 
 
-def test_unknown_correlation_key_is_not_open(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_unknown_correlation_key_is_not_open(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         await _waiting(rt)
@@ -171,8 +172,8 @@ def test_unknown_correlation_key_is_not_open(tmp_path):
     asyncio.run(main())
 
 
-def test_concurrent_completions_complete_once(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_concurrent_completions_complete_once(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         await _waiting(rt)
@@ -189,8 +190,8 @@ def test_concurrent_completions_complete_once(tmp_path):
     asyncio.run(main())
 
 
-def test_two_instances_are_listed_and_completed_separately(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_two_instances_are_listed_and_completed_separately(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
 
     async def main():
         await _waiting(rt, "e1")
@@ -203,14 +204,14 @@ def test_two_instances_are_listed_and_completed_separately(tmp_path):
     asyncio.run(main())
 
 
-def test_a_restarted_runtime_lists_and_completes_the_task(tmp_path):
+def test_a_restarted_runtime_lists_and_completes_the_task(make_store, tmp_path):
     async def first():
-        return (await _waiting(make_runtime(tmp_path))).id
+        return (await _waiting(make_runtime(make_store, tmp_path))).id
 
     instance_id = asyncio.run(first())
 
     async def second():
-        rt = make_runtime(tmp_path)
+        rt = make_runtime(make_store, tmp_path)
         [row] = rt.user_tasks(MANAGER)
         assert row["instance"] == instance_id
         inst = await rt.complete_task(TASK, {"decision": "approved"}, "e1", MANAGER)
@@ -222,8 +223,8 @@ def test_a_restarted_runtime_lists_and_completes_the_task(tmp_path):
     asyncio.run(second())
 
 
-def test_task_policy_dependency(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_task_policy_dependency(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
     app = FastAPI()
 
     @app.get("/check")
@@ -237,8 +238,8 @@ def test_task_policy_dependency(tmp_path):
     assert client.get("/check").status_code == 401
 
 
-def test_policy_hook_allows_ungoverned_elements(tmp_path):
-    rt = make_runtime(tmp_path)
+def test_policy_hook_allows_ungoverned_elements(make_store, tmp_path):
+    rt = make_runtime(make_store, tmp_path)
     persist = EX + "approval_bpmn#persist_expense"
     assert rt.hook.allows(persist, EMPLOYEE)[0] is True
     assert rt.hook.allows(persist, None)[0] is False

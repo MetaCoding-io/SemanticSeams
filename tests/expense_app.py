@@ -133,7 +133,8 @@ def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str)
 @contextmanager
 def serve(chapter: str, tmp_path: Path, monkeypatch):
     """(TestClient, Runtime) for the chapter's committed route module, with
-    SEAMS_MODEL / SEAMS_TEMPLATES on the checkpoint, SEAMS_DB in tmp_path, and
+    SEAMS_MODEL / SEAMS_TEMPLATES on the checkpoint, SEAMS_DB in tmp_path (with
+    SEAMS_STORE_OVERRIDE=sqlite, whatever store the chapter declares), and
     no dev user or seed, so every identity comes from X-Forwarded-User."""
     with serve_directory(chapter_dir(chapter), tmp_path, monkeypatch) as served:
         yield served
@@ -146,6 +147,8 @@ def serve_directory(directory: Path, tmp_path: Path, monkeypatch):
     monkeypatch.setenv("SEAMS_MODEL", str(directory / "expenses.trig"))
     monkeypatch.setenv("SEAMS_TEMPLATES", str(directory / "generated" / "templates"))
     monkeypatch.setenv("SEAMS_DB", str(tmp_path / "seams.sqlite"))
+    # chapter 08 declares PostgreSQL; the harness runs every chapter on SQLite
+    monkeypatch.setenv("SEAMS_STORE_OVERRIDE", "sqlite")
     monkeypatch.delenv("SEAMS_DEV_USER", raising=False)
     monkeypatch.delenv("SEAMS_SEED", raising=False)
     app = build_app(directory / "generated" / "expense_api.py")

@@ -36,6 +36,8 @@ def _copy_model(tmp_path: Path, extra: str = "") -> Path:
 def _clean_env(monkeypatch):
     monkeypatch.delenv(MODEL_ENV, raising=False)
     monkeypatch.delenv(ALLOW_MISMATCH_ENV, raising=False)
+    # the chat app declares PostgreSQL; these tests need only some store
+    monkeypatch.setenv("SEAMS_STORE_OVERRIDE", "sqlite")
 
 
 def test_unset_env_uses_argument(tmp_path, caplog):

@@ -8,7 +8,8 @@ app needs but no generated handler holds:
 
 - a ``RuntimeModelError`` handler answering ``{"detail": exc.to_dict()}``
   with ``exc.http_status``;
-- ``GET /healthz``;
+- ``GET /healthz``: ``{"status": "ok", "model_hash": ..., "store": {...}}``,
+  the store being ``store_health(runtime)``;
 - every page of ``model.interfaces.served_pages()`` at its ifml:path,
   rendered by ``Runtime.render_page`` with the page's correlation-key query
   parameters: the landmark first, then each other pathed page holding no
@@ -42,6 +43,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from .contracts import shape_contract
 from .errors import ContractViolation, RuntimeModelError
+from .model import local_name
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +116,23 @@ def seed_store(runtime, seed_path) -> int:
     return written
 
 
+def store_health(runtime) -> dict:
+    """The /healthz store report: the backend ``kind`` in use, the store kind
+    the model ``declared`` (local name, null when it declares none), the
+    declared store ``container`` IRI (null when none) and ``override``, true
+    when the backend differs from the declared kind or an override chose it.
+    Never the connection string."""
+    plan = getattr(runtime, "store_plan", None)
+    declared = local_name(plan.kind) if plan is not None and plan.declared else None
+    differs = declared is not None and runtime.store.kind != declared.lower()
+    return {
+        "kind": runtime.store.kind,
+        "declared": declared,
+        "container": None if plan is None or plan.store is None else str(plan.store),
+        "override": bool(getattr(runtime, "store_override", False)) or differs,
+    }
+
+
 def render_inbox(runtime, identity, tasks) -> str:
     """The task inbox page: one generated form partial per open task, in
     ``Runtime.user_tasks`` order (oldest first)."""
@@ -157,7 +176,7 @@ def build_app(routes_path) -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> dict:
-        return {"status": "ok", "model_hash": runtime.model.hash}
+        return {"status": "ok", "model_hash": runtime.model.hash, "store": store_health(runtime)}
 
     def page_route(served):
         async def render(request: Request) -> HTMLResponse:

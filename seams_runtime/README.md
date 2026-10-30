@@ -26,7 +26,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
@@ -68,7 +68,7 @@ tables: `workflow_state`, `entities` and `user_tasks`. `Store` is a `typing.Prot
 
 | Backend | `kind` | `location` | Notes |
 |---|---|---|---|
-| `SQLiteStore(path, timeout=30.0)` | `"sqlite"` | the file path (`.path` is kept) | Embedded stdlib sqlite3 in WAL mode. `Runtime.load` builds one from `SEAMS_DB`. |
+| `SQLiteStore(path, timeout=30.0)` | `"sqlite"` | the file path (`.path` is kept) | Embedded stdlib sqlite3 in WAL mode. `Runtime.load` builds one at `db_path`, `SEAMS_DB` or `./seams.sqlite`. |
 | `PostgresStore(url, *, schema=None, connect_timeout=10)` | `"postgresql"` | the URL with its password replaced by `***` (plus ` (schema …)`) | psycopg 3. `data` is jsonb and the timestamps are double precision. A `seq bigserial` column replaces SQLite's rowid as the tie-breaker for ordering and is never returned. Upserts use `ON CONFLICT`. `schema=` creates that schema if needed and sets `search_path` to it on every connection (the tests use one per test). Table creation takes an advisory lock, so runtimes that start together on one database do not collide. |
 
 Both backends return the same rows. `data` comes back decoded with its keys sorted.
@@ -96,7 +96,31 @@ The tests run the store contract (`tests/test_runtime_store.py`) on both backend
 The postgres run needs `SEAMS_TEST_POSTGRES_URL`, for example
 `postgresql://postgres:pw@localhost:5433/postgres` against
 `docker run -d -e POSTGRES_PASSWORD=pw -p 5433:5432 postgres:16`. Without it the run
-skips, unless `SEAMS_REQUIRE_POSTGRES=1` turns the skip into a failure.
+skips, unless `SEAMS_REQUIRE_POSTGRES=1` turns the skip into a failure. The runtime
+tests (worker, fragments, write, user tasks, channel start) run on both backends
+through the same `make_store` fixture.
+
+### Store selection
+
+`Runtime.load` picks the backend from three graph facts (ADR-0011), which
+`ModelGraph.store_plan()` in the seams library resolves: the `deploy:storeKind` of the
+store container, the runtime container's `deploy:binding` that `deploy:connectsTo` it,
+and `seam:storedIn` on the written shapes. In order:
+
+1. `store=` given: that backend is used.
+2. `SEAMS_STORE_OVERRIDE=sqlite`: embedded SQLite at `db_path`, `SEAMS_DB` or
+   `./seams.sqlite`, with a WARNING naming the declared store. Any other non-empty
+   value raises `ValueError`.
+3. `deploy:PostgreSQL`: `PostgresStore` at the URL in the environment variable the
+   binding's `deploy:key` names (`DB_URL` for the chat app), else in the file
+   `<key>_FILE` names (stripped, for Docker secrets). Neither set raises
+   `ResolutionError(<runtime container>, deploy:connectsTo)` naming both variables.
+4. `deploy:SQLite`, or no store declared: embedded SQLite as in 2, without a warning.
+
+The plan is resolved first in every case, so a model with a missing or unsupported
+fact fails at load with `ResolutionError` naming the subject and predicate, even under
+the override. The INFO load line names the kind, the declared store, container, key
+and the redacted `location`; the URL itself is never logged.
 
 ## Host
 
@@ -106,7 +130,11 @@ skips, unless `SEAMS_REQUIRE_POSTGRES=1` turns the skip into a failure.
 It includes `module.router` and adds:
 
 - a `RuntimeModelError` handler that answers `{"detail": exc.to_dict()}` with `exc.http_status`;
-- `GET /healthz`, which returns `{"status": "ok", "model_hash": ...}`;
+- `GET /healthz`, which returns `{"status": "ok", "model_hash": ..., "store": {"kind": ..., "declared": ..., "container": ..., "override": ...}}`.
+  `kind` is the backend in use (`sqlite` or `postgresql`), `declared` the local name of
+  the declared `deploy:storeKind` (`null` when the model declares none), `container` the
+  store container IRI (or `null`), and `override` is true when the backend is not the
+  declared kind or an override chose it. The connection string never appears;
 - every page of `model.interfaces.served_pages()` at its own `ifml:path`, rendered by
   `render_page`. Only correlation-key query parameters such as `?conversation=` reach
   the template. The landmark comes first, then by IRI each other `ifml:ViewContainer`
@@ -168,7 +196,8 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    error is recorded, the channel scope is closed and the instance is marked failed.
    When Spiff wrapped a model error (a `ResolutionError` raised inside a business-rule
    task arrives as a `WorkflowTaskException`), the model error is the one recorded.
-8. After each element, the workflow is checkpointed into the store. The checkpoint also
+8. After each element, the workflow is checkpointed into the store (SQLite or
+   PostgreSQL, whichever `Runtime.load` selected). The checkpoint also
    replaces the instance's rows in the `user_tasks` table with its open user tasks, so
    the rows are empty once it completes or fails.
 9. User tasks are not run by the loop. The instance ends `waiting` on them, and the log
@@ -180,7 +209,9 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 | Variable | Meaning |
 |---|---|
 | `SEAMS_MODEL` | TriG file `load` reads. When set and non-empty it takes precedence over the `trig_path` argument. The generated compose file sets it to the bind-mounted model, for example `/model/chat-app.trig`. |
-| `SEAMS_DB` | SQLite file for workflow state and entities. The default is `seams.sqlite`. `db_path=` overrides it. |
+| `SEAMS_DB` | Embedded SQLite file for workflow state and entities, used when the model declares no store or a `deploy:SQLite` store, or under `SEAMS_STORE_OVERRIDE=sqlite`. The default is `seams.sqlite`. `db_path=` overrides it. |
+| `SEAMS_STORE_OVERRIDE` | `sqlite` forces embedded SQLite whatever store the model declares, logging a WARNING; `/healthz` reports `override: true`. Any other non-empty value fails at load. Meant for tests and local runs. |
+| `<key>` / `<key>_FILE` | For a `deploy:PostgreSQL` store, the connection URL, or a file holding it. `<key>` is the `deploy:key` of the runtime container's binding that `deploy:connectsTo` the store, for example `DB_URL` / `DB_URL_FILE`. `<key>` wins when both are set. |
 | `SEAMS_DEV_USER` | Opt-in static identity for local runs. Without it, the `X-Forwarded-User` header is required (fail closed, D014). |
 | `SEAMS_DEV_ROLES` | Comma-separated roles of the `SEAMS_DEV_USER` identity, for example `employee,manager`. Ignored without `SEAMS_DEV_USER`. With the header authenticator, the roles come from the `X-Forwarded-Groups` header instead. |
 | `SEAMS_ALLOW_HASH_MISMATCH` | When set to `1`, `load` warns on a hash mismatch instead of refusing the model. |
@@ -194,4 +225,4 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 - ODRL constraints, duties and prohibitions. The default `RoleEvaluator` now checks role
   assignees as well as identity ids, but still only permission presence and assignee. A
   full evaluator can be plugged in as a `PolicyEvaluator`.
-- Postgres. The v1 store is stdlib sqlite3.
+- One store per model. A model whose runtime containers connect to different stores fails at load.

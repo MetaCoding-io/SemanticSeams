@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import seams_runtime
 from seams_gen.__main__ import main as seams_gen_main
 from seams_runtime import ContractViolation, HeaderAuthenticator, ResolutionError, Runtime
 from seams_runtime.host import build_app, seed_store
@@ -160,6 +161,7 @@ def test_healthz(client):
     assert r.json() == {
         "status": "ok",
         "model_hash": runtime.model.hash,
+        "runtime_version": seams_runtime.__version__,
         "store": {
             "kind": "sqlite",
             "declared": "PostgreSQL",

@@ -6,6 +6,8 @@ goldens in docs/generation/golden/ byte for byte (D016).
 
 from .golden import golden_target, strip_markers
 
+__version__ = "0.1.0"  # must equal [project].version in seams_gen/pyproject.toml
+
 
 class GeneratorError(Exception):
     """A required graph fact is missing or ambiguous.
@@ -36,6 +38,7 @@ from .htmx import (  # noqa: E402
 
 __all__ = [
     "GeneratorError",
+    "__version__",
     "extract_compose",
     "extract_page",
     "extract_routes",

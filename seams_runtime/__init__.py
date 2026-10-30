@@ -30,6 +30,8 @@ from .runtime import Runtime
 from .store import PostgresStore, SQLiteStore, Store
 from .worker import Instance, Worker
 
+__version__ = "0.1.0"  # must equal [project].version in seams_runtime/pyproject.toml
+
 __all__ = [
     "Authenticator",
     "ChannelBus",
@@ -58,6 +60,7 @@ __all__ = [
     "Store",
     "TaskNotOpen",
     "Worker",
+    "__version__",
     "authenticator_from_env",
     "model_hash",
     "validate",

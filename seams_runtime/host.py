@@ -8,8 +8,9 @@ app needs but no generated handler holds:
 
 - a ``RuntimeModelError`` handler answering ``{"detail": exc.to_dict()}``
   with ``exc.http_status``;
-- ``GET /healthz``: ``{"status": "ok", "model_hash": ..., "store": {...}}``,
-  the store being ``store_health(runtime)``;
+- ``GET /healthz``: ``{"status": "ok", "model_hash": ..., "runtime_version": ...,
+  "store": {...}}``, the version being ``seams_runtime.__version__`` and the store
+  ``store_health(runtime)``;
 - every page of ``model.interfaces.served_pages()`` at its ifml:path,
   rendered by ``Runtime.render_page`` with the page's correlation-key query
   parameters: the landmark first, then each other pathed page holding no
@@ -41,6 +42,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from . import __version__
 from .contracts import shape_contract
 from .errors import ContractViolation, RuntimeModelError
 from .model import local_name
@@ -176,7 +178,12 @@ def build_app(routes_path) -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> dict:
-        return {"status": "ok", "model_hash": runtime.model.hash, "store": store_health(runtime)}
+        return {
+            "status": "ok",
+            "model_hash": runtime.model.hash,
+            "runtime_version": __version__,
+            "store": store_health(runtime),
+        }
 
     def page_route(served):
         async def render(request: Request) -> HTMLResponse:

@@ -10,6 +10,13 @@ Install: `uv sync --all-packages` at the repository root (a uv workspace; this m
 dependencies are in `seams_runtime/pyproject.toml`). The runtime image installs the same
 locked versions from `uv.lock`.
 
+## Version
+
+`seams_runtime.__version__` (in `seams_runtime/__init__.py`) is the runtime's version.
+This member is never installed (D033), so `importlib.metadata` cannot read it; keep it
+equal to `[project].version` in `seams_runtime/pyproject.toml`
+(`tests/test_versions.py` checks). `GET /healthz` reports it as `runtime_version`.
+
 ## API
 
 ```python
@@ -130,7 +137,7 @@ and the redacted `location`; the URL itself is never logged.
 It includes `module.router` and adds:
 
 - a `RuntimeModelError` handler that answers `{"detail": exc.to_dict()}` with `exc.http_status`;
-- `GET /healthz`, which returns `{"status": "ok", "model_hash": ..., "store": {"kind": ..., "declared": ..., "container": ..., "override": ...}}`.
+- `GET /healthz`, which returns `{"status": "ok", "model_hash": ..., "runtime_version": ..., "store": {"kind": ..., "declared": ..., "container": ..., "override": ...}}`.
   `kind` is the backend in use (`sqlite` or `postgresql`), `declared` the local name of
   the declared `deploy:storeKind` (`null` when the model declares none), `container` the
   store container IRI (or `null`), and `override` is true when the backend is not the

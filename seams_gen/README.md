@@ -12,6 +12,13 @@ view's `ResolutionError` into a `GeneratorError` naming the same subject and pre
 A custom generator reads the model through `seams` the same way; the
 [Write your own generator](../docs/guide/write-your-own-generator.md) guide builds one.
 
+## Version
+
+`seams_gen.__version__` (in `seams_gen/__init__.py`) is the generators' version, which
+`seams generate` records per output in `seams.lock`. This member is never installed
+(D033), so `importlib.metadata` cannot read it; keep it equal to `[project].version` in
+`seams_gen/pyproject.toml` (`tests/test_versions.py` checks).
+
 ## Usage
 
 Install with `uv sync --all-packages` at the repository root, then run the commands below

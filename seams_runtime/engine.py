@@ -251,23 +251,13 @@ class Engine:
     # ── decision bindings ──
 
     def task_iri(self, task) -> URIRef:
-        """Fragment IRI of a Spiff task's BPMN element, under the BPMN model
-        the task's workflow was parsed from."""
-        bpmn_id = task.task_spec.bpmn_id
-        for facts, pid, _spec, _subs in self._specs.values():
-            if pid == task.workflow.spec.name:
-                return URIRef(f"{facts.model}#{bpmn_id}")
-        # A deserialized workflow whose process this engine never parsed (a
-        # resume after a restart): parse the process its seams state names.
-        top = task.workflow
-        while getattr(top, "parent_workflow", None) is not None:
-            top = top.parent_workflow
-        process = (top.data.get("seams") or {}).get("process")
-        if process is not None and URIRef(process) not in self._specs:
-            facts, pid, _spec, _subs = self._spec(URIRef(process))
-            if pid == task.workflow.spec.name:
-                return URIRef(f"{facts.model}#{bpmn_id}")
-        return self.model.task_iri(bpmn_id)
+        """Fragment IRI of a Spiff task's BPMN element, under the BPMN model of
+        the process whose BPMN file declares the task's workflow
+        (``model.processes``). The lookup reads the graph and the BPMN XML,
+        not this engine's parsed specs, so it also holds for a workflow
+        resumed from its serialized state."""
+        process = self.model.processes.for_bpmn_process(task.workflow.spec.name).only()
+        return process.element_iri(task.task_spec.bpmn_id)
 
     def binding(self, task) -> DecisionBinding:
         """The DecisionBinding of a business-rule Spiff task (or bpmn id / IRI)."""

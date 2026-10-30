@@ -99,7 +99,7 @@ lockfile, `pyproject.toml` packaging, ruff and a type checker.
 |---|---|---|---|---|
 | L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | done (M010/S01) |
 | L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | done (M010/S02) |
-| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | planned (M010/S03) |
+| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | done (M010/S03) |
 | L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | planned (M010/S04) |
 | L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | planned (M010/S05, S06) |
 | L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | planned (M010/S07) |
@@ -253,7 +253,11 @@ UI work must not eat M3.*
      requirements files are gone. L2 done, M010/S02: `seams` holds the loader (file or
      directory, honouring `SEAMS_MODEL`), the hash, payload resolution, namespaces, errors
      and the transitional `ModelGraph`; `seams_runtime` re-exports them, and `seams_gen` no
-     longer imports the runtime.*
+     longer imports the runtime. L3 done, M010/S03: typed, read-only views per layer
+     (`model.architecture`, `interfaces`, `processes`, `decisions`, `shapes`,
+     `operations`, `channels`, `lifecycles`, `policies`) with `.only()`, plus
+     `model.sparql` and `model.question`; the engine's task IRIs and the served pages
+     come from the views, so several BPMN models need no workaround. Next: L4.*
    - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution, the
      shape-to-store seam, SQLite and PostgreSQL backends chosen from the graph, and
      model-health checks. Depends on M010.

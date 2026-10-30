@@ -23,7 +23,7 @@ from SpiffWorkflow.util.task import TaskState  # noqa: E402
 from seams_runtime import ModelGraph, ResolutionError  # noqa: E402
 from seams_runtime.channels import ChannelBus, sse_frame  # noqa: E402
 from seams_runtime.engine import Engine  # noqa: E402
-from seams_runtime.model import DEC  # noqa: E402
+from seams_runtime.model import DEC, SEAM  # noqa: E402
 from seams_runtime.store import Store  # noqa: E402
 
 CHAT_DIR = ROOT / "examples" / "chat-app"
@@ -243,6 +243,55 @@ def test_gateway_routes_on_the_decision_output(expense_engine, amount, route, wa
         assert not wf.is_completed() and manual == [waits_on]
         [task] = [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.manual]
         assert task.data["route"] == route and task.data["amount"] == Decimal(amount)
+
+
+# ── task IRIs across several BPMN models (M010/S03) ──────────────────────────
+
+CH08_TRIG = ROOT / "examples" / "expenses" / "chapter-08" / "expenses.trig"
+EX = "https://example.org/expenses/"
+
+
+@pytest.fixture(scope="module")
+def ch08():
+    return ModelGraph(CH08_TRIG)
+
+
+def test_task_iri_resolves_under_each_bpmn_model(ch08):
+    """Chapter 8 renders approval.bpmn and payout.bpmn; each id resolves under its own model."""
+    assert ch08.task_iri("route_expense") == URIRef(EX + "approval_bpmn#route_expense")
+    assert ch08.task_iri("schedule_payout") == URIRef(EX + "payout_bpmn#schedule_payout")
+    # an element only the BPMN XML holds resolves through the file that declares it
+    assert ch08.task_iri("payout_requested_msg") == URIRef(EX + "payout_bpmn#payout_requested_msg")
+
+
+@pytest.mark.parametrize("bpmn_id", ["no_such_element", "flow_to_gateway"])
+def test_task_iri_in_no_or_several_bpmn_models_raises(ch08, bpmn_id):
+    """An id no BPMN file holds, or one both files hold (flow_to_gateway), is a
+    ResolutionError naming the model and seam:detailedBy, never a guess."""
+    with pytest.raises(ResolutionError) as err:
+        ch08.task_iri(bpmn_id)
+    assert err.value.predicate == str(SEAM.detailedBy)
+
+
+def _first_task(wf):
+    return next(t for t in wf.get_tasks() if t.task_spec.bpmn_id is not None)
+
+
+@pytest.mark.parametrize(
+    ("process", "bpmn_model"), [(":approval_process", "approval_bpmn"), (":payout_process", "payout_bpmn")]
+)
+def test_engine_task_iri_follows_the_workflow_bpmn_model(ch08, tmp_path, process, bpmn_model):
+    """A Spiff task's IRI sits under its own workflow's BPMN model, and a fresh
+    engine that never parsed the process resolves the same IRI after a resume."""
+    engine = Engine(ch08)
+    wf = engine.new_workflow(process)
+    task = _first_task(wf)
+    iri = engine.task_iri(task)
+    assert iri == URIRef(f"{EX}{bpmn_model}#{task.task_spec.bpmn_id}")
+
+    resumed = Engine(ModelGraph(CH08_TRIG)).deserialize(engine.serialize(wf))
+    [again] = [t for t in resumed.get_tasks() if t.id == task.id]
+    assert Engine(ModelGraph(CH08_TRIG)).task_iri(again) == iri
 
 
 def test_decimal_input_survives_serialization(expense_engine):

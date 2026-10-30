@@ -370,7 +370,7 @@ def test_served_pages_match_the_resolvers(model: seams.Model):
     graph = ModelGraph(model.path)
     served = model.interfaces.served_pages()
     assert served[0] is model.interfaces.landmark()
-    assert served.iris() == (graph.landmark_page(), *graph.secondary_pages())
+    assert served.iris()[0] == graph.landmark_page()
     for page in model.interfaces.pages():
         assert page.components().iris() == tuple(graph.page_components(page.iri))
         assert page.interaction_model in model.interfaces.models()

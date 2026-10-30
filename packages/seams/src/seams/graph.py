@@ -9,6 +9,11 @@ from graph facts. When a hop is missing, the resolver raises
 follow.
 
 These one-of-each resolvers are transitional: the S03 views supersede them.
+The resolvers that used to assume one BPMN model or one served page now ask
+the views: ``task_iri`` resolves through ``model.processes`` (any number of
+BPMN models; an id in two of them raises) and ``landmark_page`` is
+``model.interfaces.landmark()``. The pages the app serves are
+``model.interfaces.served_pages()``.
 """
 
 from __future__ import annotations
@@ -174,24 +179,34 @@ class ModelGraph(Model):
 
     # ── BPMN element IRIs ──
 
-    def _bpmn_model(self) -> URIRef:
-        found: list[Node] = [
-            m for m in self.ds.subjects(SEAM.notation, SEAM.BPMN) if (m, SEAM.renderPayload, None) in self.ds
+    def task_iri(self, bpmn_id: str) -> URIRef:
+        """Fragment IRI of a BPMN element, ``<BPMN model IRI>#<bpmn id>``
+        (``model.processes``): the graph element with that id, else (an
+        element not lifted into the TriG) the process whose BPMN file holds an
+        element with that id. An id in several BPMN models, or in none, raises
+        ``ResolutionError``."""
+        processes = self.processes
+        lifted = processes.element(bpmn_id)
+        if lifted:
+            return lifted.only().iri
+        holders = [
+            p
+            for p in processes
+            if len(set(self.ds.objects(p.iri, SEAM.detailedBy))) == 1 and bpmn_id in self._bpmn_ids(p.bpmn_path)
         ]
-        if not found:
-            found = [m for m, p in self.ds.subject_objects(SEAM.renderPayload) if str(p).lower().endswith(".bpmn")]
-        models = _iris(found)
-        if len(models) != 1:
+        if len(holders) != 1:
             raise ResolutionError(
                 self.subject,
-                SEAM.renderPayload,
-                f"expected one model rendering a BPMN payload, found {[str(m) for m in models]}",
+                SEAM.detailedBy,
+                f"expected one BPMN model with an element {bpmn_id!r}, found {[str(p.bpmn_model) for p in holders]}",
             )
-        return models[0]
+        return holders[0].element_iri(bpmn_id)
 
-    def task_iri(self, bpmn_id: str) -> URIRef:
-        """Fragment IRI of a BPMN element: <BPMN model IRI>#<bpmn id>."""
-        return URIRef(f"{self._bpmn_model()}#{bpmn_id}")
+    def _bpmn_ids(self, path: Path) -> frozenset[str]:
+        """ids of every element of a BPMN file (read once per model)."""
+        return self.views.view(
+            f"bpmn-element-ids:{path}", lambda: frozenset(str(el.get("id")) for el in _elements(path) if el.get("id"))
+        )
 
     def _task(self, task: object) -> URIRef:
         if isinstance(task, URIRef) or "://" in str(task) or ":" in str(task):
@@ -556,32 +571,9 @@ class ModelGraph(Model):
     # ── IFML pages ──
 
     def landmark_page(self) -> URIRef:
-        """The single ifml:ViewContainer with ifml:isLandmark true (the app entry page)."""
-        pages = _iris(
-            c for c in self.ds.subjects(RDF.type, IFML.ViewContainer) if (c, IFML.isLandmark, Literal(True)) in self.ds
-        )
-        if len(pages) != 1:
-            raise ResolutionError(
-                self.subject,
-                IFML.isLandmark,
-                f"expected one ifml:ViewContainer with ifml:isLandmark true, found {[str(p) for p in pages]}",
-            )
-        return pages[0]
-
-    def secondary_pages(self) -> list[URIRef]:
-        """The other ifml:ViewContainers served as pages: each one with an
-        ifml:path that is not the landmark and holds no form a user task is
-        seam:completedOn (such a screen is reached through the task inbox,
-        ADR-0009). Sorted by IRI."""
-        landmark = self.landmark_page()
-        pages: list[URIRef] = []
-        for c in set(self.ds.subjects(RDF.type, IFML.ViewContainer)):
-            if c == landmark or (c, IFML.path, None) not in self.ds:
-                continue
-            if any((None, SEAM.completedOn, part) in self.ds for part in self.ds.objects(c, IFML.contains)):
-                continue
-            pages.append(_iri(c))
-        return sorted(pages, key=str)
+        """The single ifml:ViewContainer with ifml:isLandmark true (the app
+        entry page; ``model.interfaces.landmark()``)."""
+        return self.interfaces.landmark().iri
 
     def page_path(self, page: object) -> str:
         """The ifml:path a page is served at."""

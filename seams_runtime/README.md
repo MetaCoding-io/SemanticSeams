@@ -63,12 +63,11 @@ It includes `module.router` and adds:
 
 - a `RuntimeModelError` handler that answers `{"detail": exc.to_dict()}` with `exc.http_status`;
 - `GET /healthz`, which returns `{"status": "ok", "model_hash": ...}`;
-- the landmark page at its `ifml:path`, rendered by `render_page`. Only correlation-key
-  query parameters such as `?conversation=` reach the template;
-- each page `seams.ModelGraph.secondary_pages()` returns, at its own `ifml:path`, rendered the same way.
-  A secondary page is an `ifml:ViewContainer` with an `ifml:path` that is not the
-  landmark and holds no form a user task is `seam:completedOn`. Task-form screens are
-  reached through `GET /tasks` instead;
+- every page of `model.interfaces.served_pages()` at its own `ifml:path`, rendered by
+  `render_page`. Only correlation-key query parameters such as `?conversation=` reach
+  the template. The landmark comes first, then by IRI each other `ifml:ViewContainer`
+  with an `ifml:path` that holds no form a user task is `seam:completedOn`. Task-form
+  screens are reached through `GET /tasks` instead;
 - a startup seed from the JSON file named by `SEAMS_SEED`, in the form
   `{"<shape curie>": [{"id": ..., ...payload}]}`. Every item passes `runtime.validate`
   before any is written. A field named after a correlation-key label that is not a

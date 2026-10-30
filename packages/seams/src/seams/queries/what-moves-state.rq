@@ -1,0 +1,15 @@
+# Which process tasks may move an entity out of ?state?
+#
+# The inverse view of seam:fires. A transition with no firing task is not an
+# error — it is a model-health warning (M2): declared lifecycle movement that
+# no modeled behavior can cause.
+#
+# Bind ?state to a state:State.
+
+PREFIX seam:  <https://w3id.org/seams/seam#>
+PREFIX state: <https://w3id.org/seams/state#>
+
+SELECT ?task ?transition ?toState WHERE {
+  ?transition state:from ?state ; state:to ?toState .
+  ?task seam:fires ?transition .
+}

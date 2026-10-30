@@ -40,11 +40,16 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `DEPLOY`, `IFML`, `ARCH`, plus `local_name(iri)`.
 - `ModelGraph(path, dataset=None)` (and `ModelGraph.load(path)`) is a `Model`
   plus the one-of-each resolvers the runtime and the generators share, such as
-  `landmark_page()`, `secondary_pages()`, `triggering_operation(process)`,
+  `landmark_page()`, `task_iri(bpmn_id)`, `triggering_operation(process)`,
   `is_channel_started(process)`, `decision_binding(task)`,
   `implementing_container(operation)`, `lifecycle_for(shape)`, `policy(policy)`
   and `shape_graph()`. Each answers from graph facts and raises
   `ResolutionError` naming the subject and predicate when a hop is missing.
+  `landmark_page()` and `task_iri()` are view-backed: `landmark_page()` is
+  `model.interfaces.landmark()`, and `task_iri()` resolves through
+  `model.processes` across any number of BPMN models (the graph element with
+  that id, else the one BPMN file declaring it; an id in several models
+  raises). The pages an app serves are `model.interfaces.served_pages()`.
   Results are frozen dataclasses (`Transition`, `DecisionBinding`, `Container`,
   `OperationPath`, `ChannelBinding`, `ChannelStart`, `ProcessFacts`,
   `Lifecycle`, `PolicyFacts` and the rest), and `dmn_decision_ids`,

@@ -44,5 +44,6 @@ class Policy(Element):
 
     @property
     def governs(self) -> Many[Element]:
-        """The elements seam:governedBy it (operations, user tasks)."""
+        """The elements seam:governedBy it: ``Operation``, ``ProcessElement``
+        (user tasks) or ``Event`` objects, as the graph types them."""
         return self._related(self._subjects(SEAM.governedBy), SEAM.governedBy)

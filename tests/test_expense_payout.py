@@ -12,7 +12,7 @@ part, and no generated route starts it. A rejected expense ends on a plain
 end event and starts nothing.
 
 The finance console is a second IFML model. Its /payouts page holds no task
-form, so the host serves it as a page (ModelGraph.secondary_pages), and it
+form, so the host serves it as a page (model.interfaces.served_pages()), and it
 lists the stored payments with their payment lifecycle state.
 """
 
@@ -247,16 +247,19 @@ def test_the_finance_console_lists_the_payment(app):
     assert '<main id="expenses_page"' in c.get("/").text
 
 
-def test_secondary_pages_skip_task_form_screens():
-    """ModelGraph.secondary_pages: a pathed page with no task form. The
-    approvals page holds the task forms (the inbox reaches it, ADR-0009), so
-    chapter 7 has none and its host serves no /approvals page."""
+def test_served_pages_skip_task_form_screens():
+    """model.interfaces.served_pages(): the landmark, then each pathed page
+    with no task form. The approvals page holds the task forms (the inbox
+    reaches it, ADR-0009), so chapter 7 serves only its landmark and its host
+    serves no /approvals page."""
     from seams_runtime import ModelGraph
 
-    assert ModelGraph.load(chapter_dir("chapter-07") / "expenses.trig").secondary_pages() == []
-    assert list(map(str, ModelGraph.load(chapter_dir(CHAPTER) / "expenses.trig").secondary_pages())) == [
-        EX + "payouts_page"
-    ]
+    def others(chapter):
+        model = ModelGraph.load(chapter_dir(chapter) / "expenses.trig")
+        return [str(p.iri) for p in model.interfaces.served_pages()][1:]
+
+    assert others("chapter-07") == []
+    assert others(CHAPTER) == [EX + "payouts_page"]
 
 
 def test_the_approvals_screen_is_not_a_page(app):

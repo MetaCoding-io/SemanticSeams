@@ -8,8 +8,9 @@ UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2, plus,
 for each ``ifml:Form`` a ``proc:UserTask`` ``seam:completedOn`` (ADR-0009), a
 task form partial through htmx_task_form.html.j2 and the partials of the
 components its completion renders on the form's screen. ``generate_pages``
-adds each ``seams.ModelGraph.secondary_pages`` page (an ``ifml:path`` and no task
-form), extracted the same way and rendered with its own partials. The
+renders every page of ``model.interfaces.served_pages()``: the landmark, then
+each other page with an ``ifml:path`` and no task form, extracted the same way
+and rendered with its own partials. The
 template holds the fixed text only: every model-specific string comes from the
 ``PageModel``, and every collection is sorted explicitly (components by
 ifml:order, fields by sh:order, everything else by IRI), never by graph
@@ -27,7 +28,7 @@ import jinja2
 from rdflib import RDF, XSD, Literal
 from rdflib.collection import Collection
 from rdflib.namespace import SH
-from seams import COMM, HYDRA, IFML, PROC, SEAM, STATE, ModelGraph, local_name
+from seams import COMM, HYDRA, IFML, PROC, SEAM, STATE, ModelGraph, Page, ResolutionError, local_name
 
 from . import GeneratorError
 from .facts import DASH
@@ -199,7 +200,7 @@ class PageModel:
     fragments: tuple[Fragment, ...] = ()
     task_forms: tuple[TaskForm, ...] = ()
     screen_components: tuple[Component, ...] = ()  # rendered components of task form screens
-    landmark: bool = True  # False for a seams.ModelGraph.secondary_pages page
+    landmark: bool = True  # Page.is_landmark; False for the other model.interfaces.served_pages()
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
@@ -219,12 +220,14 @@ def _fill(template: str, fill) -> str:
 
 
 def extract_page(model: ModelGraph, page=None) -> PageModel:
-    """The landmark page, or ``page`` (one of ``seams.ModelGraph.secondary_pages``).
-    Only the landmark's PageModel carries the task forms and their screens'
-    components; a secondary page carries its own components and partials."""
+    """``page`` (one of ``model.interfaces.served_pages()``), by default
+    ``model.interfaces.landmark()``. Only the landmark's PageModel carries the
+    task forms and their screens' components; any other page carries its own
+    components and partials."""
     f = _Facts(model)
-    landmark = page is None
-    page = _landmark(f, model) if landmark else model.curie(page)
+    view = _landmark(f, model) if page is None else model.interfaces.pages().by_iri(model.curie(page))
+    landmark = view.is_landmark
+    page = view.iri
     imodel = _interaction_model(f, page)
     presenter = _presenter(f, imodel)
 
@@ -287,10 +290,13 @@ def _fragments(f: _Facts, presenter, component_ids) -> tuple[Fragment, ...]:
     )
 
 
-def _landmark(f: _Facts, model: ModelGraph):
-    containers = f.subjects(RDF.type, IFML.ViewContainer)
-    landmarks = [c for c in containers if (c, IFML.isLandmark, Literal(True)) in f.ds]
-    if len(landmarks) != 1:
+def _landmark(f: _Facts, model: ModelGraph) -> Page:
+    """``model.interfaces.landmark()``, its error named on the interaction model."""
+    try:
+        return model.interfaces.landmark()
+    except ResolutionError:
+        containers = f.subjects(RDF.type, IFML.ViewContainer)
+        landmarks = [c for c in containers if (c, IFML.isLandmark, Literal(True)) in f.ds]
         models = f.subjects(RDF.type, IFML.InteractionModel)
         subject = models[0] if len(models) == 1 else model.subject
         found = ", ".join(map(str, landmarks)) or "none"
@@ -298,8 +304,7 @@ def _landmark(f: _Facts, model: ModelGraph):
             subject,
             IFML.isLandmark,
             f"expected exactly one ifml:ViewContainer with ifml:isLandmark true, found {found}",
-        )
-    return landmarks[0]
+        ) from None
 
 
 def _interaction_model(f: _Facts, page):
@@ -729,11 +734,13 @@ def render_task_forms(page: PageModel) -> dict[str, str]:
 
 
 def generate_pages(model: ModelGraph) -> dict[str, str]:
-    """{file name: text}: the landmark page as <page local name>.html with
-    its partials and task form partials, then each secondary page and its
-    partials. Two pages naming the same partial must render it identically."""
+    """{file name: text}: each page of ``model.interfaces.served_pages()`` as
+    <page local name>.html with its partials (the landmark first, with its task
+    form partials, then the others by IRI). Two pages naming the same partial
+    must render it identically."""
     files: dict[str, str] = {}
-    for page in [extract_page(model)] + [extract_page(model, p) for p in model.secondary_pages()]:
+    _landmark(_Facts(model), model)  # no single landmark: GeneratorError on the interaction model
+    for page in (extract_page(model, p.iri) for p in model.interfaces.served_pages()):
         rendered = {f"{page.id}.html": render_page(page), **render_fragments(page)}
         if page.landmark:
             rendered.update(render_task_forms(page))

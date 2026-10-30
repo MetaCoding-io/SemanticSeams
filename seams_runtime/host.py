@@ -9,10 +9,10 @@ app needs but no generated handler holds:
 - a ``RuntimeModelError`` handler answering ``{"detail": exc.to_dict()}``
   with ``exc.http_status``;
 - ``GET /healthz``;
-- the landmark page at its ifml:path, rendered by ``Runtime.render_page``
-  with the page's correlation-key query parameters, and each of
-  ``ModelGraph.secondary_pages`` (a pathed page holding no task form) the
-  same way at its own path;
+- every page of ``model.interfaces.served_pages()`` at its ifml:path,
+  rendered by ``Runtime.render_page`` with the page's correlation-key query
+  parameters: the landmark first, then each other pathed page holding no
+  task form;
 - ``GET /tasks``, the task inbox (ADR-0009): the open user tasks
   ``Runtime.user_tasks`` lists for the request's identity, each rendered with
   its generated form partial (the row's ``partial``, given ``task=row``).
@@ -134,7 +134,8 @@ def wants_json(request: Request) -> bool:
 def build_app(routes_path) -> FastAPI:
     module = load_routes(routes_path)
     runtime = module.runtime
-    page = runtime.model.landmark_page()
+    landmark, *others = runtime.model.interfaces.served_pages()
+    page = landmark.iri
     page_path = runtime.model.page_path(page)
     keys = sorted(runtime.model.correlation_key_labels())
 
@@ -175,7 +176,7 @@ def build_app(routes_path) -> FastAPI:
         return HTMLResponse(render_inbox(runtime, identity, rows))
 
     app.add_api_route(page_path, page_route(page), methods=["GET"], response_class=HTMLResponse)
-    for other in runtime.model.secondary_pages():
+    for other in (p.iri for p in others):
         app.add_api_route(
             runtime.model.page_path(other), page_route(other), methods=["GET"], response_class=HTMLResponse
         )

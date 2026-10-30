@@ -30,7 +30,7 @@ def _htmx(trig: Path, out: Path) -> dict[str, str]:
     """{file name: content}: the landmark page as <page local name>.html, plus
     the fragment partials its UIFragment operations render (GAP-19), the
     partial of each form a user task is completed on (ADR-0009), and each
-    secondary page (``seams.ModelGraph.secondary_pages``) with its partials."""
+    other page of ``model.interfaces.served_pages()`` with its partials."""
     return generate_pages(ModelGraph.load(trig))
 
 

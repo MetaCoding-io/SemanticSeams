@@ -153,9 +153,18 @@ class Model:
             )
         return self._ns
 
-    def label(self, iri: object) -> str:
-        """The rdfs:label of ``iri``, or its local name when it has none."""
-        value = self.ds.value(URIRef(str(iri)), RDFS.label)
+    def label(self, iri: object, *, strict: bool = False) -> str:
+        """The rdfs:label of ``iri``, or its local name when it has none.
+        ``strict=True`` requires exactly one rdfs:label and raises
+        ``ResolutionError(iri, rdfs:label)`` otherwise (the generators' rule)."""
+        node = URIRef(str(iri))
+        if strict:
+            values = sorted(set(self.ds.objects(node, RDFS.label)), key=str)
+            if len(values) != 1:
+                found = "none" if not values else ", ".join(str(v) for v in values)
+                raise ResolutionError(node, RDFS.label, f"expected exactly one, found {found}")
+            return str(values[0])
+        value = self.ds.value(node, RDFS.label)
         return str(value) if value is not None else local_name(iri)
 
     def payloads(self) -> list[tuple[str, Path]]:

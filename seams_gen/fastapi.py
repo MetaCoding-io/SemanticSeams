@@ -327,7 +327,7 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
             )
         if body is None:
             raise GeneratorError(op, COMM.requestMediaType, f"completing {task} needs a request body")
-        process = _task_process(f, task)
+        process = _task_process(f.m, task).iri
         key = f.label(f.one(process, PROC.correlationKey))
         if key not in variables:
             raise GeneratorError(
@@ -336,7 +336,7 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
                 f"{key!r} is not a path variable of {op} ({template}), "
                 f"so the completion of {task} cannot name its instance",
             )
-        complete = Complete(task=_task_curie(f, task), payload=body.var, key=key)
+        complete = Complete(task=_task_curie(f.m, task), payload=body.var, key=key)
 
     start = None
     if op in triggered:
@@ -357,7 +357,7 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
     if (method == "GET" or complete is not None) and returns is not None:
         query = Query(var=_shape_name(returns) + "s", shape=f.curie(returns), filters=tuple(variables))
 
-    name, component, frag_kind = fragment_for(f, op)
+    name, component, frag_kind = fragment_for(f.m, op)
     if frag_kind == ITEM:
         if validate is None or returns != accepts:
             raise GeneratorError(

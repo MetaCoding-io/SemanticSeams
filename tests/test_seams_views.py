@@ -597,6 +597,17 @@ def test_compact_is_the_inverse_of_curie(chat: seams.Model, ch08: seams.Model):
         assert ch08.curie(ch08.compact(page.iri)) == page.iri
 
 
+def test_strict_label_requires_exactly_one_rdfs_label(chat: seams.Model):
+    from rdflib import RDFS
+
+    assert chat.label(C + "chat_page", strict=True) == chat.label(C + "chat_page")
+    assert chat.label("urn:nowhere") == "urn:nowhere"  # the local-name fallback
+    with pytest.raises(ResolutionError) as err:
+        chat.label("urn:nowhere", strict=True)
+    assert (err.value.subject, err.value.predicate) == ("urn:nowhere", str(RDFS.label))
+    assert "expected exactly one, found none" in str(err.value)
+
+
 def test_chat_components_parameters_and_flows(chat: seams.Model):
     landmark = chat.interfaces.landmark()
     assert landmark.title == "Chat"

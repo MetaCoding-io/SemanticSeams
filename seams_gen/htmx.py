@@ -1,7 +1,8 @@
 """The htmx page generator (M004/S04, D016).
 
 ``extract_page`` reads the landmark IFML ViewContainer and the seam, shape,
-communication and lifecycle facts it touches into frozen dataclasses;
+communication and lifecycle facts it touches into frozen dataclasses, through
+``model.interfaces`` and the seams views it links to (D036), never raw triples;
 ``generate_page`` renders them through templates/htmx_page.html.j2 and
 ``generate_fragments`` renders the partials the presenting container's
 UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2, plus,
@@ -25,14 +26,29 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import jinja2
-from rdflib import RDF, XSD, Literal
-from rdflib.collection import Collection
+from rdflib import RDF, XSD, URIRef
 from rdflib.namespace import SH
-from seams import COMM, HYDRA, IFML, PROC, SEAM, STATE, ModelGraph, Page, ResolutionError, local_name
+from seams import (
+    COMM,
+    DASH,
+    HYDRA,
+    IFML,
+    PROC,
+    SEAM,
+    STATE,
+    Channel,
+    Model,
+    ModelGraph,
+    Operation,
+    Page,
+    ProcessElement,
+    ResolutionError,
+    local_name,
+)
+from seams import Component as ComponentView
 
 from . import GeneratorError
-from .facts import DASH
-from .facts import Facts as _Facts
+from ._views import label, only, optional, required, view_errors
 from .fragments import fragment_for
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -216,90 +232,100 @@ def _fill(template: str, fill) -> str:
     return re.sub(r"\{(\w+)\}", lambda m: "{{ " + fill(m.group(1)) + " }}", template)
 
 
+def _path_template(endpoint) -> tuple[str, dict[str, str]]:
+    """An operation's or channel's comm:path hydra:template and {variable:
+    local name of hydra:property}; every template variable must be mapped."""
+    path = required(endpoint.path, endpoint.iri, COMM.path)
+    mappings = {m.variable: m.property for m in path.mappings}
+    missing = [v for v in re.findall(r"\{(\w+)\}", path.template) if v not in mappings]
+    if missing:
+        raise GeneratorError(endpoint.iri, HYDRA.mapping, f"no mapping for template variable(s) {missing}")
+    return path.template, mappings
+
+
+def _parameters(model: Model, component) -> list[str]:
+    """The labels of a component's ifml:hasParameter parameters, by parameter IRI."""
+    return [label(model, p.iri) for p in component.parameter_bindings]
+
+
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
-def extract_page(model: ModelGraph, page=None) -> PageModel:
+def extract_page(model: Model, page=None) -> PageModel:
     """``page`` (one of ``model.interfaces.served_pages()``), by default
     ``model.interfaces.landmark()``. Only the landmark's PageModel carries the
     task forms and their screens' components; any other page carries its own
-    components and partials."""
-    f = _Facts(model)
-    view = _landmark(f, model) if page is None else model.interfaces.pages().by_iri(model.curie(page))
+    components and partials. This is the IFML interpretation: it reads the
+    model only through ``model.interfaces`` and the views it links to (D036)."""
+    with view_errors():
+        return _extract_page(model, page)
+
+
+def _extract_page(model: Model, page) -> PageModel:
+    view = _landmark(model) if page is None else model.interfaces.pages().by_iri(model.curie(page))
     landmark = view.is_landmark
-    page = view.iri
-    imodel = _interaction_model(f, page)
-    presenter = _presenter(f, imodel)
+    imodel = _interaction_model(model, view)
+    presenter = _presenter(imodel)
 
-    components = []
-    for c in f.objects(page, IFML.contains):
-        components.append((f.int_value(c, IFML.order), c))
-    unordered = [c for order, c in components if order is None]
+    components = list(view.components())  # by ifml:order, then IRI
+    unordered = [c for c in components if c.order is None]
     if unordered:
-        raise GeneratorError(unordered[0], IFML.order, f"component of {page} has no ifml:order")
-    components.sort(key=lambda oc: oc[0])
+        raise GeneratorError(unordered[0].iri, IFML.order, f"component of {view.iri} has no ifml:order")
 
-    page_params = {f.label(p) for _, c in components for p in f.objects(c, IFML.hasParameter)}
+    page_params = {name for c in components for name in _parameters(model, c)}
     # Runtime.page_context binds a correlation key only when a component that
     # seam:reads a shape is scoped by it; any other key in a submit path is new.
-    keys = {f.label(p) for p in f.ds.objects(None, PROC.correlationKey)}
-    bound_keys = {
-        f.label(p) for _, c in components if f.objects(c, SEAM.reads) for p in f.objects(c, IFML.hasParameter)
-    } & keys
+    keys = {p.correlation_key for p in model.processes if p.correlation_key is not None}
+    bound_keys = {name for c in components if c.reads for name in _parameters(model, c)} & keys
     mintable = keys - bound_keys
-    sse_channels = [
-        ch
-        for ch in f.objects(presenter, SEAM.consumes)
-        if (ch, RDF.type, COMM.Channel) in f.ds and (ch, COMM.transport, COMM.SSE) in f.ds
-    ]
+    sse_channels = [ch for ch in presenter.consumes if isinstance(ch, Channel) and ch.transport == COMM.SSE]
 
-    built = tuple(_component(f, c, order, presenter, page_params, sse_channels, mintable) for order, c in components)
-    task_forms = _task_forms(f, presenter) if landmark else ()
-    screens = _screen_components(f, presenter, task_forms, {c.id for c in built}, sse_channels)
+    built = tuple(_component(model, c, c.order, presenter, page_params, sse_channels, mintable) for c in components)
+    task_forms = _task_forms(model, presenter) if landmark else ()
+    screens = _screen_components(model, presenter, task_forms, {c.id for c in built}, sse_channels)
     return PageModel(
         model_stem=model.path.stem,
         model_hash=model.hash,
-        id=local_name(page),
-        curie=f.curie(page),
-        interaction_model=f.curie(imodel),
-        path=str(f.one(page, IFML.path)),
-        title=str(f.one(page, IFML.title)),
+        id=local_name(view.iri),
+        curie=model.compact(view.iri),
+        interaction_model=model.compact(imodel.iri),
+        path=required(view.path, view.iri, IFML.path),
+        title=required(view.title, view.iri, IFML.title),
         uses_sse=bool(sse_channels),
         components=built,
-        fragments=_fragments(f, presenter, {c.id for c in built + screens}),
+        fragments=_fragments(model, presenter, {c.id for c in built + screens}),
         task_forms=task_forms,
         screen_components=screens,
         landmark=landmark,
     )
 
 
-def _fragments(f: _Facts, presenter, component_ids) -> tuple[Fragment, ...]:
+def _fragments(model: Model, presenter, component_ids) -> tuple[Fragment, ...]:
     """Every partial an operation the presenter seam:consumes renders onto a
     page component, grouped by file name and sorted by it."""
     found: dict[str, tuple[str, str, list]] = {}
-    for op in f.objects(presenter, SEAM.consumes):
-        if not f.objects(op, SEAM.rendersComponent):
+    for op in presenter.consumes:
+        if not isinstance(op, Operation) or not op.renders:
             continue
-        name, component, kind = fragment_for(f, op)
+        name, component, kind = fragment_for(model, op)
         if local_name(component) not in component_ids:
             continue
-        found.setdefault(name, (local_name(component), kind, []))[2].append(f.curie(op))
+        found.setdefault(name, (local_name(component), kind, []))[2].append(model.compact(op.iri))
     return tuple(
         Fragment(name=name, component=comp, kind=kind, operations=tuple(ops))
         for name, (comp, kind, ops) in sorted(found.items())
     )
 
 
-def _landmark(f: _Facts, model: ModelGraph) -> Page:
+def _landmark(model: Model) -> Page:
     """``model.interfaces.landmark()``, its error named on the interaction model."""
     try:
         return model.interfaces.landmark()
     except ResolutionError:
-        containers = f.subjects(RDF.type, IFML.ViewContainer)
-        landmarks = [c for c in containers if (c, IFML.isLandmark, Literal(True)) in f.ds]
-        models = f.subjects(RDF.type, IFML.InteractionModel)
-        subject = models[0] if len(models) == 1 else model.subject
-        found = ", ".join(map(str, landmarks)) or "none"
+        landmarks = model.interfaces.pages().where(lambda p: p.is_landmark)
+        models = model.interfaces.models()
+        subject = models[0].iri if len(models) == 1 else model.subject
+        found = ", ".join(map(str, landmarks.iris())) or "none"
         raise GeneratorError(
             subject,
             IFML.isLandmark,
@@ -307,124 +333,128 @@ def _landmark(f: _Facts, model: ModelGraph) -> Page:
         ) from None
 
 
-def _interaction_model(f: _Facts, page):
-    models = [m for m in f.subjects(IFML.contains, page) if (m, RDF.type, IFML.InteractionModel) in f.ds]
+def _interaction_model(model: Model, page: Page):
+    models = [m for m in model.interfaces.models() if page in m.pages()]
     if len(models) != 1:
         raise GeneratorError(
-            page, IFML.contains, f"expected one ifml:InteractionModel containing the page, found {len(models)}"
+            page.iri, IFML.contains, f"expected one ifml:InteractionModel containing the page, found {len(models)}"
         )
     return models[0]
 
 
-def _presenter(f: _Facts, imodel):
-    presenters = f.subjects(SEAM.presents, imodel)
-    if len(presenters) != 1:
-        raise GeneratorError(
-            imodel, SEAM.presents, f"expected one container presenting the model, found {len(presenters)}"
-        )
-    return presenters[0]
+def _presenter(imodel):
+    try:
+        presenter = imodel.presented_by
+    except ResolutionError:
+        presenter, found = None, "several"
+    else:
+        found = "0"
+    if presenter is None:
+        raise GeneratorError(imodel.iri, SEAM.presents, f"expected one container presenting the model, found {found}")
+    return presenter
 
 
-def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintable=frozenset()) -> Component:
-    types = [t for t in COMPONENT_TYPES if (c, RDF.type, t) in f.ds]
+def _component(model: Model, c, order, presenter, page_params, sse_channels, mintable=frozenset()) -> Component:
+    types = c.types
     if len(types) != 1:
-        raise GeneratorError(c, RDF.type, f"expected one of {[f.curie(t) for t in COMPONENT_TYPES]}")
+        raise GeneratorError(c.iri, RDF.type, f"expected one of {[model.compact(t) for t in COMPONENT_TYPES]}")
     ctype = types[0]
-    reads = f.optional(c, SEAM.reads)
-    writes = f.optional(c, SEAM.writes)
+    reads = optional(c.reads)
+    writes = optional(c.writes)
     guard_var = None
     guard_states: tuple[str, ...] = ()
     guard_curies: tuple[str, ...] = ()
-    states = f.objects(c, SEAM.visibleWhen)
+    states = c.visible_when
     if states:
         if reads is None:
-            raise GeneratorError(c, SEAM.reads, "seam:visibleWhen needs the shape the component reads")
-        machine = f.one(reads, SEAM.lifecycle, f"guard of {c}")
+            raise GeneratorError(c.iri, SEAM.reads, "seam:visibleWhen needs the shape the component reads")
+        machine = required(reads.lifecycle, reads.iri, SEAM.lifecycle, f"guard of {c.iri}")
+        machine_states = machine.states()
         for state in states:
-            if (machine, STATE.hasState, state) not in f.ds:
-                raise GeneratorError(machine, STATE.hasState, f"guard state {state} of {c} is not a state of it")
-        guard_var = _shape_name(reads) + "_state"
-        guard_states = tuple(sorted(f.label(state) for state in states))
-        guard_curies = tuple(sorted(f.curie(state) for state in states))
+            if state not in machine_states:
+                raise GeneratorError(
+                    machine.iri, STATE.hasState, f"guard state {state.iri} of {c.iri} is not a state of it"
+                )
+        guard_var = _shape_name(reads.iri) + "_state"
+        guard_states = tuple(sorted(label(model, state.iri) for state in states))
+        guard_curies = tuple(sorted(model.compact(state.iri) for state in states))
 
     base = dict(
-        id=local_name(c),
-        curie=f.curie(c),
+        id=local_name(c.iri),
+        curie=model.compact(c.iri),
         kind=local_name(ctype),
-        type_curie=f.curie(ctype),
-        label=f.label(c),
+        type_curie=model.compact(ctype),
+        label=label(model, c.iri),
         order=order,
-        reads=f.curie(reads) if reads is not None else None,
-        writes=f.curie(writes) if writes is not None else None,
+        reads=model.compact(reads.iri) if reads is not None else None,
+        writes=model.compact(writes.iri) if writes is not None else None,
         guard_variable=guard_var,
         guard_states=guard_states,
         guard_state_curies=guard_curies,
-        parameters=tuple(sorted(f.label(p) for p in f.objects(c, IFML.hasParameter))),
+        parameters=tuple(sorted(_parameters(model, c))),
     )
 
     def fill_param(var: str) -> str:
         if var not in page_params:
-            raise GeneratorError(c, IFML.hasParameter, f"path variable {var!r} names no ifml:Parameter of the page")
+            raise GeneratorError(c.iri, IFML.hasParameter, f"path variable {var!r} names no ifml:Parameter of the page")
         return var
 
     if ctype == IFML.List:
         if reads is None:
-            raise GeneratorError(c, SEAM.reads, "an ifml:List must read a shape")
-        link = _list_link(f, c)
-        fields = _fields(f, reads)
+            raise GeneratorError(c.iri, SEAM.reads, "an ifml:List must read a shape")
+        link = _list_link(model, c)
+        fields = _fields(reads)
         identifiers = {expr.split(".", 1)[1] for _, expr in link.vals}
         identifiers |= set(re.findall(r"\{\{ item\.(\w+) \}\}", link.get_path))
         display = [fl.name for fl in fields if fl.name not in identifiers]
         if not display:
-            raise GeneratorError(reads, SH.property, "no non-identifier datatype property to display")
+            raise GeneratorError(reads.iri, SH.property, "no non-identifier datatype property to display")
         return Component(
-            **base, collection=_shape_name(reads) + "s", loop_var="item", link=link, display_field=display[0]
+            **base, collection=_shape_name(reads.iri) + "s", loop_var="item", link=link, display_field=display[0]
         )
 
     if ctype == IFML.Details:
         if reads is None:
-            raise GeneratorError(c, SEAM.reads, "an ifml:Details must read a shape")
-        streams = [ch for ch in sse_channels if (ch, SEAM.acceptsShape, reads) in f.ds]
+            raise GeneratorError(c.iri, SEAM.reads, "an ifml:Details must read a shape")
+        streams = [ch for ch in sse_channels if ch.accepts == reads]
         if len(streams) > 1:
-            raise GeneratorError(c, SEAM.reads, f"ambiguous SSE channels {list(map(str, streams))}")
+            raise GeneratorError(c.iri, SEAM.reads, f"ambiguous SSE channels {[str(ch.iri) for ch in streams]}")
         stream = None
         if streams:
             ch = streams[0]
-            publishers = f.subjects(SEAM.publishesTo, ch)
+            publishers = ch.published_by
             if len(publishers) != 1:
-                raise GeneratorError(ch, SEAM.publishesTo, f"expected one publisher, found {len(publishers)}")
-            template, _ = f.path_template(ch)
+                raise GeneratorError(ch.iri, SEAM.publishesTo, f"expected one publisher, found {len(publishers)}")
+            template, _ = _path_template(ch)
             stream = Stream(
-                id=local_name(ch),
-                curie=f.curie(ch),
-                publisher=f.curie(publishers[0]),
+                id=local_name(ch.iri),
+                curie=model.compact(ch.iri),
+                publisher=model.compact(publishers[0].iri),
                 connect=_fill(template, fill_param),
-                event_name=str(f.one(ch, COMM.eventName)),
+                event_name=required(ch.event_name, ch.iri, COMM.eventName),
             )
-        name = _shape_name(reads)
+        name = _shape_name(reads.iri)
         return Component(
             **base,
             collection=name + "s",
             loop_var=name,
-            item_class=f.label(reads).lower(),
-            fields=_fields(f, reads),
+            item_class=label(model, reads.iri).lower(),
+            fields=_fields(reads),
             stream=stream,
         )
 
     # ifml:Form
     if writes is None:
-        raise GeneratorError(c, SEAM.writes, "an ifml:Form must write a shape")
-    submit = _submit(f, c, presenter, fill_param, mintable)
-    fields = _fields(f, writes)
-    bound = {}
-    for p in f.objects(c, IFML.hasParameter):
-        target = f.optional(p, IFML.boundTo)
-        if target is not None:
-            bound[local_name(target)] = p
+        raise GeneratorError(c.iri, SEAM.writes, "an ifml:Form must write a shape")
+    submit = _submit(model, c, presenter, fill_param, mintable)
+    fields = _fields(writes)
+    bound = {local_name(p.bound_to): p.iri for p in c.parameter_bindings if p.bound_to is not None}
     by_name = {fl.name: fl for fl in fields}
     unknown = sorted(set(bound) - set(by_name))
     if unknown:
-        raise GeneratorError(bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes}")
+        raise GeneratorError(
+            bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes.iri}"
+        )
     prefix = base["id"]
     suffix = "_" + local_name(ctype).lower()
     if prefix.endswith(suffix) and len(prefix) > len(suffix):
@@ -434,98 +464,105 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintab
     return Component(**base, fields=fields, submit=submit, inputs=inputs, unbound=unbound)
 
 
-def _fields(f: _Facts, shape) -> tuple[Field, ...]:
+def _fields(shape) -> tuple[Field, ...]:
+    """A shape's datatype fields (``model.shapes``); object-valued (sh:class)
+    properties are not rendered fields."""
     fields = []
-    for prop in f.objects(shape, SH.property):
-        if f.optional(prop, SH.datatype) is None:
-            continue  # object-valued (sh:class) properties are not rendered fields
-        datatype = f.optional(prop, SH.datatype)
-        if f.optional(prop, DASH.editor) == DASH.TextAreaEditor:
+    for prop in shape.fields():
+        if prop.datatype is None:
+            continue
+        if prop.editor == DASH.TextAreaEditor:
             kind = "textarea"
-        elif datatype == XSD.dateTime:
+        elif prop.datatype == XSD.dateTime:
             kind = "datetime"
-        elif f.optional(prop, SH["in"]) is not None:
+        elif prop.options:
             kind = "enum"
         else:
             kind = "text"
-        min_count = f.int_value(prop, SH.minCount)
-        members = f.optional(prop, SH["in"])
-        options = tuple(str(v) for v in Collection(f.ds, members)) if members is not None else ()
         fields.append(
             Field(
-                name=local_name(f.one(prop, SH.path)),
+                name=prop.name,
                 kind=kind,
-                order=f.int_value(prop, SH.order),
-                max_length=f.int_value(prop, SH.maxLength),
-                required=min_count is not None and min_count >= 1,
-                options=options,
+                order=prop.order,
+                max_length=prop.max_length,
+                required=prop.required,
+                options=prop.options,
             )
         )
     fields.sort(key=lambda fl: (fl.order is None, fl.order or 0, fl.name))
     return tuple(fields)
 
 
-def _flow(f: _Facts, flow) -> Flow:
-    target = f.one(flow, IFML.target)
-    swap = f.one(flow, IFML.swap)
+def _flow(model: Model, flow) -> Flow:
+    target = flow.target
+    swap = flow.swap
     if swap not in SWAPS:
-        raise GeneratorError(flow, IFML.swap, f"unknown swap strategy {swap}")
+        raise GeneratorError(flow.iri, IFML.swap, f"unknown swap strategy {swap}")
     hx_swap, to_items = SWAPS[swap]
-    tid = local_name(target) + ("_items" if to_items else "")
-    return Flow(curie=f.curie(flow), target=local_name(target), swap=hx_swap, target_id=tid)
+    tid = local_name(target.iri) + ("_items" if to_items else "")
+    return Flow(curie=model.compact(flow.iri), target=local_name(target.iri), swap=hx_swap, target_id=tid)
 
 
-def _navigation(f: _Facts, event):
-    flows = [fl for fl in f.subjects(IFML.source, event) if (fl, RDF.type, IFML.NavigationFlow) in f.ds]
+def _navigation(event):
+    flows = event.flows.where(lambda fl: fl.kind == IFML.NavigationFlow)
     if len(flows) != 1:
-        raise GeneratorError(event, IFML.source, f"expected one ifml:NavigationFlow from the event, found {len(flows)}")
+        raise GeneratorError(
+            event.iri, IFML.source, f"expected one ifml:NavigationFlow from the event, found {len(flows)}"
+        )
     return flows[0]
 
 
-def _list_link(f: _Facts, c) -> Link:
-    event = f.one(c, IFML.hasEvent)
-    flow_iri = _navigation(f, event)
-    flow = _flow(f, flow_iri)
-    target = f.one(flow_iri, IFML.target)
-    reads_ops = [op for op in f.subjects(SEAM.rendersComponent, target) if str(f.optional(op, HYDRA.method)) == "GET"]
+def _list_link(model: Model, c) -> Link:
+    event = only(c.events())
+    navigation = _navigation(event)
+    flow = _flow(model, navigation)
+    target = navigation.target
+    rendering = target.rendered_by if isinstance(target, ComponentView) else ()
+    reads_ops = [op for op in rendering if op.method == "GET"]
     if len(reads_ops) != 1:
         raise GeneratorError(
-            target, SEAM.rendersComponent, f"expected one GET operation rendering {target}, found {len(reads_ops)}"
+            target.iri,
+            SEAM.rendersComponent,
+            f"expected one GET operation rendering {target.iri}, found {len(reads_ops)}",
         )
-    template, mappings = f.path_template(reads_ops[0])
+    template, mappings = _path_template(reads_ops[0])
     get_path = _fill(template, lambda var: "item." + mappings[var])
 
     vals = []
-    for df in f.subjects(IFML.source, c):
-        if (df, RDF.type, IFML.DataFlow) not in f.ds or (df, IFML.target, target) not in f.ds:
+    for df in c.data_flows:
+        if target.iri not in df.targets.iris():
             continue
-        for binding in f.objects(df, IFML.binds):
-            f.one(binding, IFML.sourceParameter)
-            name = f.label(f.one(binding, IFML.targetParameter))
+        for binding in df.binds:
+            name = label(model, binding.target)
             if name not in mappings:
                 raise GeneratorError(
-                    binding, IFML.targetParameter, f"{name!r} is not a path variable of {reads_ops[0]}"
+                    df.iri, IFML.targetParameter, f"{name!r} is not a path variable of {reads_ops[0].iri}"
                 )
             vals.append((name, "item." + mappings[name]))
-    return Link(event_trigger=str(f.one(event, IFML.trigger)), flow=flow, get_path=get_path, vals=tuple(sorted(vals)))
+    return Link(
+        event_trigger=required(event.trigger, event.iri, IFML.trigger),
+        flow=flow,
+        get_path=get_path,
+        vals=tuple(sorted(vals)),
+    )
 
 
-def _submit(f: _Facts, c, presenter, fill_param, mintable=frozenset()) -> Submit:
-    events = [e for e in f.objects(c, IFML.hasEvent) if f.objects(e, SEAM.submitsTo)]
+def _submit(model: Model, c, presenter, fill_param, mintable=frozenset()) -> Submit:
+    all_events = c.events()
+    events = [e for e in all_events if e.submits_to is not None]
     if len(events) != 1:
-        subject = f.objects(c, IFML.hasEvent)
-        subject = subject[0] if len(subject) == 1 else c
+        subject = all_events[0].iri if len(all_events) == 1 else c.iri
         raise GeneratorError(
             subject,
             SEAM.submitsTo,
-            f"expected one event of form {c} that seam:submitsTo an operation, found {len(events)}",
+            f"expected one event of form {c.iri} that seam:submitsTo an operation, found {len(events)}",
         )
     event = events[0]
-    op = f.one(event, SEAM.submitsTo)
-    if (presenter, SEAM.consumes, op) not in f.ds:
-        raise GeneratorError(presenter, SEAM.consumes, f"the presenting container does not consume {op}")
-    method = str(f.one(op, HYDRA.method))
-    template, _ = f.path_template(op)
+    op = event.submits_to
+    if op.iri not in presenter.consumes.iris():
+        raise GeneratorError(presenter.iri, SEAM.consumes, f"the presenting container does not consume {op.iri}")
+    method = required(op.method, op.iri, HYDRA.method)
+    template, _ = _path_template(op)
     variables = re.findall(r"\{(\w+)\}", template)
     mint = tuple(v for v in variables if v in mintable)
     for var in mint:
@@ -534,138 +571,134 @@ def _submit(f: _Facts, c, presenter, fill_param, mintable=frozenset()) -> Submit
         r"\{(\w+)\}", lambda m: m.group(0) if m.group(1) in mint else "{{ " + fill_param(m.group(1)) + " }}", template
     )
     return Submit(
-        event=f.curie(event),
-        label=f.label(event),
+        event=model.compact(event.iri),
+        label=label(model, event.iri),
         method=method.lower(),
         method_upper=method.upper(),
         path=path,
-        operation=f.curie(op),
+        operation=model.compact(op.iri),
         mint=mint,
-        media_kind=local_name(f.one(op, SEAM.mediaKind)),
-        consumer=f.curie(presenter),
-        triggers=tuple(f.curie(p) for p in f.objects(event, SEAM.triggers)),
-        event_policies=tuple(f.curie(p) for p in f.objects(event, SEAM.governedBy)),
-        route_policies=tuple(f.curie(p) for p in f.objects(op, SEAM.governedBy)),
-        flow=_flow(f, _navigation(f, event)),
+        media_kind=local_name(required(op.media_kind, op.iri, SEAM.mediaKind)),
+        consumer=model.compact(presenter.iri),
+        triggers=tuple(model.compact(p.iri) for p in event.triggers_all),
+        event_policies=tuple(model.compact(p.iri) for p in event.governed_by),
+        route_policies=tuple(model.compact(p.iri) for p in op.governed_by),
+        flow=_flow(model, _navigation(event)),
     )
 
 
-def _task_forms(f: _Facts, presenter) -> tuple[TaskForm, ...]:
+def _task_forms(model: Model, presenter) -> tuple[TaskForm, ...]:
     """One TaskForm per ifml:Form some proc:UserTask seam:completedOn, by IRI."""
     found = {}
-    for task, form in f.ds.subject_objects(SEAM.completedOn):
-        if (task, RDF.type, PROC.UserTask) not in f.ds:
+    for task in model.views.all(ProcessElement, PROC.UserTask):
+        form = task.completed_on
+        if form is None:
             continue
-        if form in found:
+        if form.iri in found:
             raise GeneratorError(
-                form, SEAM.completedOn, f"completes both {found[form]} and {task}; expected one user task"
+                form.iri,
+                SEAM.completedOn,
+                f"completes both {found[form.iri][1].iri} and {task.iri}; expected one user task",
             )
-        found[form] = task
-    return tuple(_task_form(f, form, found[form], presenter) for form in sorted(found, key=str))
+        found[form.iri] = (form, task)
+    return tuple(_task_form(model, *found[iri], presenter) for iri in sorted(found, key=str))
 
 
-def _task_form(f: _Facts, form, task, presenter) -> TaskForm:
-    if (form, RDF.type, IFML.Form) not in f.ds:
-        raise GeneratorError(task, SEAM.completedOn, f"{form} is not an ifml:Form")
-    writes = f.one(form, SEAM.writes, "the shape the task form submits")
-    process = _task_process(f, task)
-    key = f.label(f.one(process, PROC.correlationKey))
+def _task_form(model: Model, form, task, presenter) -> TaskForm:
+    if IFML.Form not in form.types:
+        raise GeneratorError(task.iri, SEAM.completedOn, f"{form.iri} is not an ifml:Form")
+    writes = only(form.writes, "the shape the task form submits")
+    process = _task_process(model, task.iri)
+    key = required(process.correlation_key, process.iri, PROC.correlationKey)
 
     def fill_key(var: str) -> str:
         if var != key:
             raise GeneratorError(
-                process,
+                process.iri,
                 PROC.correlationKey,
-                f"path variable {var!r} of the completion of {task} is not the correlation key {key!r}",
+                f"path variable {var!r} of the completion of {task.iri} is not the correlation key {key!r}",
             )
         return TASK_KEY
 
-    submit = _submit(f, form, presenter, fill_key)
+    submit = _submit(model, form, presenter, fill_key)
     if TASK_KEY not in submit.path:
         raise GeneratorError(
-            process,
+            process.iri,
             PROC.correlationKey,
             f"{key!r} is not a path variable of {submit.operation}, "
-            f"so the completion of {task} cannot name its instance",
+            f"so the completion of {task.iri} cannot name its instance",
         )
-    fields = _fields(f, writes)
-    bound = {
-        local_name(t): p
-        for p in f.objects(form, IFML.hasParameter)
-        for t in [f.optional(p, IFML.boundTo)]
-        if t is not None
-    }
+    fields = _fields(writes)
+    bound = {local_name(p.bound_to): p.iri for p in form.parameter_bindings if p.bound_to is not None}
     by_name = {fl.name for fl in fields}
     unknown = sorted(set(bound) - by_name)
     if unknown:
-        raise GeneratorError(bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes}")
-    prefix = local_name(form)
+        raise GeneratorError(
+            bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes.iri}"
+        )
+    prefix = local_name(form.iri)
     if prefix.endswith("_form") and len(prefix) > len("_form"):
         prefix = prefix[: -len("_form")]
-    reads = f.optional(task, SEAM.reads)
+    reads = optional(task.reads)
     return TaskForm(
-        name=f"{local_name(form)}.html",
-        id=local_name(form),
-        curie=f.curie(form),
-        label=f.label(form),
-        task=_task_curie(f, task),
-        task_label=f.label(task),
+        name=f"{local_name(form.iri)}.html",
+        id=local_name(form.iri),
+        curie=model.compact(form.iri),
+        label=label(model, form.iri),
+        task=_task_curie(model, task.iri),
+        task_label=label(model, task.iri),
         key=key,
-        entity_class=f.label(reads).lower() if reads is not None else None,
-        entity_fields=_fields(f, reads) if reads is not None else (),
+        entity_class=label(model, reads.iri).lower() if reads is not None else None,
+        entity_fields=_fields(reads) if reads is not None else (),
         submit=submit,
         inputs=tuple(_task_input(prefix, fl) for fl in fields if fl.name in bound),
         unbound=tuple(fl.name for fl in fields if fl.name not in bound),
     )
 
 
-def _task_process(f: _Facts, task):
-    """The proc:Process whose seam:detailedBy BPMN model holds ``task`` (its
-    IRI is <model>#<bpmn id>, or it is seam:inModel the model)."""
-    models = set(f.objects(task, SEAM.inModel))
+def _task_process(model: Model, task):
+    """The ``model.processes`` Process whose seam:detailedBy BPMN model holds
+    ``task`` (its IRI is <model>#<bpmn id>, or it is seam:inModel the model)."""
+    element = model.views.resolve(URIRef(str(task)))
+    models = {o for p, o in element.edges if p == SEAM.inModel}
     found = [
         p
-        for p in f.subjects(RDF.type, PROC.Process)
-        if any(m in models or str(task).startswith(f"{m}#") for m in f.objects(p, SEAM.detailedBy))
+        for p in model.processes
+        if any(m in models or str(element.iri).startswith(f"{m}#") for pred, m in p.edges if pred == SEAM.detailedBy)
     ]
     if len(found) != 1:
         raise GeneratorError(
-            task,
+            element.iri,
             SEAM.detailedBy,
-            f"expected one proc:Process seam:detailedBy the model holding the task, found {[str(p) for p in found]}",
+            f"expected one proc:Process seam:detailedBy the model holding the task, found {[str(p.iri) for p in found]}",
         )
     return found[0]
 
 
-def _task_curie(f: _Facts, task) -> str:
+def _task_curie(model: Model, task) -> str:
     """``prefix:rest`` for the longest bound namespace, keeping the whole rest
-    (``:approval_bpmn#approve_expense``), so that seams.ModelGraph.curie expands it
-    back to the task IRI; Facts.curie shortens a BPMN element to ``:id``,
-    which would name a different, ungoverned IRI."""
-    s = str(task)
-    for ns, prefix in f._ns:
-        if s.startswith(ns):
-            return f"{prefix}:{s[len(ns) :]}"
-    return s
+    (``:approval_bpmn#approve_expense``), so that ``Model.curie`` expands it
+    back to the task IRI; the plain ``Model.compact`` shortens a BPMN element
+    to ``:id``, which would name a different, ungoverned IRI."""
+    return model.compact(task, whole=True)
 
 
-def _screen_components(f: _Facts, presenter, task_forms, built_ids, sse_channels) -> tuple[Component, ...]:
+def _screen_components(model: Model, presenter, task_forms, built_ids, sse_channels) -> tuple[Component, ...]:
     """The components on a task form's screen (the ifml:ViewContainer that
     ifml:contains it) that an operation the presenter seam:consumes
     seam:rendersComponent, and the landmark page does not already hold, so
     that the completion route's partial is generated. Sorted by IRI."""
-    rendered = {c for op in f.objects(presenter, SEAM.consumes) for c in f.objects(op, SEAM.rendersComponent)}
+    rendered = {c.iri for op in presenter.consumes if isinstance(op, Operation) for c in op.renders}
     out = {}
     for tf in task_forms:
-        form = f.m.curie(tf.curie)
-        for screen in f.subjects(IFML.contains, form):
-            if (screen, RDF.type, IFML.ViewContainer) not in f.ds:
-                continue
-            params = {f.label(p) for c in f.objects(screen, IFML.contains) for p in f.objects(c, IFML.hasParameter)}
-            for c in f.objects(screen, IFML.contains):
-                if c in rendered and local_name(c) not in built_ids and c not in out:
-                    out[c] = _component(f, c, f.int_value(c, IFML.order) or 0, presenter, params, sse_channels)
-    return tuple(out[c] for c in sorted(out, key=str))
+        form = model.views.intern(ComponentView, model.curie(tf.curie))
+        for screen in form.screens:
+            parts = screen.components()
+            params = {name for c in parts for name in _parameters(model, c)}
+            for c in parts:
+                if c.iri in rendered and local_name(c.iri) not in built_ids and c.iri not in out:
+                    out[c.iri] = _component(model, c, c.order or 0, presenter, params, sse_channels)
+    return tuple(out[iri] for iri in sorted(out, key=str))
 
 
 def _task_input(prefix: str, fl: Field) -> Input:
@@ -733,13 +766,13 @@ def render_task_forms(page: PageModel) -> dict[str, str]:
     return {tf.name: template.render(page=page, t=tf) for tf in page.task_forms}
 
 
-def generate_pages(model: ModelGraph) -> dict[str, str]:
+def generate_pages(model: Model) -> dict[str, str]:
     """{file name: text}: each page of ``model.interfaces.served_pages()`` as
     <page local name>.html with its partials (the landmark first, with its task
     form partials, then the others by IRI). Two pages naming the same partial
     must render it identically."""
     files: dict[str, str] = {}
-    _landmark(_Facts(model), model)  # no single landmark: GeneratorError on the interaction model
+    _landmark(model)  # no single landmark: GeneratorError on the interaction model
     for page in (extract_page(model, p.iri) for p in model.interfaces.served_pages()):
         rendered = {f"{page.id}.html": render_page(page), **render_fragments(page)}
         if page.landmark:

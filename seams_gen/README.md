@@ -73,7 +73,12 @@ and prints a unified diff on mismatch.
 
 Every rule is keyed on a graph fact. Fixed text (doctype, the htmx CDN script, closing
 tags) lives in `templates/htmx_page.html.j2`; everything else comes from the `PageModel`
-that `extract_page` builds.
+that `extract_page` builds. `extract_page` is the IFML interpretation: it reads the model
+only through `model.interfaces` and the views its elements link to (`model.shapes`,
+`model.operations`, `model.channels`, `model.processes`, `model.lifecycles`), with
+`model.compact` for curies, never raw triples (D036). `seams_gen/_views.py` turns a view's
+`ResolutionError` into a `GeneratorError` naming the same subject and predicate, with the
+"expected exactly one, found none" wording.
 
 | Output | Graph fact |
 |---|---|
@@ -100,7 +105,10 @@ A `seam:UIFragment` response renders a partial, and its name is one shared rule
 (`fragment_for` in `fragments.py`, GAP-19 in
 [gaps.md](../docs/generation/golden/gaps.md), decision D017). The FastAPI route
 generator calls the same helper, so a route can never name a partial that was not
-generated.
+generated. `fragment_for(model, operation)` takes any `seams.Model` (a `ModelGraph`
+included) and an operation IRI or `Operation` view, and reads `model.operations`
+(`renders`, `submitted_by`) and `model.interfaces` (`Event.flows`, `Component.types`);
+anything else raises `TypeError`.
 
 - The operation's one `seam:rendersComponent` target C names the component. None or
   several raise `GeneratorError(operation, seam:rendersComponent)`.

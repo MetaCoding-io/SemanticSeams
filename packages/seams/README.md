@@ -34,6 +34,10 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
     namespace matches comes back as `<iri>`. `compact(term, whole=True)`
     keeps everything after the namespace (`:approval_bpmn#approve_expense`),
     which `curie` expands back to the same IRI.
+  - `label(iri, strict=True)`: the single `rdfs:label`, where the default
+    falls back to the local name. None or several raise
+    `ResolutionError(iri, rdfs:label)` ("expected exactly one, found none"),
+    the rule the generators use.
   - `hash`: computed once per instance.
   - `payloads()`: `(relative posix path, absolute path)` for every
     `seam:renderPayload`, sorted by relative path. A missing payload raises

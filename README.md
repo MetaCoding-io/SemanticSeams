@@ -69,8 +69,9 @@ last one under docker compose.
 
 Each app keeps a `seams.toml` project file next to its model naming the generators and
 their output directories; `seams generate --project examples/chat-app` (installed by
-`uv sync --all-packages`) runs them all and rewrites the committed chat-app outputs. The
-project file and the command are described in the
+`uv sync --all-packages`) runs them all and rewrites the committed chat-app outputs and
+`examples/chat-app/seams.lock`, which records each output's generator version, file hash
+and source model elements. The project file, the command and the lockfile are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 
 To run a single generator, `python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/`

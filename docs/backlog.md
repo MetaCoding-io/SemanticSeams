@@ -115,7 +115,7 @@ derivation exposed, or that a builder meets after launch.
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
 | U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | planned (M013/S02) |
-| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | planned (M011/S02) |
+| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | planned (M011/S02); predicate fixed by [ADR-0011](adr/0011-storage-resolution.md) |
 | U3 | **Declare the LLM delta stream** in the chat app, so the runtime infers no publish the graph does not state | S | none | none expected; may tighten `process_channel` in the runtime | planned (M013/S01) |
 | U4 | **As-executed sequence diagram** from the worker's trace rows, then OpenTelemetry spans carrying element IRIs | M | U1 | none for the diagram; an as-observed named graph later | planned (M013/S04) |
 | U5 | **Scenarios and derived tests**: a small scenario vocabulary, generated DMN, SHACL-example and policy tests, and coverage queries | M | none | a scenario/verification annotation vocabulary | planned (M015/S03, S04) |
@@ -123,7 +123,7 @@ derivation exposed, or that a builder meets after launch.
 | U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | planned (M014/S04) |
 | U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | planned (M015/S01) |
 
-| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | the U2 seam, a store-kind value and a connection-binding link | planned (M011/S01 to S04); agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
+| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | `seam:storedIn`, `deploy:storeKind` (controlled `deploy:StoreKind` values) and `deploy:connectsTo` | in progress (M011): [ADR-0011](adr/0011-storage-resolution.md) accepted (S01); S02 to S04 planned; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
 
 U1 to U3 can land together. U9 subsumes U2's vocabulary work, so the two are best done
 as one piece.
@@ -274,7 +274,7 @@ UI work must not eat M3.*
      moved onto the docs site (docs/reference/seams-library.md) and a "Write your own
      generator" guide whose generator CI runs on chat-app and expenses chapter-08; L6 is
      done, and M010 is complete pending validation.*
-   - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution, the
+   - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution (ADR-0011 accepted), the
      shape-to-store seam, SQLite and PostgreSQL backends chosen from the graph, and
      model-health checks. Depends on M010.
    - **M012, Generate and Check Anywhere** (A1, A2, A3, A6): project file, `seams generate`

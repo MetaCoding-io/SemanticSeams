@@ -36,6 +36,7 @@ const decisions = [
   ["0008", "Node-link renderer", "0008-node-link-renderer"],
   ["0009", "Human tasks", "0009-human-tasks"],
   ["0010", "Channel-started processes", "0010-channel-started-processes"],
+  ["0011", "Storage resolution", "0011-storage-resolution"],
 ] as const;
 
 export default defineConfig({

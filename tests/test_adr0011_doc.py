@@ -60,3 +60,18 @@ def test_turtle_example_parses_and_states_the_store(text: str) -> None:
 @pytest.mark.parametrize("secret", ["postgres://", "postgresql://user:"])
 def test_adr_shows_no_connection_string(text: str, secret: str) -> None:
     assert secret not in text
+
+
+def test_adr_is_in_decisions_nav() -> None:
+    config = (ROOT / "docs" / ".vitepress" / "config.ts").read_text(encoding="utf-8")
+    assert "0011-storage-resolution" in config
+
+
+def test_adr_is_in_adr_index() -> None:
+    index = (ROOT / "docs" / "adr" / "index.md").read_text(encoding="utf-8")
+    assert "0011-storage-resolution" in index
+
+
+def test_backlog_cites_adr() -> None:
+    backlog = (ROOT / "docs" / "backlog.md").read_text(encoding="utf-8")
+    assert "ADR-0011" in backlog

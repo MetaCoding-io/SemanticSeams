@@ -141,7 +141,9 @@ It includes `module.router` and adds:
   `kind` is the backend in use (`sqlite` or `postgresql`), `declared` the local name of
   the declared `deploy:storeKind` (`null` when the model declares none), `container` the
   store container IRI (or `null`), and `override` is true when the backend is not the
-  declared kind or an override chose it. The connection string never appears;
+  declared kind or an override chose it. The connection string never appears.
+  `seams status` compares the reported `model_hash` with the current model's hash
+  to say whether a running container is current, behind or ahead;
 - every page of `model.interfaces.served_pages()` at its own `ifml:path`, rendered by
   `render_page`. Only correlation-key query parameters such as `?conversation=` reach
   the template. The landmark comes first, then by IRI each other `ifml:ViewContainer`

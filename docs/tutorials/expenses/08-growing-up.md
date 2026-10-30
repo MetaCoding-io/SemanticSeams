@@ -523,7 +523,11 @@ docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses
 It lists `https://example.org/expenses/ExpenseShape` along with the approval and
 payment rows, and `curl http://localhost:8080/healthz` reports the store as
 `"kind": "postgresql"`, `"declared": "PostgreSQL"` and `"override": false`.
-`tests/test_expense_e2e.py` runs both checks. Stop the stack with
+`tests/test_expense_e2e.py` runs both checks. Optionally,
+`seams status --project examples/expenses/chapter-08 --env local` reads the same
+`/healthz` through the `local` environment in `seams.toml` and prints
+`expense_api current` when the running API is on this chapter's model
+([seams status](/reference/seams-cli#seams-status)). Stop the stack with
 `docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml down -v`.
 
 ## Measure it

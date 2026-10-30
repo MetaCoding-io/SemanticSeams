@@ -75,6 +75,8 @@ and source model elements. `seams check` writes nothing: it validates the model 
 runs the project's gate queries and fails on any stale, missing, hand-edited or orphaned
 output. CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
+`seams status` reads each running runtime container's `/healthz` and reports it as current,
+behind, ahead or unreachable compared with the current model.
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 

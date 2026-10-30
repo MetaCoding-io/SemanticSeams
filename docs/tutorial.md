@@ -161,6 +161,17 @@ The `store` object says `"kind": "postgresql"`, `"declared": "PostgreSQL"`, the
 `:message_db` container IRI and `"override": false`. The end-to-end test
 (`tests/test_tutorial_e2e.py`) runs both checks.
 
+Optionally, ask the seams CLI whether the running `chat_api` is on the model in your
+working tree. `examples/chat-app/seams.toml` declares a `local` environment whose endpoint
+is port 8080:
+
+```
+seams status --project examples/chat-app --env local
+```
+
+It prints `chat_api current sha256:…` and exits 0. After a model edit it says `behind` or
+`ahead` until the stack is rebuilt ([the seams CLI](/reference/seams-cli#seams-status)).
+
 Stacks started before M011 kept their data in a SQLite file on a `/data` volume. That
 volume is no longer used and nothing migrates it; `docker compose down -v` deletes it
 along with the rest of the stack's data.

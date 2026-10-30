@@ -4,8 +4,11 @@ Generators that turn a seams model into code (M004, D016). A generator reads gra
 facts only: it holds no chat-app names and no domain logic, sorts every collection
 explicitly, and stamps its output with the model hash. Its output must equal the
 marker-stripped golden in [`docs/generation/golden/`](../docs/generation/golden/README.md)
-byte for byte. The generators read the model only through the [`seams`](../packages/seams/README.md)
-library; none of them imports `seams_runtime`.
+byte for byte. The generators read the model only through the typed views of the
+[`seams`](../packages/seams/README.md) library (`model.architecture`, `model.interfaces`,
+`model.operations` and the rest), with `model.compact` for curies, never raw triples (D036);
+none of them imports `seams_runtime`. `seams_gen/_views.py` is the one bridge: it turns a
+view's `ResolutionError` into a `GeneratorError` naming the same subject and predicate.
 
 ## Usage
 
@@ -157,7 +160,12 @@ fragments (`templates/htmx_task_form.html.j2`). Forms are sorted by IRI.
 `extract_routes(model)` builds a frozen `RoutesModel`; `render_routes` renders it
 through `templates/fastapi_routes.py.j2` (the same `[% %]` / `[[ ]]` / `[# #]`
 environment as htmx, `StrictUndefined`, no domain literals). `generate_routes(trig)`
-returns the single module's text. Handlers hold no domain logic (ADR-0007 rule 1):
+returns the single module's text. It reads `model.architecture` (`Container.exposes`,
+`executes`, `systems`), `model.processes` (`Process.triggering_operations`,
+`channel_starts`, `invoked_operations`, `correlation_parameter`), `model.operations` and
+`model.channels` (`path`, `accepts`, `returns`, `submitted_by`, `governed_by`) and
+`model.interfaces` (the submitting `ifml:Form`, the user tasks it `completes`, component
+parameters). Handlers hold no domain logic (ADR-0007 rule 1):
 the generated module has no `if`, conditional expression, `match` or loop; the template's
 branches only choose a layout from graph facts. Everything is sorted by IRI.
 
@@ -172,7 +180,7 @@ branches only choose a layout from graph facts. Everything is sorted by IRI.
 | Signature | Each template variable as `<var>: str`, then `request: Request` when the operation has a `comm:requestMediaType`, then, for a Complete step, `identity: Identity = Depends(runtime.task_policy("<task>"))` (401 without an identity, 403 unless every `seam:governedBy` policy of the task permits it). `Identity` is imported only by a module with a Complete step. |
 | Request body | `application/x-www-form-urlencoded` → `form = await request.form()`; `application/json` → `body = await request.json()`; any other media type raises `GeneratorError(op, comm:requestMediaType)`. |
 | Validate | `seam:acceptsShape S` → `<s> = runtime.validate("<S curie>", form)`, where `<s>` is S's local name lowercased minus `Shape`, plus `_payload` when that name is also a path variable (so the payload never shadows the correlation key). It needs a request body. A handler with a Write or Complete step has no separate validate line: `runtime.write` and `runtime.complete_task` validate. |
-| Start | When the operation is the triggering operation of a process the container executes (`seams.ModelGraph.triggering_operation`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. A channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel) gets no route; the runtime starts it when the channel is published on. An executed process with neither a `seam:triggers` event nor a subscribed start is `GeneratorError(process, seam:triggers)`. |
+| Start | When the operation is the triggering operation of a process the container executes (`Process.triggering_operations`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. A channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel) gets no route; the runtime starts it when the channel is published on. An executed process with neither a `seam:triggers` event nor a subscribed start is `GeneratorError(process, seam:triggers)`. |
 | Write | When no process is triggered by the operation, it has `seam:acceptsShape S`, and an event of an `ifml:Form` that `seam:writes S` (`ifml:hasEvent`) `seam:submitsTo` it (D026), `<s> = runtime.write("<S curie>", form)` in place of the validate line and before the return, so the item partial renders the stored entity. `runtime.write` validates the form itself because it first assigns the entity's `:id`, which the form never sends. Any other untriggered operation gets no write step. |
 | Complete | When an event of an `ifml:Form` that a `proc:UserTask` `seam:completedOn` `seam:submitsTo` the operation (ADR-0009), `await runtime.complete_task("<task>", form, correlation_key=<key>, identity=identity)` in place of Start or Write. `<key>` is the `proc:correlationKey` label of the process whose BPMN model holds the task and must be a path variable, else `GeneratorError(process, proc:correlationKey)`. It needs a request body (error on `comm:requestMediaType`); an operation that also triggers a process, or whose forms complete several tasks, raises on `seam:submitsTo`. The serving-container rule covers the container through `seam:executes`. |
 | Query | A `GET` (or an operation with a Complete step) with `seam:returnsShape S` → `<s>s = runtime.query("<S curie>", <var>=<var> …)`, one keyword per path variable. |
@@ -189,6 +197,10 @@ path it is given, so a model under another path or stem mounts and names that fi
 runtime reads `SEAMS_MODEL` in preference to the path in the generated route module (see
 [seams_runtime/README.md](../seams_runtime/README.md)). Every value is pre-rendered as a YAML scalar: plain when
 `yaml.safe_load` reads it back as the same string, otherwise JSON double-quoted.
+It reads `model.architecture`: `System.containers` and each `Container`'s `artifact`,
+`ports`, `deploy_depends_on`, `bindings`, `volumes`, `healthcheck`, `replicas` and
+`deployed_to`. Ports, volumes and bindings are blank nodes, so their errors name the
+container.
 
 | Output | Graph fact |
 |---|---|

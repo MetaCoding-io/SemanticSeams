@@ -5,15 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from rdflib import URIRef
+from rdflib import RDF, URIRef
 
 from ..errors import ResolutionError
 from ..graph import PathMapping
-from ..namespaces import COMM, HYDRA, SEAM, local_name
+from ..namespaces import COMM, HYDRA, IFML, SEAM, local_name
 from ._base import Element, Many, element_type, optional
 
 if TYPE_CHECKING:
     from .architecture import Container
+    from .interfaces import Component, Event
     from .policies import Policy
     from .shapes import Shape
 
@@ -96,6 +97,22 @@ class Operation(_Endpoint):
         """seam:mediaKind, e.g. seam:UIFragment or seam:Data."""
         value = self._value(SEAM.mediaKind)
         return value if isinstance(value, URIRef) else None
+
+    @property
+    def renders(self) -> Many[Component]:
+        """The components it seam:rendersComponent (a UI fragment names one), by IRI."""
+        from .interfaces import Component
+
+        return self._many(Component, self._objects(SEAM.rendersComponent), SEAM.rendersComponent)
+
+    @property
+    def submitted_by(self) -> Many[Event]:
+        """The ifml:Events that seam:submitsTo it, by IRI."""
+        from .interfaces import Event
+
+        views = self.views
+        iris = [e for e in self._subjects(SEAM.submitsTo) if (e, RDF.type, IFML.Event) in views.ds]
+        return self._many(Event, iris, SEAM.submitsTo)
 
     @property
     def request_media_type(self) -> str | None:

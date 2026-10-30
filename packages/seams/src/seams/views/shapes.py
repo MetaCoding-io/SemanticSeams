@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from rdflib import RDFS, Literal, URIRef
+from rdflib.collection import Collection
 from rdflib.namespace import SH
 from rdflib.term import Node
 
 from ..errors import ResolutionError
-from ..namespaces import SEAM, local_name
+from ..namespaces import DASH, SEAM, local_name
 from ._base import Element, Many, element_type, optional, sorted_many
 
 if TYPE_CHECKING:
@@ -21,7 +22,9 @@ if TYPE_CHECKING:
 class Field:
     """One sh:property of a shape. ``iri`` is its sh:path (unique within the
     shape), ``name`` the path's local name and ``label`` its sh:name (or
-    rdfs:label, else ``name``)."""
+    rdfs:label, else ``name``). ``editor`` is its dash:editor,
+    ``options`` its sh:in values in list order and ``max_length`` its
+    sh:maxLength."""
 
     iri: URIRef
     shape: URIRef
@@ -31,6 +34,9 @@ class Field:
     min_count: int | None
     max_count: int | None
     order: int | None
+    max_length: int | None = None
+    editor: URIRef | None = None
+    options: tuple[str, ...] = ()
 
     @property
     def path(self) -> URIRef:
@@ -60,6 +66,8 @@ class Shape(Element):
                 raise ResolutionError(self.iri, SH.path, "sh:property without an IRI sh:path")
             datatype = ds.value(node, SH.datatype)
             label = ds.value(node, SH.name) or ds.value(node, RDFS.label)
+            editor = ds.value(node, DASH.editor)
+            members = ds.value(node, SH["in"])
             out.append(
                 Field(
                     iri=path,
@@ -70,6 +78,9 @@ class Shape(Element):
                     min_count=_int(ds.value(node, SH.minCount)),
                     max_count=_int(ds.value(node, SH.maxCount)),
                     order=_int(ds.value(node, SH.order)),
+                    max_length=_int(ds.value(node, SH.maxLength)),
+                    editor=editor if isinstance(editor, URIRef) else None,
+                    options=() if members is None else tuple(str(v) for v in Collection(ds, members)),
                 )
             )
         return sorted_many(

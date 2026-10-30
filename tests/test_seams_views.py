@@ -579,3 +579,128 @@ def test_task_with_two_forms_raises(ch08: seams.Model):
     with pytest.raises(ResolutionError) as err:
         _ = broken.processes.element("approve_expense").only().completed_on
     assert (err.value.subject, err.value.predicate) == (str(task), str(SEAM.completedOn))
+
+
+# ── what the generators read (M010/S05) ──
+
+
+def test_compact_is_the_inverse_of_curie(chat: seams.Model, ch08: seams.Model):
+    assert chat.compact(URIRef(C + "chat_page")) == ":chat_page"
+    assert chat.compact(IFML.Form) == "ifml:Form"
+    assert chat.compact("urn:nowhere") == "<urn:nowhere>"
+    task = ch08.processes.element("approve_expense").only()
+    assert ch08.compact(task.iri) == ":approve_expense"
+    assert ch08.compact(task.iri, whole=True) == ":approval_bpmn#approve_expense"
+    assert ch08.curie(ch08.compact(task.iri, whole=True)) == task.iri
+    assert ch08.compact("urn:nowhere", whole=True) == "urn:nowhere"
+    for page in ch08.interfaces.pages():
+        assert ch08.curie(ch08.compact(page.iri)) == page.iri
+
+
+def test_chat_components_parameters_and_flows(chat: seams.Model):
+    landmark = chat.interfaces.landmark()
+    assert landmark.title == "Chat"
+    parts = landmark.components()
+    assert [(c.types, c.order) for c in parts] == [((IFML.List,), 0), ((IFML.Details,), 1), ((IFML.Form,), 2)]
+    listing, thread, form = parts
+    assert form.parameter_bindings == (
+        seams.Parameter(URIRef(C + "message_input"), "message input", URIRef(C + "content")),
+    )
+    assert listing.parameter_bindings[0].bound_to is None
+    data = listing.data_flows.only()
+    assert data.kind == IFML.DataFlow and data.source is listing and data.target is thread
+    assert data.binds == (seams.ParameterBinding(URIRef(C + "selected_conversation"), URIRef(C + "conversation")),)
+    assert not form.data_flows
+    select = listing.events().only()
+    nav = select.flows.only()
+    assert nav.kind == IFML.NavigationFlow and nav.swap == IFML.Replace and nav.target is thread
+    assert isinstance(nav.source, seams.Event) and nav.source is select
+    send = form.events().only()
+    assert send.triggers_all.only() is chat.processes.only()
+    assert send.governed_by.only() is chat.policies.by_iri(":user_send_policy")
+    assert not select.governed_by and not select.triggers_all
+    assert send.flows.only().swap == IFML.Append
+    op = chat.operations.by_iri(":send_message_op")
+    assert op.renders.only() is thread and op.submitted_by.only() is send
+    assert thread.rendered_by.iris() == (URIRef(C + "message_thread_op"), URIRef(C + "send_message_op"))
+
+
+def test_chat_fields_carry_editor_options_and_max_length(chat: seams.Model):
+    fields = {f.name: f for f in chat.shapes.by_iri(":MessageShape").fields()}
+    assert [f.name for f in chat.shapes.by_iri(":MessageShape").fields()] == ["content", "role", "status", "timestamp"]
+    assert fields["content"].editor == seams.DASH.TextAreaEditor and fields["content"].max_length == 16000
+    assert fields["content"].required and fields["content"].options == ()
+    assert fields["status"].options == ("composing", "sending", "streaming", "complete", "failed")
+    assert fields["status"].editor is None and fields["status"].max_length is None
+
+
+def test_ch08_task_form_screens_and_fields(ch08: seams.Model):
+    approvals = ch08.interfaces.pages().by_iri(":approvals_page")
+    assert approvals.title == "Approvals"
+    assert ch08.interfaces.landmark().title == "Expenses"
+    assert [c.order for c in approvals.components()] == [0, 1, 2, 3, 4]
+    form = ch08.processes.element("approve_expense").only().completed_on
+    assert form is not None and form.screens == (approvals,) and form.types == (IFML.Form,)
+    assert [(p.label, p.bound_to) for p in form.parameter_bindings] == [
+        ("comment", URIRef(X + "comment")),
+        ("decision", URIRef(X + "decision")),
+    ]
+    decision = ch08.shapes.by_iri(":ApprovalShape").fields().by_iri(":decision")
+    assert decision.options == ("approved", "rejected") and decision.required
+    nav = form.events().only().flows.only()
+    assert nav.kind == IFML.NavigationFlow and nav.swap == IFML.Replace
+    assert nav.target is approvals.components().by_iri(":expense_details")
+    expense_form = ch08.interfaces.landmark().components().by_iri(":expense_form")
+    assert expense_form.parameter_bindings[0] == seams.Parameter(
+        URIRef(X + "amount_input"), "amount", URIRef(X + "amount")
+    )
+    assert [p.bound_to for p in expense_form.parameter_bindings].count(None) == 1
+
+
+def test_event_without_navigation_flow_names_source(chat: seams.Model):
+    ds = _copy(chat)
+    ds.remove((URIRef(C + "send_to_thread"), None, None))
+    broken = seams.Model(CHAT, ds)
+    send = broken.interfaces.landmark().components().by_iri(":compose_form").events().only()
+    with pytest.raises(ResolutionError) as err:
+        send.flows.where(lambda f: f.kind == IFML.NavigationFlow).only()
+    assert (err.value.subject, err.value.predicate) == (str(send.iri), str(IFML.source))
+
+
+def test_flow_without_swap_or_with_two_targets_raises(chat: seams.Model):
+    ds = _copy(chat)
+    flow = URIRef(C + "send_to_thread")
+    ds.remove((flow, IFML.swap, None))
+    ds.add((flow, IFML.target, URIRef(C + "conversation_list")))
+    broken = seams.Model(CHAT, ds)
+    nav = broken.interfaces.landmark().components().by_iri(":compose_form").events().only().flows.only()
+    with pytest.raises(ResolutionError) as err:
+        _ = nav.swap
+    assert (err.value.subject, err.value.predicate) == (str(flow), str(IFML.swap))
+    assert "expected exactly one, found none" in err.value.detail
+    with pytest.raises(ResolutionError) as two:
+        _ = nav.target
+    assert (two.value.subject, two.value.predicate) == (str(flow), str(IFML.target))
+    assert len(nav.targets) == 2
+
+
+def test_broken_order_binding_and_parameter_raise(chat: seams.Model):
+    ds = _copy(chat)
+    thread, form = URIRef(C + "message_thread"), URIRef(C + "compose_form")
+    ds.remove((thread, IFML.order, None))
+    ds.add((thread, IFML.order, Literal("first")))
+    ds.add((URIRef(C + "message_input"), IFML.boundTo, URIRef(C + "role")))
+    for binding in ds.objects(URIRef(C + "list_to_thread"), IFML.binds):
+        ds.remove((binding, IFML.targetParameter, None))
+    broken = seams.Model(CHAT, ds)
+    landmark = broken.interfaces.landmark()
+    with pytest.raises(ResolutionError) as order:
+        landmark.components()
+    assert (order.value.subject, order.value.predicate) == (str(thread), str(IFML.order))
+    parts = {c: broken.views.intern(seams.Component, c) for c in (form, URIRef(C + "conversation_list"))}
+    with pytest.raises(ResolutionError) as bound:
+        _ = parts[form].parameter_bindings
+    assert (bound.value.subject, bound.value.predicate) == (C + "message_input", str(IFML.boundTo))
+    with pytest.raises(ResolutionError) as binds:
+        _ = parts[URIRef(C + "conversation_list")].data_flows.only().binds
+    assert binds.value.predicate == str(IFML.targetParameter)

@@ -16,7 +16,7 @@ from ..namespaces import COMM, HYDRA, ODRL, PROC, STATE
 from ._base import Element, HasIri, Many, Views
 from .architecture import Architecture, Container, DeploymentNode, Environment, System
 from .decisions import Decision, all_decisions
-from .interfaces import Component, Event, InteractionModel, Interfaces, Page
+from .interfaces import Component, Event, Flow, InteractionModel, Interfaces, Page, Parameter, ParameterBinding
 from .lifecycles import Lifecycle, Lifecycles, State, Transition
 from .operations import Channel, Operation, PathTemplate
 from .policies import Policy
@@ -37,6 +37,7 @@ __all__ = [
     "Environment",
     "Event",
     "Field",
+    "Flow",
     "FlowNode",
     "HasIri",
     "InteractionModel",
@@ -47,6 +48,8 @@ __all__ = [
     "MessageStart",
     "Operation",
     "Page",
+    "Parameter",
+    "ParameterBinding",
     "PathTemplate",
     "Policy",
     "Process",

@@ -27,6 +27,13 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
 - `Model` exposes `path`, `base_dir`, `files` (the TriG files loaded), `ds`
   (the merged rdflib `Dataset`, `default_union=True`), `subject`, `curie(term)`,
   `label(iri)`, `payload_path(model_iri)` and:
+  - `compact(term)`: the inverse of `curie`. It returns `prefix:local` for
+    the longest bound namespace the IRI starts with (ties broken by prefix),
+    where `local` is the last fragment or segment, so a BPMN element
+    `<…approval_bpmn#approve_expense>` shows as `:approve_expense`. An IRI no
+    namespace matches comes back as `<iri>`. `compact(term, whole=True)`
+    keeps everything after the namespace (`:approval_bpmn#approve_expense`),
+    which `curie` expands back to the same IRI.
   - `hash`: computed once per instance.
   - `payloads()`: `(relative posix path, absolute path)` for every
     `seam:renderPayload`, sorted by relative path. A missing payload raises
@@ -37,7 +44,7 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `ResolutionError(subject, predicate, detail="")`, also a `LookupError`,
   raised when a graph hop is missing.
 - Namespaces: `SEAM`, `COMM`, `DEC`, `PROC`, `STATE`, `HYDRA`, `ODRL`,
-  `DEPLOY`, `IFML`, `ARCH`, plus `local_name(iri)`.
+  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), plus `local_name(iri)`.
 - `ModelGraph(path, dataset=None)` (and `ModelGraph.load(path)`) is a `Model`
   plus the one-of-each resolvers the runtime and the generators share, such as
   `landmark_page()`, `task_iri(bpmn_id)`, `triggering_operation(process)`,
@@ -113,7 +120,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `nodes`.
 - **`model.operations`** and **`model.channels`**:
   - `Operation` has `method`, `path`, `accepts`, `returns`, `media_kind`,
-    `request_media_type`, `exposed_by`, `consumed_by` and `governed_by`.
+    `request_media_type`, `exposed_by`, `consumed_by`, `governed_by`,
+    `renders` (the components it `seam:rendersComponent`) and
+    `submitted_by` (the events that `seam:submitsTo` it).
     `path` is a `PathTemplate` (`template`, `mappings` sorted by variable,
     `variables`). `accepts` and `returns` are a `Shape` or None.
   - `Channel` has `transport`, `event_name`, `path`, `accepts`,
@@ -121,7 +130,10 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
 - **`model.shapes`**: a `Shape` has these members:
   - `fields()`: a `Many[Field]` sorted by `sh:order` (fields without one
     last), then by path IRI. A `Field` has `path`, `name`, `label`,
-    `datatype`, `min_count`, `max_count`, `order` and `required`.
+    `datatype`, `min_count`, `max_count`, `order`, `required`,
+    `max_length` (`sh:maxLength`), `editor` (`dash:editor`, e.g.
+    `DASH.TextAreaEditor`) and `options` (the `sh:in` values, in list
+    order).
   - `lifecycle`, `read_by` and `written_by`.
 - **`model.lifecycles`**: one `Lifecycle` per `state:StateMachine`.
   `model.lifecycles.transitions()` lists the transitions of all of them.
@@ -143,16 +155,31 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     path that does not host a task form.
   - `InteractionModel` has `pages()` and `presented_by` (the `Container`
     that `seam:presents` it).
-  - `Page` has `path`, `is_landmark`, `interaction_model`, `components()`
-    (by `ifml:order`, then IRI) and `hosts_task_form` (a part it contains
+  - `Page` has `path`, `title` (`ifml:title`), `is_landmark`,
+    `interaction_model`, `components()` (by `ifml:order`, then IRI; a
+    non-integer order raises `ResolutionError(component, ifml:order)`) and `hosts_task_form` (a part it contains
     is the form a user task is `seam:completedOn`, ADR-0009).
   - `Component` has `kind` (`Form`, `Details`, `List`, `ViewComponent`),
-    `page`, `reads`, `writes`, `parameters()` (labels), `events()`,
-    `visible_when` (the lifecycle `State`s it renders in) and `completes`
-    (the user tasks completed on the form).
+    `types` (its concrete classes among `ifml:List`, `ifml:Details` and
+    `ifml:Form`, in that order), `order`, `page`, `screens` (every page that
+    contains it), `reads`, `writes`, `parameters()` (labels),
+    `parameter_bindings`, `events()`, `data_flows`, `rendered_by` (the
+    operations that render it), `visible_when` (the lifecycle `State`s it
+    renders in) and `completes` (the user tasks completed on the form).
+    `parameter_bindings` holds one `Parameter` (`iri`, `label`, `bound_to`:
+    the `sh:path` it is `ifml:boundTo`, or None) per parameter, by IRI.
   - `Event` has `trigger`, `component`, `triggers` (a `Process`),
-    `submits_to` (an `Operation`), `navigates_to` (a `Page`) and `updates`
-    (the components its navigation flows swap).
+    `triggers_all` (every process it triggers), `governed_by` (a
+    `Many[Policy]`), `submits_to` (an `Operation`), `flows`, `navigates_to`
+    (a `Page`) and `updates` (the components its navigation flows swap).
+  - `Flow` is an `ifml:NavigationFlow` or `ifml:DataFlow`. It has `kind`,
+    `source` and `target` (exactly one each), `sources`, `targets`, `swap`
+    (`ifml:Replace`, `ifml:Append` or `ifml:Prepend`; a missing one raises
+    `ResolutionError(flow, ifml:swap, "expected exactly one, found none")`)
+    and `binds`: one `ParameterBinding` (`source`, `target` parameter IRIs)
+    per `ifml:binds`, sorted. `event.flows.where(lambda f: f.kind ==
+    IFML.NavigationFlow).only()` raises `ResolutionError(event,
+    ifml:source)` when there is none or several.
 - **`model.processes`**: one `Process` per `proc:Process`, by IRI.
   - `Process` has `bpmn_model` (the model it is `seam:detailedBy`),
     `bpmn_path`, `bpmn_process_ids` (read from the BPMN XML),

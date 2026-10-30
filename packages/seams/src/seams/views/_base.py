@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, Self, TypeVar, cast
 
-from rdflib import RDF, Dataset, URIRef
+from rdflib import RDF, Dataset, Literal, URIRef
 from rdflib.term import Node
 
 from ..errors import ResolutionError
@@ -180,6 +180,25 @@ class Element:
         value = self._value(predicate)
         return None if value is None else str(value)
 
+    def _values(self, predicate: URIRef) -> list[Node]:
+        return sorted(set(self.views.ds.objects(self.iri, predicate)), key=str)
+
+    def _one_value(self, predicate: URIRef) -> Node:
+        """The single object of ``predicate``; ``ResolutionError(self, predicate)``
+        with "expected exactly one, found ..." otherwise."""
+        return one_value(self.views.ds, self.iri, predicate)
+
+    def _optional_value(self, predicate: URIRef) -> Node | None:
+        """The object of ``predicate`` or None; more than one raises ``ResolutionError``."""
+        values = self._values(predicate)
+        if len(values) > 1:
+            raise ResolutionError(self.iri, predicate, f"expected at most one, found {', '.join(map(str, values))}")
+        return values[0] if values else None
+
+    def _int(self, predicate: URIRef) -> int | None:
+        """An optional integer literal; anything else raises ``ResolutionError``."""
+        return int_value(self.iri, predicate, self._optional_value(predicate))
+
     def _many(self, cls: type[E], iris: Iterable[URIRef], predicate: URIRef) -> Many[E]:
         return self.views.many(cls, iris, self.iri, predicate)
 
@@ -187,6 +206,26 @@ class Element:
         """Elements of whatever type the graph says they are."""
         views = self.views
         return sorted_many((views.resolve(i) for i in iris), self.iri, predicate, views.model.curie)
+
+
+def one_value(ds: Dataset, subject: Node, predicate: URIRef) -> Node:
+    """The single object of (subject, predicate); ``ResolutionError(subject,
+    predicate)`` with "expected exactly one, found none" (or the values) otherwise."""
+    values = sorted(set(ds.objects(subject, predicate)), key=str)
+    if len(values) != 1:
+        found = "none" if not values else ", ".join(str(v) for v in values)
+        raise ResolutionError(subject, predicate, f"expected exactly one, found {found}")
+    return values[0]
+
+
+def int_value(subject: Node, predicate: URIRef, value: Node | None) -> int | None:
+    """None, or the int of an integer literal; anything else raises ``ResolutionError``."""
+    if value is None:
+        return None
+    python = value.toPython() if isinstance(value, Literal) else None
+    if not isinstance(python, int) or isinstance(python, bool):
+        raise ResolutionError(subject, predicate, f"expected an integer, found {value!r}")
+    return python
 
 
 def optional[I: HasIri](items: Many[I]) -> I | None:

@@ -38,7 +38,7 @@ from .graph import (
     dmn_input_types,
 )
 from .loader import Model, load, model_hash, payload_path
-from .namespaces import ARCH, COMM, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, local_name
+from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, local_name
 from .sparql import PREFIXES, load_question, question_names
 from .views import (
     Architecture,
@@ -51,6 +51,7 @@ from .views import (
     Environment,
     Event,
     Field,
+    Flow,
     FlowNode,
     InteractionModel,
     Interfaces,
@@ -60,6 +61,8 @@ from .views import (
     MessageStart,
     Operation,
     Page,
+    Parameter,
+    ParameterBinding,
     PathTemplate,
     Policy,
     Process,
@@ -80,6 +83,7 @@ __all__ = [
     "ChannelStart",
     "Component",
     "Container",
+    "DASH",
     "DEC",
     "DEPLOY",
     "Decision",
@@ -90,6 +94,7 @@ __all__ = [
     "Environment",
     "Event",
     "Field",
+    "Flow",
     "FlowNode",
     "HYDRA",
     "IFML",
@@ -109,6 +114,8 @@ __all__ = [
     "PREFIXES",
     "PROC",
     "Page",
+    "Parameter",
+    "ParameterBinding",
     "PathMapping",
     "PathTemplate",
     "Permission",

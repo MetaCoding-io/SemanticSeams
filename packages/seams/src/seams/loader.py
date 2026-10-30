@@ -88,6 +88,7 @@ class Model:
         # Per-instance cache (never a module-level id()-keyed dict; see MEM010).
         self._hash: str | None = None
         self._views: Views | None = None
+        self._ns: list[tuple[str, str]] | None = None
 
     @property
     def hash(self) -> str:
@@ -131,6 +132,26 @@ class Model:
         if ns is None:
             raise ResolutionError(self.subject, f"@prefix {prefix}:", f"cannot expand {text!r}")
         return URIRef(str(ns) + local)
+
+    def compact(self, term: object, *, whole: bool = False) -> str:
+        """``prefix:local`` for the longest bound namespace ``term`` starts
+        with (ties by prefix), the inverse partner of ``curie``. The local part
+        is the IRI's last fragment or segment (a BPMN element ``<model#id>``
+        shows as ``:id``); ``whole=True`` keeps everything after the namespace
+        (``:approval_bpmn#approve_expense``), which ``curie`` expands back.
+        ``<iri>`` when no namespace matches (the bare IRI with ``whole``)."""
+        text = str(term)
+        for ns, prefix in self._namespaces():
+            if text.startswith(ns):
+                return f"{prefix}:{text[len(ns) :]}" if whole else f"{prefix}:{local_name(text)}"
+        return text if whole else f"<{text}>"
+
+    def _namespaces(self) -> list[tuple[str, str]]:
+        if self._ns is None:
+            self._ns = sorted(
+                ((str(ns), prefix) for prefix, ns in self.ds.namespaces()), key=lambda p: (-len(p[0]), p[1])
+            )
+        return self._ns
 
     def label(self, iri: object) -> str:
         """The rdfs:label of ``iri``, or its local name when it has none."""

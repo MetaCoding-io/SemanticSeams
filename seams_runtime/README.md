@@ -60,6 +60,44 @@ also catch every `ResolutionError` a resolver raises.
 lifecycle guard and policy hook ask it, or the view elements it hands back
 (`task_element`, `shape`, `page`, `component`), and never read raw triples.
 
+## Store
+
+`seams_runtime.store` holds process state, entities and open user tasks in three
+tables: `workflow_state`, `entities` and `user_tasks`. `Store` is a `typing.Protocol`
+(runtime-checkable) with two backends, both exported from `seams_runtime`:
+
+| Backend | `kind` | `location` | Notes |
+|---|---|---|---|
+| `SQLiteStore(path, timeout=30.0)` | `"sqlite"` | the file path (`.path` is kept) | Embedded stdlib sqlite3 in WAL mode. `Runtime.load` builds one from `SEAMS_DB`. |
+| `PostgresStore(url, *, schema=None, connect_timeout=10)` | `"postgresql"` | the URL with its password replaced by `***` (plus ` (schema …)`) | psycopg 3. `data` is jsonb and the timestamps are double precision. A `seq bigserial` column replaces SQLite's rowid as the tie-breaker for ordering and is never returned. Upserts use `ON CONFLICT`. `schema=` creates that schema if needed and sets `search_path` to it on every connection (the tests use one per test). Table creation takes an advisory lock, so runtimes that start together on one database do not collide. |
+
+Both backends return the same rows. `data` comes back decoded with its keys sorted.
+`query` applies its data filters in Python on both backends, so the results match. Every
+operation opens and closes its own connection, and every statement is parameterised.
+
+| Method | What it does |
+|---|---|
+| `save_state(instance_id, process, state, *, correlation_key=None, status=None)` | Inserts or replaces the instance's serialized workflow and stamps `updated`. |
+| `load_state(instance_id)` | The serialized workflow. A missing instance raises `LookupError` naming the store's `location`. |
+| `get_instance(instance_id)` / `list_instances(correlation_key=None)` | Instance metadata without the state: `instance_id`, `process`, `correlation_key`, `status`, `updated`. The list is oldest update first and can filter by correlation key. |
+| `put_entity(id, shape, data, *, correlation_key=None, instance_id=None, status=None)` | Inserts or updates an entity and returns the stored row. An update keeps the original `created`. |
+| `get_entity(id)` | The row (`id`, `shape`, `correlation_key`, `instance_id`, `data`, `status`, `created`), or `None`. |
+| `query(shape, **filters)` | Entities of `shape`, oldest first. `correlation_key=` matches the column; any other filter must equal that top-level key of `data`. |
+| `replace_user_tasks(instance_id, rows)` | Makes `rows` the instance's open user tasks. A task that was already open keeps its `created`, and an empty list clears the instance. On PostgreSQL an advisory lock per instance serialises concurrent replacements. |
+| `list_user_tasks()` / `get_user_task(task, correlation_key)` | Every open user task, oldest first. `get_user_task` returns the newest open row of the task for that key, or `None`. |
+
+`seams_runtime.store.redact(url)` replaces the password in a URL, in a `password` query
+parameter or in a libpq `password=` keyword string with `***`. `location`, `repr()` and
+the store's log lines use it. When a connection fails, the error is logged with the
+redacted location and psycopg's `OperationalError` propagates. After `connect_timeout`
+seconds, an unreachable server fails instead of hanging.
+
+The tests run the store contract (`tests/test_runtime_store.py`) on both backends.
+The postgres run needs `SEAMS_TEST_POSTGRES_URL`, for example
+`postgresql://postgres:pw@localhost:5433/postgres` against
+`docker run -d -e POSTGRES_PASSWORD=pw -p 5433:5432 postgres:16`. Without it the run
+skips, unless `SEAMS_REQUIRE_POSTGRES=1` turns the skip into a failure.
+
 ## Host
 
 `python -m seams_runtime.host --routes /app/chat_api.py --host 0.0.0.0 --port 8000`
@@ -130,7 +168,7 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    error is recorded, the channel scope is closed and the instance is marked failed.
    When Spiff wrapped a model error (a `ResolutionError` raised inside a business-rule
    task arrives as a `WorkflowTaskException`), the model error is the one recorded.
-8. After each element, the workflow is checkpointed into SQLite. The checkpoint also
+8. After each element, the workflow is checkpointed into the store. The checkpoint also
    replaces the instance's rows in the `user_tasks` table with its open user tasks, so
    the rows are empty once it completes or fails.
 9. User tasks are not run by the loop. The instance ends `waiting` on them, and the log

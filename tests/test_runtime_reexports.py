@@ -85,3 +85,11 @@ def test_resolver_miss_raises_resolution_error_caught_as_runtime_error():
     assert isinstance(err, seams.ResolutionError)
     assert err.to_dict()["type"] == "ResolutionError"
     assert err.to_dict()["subject"] == "https://example.org/no#task"
+
+
+def test_store_interface_and_backends_are_exported():
+    import seams_runtime.store
+
+    for name in ("Store", "SQLiteStore", "PostgresStore"):
+        assert name in seams_runtime.__all__, name
+        assert getattr(seams_runtime, name) is getattr(seams_runtime.store, name)

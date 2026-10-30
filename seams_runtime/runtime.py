@@ -52,7 +52,7 @@ from .lifecycle import LifecycleGuard
 from .llm import LLMClient
 from .model import ModelGraph, local_name
 from .policy import Identity, PolicyHook, authenticator_from_env
-from .store import Store
+from .store import SQLiteStore, Store
 from .worker import RUNNING, Instance, Worker, new_state
 
 log = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ class Runtime:
         db = Path(db_path if db_path is not None else os.environ.get(DB_ENV) or DEFAULT_DB)
         runtime = cls(
             model,
-            Store(db),
+            SQLiteStore(db),
             authenticator=authenticator,
             evaluator=evaluator,
             llm=LLMClient(llm_base_url, transport=llm_transport),
@@ -263,7 +263,7 @@ class Runtime:
         """Continue a checkpointed instance (e.g. after a restart) in this runtime."""
         meta = self.store.get_instance(instance_id)
         if meta is None:
-            raise LookupError(f"no instance {instance_id} in {self.store.path}")
+            raise LookupError(f"no instance {instance_id} in {self.store.location}")
         wf = self.engine.deserialize(self.store.load_state(instance_id))
         instance = Instance(instance_id, meta["correlation_key"], self.model.curie(meta["process"]), wf, stop_after)
         log.info("resuming instance %s (was %s)", instance_id, meta["status"])

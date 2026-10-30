@@ -27,7 +27,7 @@ from .policy import (
     authenticator_from_env,
 )
 from .runtime import Runtime
-from .store import Store
+from .store import PostgresStore, SQLiteStore, Store
 from .worker import Instance, Worker
 
 __all__ = [
@@ -47,11 +47,13 @@ __all__ = [
     "PolicyDenied",
     "PolicyEvaluator",
     "PolicyHook",
+    "PostgresStore",
     "PresenceEvaluator",
     "ResolutionError",
     "RoleEvaluator",
     "Runtime",
     "RuntimeModelError",
+    "SQLiteStore",
     "StaticUserAuthenticator",
     "Store",
     "TaskNotOpen",

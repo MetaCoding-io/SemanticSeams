@@ -18,6 +18,8 @@ dependencies = [
     "jinja2>=3.1",
     # serves seams_runtime.host
     "uvicorn[standard]>=0.30",
+    # the PostgreSQL store backend (ADR-0011)
+    "psycopg[binary]>=3.2",
 ]
 
 [tool.uv]

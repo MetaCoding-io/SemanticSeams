@@ -24,14 +24,13 @@ from seams_runtime import ModelGraph, ResolutionError  # noqa: E402
 from seams_runtime.channels import ChannelBus, sse_frame  # noqa: E402
 from seams_runtime.engine import Engine  # noqa: E402
 from seams_runtime.model import DEC, SEAM  # noqa: E402
-from seams_runtime.store import Store  # noqa: E402
+from seams_runtime.store import SQLiteStore  # noqa: E402
 
 CHAT_DIR = ROOT / "examples" / "chat-app"
 TRIG = CHAT_DIR / "chat-app.trig"
 CHAT = "https://example.org/chat/"
 PROCESS = ":send_message_process"
 DECISION = URIRef(CHAT + "routing_decision")
-SHAPE = CHAT + "MessageShape"
 SHORT = {"role": "user", "content": "Hello, which provider?"}
 LONG = {"role": "user", "content": "x" * 4001}
 
@@ -365,10 +364,10 @@ def test_serialize_store_restore_finishes_with_same_data(model, tmp_path):
     eng = Engine(model)
     wf = eng.new_workflow(PROCESS)
     _drive(eng, wf, LONG, stop_after="route_to_provider")
-    Store(db).save_state("i-1", PROCESS, eng.serialize(wf), correlation_key="c-1", status="running")
+    SQLiteStore(db).save_state("i-1", PROCESS, eng.serialize(wf), correlation_key="c-1", status="running")
     del wf
 
-    eng2, store2 = Engine(ModelGraph(TRIG)), Store(db)
+    eng2, store2 = Engine(ModelGraph(TRIG)), SQLiteStore(db)
     restored = eng2.deserialize(store2.load_state("i-1"))
     assert not restored.is_completed()
     trace = _drive(eng2, restored, LONG)
@@ -376,58 +375,6 @@ def test_serialize_store_restore_finishes_with_same_data(model, tmp_path):
     assert restored.is_completed()
     assert _final(restored) == _final(wf_b)
     assert _final(restored)["provider"] == "long-context-provider"
-
-
-# ── store ────────────────────────────────────────────────────────────────────
-
-
-def test_store_state_round_trip_and_listing(tmp_path):
-    s = Store(tmp_path / "s.db")
-    s.save_state("a", PROCESS, '{"x":1}', correlation_key="c1", status="running")
-    s.save_state("b", PROCESS, '{"x":2}', correlation_key="c2", status="done")
-    s.save_state("a", PROCESS, '{"x":3}', correlation_key="c1", status="done")
-    assert s.load_state("a") == '{"x":3}'
-    assert [r["instance_id"] for r in s.list_instances(correlation_key="c1")] == ["a"]
-    assert {r["instance_id"] for r in s.list_instances()} == {"a", "b"}
-    assert "state" not in s.list_instances()[0]
-    with pytest.raises(LookupError):
-        s.load_state("missing")
-
-
-def test_store_query_filters_by_correlation_key_and_fields(tmp_path):
-    s = Store(tmp_path / "s.db")
-    s.put_entity("m1", SHAPE, {"role": "user", "content": "a"}, correlation_key="c1")
-    s.put_entity("m2", SHAPE, {"role": "assistant", "content": "b"}, correlation_key="c1")
-    s.put_entity("m3", SHAPE, {"role": "user", "content": "c"}, correlation_key="c2")
-    s.put_entity("x1", CHAT + "ConversationShape", {"title": "t"}, correlation_key="c1")
-    assert [e["id"] for e in s.query(SHAPE, correlation_key="c1")] == ["m1", "m2"]
-    assert [e["id"] for e in s.query(SHAPE, correlation_key="c1", role="user")] == ["m1"]
-    assert [e["id"] for e in s.query(SHAPE, role="user")] == ["m1", "m3"]
-    assert s.query(SHAPE, correlation_key="nope") == []
-    assert s.query(SHAPE, no_such_field="x") == []
-
-
-def test_store_update_keeps_created_order(tmp_path):
-    s = Store(tmp_path / "s.db")
-    first = s.put_entity("m1", SHAPE, {"content": "a"}, status="sent")
-    s.put_entity("m2", SHAPE, {"content": "b"})
-    updated = s.put_entity("m1", SHAPE, {"content": "a2"}, status="streaming")
-    assert updated["created"] == first["created"]
-    assert updated["data"] == {"content": "a2"} and updated["status"] == "streaming"
-    assert [e["id"] for e in s.query(SHAPE)] == ["m1", "m2"]
-    assert s.get_entity("missing") is None
-
-
-def test_store_is_safe_across_threads(tmp_path):
-    s = Store(tmp_path / "s.db")
-
-    async def main():
-        await asyncio.gather(
-            *(asyncio.to_thread(s.put_entity, f"m{i}", SHAPE, {"n": i}, correlation_key="c") for i in range(20))
-        )
-
-    asyncio.run(main())
-    assert sorted(e["data"]["n"] for e in s.query(SHAPE, correlation_key="c")) == list(range(20))
 
 
 # ── channel bus ──────────────────────────────────────────────────────────────

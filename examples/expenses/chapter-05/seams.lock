@@ -1,0 +1,96 @@
+{
+  "lockfile_version": 1,
+  "model": "expenses.trig",
+  "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+  "outputs": [
+    {
+      "generator": "fastapi",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/expense_api.py",
+      "sha256": "8e063c36e752566c8bb44c915bcc94b5e79f4cb546134c35245956e02bda0968",
+      "sources": [
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/finance_approve_expense_op",
+        "https://example.org/expenses/list_expenses_op",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/templates/approve_form.html",
+      "sha256": "82ddfbc3651ced054a526a6cdc55c8b78ad17605961612973868b7c61b626be8",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/templates/expense_details.html",
+      "sha256": "c66840c8e3513f3e94e9c7926b4edba0dc90981c91ece0467ccdfba513e2cd51",
+      "sources": [
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/finance_approve_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/templates/expense_list.html",
+      "sha256": "83f8ad6c385c85895c1e67521d69a8aa8492fed6c7a322b6e8fb610bdd3e2ed8",
+      "sources": [
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/templates/expense_list_item.html",
+      "sha256": "f5b9f564e835d4c9f68bdbdfc1328812bfe70462e75501dcacc2f33209b85ad3",
+      "sources": [
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/templates/expenses_page.html",
+      "sha256": "719db2f1a26c007d0a0c79fbd555fda077369222c9c86d524ac81d44214ffce7",
+      "sources": [
+        "https://example.org/expenses/expense_form",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:09371e51f4f0e98bf34760814d1109d3feb3f1188e2b350b2c2778d659bd84e8",
+      "path": "generated/templates/finance_approve_form.html",
+      "sha256": "2669bc3bbc6a8a9b95a717c63d4c738f70f22316a885dc7d6ca28c0d57f626c5",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/finance_approve_form"
+      ]
+    }
+  ]
+}

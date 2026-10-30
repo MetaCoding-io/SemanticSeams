@@ -1,0 +1,174 @@
+{
+  "lockfile_version": 1,
+  "model": "expenses.trig",
+  "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+  "outputs": [
+    {
+      "generator": "compose",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "compose.yaml",
+      "sha256": "f847f1a8270a8d1b6cb65cf81946413817b34fcedf10fb1b411c21aced978728",
+      "sources": [
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_db",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "generator": "fastapi",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/expense_api.py",
+      "sha256": "b6b901544001907352aab7b80e9b4311f1c50ff15378b16e2585a81d15ed271c",
+      "sources": [
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/awaiting_approval_op",
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/finance_approve_expense_op",
+        "https://example.org/expenses/list_expenses_op",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/paid_expenses_op",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payout_process",
+        "https://example.org/expenses/payouts",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/approve_form.html",
+      "sha256": "380b6c1841c8a4654c4c1affafe94d9caf10eb6d483b9028b4239a1ef5a5fdde",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/awaiting_approval.html",
+      "sha256": "35f35ae10ac0f5a8c556e5d491c4e7406dfb60ac02e5ff29d6023876e47c3f1b",
+      "sources": [
+        "https://example.org/expenses/awaiting_approval",
+        "https://example.org/expenses/awaiting_approval_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/expense_details.html",
+      "sha256": "b46157ac1ee2e827e3caad6f8a8433d6f5d9c3979d921cf1ebfefd4225e016e1",
+      "sources": [
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/finance_approve_expense_op",
+        "https://example.org/expenses/pay_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/expense_list.html",
+      "sha256": "d4da43a812fda31a1179017ac3a6a5caf1550c259cdf67715375dbcf3dcc88e6",
+      "sources": [
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/expense_list_item.html",
+      "sha256": "101a84cfbeb9819caed964afae36bd45d63f504333027fbfad25bcc2ecd1ade2",
+      "sources": [
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/expenses_page.html",
+      "sha256": "7f41f3ecdab9c97699009cfa73fffb458c88f1f985a88e43e4bfa058db19dc49",
+      "sources": [
+        "https://example.org/expenses/expense_form",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/finance_approve_form.html",
+      "sha256": "19d13918c8c656cf00b2064bea28ef7e5e385171a6e9d5e78c01481082bef881",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/finance_approve_form"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/paid_expenses.html",
+      "sha256": "1c7340bd3bd7ca9b30ee253a461e433bbb33c19aba5308748ed192a950678016",
+      "sources": [
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/payment_form.html",
+      "sha256": "e5eefddf442fc87d6b84b574e250da681229b32606d6662eab5a60619670032b",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/payment_form"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/payment_list.html",
+      "sha256": "e8895f2448038ef818f52de65797b60c7ba5c357ff5c2f47bd71193aca39c2f2",
+      "sources": [
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:deba15fef42ac5f8fd2786ccad44e59d6ed7da9bbb3ae751f3c87276c1b9d906",
+      "path": "generated/templates/payouts_page.html",
+      "sha256": "fa109263a48a6c74a06149ef98f4dcd2782d78ab3098a1bf4eb8e0e9b20d87a6",
+      "sources": [
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/payment_list",
+        "https://example.org/expenses/payouts_page"
+      ]
+    }
+  ]
+}

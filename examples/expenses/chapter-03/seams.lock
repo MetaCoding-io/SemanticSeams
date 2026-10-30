@@ -1,0 +1,53 @@
+{
+  "lockfile_version": 1,
+  "model": "expenses.trig",
+  "model_hash": "sha256:32968ea5a3654676ffabf41b5db20962fcb2274d87115236561630c34f59df71",
+  "outputs": [
+    {
+      "generator": "fastapi",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:32968ea5a3654676ffabf41b5db20962fcb2274d87115236561630c34f59df71",
+      "path": "generated/expense_api.py",
+      "sha256": "2454ac695e1e9651ef3e0745cddb89c064bb4f12aba7dfa61acea73fe01d90f9",
+      "sources": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/list_expenses_op",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:32968ea5a3654676ffabf41b5db20962fcb2274d87115236561630c34f59df71",
+      "path": "generated/templates/expense_list.html",
+      "sha256": "164c5fa50211893e748a170929979661d7701f5cc53d9ef79854d08751f1f495",
+      "sources": [
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:32968ea5a3654676ffabf41b5db20962fcb2274d87115236561630c34f59df71",
+      "path": "generated/templates/expense_list_item.html",
+      "sha256": "12be1e37c58d5fdd2ced827916da39aff3b4768afc792e69d4f3c6e44d51d6bd",
+      "sources": [
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:32968ea5a3654676ffabf41b5db20962fcb2274d87115236561630c34f59df71",
+      "path": "generated/templates/expenses_page.html",
+      "sha256": "36a76e6760acc2ba5b01aaf59b6db7e0b3c20290fcf2431b393e61f3fb4b8fb2",
+      "sources": [
+        "https://example.org/expenses/expense_form",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expenses_page"
+      ]
+    }
+  ]
+}

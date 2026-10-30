@@ -946,6 +946,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "pyshacl" },
     { name = "rdflib" },
+    { name = "semanticseams" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -955,6 +956,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
     { name = "pyshacl", specifier = ">=0.30" },
     { name = "rdflib", specifier = ">=7.0" },
+    { name = "semanticseams", editable = "packages/seams" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 

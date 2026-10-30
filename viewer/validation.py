@@ -8,6 +8,11 @@ files (sh:class checks), so validation here mirrors tests/validate_chat_app.py:
 merge the ontology .ttl files with the dataset's quads into one union graph,
 then run pyshacl against seam-shapes.ttl with inference off.
 
+The same summary carries the storage health checks of ADR-0011
+(seams.ModelGraph.store_health()): a store the runtime cannot resolve is a
+violation, a declared store no shape is seam:storedIn is a warning, and a model
+that declares no store gets a note that the runtime keeps embedded SQLite.
+
 Results are cached per Dataset identity: the model is loaded once per process,
 so each dataset is validated at most once.
 """
@@ -18,6 +23,7 @@ from pathlib import Path
 
 import pyshacl
 import rdflib
+import seams
 from rdflib import Namespace
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,12 +58,44 @@ def _build_union(ds: rdflib.Dataset) -> rdflib.Graph:
     return union
 
 
-def get_model_conformance(ds: rdflib.Dataset) -> dict:
-    """Validate the dataset (plus ontology closure) against seam-shapes.ttl.
+def _finding(finding: seams.StoreFinding) -> dict:
+    return {
+        "focusNode": str(finding.subject) if finding.subject is not None else None,
+        "path": str(finding.predicate) if finding.predicate is not None else None,
+        "message": finding.message,
+        "severity": finding.severity,
+        "sourceShape": None,
+    }
 
-    Returns {"conforms": bool, "violationCount": int, "violations": list[dict]}
-    where each violation carries focusNode, path, message, severity, and
-    sourceShape (path and sourceShape may be None).
+
+def _store_findings(ds: rdflib.Dataset) -> list[dict]:
+    """store_health() over the same Dataset (no file is read when a dataset
+    is passed). A failure of the check itself is reported as a violation
+    rather than taking the page down."""
+    try:
+        findings = seams.ModelGraph(ROOT / "viewer.trig", dataset=ds).store_health()
+    except Exception as err:
+        return [
+            {
+                "focusNode": None,
+                "path": None,
+                "message": f"store health check failed: {err}",
+                "severity": "Violation",
+                "sourceShape": None,
+            }
+        ]
+    return [_finding(f) for f in findings]
+
+
+def get_model_conformance(ds: rdflib.Dataset) -> dict:
+    """Validate the dataset (plus ontology closure) against seam-shapes.ttl,
+    then run the storage health checks.
+
+    Returns {"conforms": bool, "violationCount": int, "violations": list[dict],
+    "warnings": list[dict], "notes": list[dict]}. Each entry carries focusNode,
+    path, message, severity, and sourceShape (focusNode, path and sourceShape
+    may be None). Store violations join ``violations`` and make the model not
+    conform; warnings and notes do not change ``conforms``.
     """
     key = id(ds)
     if key in _cache:
@@ -83,10 +121,17 @@ def get_model_conformance(ds: rdflib.Dataset) -> dict:
             }
         )
 
+    store = _store_findings(ds)
+    violations += [f for f in store if f["severity"] == "Violation"]
+    warnings = [f for f in store if f["severity"] == "Warning"]
+    notes = [f for f in store if f["severity"] == "Info"]
+
     summary = {
-        "conforms": bool(conforms),
+        "conforms": bool(conforms) and not any(f["severity"] == "Violation" for f in store),
         "violationCount": len(violations),
         "violations": violations,
+        "warnings": warnings,
+        "notes": notes,
     }
     _cache[key] = summary
     return summary

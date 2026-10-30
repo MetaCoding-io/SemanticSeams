@@ -89,8 +89,16 @@ Message and Conversation shapes stored in the message store (`seam:storedIn`,
 ## The parts of the page
 
 **Model-health badge.** Every page validates the whole model against the
-[seam shapes](/reference/shapes). It reads *Conforms*, or a count of violations that
-opens into a list naming each failing element.
+[seam shapes](/reference/shapes) and runs the storage checks of
+[ADR-0011](/adr/0011-storage-resolution) (`ModelGraph.store_health()`). It reads
+*Conforms*, or a count of violations that opens into a list naming each failing
+element. A store the runtime could not resolve, such as a written shape with no
+`seam:storedIn` or a store with an unsupported `deploy:storeKind`, counts as a
+violation. A store container no shape is `seam:storedIn` adds an amber warning count
+with its own list, and a model that declares no store gets a note that the runtime
+keeps embedded SQLite at `SEAMS_DB`. Warnings and notes leave the badge at *Conforms*.
+The JSON view's `modelConformance` carries the same `violations`, `warnings` and
+`notes`.
 
 **Breadcrumbs.** The path you clicked, not a fixed hierarchy: the same element can be
 reached from more than one parent. Each crumb is a link back.

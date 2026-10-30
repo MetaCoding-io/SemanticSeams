@@ -136,6 +136,14 @@ or wrong stops `Runtime.load` with a `ResolutionError` naming the subject and pr
 | a written shape with no `seam:storedIn`, or stored elsewhere | the shape | `seam:storedIn` |
 | a PostgreSQL store whose connection string is in neither `<key>` nor `<key>_FILE` | the connecting container | `deploy:connectsTo` |
 
+The viewer's [model-health badge](/guide/the-viewer#the-parts-of-the-page) runs the
+same checks before anything loads, so you see a store problem while you author the
+model rather than when the runtime starts. Each row of the table above shows as a
+violation. A store container that no shape is `seam:storedIn` shows as a warning:
+this is how the chat app's old mismatch looks, where a PostgreSQL Message Store was
+declared while the runtime kept writing to embedded SQLite. A model with no store gets
+a note that the runtime keeps embedded SQLite.
+
 `GET /healthz` reports the store the runtime opened as
 `{"kind", "declared", "container", "override"}`. For a run without a database, such as
 a test or a quick local check, `SEAMS_STORE_OVERRIDE=sqlite` keeps embedded SQLite at

@@ -155,3 +155,143 @@ def test_fragment_response_omits_health_panel():
     )
     assert resp.status_code == 200
     assert "health-panel" not in resp.text
+
+
+# --- Storage health (M011/S04 T02): store_health() findings in the panel ---
+
+DEPLOY = Namespace("https://w3id.org/seams/deploy#")
+CHAT_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
+CH07_TRIG = ROOT / "examples" / "expenses" / "chapter-07" / "expenses.trig"
+STORE = "https://example.org/store/"
+
+STORE_PREFIXES = """\
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix :       <https://example.org/store/> .
+"""
+
+UNUSED_STORE = """
+<urn:test:graph:spare> {
+    <https://example.org/store/spare_db> a <https://w3id.org/seams/arch#Container> ;
+        <http://www.w3.org/2000/01/rdf-schema#label> "Spare Store" ;
+        <https://w3id.org/seams/deploy#storeKind> <https://w3id.org/seams/deploy#PostgreSQL> .
+}
+"""
+
+
+def _dataset(*trig_texts: str, files: tuple[Path, ...] = ()) -> rdflib.Dataset:
+    ds = rdflib.Dataset(default_union=True)
+    for path in files:
+        ds.parse(path, format="trig")
+    for text in trig_texts:
+        ds.parse(data=text, format="trig")
+    return ds
+
+
+def test_loaded_chat_app_has_no_store_warnings_or_notes():
+    result = validation.get_model_conformance(viewer_app.get_graph())
+    assert result["conforms"] is True
+    assert result["warnings"] == []
+    assert result["notes"] == []
+
+
+def test_unused_postgres_store_warns_and_still_conforms():
+    """A declared store no shape is seam:storedIn (the original chat-app
+    mismatch) is a warning, not a violation."""
+    result = validation.get_model_conformance(_dataset(UNUSED_STORE, files=(CHAT_TRIG,)))
+    assert result["conforms"] is True
+    assert result["violations"] == []
+    [warning] = result["warnings"]
+    assert warning["focusNode"] == STORE + "spare_db"
+    assert warning["path"] == str(SEAM.storedIn)
+    assert warning["severity"] == "Warning"
+    assert result["notes"] == []
+
+
+def test_unsupported_store_kind_is_a_violation():
+    """A written shape stored in a store whose kind the runtime does not
+    support fails the panel with a deploy:storeKind violation."""
+    trig = (
+        STORE_PREFIXES
+        + """
+<urn:test:graph:store> {
+    :api a arch:Container ; rdfs:label "API" ;
+        deploy:configuration [ a deploy:Configuration ;
+            deploy:binding [ deploy:key "DB_URL" ; deploy:value "mongodb://x" ; deploy:connectsTo :db ] ] .
+    :db a arch:Container ; rdfs:label "DB" ; deploy:storeKind deploy:MongoDB .
+    :MessageShape a sh:NodeShape ; rdfs:label "Message" ; seam:storedIn :db .
+}
+"""
+    )
+    result = validation.get_model_conformance(_dataset(trig))
+    assert result["conforms"] is False
+    assert result["violationCount"] == len(result["violations"])
+    # SHACL flags the kind too; the store_health one carries no sourceShape.
+    [store_violation] = [
+        v for v in result["violations"] if v["path"] == str(DEPLOY.storeKind) and v["sourceShape"] is None
+    ]
+    assert store_violation["focusNode"] == STORE + "db"
+    assert store_violation["severity"] == "Violation"
+
+
+def test_no_store_model_conforms_with_an_embedded_sqlite_note():
+    result = validation.get_model_conformance(_dataset(files=(CH07_TRIG,)))
+    assert result["conforms"] is True
+    assert result["warnings"] == []
+    [note] = result["notes"]
+    assert note["severity"] == "Info"
+    assert note["focusNode"] is None
+    assert "SQLite" in note["message"]
+
+
+def test_broken_dataset_keeps_store_lists():
+    result = validation.get_model_conformance(_broken_dataset())
+    assert isinstance(result["warnings"], list)
+    assert isinstance(result["notes"], list)
+
+
+@pytest.fixture
+def unused_store_viewer(tmp_path, monkeypatch):
+    """The chat app plus an unused PostgreSQL store, loaded by the viewer."""
+    monkeypatch.delenv(viewer_app.MODEL_ENV, raising=False)
+    monkeypatch.delenv(viewer_app.ROOT_ENV, raising=False)
+    original = viewer_app.MODEL_PATH
+    model = tmp_path / "chat-app.trig"
+    model.write_text(CHAT_TRIG.read_text() + UNUSED_STORE)
+    viewer_app.configure(model)
+    yield
+    viewer_app.configure(original)
+
+
+def test_full_page_renders_store_warning(unused_store_viewer):
+    resp = _client().get(f"/view/{ROOT_IRI}", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'data-conforms="true"' in html
+    assert 'data-warnings="1"' in html
+    assert STORE + "spare_db" in html
+    json_mc = _client().get(f"/view/{ROOT_IRI}", params={"format": "json"}).json()["modelConformance"]
+    assert len(json_mc["warnings"]) == 1
+
+
+def test_fragment_response_omits_store_warning(unused_store_viewer):
+    resp = _client().get(
+        f"/view/{ROOT_IRI}",
+        headers={"Accept": "text/html", "hx-request": "true"},
+    )
+    assert resp.status_code == 200
+    assert "data-warnings" not in resp.text
+
+
+def test_failing_store_check_is_reported_as_a_violation(monkeypatch):
+    def boom(self):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(validation.seams.ModelGraph, "store_health", boom)
+    result = validation.get_model_conformance(viewer_app.get_graph())
+    assert result["conforms"] is False
+    assert result["violationCount"] == len(result["violations"]) == 1
+    assert "store health check failed: boom" in result["violations"][0]["message"]

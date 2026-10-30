@@ -98,6 +98,8 @@
     .health-panel details { margin-top: 0.35rem; }
     .health-panel summary { cursor: pointer; }
     .health-panel ul { margin: 0.35rem 0 0 0; padding-left: 1.25rem; }
+    .health-panel .health-warnings { margin-left: 0.75rem; color: #8a5300; background: #fff4e0; border: 1px solid #ffcc80; border-radius: 3px; padding: 0 0.4rem; font-weight: 600; }
+    .health-panel .health-notes { margin-left: 0.75rem; color: #555; }
     /* C4 node-link view (M006/S02, ADR-0008): ELK layout drawn as SVG. */
     .level-toggle { display: inline-flex; border: 1px solid #c7ccd4; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem; font-size: 0.85rem; }
     .level-toggle a { padding: 0.3rem 0.75rem; color: #14213d; text-decoration: none; background: #fff; border-right: 1px solid #c7ccd4; }
@@ -486,12 +488,28 @@
     {% else %}
     <span class="health-badge">&#10007; {{ model_conformance.violationCount }} violation(s)</span>
     {% endif %}
+    {% if model_conformance.warnings %}
+    <span class="health-warnings" data-warnings="{{ model_conformance.warnings | length }}">&#9888; {{ model_conformance.warnings | length }} warning(s)</span>
+    {% endif %}
+    {% for n in model_conformance.notes %}
+    <span class="health-notes">Note: {{ n.message }}</span>
+    {% endfor %}
     {% if model_conformance.violations %}
     <details>
       <summary>Violations</summary>
       <ul>
         {% for v in model_conformance.violations %}
         <li>{{ v.message }} — <code>{{ v.focusNode }}</code></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% if model_conformance.warnings %}
+    <details class="health-warning-list">
+      <summary>Warnings</summary>
+      <ul>
+        {% for w in model_conformance.warnings %}
+        <li>{{ w.message }} — <code>{{ w.focusNode }}</code></li>
         {% endfor %}
       </ul>
     </details>

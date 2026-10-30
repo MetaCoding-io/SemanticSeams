@@ -38,7 +38,8 @@ out = "generated/templates"
 | `[[generators]].name` | string | A generator name from `seams_gen` (see [Generators](#generators)). |
 | `[[generators]].out` | string | The directory the generator writes into. |
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
-| `[environments.<name>]` | table of tables, optional | The app's environment names. Only the names are read for now; the tables are a placeholder. |
+| `[environments.<name>]` | table of tables, optional | The app's environment names. |
+| `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
 the `seams.toml`, not the working directory, so the command gives the same
@@ -311,6 +312,9 @@ name = "compose"
 out = "../.."
 
 [environments.prod]
+
+[environments.local]
+endpoints = { chat_api = "http://localhost:8080" }
 ```
 
 `seams generate --project examples/chat-app` rewrites
@@ -321,7 +325,97 @@ out = "../.."
 and every chapter through the [seams-check action](#in-ci), and fails on any
 finding.
 
-## Planned
+## seams status
 
-`seams status` is planned; see
-[the backlog](/backlog#artifact-management-and-deployment).
+```sh
+seams status                                      # the seams.toml in the working directory
+seams status --project examples/chat-app --env local
+seams status --project examples/expenses/chapter-08 --timeout 2
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
+| `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `--env NAME` | the only environment with `endpoints` | The `[environments.<name>]` whose endpoints to read. |
+| `--timeout SECONDS` | `5` | How long to wait for each `/healthz`. |
+
+`seams status` asks each running runtime container which model it is on and
+compares the answer with the model in the working tree (D045). It writes
+nothing.
+
+### Endpoints
+
+The containers come from the model: they are the runtime containers, the ones
+the [compose generator](#generators) gives `SEAMS_MODEL_HASH`. Their base URLs
+come from the project file, because the generated compose file only exposes a
+runtime's port inside the stack and the model holds no URLs yet:
+
+```toml
+[environments.local]
+endpoints = { chat_api = "http://localhost:8080" }
+```
+
+Each key is a runtime container's local name and each value a base URL;
+`seams status` GETs `<url>/healthz`. In the chat app and expense chapter 8 the
+UI container (Caddy) on port 8080 proxies `/healthz` to the runtime, so
+`http://localhost:8080` reaches it from the host.
+
+With no `--env`, the command uses the only environment that has `endpoints`.
+No such environment, more than one, an unknown `--env`, or an endpoint naming a
+container that is not a runtime container of the model is an error (exit 2).
+A runtime container with no endpoint in the chosen environment is reported as
+unreachable.
+
+### Verdicts
+
+Each container gets one verdict by comparing the `model_hash` its `/healthz`
+reports with the hash of the current model (`seams.model_hash`):
+
+| Verdict | Meaning |
+|---|---|
+| `current` | The same hash. |
+| `behind` | A different hash that some version of the project's `seams.lock` in `HEAD`'s git history records. The detail counts the model changes behind, for example `2 model changes behind`. |
+| `ahead` | A different hash that no committed `seams.lock` records: the container runs a newer or diverged model. Outside a git repository, or with no committed lock, every differing hash is ahead. |
+| `unreachable` | No endpoint, a connection error, a timeout, a non-2xx response, invalid JSON, or a body with no string `model_hash`. The detail names the URL and the error. |
+
+A hash has no order of its own. The lock already records the model hash of
+every generation, so its history (`git log HEAD -- seams.lock`, then
+`git show` of each version) orders the past hashes: the newest distinct hash
+before the current one is 1 change behind, the next 2, and so on.
+
+### Output
+
+One stdout line per runtime container, sorted by name, as
+`<container> <verdict> <reported hash or -> <detail>`, then the current model's
+hash. Against the stack `docker compose up` starts from the repository root:
+
+```
+$ docker compose up -d --wait
+$ seams status --project examples/chat-app --env local
+chat_api current sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6
+current model sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6
+```
+
+With the stack down, the container is unreachable and the count goes to stderr:
+
+```
+$ seams status --project examples/chat-app --env local
+chat_api unreachable - http://localhost:8080/healthz: [Errno 111] Connection refused
+current model sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6
+seams status: 1 of 1 not current
+```
+
+After a model edit and `seams generate`, a container still running the old
+build reads `chat_api behind sha256:… 1 model change behind` until it is
+rebuilt or restarted.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Every runtime container is current. |
+| 1 | At least one is behind, ahead or unreachable. |
+| 2 | The project file is missing or malformed, the environment is missing, unknown or ambiguous, an endpoint names no runtime container, no model was given, or the model cannot be loaded. |
+
+Errors print to stderr as `seams status: <message>`.

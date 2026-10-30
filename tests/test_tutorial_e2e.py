@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from seams_cli.__main__ import main as seams_main
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "http://localhost:8080"
@@ -191,3 +192,12 @@ def test_healthz_reports_the_declared_postgres_store(stack):
     body = r.json()
     assert body["status"] == "ok"
     assert body["store"] == {"kind": "postgresql", "declared": "PostgreSQL", "container": MESSAGE_DB, "override": False}
+
+
+def test_seams_status_reports_the_runtime_current(stack, capsys):
+    """`seams status --env local` reads /healthz through port 8080 and finds the
+    running chat_api on the model in the working tree (D045)."""
+    code = seams_main(["status", "--project", str(ROOT / "examples" / "chat-app"), "--env", "local"])
+    out = capsys.readouterr()
+    assert code == 0, out.out + out.err
+    assert out.out.splitlines()[0].startswith("chat_api current sha256:"), out.out

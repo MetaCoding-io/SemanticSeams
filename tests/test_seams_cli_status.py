@@ -84,6 +84,7 @@ def closed_url() -> str:
 def app(tmp_path: Path) -> Path:
     dest = tmp_path / "app"
     shutil.copytree(CHAPTER, dest, ignore=shutil.ignore_patterns("__pycache__"))
+    _environments(dest, "[environments.prod]\n")  # drop chapter 8's own [environments.local]
     return dest
 
 
@@ -119,9 +120,11 @@ def repo(app: Path) -> Path:
 
 
 def _environments(app: Path, block: str) -> None:
+    """Replace every [environments.*] table (the end of the project file) with ``block``."""
     toml = app / "seams.toml"
-    text = toml.read_text(encoding="utf-8").replace("[environments.prod]\n", "")
-    toml.write_text(text + "\n" + block, encoding="utf-8")
+    text = toml.read_text(encoding="utf-8")
+    text = text[: text.index("[environments.")].rstrip("\n")
+    toml.write_text(text + "\n\n" + block, encoding="utf-8")
 
 
 def _local(app: Path, url: str) -> None:

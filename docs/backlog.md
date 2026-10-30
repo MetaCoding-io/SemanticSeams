@@ -144,7 +144,7 @@ the model.
 | A3 | **Reusable CI action and pre-commit hook**: shape validation, regenerate-and-diff, canned queries as gates | S | A1 | none | done (M012/S03): the composite action `.github/actions/seams-check` runs `seams check` per project and replaces CI's regenerate-and-diff step; `.pre-commit-hooks.yaml` defines the `seams-check` hook; `docs/queries/gates/ungoverned-writes.rq` is the first gate |
 | A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | planned (M016/S01, S02) |
 | A5 | **Image build and publish** for containers that run generated code, tagged with the model hash or a release version | M | A4 | none expected | planned (M016/S03) |
-| A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | planned (M012/S04) |
+| A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | done (M012/S04): `seams status [--env]` reads each runtime container's `/healthz` from the endpoints in `seams.toml` and reports it current, behind, ahead or unreachable against the current model, ordering past hashes by the `seams.lock` git history; the chat app and expense chapter 8 declare a `local` environment |
 | A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | planned (M015/S02) |
 | A8 | **Secrets and configuration checklist** per environment, checking existence without reading values, plus an example `.env` | S | A4 | none | planned (M016/S04) |
 | A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | planned (M015/S05) |
@@ -292,7 +292,10 @@ UI work must not eat M3.*
      `seams.lock`; `seams generate` deletes unchanged orphans and reports hand edits. A1
      check and A3 done, M012/S03: `seams check` validates shapes, runs gate queries and
      checks output freshness; CI runs it for every example through
-     `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` defines the hook.*
+     `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` defines the hook. A6 done,
+     M012/S04: `seams status` compares each running runtime container's `/healthz` model
+     hash with the current model, using the `seams.lock` history for behind and ahead.
+     M012 landed.*
    - **M013, Derived Sequence Diagrams** (U3, U1, U4): the declared delta stream, the
      as-designed deriver, viewer and docs embedding, and the as-executed sequence with
      OpenTelemetry spans. Depends on M010 and M011.

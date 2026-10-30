@@ -25,6 +25,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from seams_cli.__main__ import main as seams_main
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "examples" / "expenses" / "chapter-08"
@@ -192,6 +193,15 @@ def test_healthz_reports_the_declared_postgres_store(stack):
     body = r.json()
     assert body["status"] == "ok"
     assert body["store"] == {"kind": "postgresql", "declared": "PostgreSQL", "container": EXPENSE_DB, "override": False}
+
+
+def test_seams_status_reports_the_runtime_current(stack, capsys):
+    """`seams status --env local` reads /healthz through port 8080 and finds the
+    running expense_api on the model in the working tree (D045)."""
+    code = seams_main(["status", "--project", str(APP), "--env", "local"])
+    out = capsys.readouterr()
+    assert code == 0, out.out + out.err
+    assert out.out.splitlines()[0].startswith("expense_api current sha256:"), out.out
 
 
 def test_invalid_submit_is_rejected(stack):

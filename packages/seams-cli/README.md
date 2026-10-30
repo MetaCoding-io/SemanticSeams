@@ -31,8 +31,9 @@ out = "generated/templates"
 - `gates` (array of strings, optional): SPARQL SELECT files, relative to the
   project file, that `seams check` runs over the model; each must return no
   rows.
-- `environments` (table of tables, optional): environment names. Only the
-  names are read for now; the tables are a placeholder.
+- `environments` (table of tables, optional): environment names. An
+  environment may carry an `endpoints` inline table, container local name to
+  base URL, for `seams status`; any other key is ignored.
 
 Relative paths resolve against the directory of the project file, so the
 command gives the same result from any working directory.
@@ -94,4 +95,23 @@ and 2 for the errors of `seams generate` plus a missing, unparsable or
 non-SELECT gate or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-check).
 
-`seams status` is planned (M012/S04).
+## seams status
+
+```sh
+seams status                           # the seams.toml in the working directory
+seams status --project examples/chat-app --env local --timeout 2
+```
+
+It GETs `<url>/healthz` for each runtime container of the model (the ones the
+compose generator gives `SEAMS_MODEL_HASH`), with URLs from the chosen
+environment's `endpoints` (D045, `status.py`). `--env` defaults to the only
+environment that has endpoints. Each container prints as
+`<container> <verdict> <reported hash or -> <detail>`, then
+`current model <hash>`. The verdict is `current` (same hash), `behind` (a hash
+some committed version of `seams.lock` records; the detail counts model changes
+behind), `ahead` (any other hash, or every differing hash outside git) or
+`unreachable` (no endpoint, connection error, timeout, non-2xx, or no
+`model_hash`). It exits 0 when all are current, 1 otherwise with
+`seams status: N of M not current` on stderr, and 2 for a project, environment
+or model error. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-status).

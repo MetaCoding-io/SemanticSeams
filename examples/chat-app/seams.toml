@@ -23,3 +23,9 @@ name = "compose"
 out = "../.."
 
 [environments.prod]
+
+# The local `docker compose up` stack. The Caddy UI container (chat_ui) on
+# port 8080 proxies /healthz to the runtime, so `seams status --env local`
+# reads the running model hash there.
+[environments.local]
+endpoints = { chat_api = "http://localhost:8080" }

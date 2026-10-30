@@ -1,0 +1,15 @@
+# Semantic Seams project file for expense tutorial chapter 6.
+# It names the model, the generators with their output directories, and
+# the environments the model declares.
+# `seams generate` (run here, or with --project) rewrites every output below.
+# Paths are relative to this file. Reference: docs/reference/seams-cli.md.
+
+model = "expenses.trig"
+
+[[generators]]
+name = "fastapi"
+out = "generated"
+
+[[generators]]
+name = "htmx"
+out = "generated/templates"

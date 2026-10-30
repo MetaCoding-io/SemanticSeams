@@ -1,0 +1,9 @@
+# Semantic Seams project file for expense tutorial chapter 2.
+# It names the model, the generators with their output directories, and
+# the environments the model declares.
+# `seams generate` (run here, or with --project) rewrites every output below.
+# Paths are relative to this file. Reference: docs/reference/seams-cli.md.
+
+model = "expenses.trig"
+
+# The chapter has no app layer yet, so there is nothing to generate.

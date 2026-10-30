@@ -30,7 +30,7 @@ members. Each member declares its own dependencies in its `pyproject.toml`:
 | Member | Distribution | Dependencies |
 |---|---|---|
 | `packages/seams` | `semanticseams` | rdflib, lxml |
-| `seams_runtime` | `semanticseams-runtime` | semanticseams, rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn |
+| `seams_runtime` | `semanticseams-runtime` | semanticseams, rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn, psycopg |
 | `seams_gen` | `semanticseams-gen` | semanticseams, rdflib, Jinja2, PyYAML |
 | `seams_gateway` | `semanticseams-gateway` | FastAPI, uvicorn, httpx |
 | `viewer` | `semanticseams-viewer` | semanticseams, FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
@@ -51,6 +51,17 @@ shapes reject deliberately broken seams, checks that every non-reserved seam pre
 used somewhere, asserts the exact rows of every [canned query](/reference/queries), and
 exercises the viewer's endpoints. CI runs the same command on every push and pull
 request.
+
+The runtime's store tests run against embedded SQLite and against PostgreSQL. The
+PostgreSQL run needs a database URL in `SEAMS_TEST_POSTGRES_URL` and skips without one:
+
+```sh
+docker run -d -e POSTGRES_PASSWORD=pw -p 5433:5432 postgres:16
+SEAMS_TEST_POSTGRES_URL=postgresql://postgres:pw@localhost:5433/postgres pytest
+```
+
+CI starts a `postgres:16` service and sets `SEAMS_REQUIRE_POSTGRES=1`, which turns that
+skip into a failure.
 
 ## Lint and type-check
 

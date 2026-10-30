@@ -50,7 +50,7 @@ renderer choice is recorded in [ADR-0008](adr/0008-node-link-renderer.md).*
 
 ## P2: parked, with the reason
 
-Scheduled as M008 after M007. Each slice first checks whether its reason for
+Scheduled as M008, after M016. Each slice first checks whether its reason for
 being parked still holds, and may end by parking the item again here with an
 updated reason.
 
@@ -86,7 +86,7 @@ worked example item 11 waits for.
 ## Library: a read-only Python model library
 
 *Added 2026-10-29 from the [library note](research/2026-10-29-seams-python-library.md).
-Unscheduled.* The generation work produced a real fact layer, `ModelGraph` in
+Scheduled as M010.* The generation work produced a real fact layer, `ModelGraph` in
 `seams_runtime/model.py`, but it is bundled with the runtime's dependencies, has no
 public surface, keeps one-of-each accessors that M009's multi-model expense example had to
 work around, and reads the native BPMN and DMN only for their IDs. The viewer and the docs generator read the graph with their own code,
@@ -97,33 +97,33 @@ lockfile, `pyproject.toml` packaging, ruff and a type checker.
 
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
-| L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | proposed |
-| L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | proposed |
-| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | proposed |
-| L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | proposed |
-| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | proposed |
-| L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | proposed |
+| L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | planned (M010/S01) |
+| L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | planned (M010/S02) |
+| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | planned (M010/S03) |
+| L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | planned (M010/S04) |
+| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | planned (M010/S05, S06) |
+| L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | planned (M010/S07) |
 
 ## Derived views and model gaps
 
 *Added 2026-10-29 from the [UML coverage note](research/2026-10-29-uml-coverage-and-gaps.md).
-Not yet scheduled into a milestone.* The note finds that no UML notation needs authoring:
+Scheduled across M011 (U2, U9), M013 (U1, U3, U4), M014 (U6, U7) and M015 (U5, U8).* The note finds that no UML notation needs authoring:
 each UML diagram is covered by a pillar or derivable from existing seams. The sequence
 diagram is the one worth building, as a derived view. The other items close gaps that the
 derivation exposed, or that a builder meets after launch.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
-| U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | proposed |
-| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | proposed |
-| U3 | **Declare the LLM delta stream** in the chat app, so the runtime infers no publish the graph does not state | S | none | none expected; may tighten `process_channel` in the runtime | proposed |
-| U4 | **As-executed sequence diagram** from the worker's trace rows, then OpenTelemetry spans carrying element IRIs | M | U1 | none for the diagram; an as-observed named graph later | proposed |
-| U5 | **Scenarios and derived tests**: a small scenario vocabulary, generated DMN, SHACL-example and policy tests, and coverage queries | M | none | a scenario/verification annotation vocabulary | proposed |
-| U6 | **Operation implementation seam** for hand-written code and external endpoints, so service tasks other than LLM calls have a declared home | M | ADR first | one seam predicate plus a convention for where hand-written code lives | proposed; decide before M009's expense chapters reach a non-LLM service task |
-| U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | proposed |
-| U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | proposed |
+| U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | planned (M013/S02) |
+| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | planned (M011/S02) |
+| U3 | **Declare the LLM delta stream** in the chat app, so the runtime infers no publish the graph does not state | S | none | none expected; may tighten `process_channel` in the runtime | planned (M013/S01) |
+| U4 | **As-executed sequence diagram** from the worker's trace rows, then OpenTelemetry spans carrying element IRIs | M | U1 | none for the diagram; an as-observed named graph later | planned (M013/S04) |
+| U5 | **Scenarios and derived tests**: a small scenario vocabulary, generated DMN, SHACL-example and policy tests, and coverage queries | M | none | a scenario/verification annotation vocabulary | planned (M015/S03, S04) |
+| U6 | **Operation implementation seam** for hand-written code and external endpoints, so service tasks other than LLM calls have a declared home | M | ADR first | one seam predicate plus a convention for where hand-written code lives | planned (M014/S01 to S03); M009 shipped without a non-LLM service task, so M014/S03 adds one to the expense example |
+| U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | planned (M014/S04) |
+| U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | planned (M015/S01) |
 
-| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | the U2 seam, a store-kind value and a connection-binding link | planned; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
+| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | the U2 seam, a store-kind value and a connection-binding link | planned (M011/S01 to S04); agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
 
 U1 to U3 can land together. U9 subsumes U2's vocabulary work, so the two are best done
 as one piece.
@@ -131,7 +131,7 @@ as one piece.
 ## Artifact management and deployment
 
 *Added 2026-10-29 from the [artifact management note](research/2026-10-29-artifact-management.md).
-Not yet scheduled into a milestone.* The generators exist; the workflow around them does
+Scheduled across M012 (A1, A2, A3, A6), M015 (A7, A9) and M016 (A4, A5, A8).* The generators exist; the workflow around them does
 not. These items extend the model-hash chain that is already in place (stamped outputs, a
 runtime that refuses a different model, `/healthz` reporting the hash) into a record of
 what was generated, checks a user can reuse, and a deployment that can be compared with
@@ -139,18 +139,28 @@ the model.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
-| A1 | **Project file and `seams` CLI**: one file names the model, generators, output paths and environments; `seams generate` runs them all, `seams check` validates the model and confirms outputs are current | M | E2 | none | proposed |
-| A2 | **Lockfile of generated files**: model hash, generator and version, file hash and source elements per output; orphan cleanup and hand-edit detection | S | A1 | none; generators and runtime gain versions | proposed |
-| A3 | **Reusable CI action and pre-commit hook**: shape validation, regenerate-and-diff, canned queries as gates | S | A1 | none | proposed |
-| A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | proposed |
-| A5 | **Image build and publish** for containers that run generated code, tagged with the model hash or a release version | M | A4 | none expected | proposed |
-| A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | proposed |
-| A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | proposed |
-| A8 | **Secrets and configuration checklist** per environment, checking existence without reading values, plus an example `.env` | S | A4 | none | proposed |
-| A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | proposed |
+| A1 | **Project file and `seams` CLI**: one file names the model, generators, output paths and environments; `seams generate` runs them all, `seams check` validates the model and confirms outputs are current | M | E2 | none | planned (M012/S01, S03) |
+| A2 | **Lockfile of generated files**: model hash, generator and version, file hash and source elements per output; orphan cleanup and hand-edit detection | S | A1 | none; generators and runtime gain versions | planned (M012/S02) |
+| A3 | **Reusable CI action and pre-commit hook**: shape validation, regenerate-and-diff, canned queries as gates | S | A1 | none | planned (M012/S03) |
+| A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | planned (M016/S01, S02) |
+| A5 | **Image build and publish** for containers that run generated code, tagged with the model hash or a release version | M | A4 | none expected | planned (M016/S03) |
+| A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | planned (M012/S04) |
+| A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | planned (M015/S02) |
+| A8 | **Secrets and configuration checklist** per environment, checking existence without reading values, plus an example `.env` | S | A4 | none | planned (M016/S04) |
+| A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | planned (M015/S05) |
 
 A1 to A3 belong together and make the generators usable outside this repository. A4 to
 A6 make deployment work end to end.
+
+## Not yet scheduled
+
+*Added 2026-10-29 while planning M010 to M016.* Two gaps the research notes name but no
+milestone covers.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| A10 | **More than one replica**: the chat-app model declares `deploy:replicas 3`, but only one replica works, because process instances and the live-update stream are held in memory. Needs the shared store from U9 and a shared channel for the stream. Until then, M016 caps generated replicas at one. See "Not covered" in the [storage plan](research/2026-10-29-runtime-storage.md) | M | U9, A4 | none expected | proposed |
+| U10 | **Scheduled and background work**: lift BPMN timer start events and run recurring jobs (reminders, cleanups, digests), with a seam to the container that runs the schedule. See section 3.6 of the [UML coverage note](research/2026-10-29-uml-coverage-and-gaps.md) | M | ADR first | a seam to the scheduling container | proposed |
 
 ## Generation: what is planned, what is not
 
@@ -226,8 +236,38 @@ UI work must not eat M3.*
    decision and payment lifecycle, a finance console and a `docker compose up` run in CI.
    Its checkpoint passes `python -m seams_gen.complexity` (4 notations with two models,
    a maximum reach of 6), so it is the second worked example item 11 waits for.*
-7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M009. Each
+7. P2 items 12, 14, 11, 13 as M008, Beyond v1 (S01 to S04), after M016 (moved behind
+   M010 to M016 on 2026-10-29). Each
    item's parking reason is checked again first: editing is a v1 non-goal in the
    product brief. *Next:* layer mode (S03) opens by running the E3 complexity
    measurement on the finished expense app,
    `python -m seams_gen.complexity examples/expenses/chapter-08/expenses.trig`.
+8. The library, model-gap and artifact items as M010 to M016, planned 2026-10-29. Each
+   milestone depends on the ones it builds on, and every slice is a sketch that is refined
+   when it starts.
+   - **M010, Modern Tooling and the seams Library** (L1 to L6): uv workspace, the
+     read-only `seams` library, typed views, native BPMN and DMN joins, and every consumer
+     ported with golden outputs unchanged.
+   - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution, the
+     shape-to-store seam, SQLite and PostgreSQL backends chosen from the graph, and
+     model-health checks. Depends on M010.
+   - **M012, Generate and Check Anywhere** (A1, A2, A3, A6): project file, `seams generate`
+     and `seams check`, the generated-file lockfile, a reusable CI action and pre-commit
+     hook, and `seams status`. Depends on M010.
+   - **M013, Derived Sequence Diagrams** (U3, U1, U4): the declared delta stream, the
+     as-designed deriver, viewer and docs embedding, and the as-executed sequence with
+     OpenTelemetry spans. Depends on M010 and M011.
+   - **M014, Hand-Written Code and Failure Paths** (U6, U7): an ADR and runtime dispatch for
+     operation implementations, a hand-written service task in the expense example, error
+     shapes and error boundary events. Depends on M010 and M012, because hand-written code
+     has to survive `seams generate`.
+   - **M015, Change Safety and Verification** (U8, A7, U5, A9): shape and contract diff,
+     change plans, scenarios with derived tests and coverage queries, and generated smoke
+     tests. Depends on M010 and M012.
+   - **M016, Deploy from the Model** (A4, A5, A8): an ADR on environments, one compose file
+     per environment, image build and publish, and a secrets checklist. Depends on M011 and
+     M012.
+
+   The `seams` command (`generate`, `check`, `status` and the later subcommands) lives in its
+   own workspace package, so the library keeps only rdflib and lxml as dependencies (D030).
+   M008 runs after M016 (D032).

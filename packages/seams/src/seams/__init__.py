@@ -10,6 +10,10 @@ resolvers (landmark_page, triggering_operation and the rest), which stay as
 transitional methods. Their result types that share a name with a view class
 (``Container``, ``Lifecycle``, ``Transition``) are imported from
 ``seams.graph``; the top-level names are the view classes.
+
+``model.sparql(query, **bindings)`` runs read-only SPARQL with the project
+prefixes bound, and ``model.question(name, **bindings)`` runs a bundled
+canned question (``question_names()``).
 """
 
 from .errors import ResolutionError, SeamsError
@@ -31,6 +35,7 @@ from .graph import (
 )
 from .loader import Model, load, model_hash, payload_path
 from .namespaces import ARCH, COMM, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, local_name
+from .sparql import PREFIXES, load_question, question_names
 from .views import (
     Architecture,
     Channel,
@@ -94,6 +99,7 @@ __all__ = [
     "Operation",
     "OperationPath",
     "OutputBinding",
+    "PREFIXES",
     "PROC",
     "Page",
     "PathMapping",
@@ -117,7 +123,9 @@ __all__ = [
     "dmn_decision_ids",
     "dmn_input_types",
     "load",
+    "load_question",
     "local_name",
     "model_hash",
     "payload_path",
+    "question_names",
 ]

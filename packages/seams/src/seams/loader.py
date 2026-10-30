@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlsplit
 
 from rdflib import RDFS, Dataset, URIRef
@@ -20,6 +20,8 @@ from .errors import ResolutionError
 from .namespaces import SEAM, local_name
 
 if TYPE_CHECKING:
+    from .sparql import Row
+
     # Imported lazily at run time: the views import this module.
     from .views import (
         Architecture,
@@ -220,6 +222,23 @@ class Model:
         from . import views
 
         return views.decisions(self)
+
+    # ── SPARQL (seams.sparql) ──
+
+    def sparql(self, query: str, /, **bindings: Any) -> list[Row]:
+        """Rows of a read-only SELECT with the project prefixes bound. Each
+        keyword binds that variable; a str with ':' is expanded via curie().
+        Rows follow the query's ORDER BY, else sort by their str values."""
+        from .sparql import rows
+
+        return rows(self, query, **bindings)
+
+    def question(self, name: str, /, **bindings: Any) -> list[Row]:
+        """Run the bundled canned question ``name`` (see
+        ``seams.sparql.question_names()``) like ``sparql``."""
+        from .sparql import load_question, rows
+
+        return rows(self, load_question(name), **bindings)
 
     def payload_path(self, model_iri: object) -> Path:
         """The existing payload file ``model_iri`` renders via seam:renderPayload."""

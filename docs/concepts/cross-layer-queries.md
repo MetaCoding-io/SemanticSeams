@@ -36,6 +36,11 @@ In the viewer, applicable queries appear as buttons under **Questions**, and res
 render inline with each value linked to its own view. You never see SPARQL there; that
 is the project's RDF-invisibility principle.
 
+The same canned queries run from Python through the `seams` library, which ships them
+as package data: `seams.load("examples/chat-app/chat-app.trig").question("impact-of-node",
+node=":db01")` returns the rows as dicts, and `model.sparql(...)` runs your own read-only
+query with the project's prefixes already declared.
+
 ## How they are kept honest
 
 `tests/test_acceptance.py` runs every query against the worked examples and asserts the

@@ -175,6 +175,37 @@ Single-valued edges (`accepts`, `lifecycle`, `shape`) return None when the
 fact is absent. When the graph states the fact twice, they raise
 `ResolutionError` naming the element and the predicate.
 
+## SPARQL and canned questions
+
+```python
+model = seams.load("examples/chat-app/chat-app.trig")
+model.sparql("SELECT ?p WHERE { ?p a ifml:ViewContainer }")  # [{"p": URIRef(…chat_page)}]
+model.question("impact-of-node", node=":db01")              # [{"impacted": URIRef(…chat_api)}, …]
+seams.question_names()  # ["c4-l1-rollup", "impact-of-node", …]
+```
+
+- `model.sparql(query, **bindings)` runs a read-only SELECT against
+  `model.ds` with `seams.PREFIXES` declared (`seam`, `comm`, `dec`, `proc`,
+  `state`, `hydra`, `odrl`, `deploy`, `ifml`, `arch`, `rdf`, `rdfs`, `sh`,
+  `xsd`), so it needs no PREFIX lines. It returns a list of dict rows
+  (variable name to rdflib term; unbound variables are absent), in the
+  query's `ORDER BY` order when it has one, else sorted by the rows' string
+  values.
+  - Each keyword binds the variable of that name through `initBindings`,
+    never by string interpolation. URIRefs and Literals pass through, a
+    `str` containing `:` is expanded with `model.curie` (`":db01"`, a full
+    IRI), and any other value becomes a Literal.
+  - An update (`INSERT`, `DELETE`, `LOAD`, `DROP`, ...) raises `ValueError`
+    before anything runs. So does a non-SELECT query; use
+    `seams.sparql.sparql(model, query)` for the raw rdflib `Result` of an
+    ASK or CONSTRUCT.
+- `model.question(name, **bindings)` runs one of the canned questions in
+  `docs/queries/`, which ship as package data (`seams/queries/*.rq`,
+  byte-identical copies; `tests/test_seams_query.py` guards the drift).
+  `seams.question_names()` lists them and `seams.load_question(name)`
+  returns the text. An unknown name raises `KeyError` listing the
+  available ones; a name is never turned into a path unchecked.
+
 ## The model hash
 
 `"sha256:<hex>"`, where each payload is framed as relative path, NUL, decimal

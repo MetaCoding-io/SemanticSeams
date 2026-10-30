@@ -168,8 +168,35 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     file declares `bpmn:process` `pid`. `model.processes.element(bpmn_id)`
     lists the elements with that id across every BPMN model. Call
     `.only()` on either; an id used in two BPMN models raises.
-  - Element ids are listed as the graph states them, not in flow order.
-    S04 adds the flow order read from the BPMN XML.
+  - `elements()` lists what the graph states, by IRI. `nodes()` walks the
+    BPMN XML in flow order instead: every flow node of every `bpmn:process`
+    in `bpmn_path` (processes in document order), lifted into the graph or
+    not, so start and end events and gateways are included. `tasks()` and
+    `gateways()` filter that walk and `lanes()` lists the `Lane`s (`id`,
+    `name`, `node_ids`). Each is built once.
+  - A `FlowNode` has `iri` (`element_iri(bpmn_id)`), `node` (the
+    `seams.bpmn.BpmnNode`), `process`, `element` (the same `ProcessElement`
+    object as `elements()`, or None when the graph does not type the IRI),
+    `bpmn_id`, `tag` (`userTask`, `exclusiveGateway`, `startEvent`, ...),
+    `name`, `lane`, `incoming`, `outgoing` and `paths` (`SequenceFlow`s
+    with `id`, `name`, `source`, `target` and `condition`), `kind`, the
+    element's edges (`invokes`, `decided_by`, `completed_on`, `fires`;
+    `reads`, `writes`, `publishes_to`, `subscribes_to`), which are None or
+    empty when unlifted, and `starts_from` (the `Channel` of
+    `channel_starts` whose event it is).
+
+  ```python
+  approval = model.processes.for_bpmn_process("approval_process").only()
+  for gw in approval.gateways():
+      print(gw.bpmn_id, [(f.name, f.target, f.condition) for f in gw.paths])
+  # route_gateway [("auto", "record_approval", 'route == "auto"'), …]
+  ```
+
+  `seams.bpmn` (`parse_bpmn`) and `seams.dmn` (`parse_dmn`,
+  `decision_table`) are the lxml-only parsers behind these joins; they
+  read any BPMN or DMN namespace version and raise `ResolutionError` naming
+  the element and attribute (`bpmn:targetRef`, `dmn:decisionTable`, ...)
+  that failed.
 - **`model.decisions`**: each `dec:Decision` a task is `seam:decidedBy`.
   It has `decision_id`, `dmn_model`, `dmn_path`, `inputs` and `outputs`
   (`InputBinding` and `OutputBinding`, as `ModelGraph.decision_binding`

@@ -20,7 +20,7 @@ from .interfaces import Component, Event, InteractionModel, Interfaces, Page
 from .lifecycles import Lifecycle, Lifecycles, State, Transition
 from .operations import Channel, Operation, PathTemplate
 from .policies import Policy
-from .processes import MessageStart, Process, ProcessElement, Processes
+from .processes import FlowNode, MessageStart, Process, ProcessElement, Processes
 from .shapes import Field, Shape
 
 if TYPE_CHECKING:
@@ -37,6 +37,7 @@ __all__ = [
     "Environment",
     "Event",
     "Field",
+    "FlowNode",
     "HasIri",
     "InteractionModel",
     "Interfaces",

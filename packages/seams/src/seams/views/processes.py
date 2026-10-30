@@ -4,17 +4,26 @@ A process element's IRI is ``<BPMN model IRI>#<bpmn id>``: the model the
 process is ``seam:detailedBy`` plus the element's id in that model's BPMN
 file. Several BPMN models in one graph are the normal case, so an id is
 only unique within one model (``Processes.element`` says when it is not).
+
+``Process.nodes()`` walks the BPMN XML (``seams.bpmn``, lxml only) in flow
+order, every bpmn:process of the file in document order: start and end
+events, tasks, intermediate events and gateways, lifted into the graph or
+not. Each ``FlowNode`` carries its sequence flows and lane and is joined to
+its ``ProcessElement`` when the graph types ``<bpmn_model>#<bpmn id>`` as
+one, so its graph edges (``invokes``, ``completed_on``, ...) pass through.
+``tasks()``, ``gateways()`` and ``lanes()`` filter that walk.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from rdflib import RDF, URIRef
 
 from .._xml import elements, localname
+from ..bpmn import BpmnNode, BpmnProcess, Lane, SequenceFlow, parse_bpmn
 from ..errors import ResolutionError
 from ..graph import bpmn_start_event_ids
 from ..namespaces import COMM, PROC, SEAM, local_name
@@ -46,6 +55,11 @@ def bpmn_process_ids(views: Views, path: Path) -> tuple[str, ...]:
         return tuple(cast(str, el.get("id")) for el in elements(path) if localname(el.tag) == "process")
 
     return views.view(f"bpmn-process-ids:{path}", read)
+
+
+def bpmn_processes(views: Views, path: Path) -> tuple[BpmnProcess, ...]:
+    """``parse_bpmn(path)``, read once per registry."""
+    return views.view(f"bpmn:{path}", lambda: parse_bpmn(path))
 
 
 def _start_ids(views: Views, path: Path) -> set[str]:
@@ -112,6 +126,39 @@ class Process(Element):
 
         return views.view(f"process-elements:{self.iri}", build)
 
+    def nodes(self) -> Many[FlowNode]:
+        """Every flow node of every bpmn:process in ``bpmn_path``, in flow order
+        (processes in document order, then each process's flow order)."""
+        views = self.views
+
+        def build() -> Many[FlowNode]:
+            ds = views.ds
+            found: list[FlowNode] = []
+            for bp in bpmn_processes(views, self.bpmn_path):
+                for node in bp.nodes:
+                    iri = self.element_iri(node.id)
+                    lifted = any((iri, RDF.type, t) in ds for t in ELEMENT_TYPES)
+                    element = views.intern(ProcessElement, iri) if lifted else None
+                    found.append(FlowNode(iri, node, self, element))
+            return Many(found, self.iri, SEAM.detailedBy, views.model.curie)
+
+        return views.view(f"process-nodes:{self.iri}", build)
+
+    def tasks(self) -> Many[FlowNode]:
+        """The task nodes (``is_task``), in flow order."""
+        return self.views.view(f"process-tasks:{self.iri}", lambda: self.nodes().where(lambda n: n.node.is_task))
+
+    def gateways(self) -> Many[FlowNode]:
+        """The gateway nodes (``is_gateway``), in flow order."""
+        return self.views.view(f"process-gateways:{self.iri}", lambda: self.nodes().where(lambda n: n.node.is_gateway))
+
+    def lanes(self) -> tuple[Lane, ...]:
+        """Every lane of every bpmn:process in ``bpmn_path``, in document order."""
+        return self.views.view(
+            f"process-lanes:{self.iri}",
+            lambda: tuple(lane for bp in bpmn_processes(self.views, self.bpmn_path) for lane in bp.lanes),
+        )
+
     @property
     def channel_starts(self) -> Many[MessageStart]:
         """Each proc:MessageCatchEvent of its BPMN model that seam:subscribesTo a
@@ -140,6 +187,101 @@ class MessageStart:
     iri: URIRef
     event: ProcessElement
     channel: Channel
+
+
+@dataclass(frozen=True, eq=False)
+class FlowNode:
+    """A flow node of a process's BPMN file, joined to the graph.
+
+    ``iri`` is ``Process.element_iri(bpmn_id)`` whether or not the graph
+    states it; ``element`` is the interned ``ProcessElement`` when the graph
+    types that IRI as a process element, else None (gateways, plain start
+    and end events). The graph edges pass through ``element``: None, or an
+    empty ``Many`` naming the same subject and predicate, when unlifted.
+    """
+
+    iri: URIRef
+    node: BpmnNode
+    process: Process
+    element: ProcessElement | None
+
+    @property
+    def bpmn_id(self) -> str:
+        return self.node.id
+
+    @property
+    def tag(self) -> str:
+        """The BPMN local name (``userTask``, ``exclusiveGateway``, ``startEvent``, ...)."""
+        return self.node.tag
+
+    @property
+    def name(self) -> str | None:
+        return self.node.name
+
+    @property
+    def lane(self) -> Lane | None:
+        """The innermost lane holding the node, or None."""
+        lane_id = self.node.lane_id
+        return next((lane for lane in self.process.lanes() if lane.id == lane_id), None)
+
+    @property
+    def incoming(self) -> tuple[SequenceFlow, ...]:
+        return self.node.incoming
+
+    @property
+    def outgoing(self) -> tuple[SequenceFlow, ...]:
+        return self.node.outgoing
+
+    @property
+    def paths(self) -> tuple[SequenceFlow, ...]:
+        """The outgoing flows (the paths out of a gateway), with name, target and condition."""
+        return self.node.paths
+
+    @property
+    def kind(self) -> str | None:
+        """``element.kind``, or None when unlifted."""
+        return None if self.element is None else self.element.kind
+
+    @property
+    def invokes(self) -> Operation | None:
+        return None if self.element is None else self.element.invokes
+
+    @property
+    def decided_by(self) -> Decision | None:
+        return None if self.element is None else self.element.decided_by
+
+    @property
+    def completed_on(self) -> Component | None:
+        return None if self.element is None else self.element.completed_on
+
+    @property
+    def fires(self) -> Transition | None:
+        return None if self.element is None else self.element.fires
+
+    @property
+    def reads(self) -> Many[Shape]:
+        return self._empty(SEAM.reads) if self.element is None else self.element.reads
+
+    @property
+    def writes(self) -> Many[Shape]:
+        return self._empty(SEAM.writes) if self.element is None else self.element.writes
+
+    @property
+    def publishes_to(self) -> Many[Channel]:
+        return self._empty(SEAM.publishesTo) if self.element is None else self.element.publishes_to
+
+    @property
+    def subscribes_to(self) -> Many[Channel]:
+        return self._empty(SEAM.subscribesTo) if self.element is None else self.element.subscribes_to
+
+    @property
+    def starts_from(self) -> Channel | None:
+        """The channel of ``Process.channel_starts`` whose event is this node, or None."""
+        starts = [s.channel for s in self.process.channel_starts if s.event.iri == self.iri]
+        return optional(Many(starts, self.iri, SEAM.subscribesTo, self.process.views.model.curie))
+
+    def _empty(self, predicate: URIRef) -> Many[Any]:
+        return Many((), self.iri, predicate, self.process.views.model.curie)
 
 
 @element_type(*ELEMENT_TYPES)

@@ -14,8 +14,12 @@ transitional methods. Their result types that share a name with a view class
 ``model.sparql(query, **bindings)`` runs read-only SPARQL with the project
 prefixes bound, and ``model.question(name, **bindings)`` runs a bundled
 canned question (``question_names()``).
+
+``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
+``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
 
+from .dmn import DecisionTable, Rule, TableInput, TableOutput, decision_table, parse_dmn
 from .errors import ResolutionError, SeamsError
 from .graph import (
     ChannelBinding,
@@ -79,6 +83,7 @@ __all__ = [
     "DEPLOY",
     "Decision",
     "DecisionBinding",
+    "DecisionTable",
     "DeploymentNode",
     "Element",
     "Environment",
@@ -112,20 +117,25 @@ __all__ = [
     "ProcessFacts",
     "Processes",
     "ResolutionError",
+    "Rule",
     "SEAM",
     "STATE",
     "SeamsError",
     "Shape",
     "State",
     "System",
+    "TableInput",
+    "TableOutput",
     "Transition",
     "bpmn_start_event_ids",
+    "decision_table",
     "dmn_decision_ids",
     "dmn_input_types",
     "load",
     "load_question",
     "local_name",
     "model_hash",
+    "parse_dmn",
     "payload_path",
     "question_names",
 ]

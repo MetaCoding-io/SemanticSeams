@@ -173,8 +173,22 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
 - **`model.decisions`**: each `dec:Decision` a task is `seam:decidedBy`.
   It has `decision_id`, `dmn_model`, `dmn_path`, `inputs` and `outputs`
   (`InputBinding` and `OutputBinding`, as `ModelGraph.decision_binding`
-  returns them), `reads` and `decides_for`. S04 adds the DMN table
-  (hit policy and rules).
+  returns them), `reads` and `decides_for`.
+  - `Decision.table` is the DMN decision table, read from `dmn_path` with
+    lxml by `seams.dmn` (parsed once per file): a `DecisionTable` with
+    `decision_id`, `decision_name`, `table_id`, `hit_policy` (`UNIQUE` when
+    the file states none), `aggregation`, `inputs` (`TableInput`: `id`,
+    `label`, `expression`, `type_ref`), `outputs` (`TableOutput`: `id`,
+    `label`, `name`, `type_ref`) and `rules` (`Rule`: `id`, `inputs` and
+    `outputs` as the entry texts, `description`), all in document order.
+  - A decision without a `decisionTable`, or a rule whose entries do not
+    match the table's inputs or outputs, raises `ResolutionError` naming
+    `dmn:decisionTable`, `dmn:inputEntry` or `dmn:outputEntry`.
+
+  ```python
+  table = model.processes.element("route_expense").only().decided_by.table
+  [(r.id, r.inputs, r.outputs) for r in table.rules]  # [("rule_auto", ("<= 100",), ('"auto"',)), …]
+  ```
 
 Single-valued edges (`accepts`, `lifecycle`, `shape`) return None when the
 fact is absent. When the graph states the fact twice, they raise

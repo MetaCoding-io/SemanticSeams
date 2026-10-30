@@ -2,8 +2,9 @@
 
 A ``Decision`` here is the binding: the DMN decision id, the file it lives
 in and the input and output variables, with the same semantics and sort as
-``ModelGraph.decision_binding``. The decision table itself (hit policy and
-rules) is read in S04 as ``Decision.table``.
+``ModelGraph.decision_binding``. ``Decision.table`` reads the DMN decision
+table itself (hit policy, inputs, outputs and rules) with ``seams.dmn``,
+parsed once per file per registry.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from rdflib import URIRef
 
+from ..dmn import DecisionTable, parse_dmn
 from ..errors import ResolutionError
 from ..graph import InputBinding, OutputBinding, dmn_decision_ids, dmn_input_types
 from ..namespaces import DEC, SEAM, local_name
@@ -55,6 +57,13 @@ class Decision(Element):
                 f"{str(element)!r} not among DMN decision ids {ids} in {self.dmn_path.name}",
             )
         return str(element)
+
+    @property
+    def table(self) -> DecisionTable:
+        """The DMN decision table of ``decision_id`` (hit policy, inputs, outputs, rules)."""
+        path = self.dmn_path
+        tables: dict[str, DecisionTable] = self.views.view(f"dmn:{path}", lambda: parse_dmn(path))
+        return tables[self.decision_id]
 
     @property
     def inputs(self) -> tuple[InputBinding, ...]:

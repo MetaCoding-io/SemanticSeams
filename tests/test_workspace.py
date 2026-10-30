@@ -95,4 +95,5 @@ def test_python_version_is_pinned():
 
 def test_seams_imports():
     seams = importlib.import_module("seams")
-    assert seams.__all__ == []
+    assert seams.__all__ == sorted(seams.__all__)
+    assert {"load", "Model", "model_hash", "ResolutionError", "SEAM"} <= set(seams.__all__)

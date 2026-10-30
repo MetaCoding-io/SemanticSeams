@@ -85,6 +85,8 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   element, and `has_lifecycle(shape)`, `governing_policies(element)` and
   `rendered_components()` answer the runtime's yes/no and list questions;
   `Lifecycle.transitions` lists the machine's state:hasTransition IRIs.
+  `store_plan()` resolves where the runtime keeps its rows (ADR-0011); see
+  [Store resolution](#store-resolution).
   `seams_runtime` re-exports it unchanged. Three of its result types share a
   name with a view class (`Container`, `Lifecycle`, `Transition`): import
   those from `seams.graph` (or `seams_runtime.model`); the top-level names
@@ -144,13 +146,18 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `Many[Operation | Channel]`), `executes`, `deployed_to`, `depends_on`
     (C4 `arch:dependsOn`) and `systems`. `service_bindings` is a read-only
     mapping from `deploy:key` to `deploy:serviceOf`, sorted by key.
+    `store_kinds` lists its `deploy:storeKind` IRIs (sorted), `stored_shapes`
+    the shapes `seam:storedIn` it, and `connecting_bindings` its `bindings`
+    whose `connects_to` is set.
   - Its `deploy:` facts are frozen dataclasses: `artifact` (an `Artifact`
     with `reference` and `version`, or None), `ports` (`Port`:
     `container_port`, `published_port`), `volumes` (`Volume`: `name`,
     `mount_path`), `healthcheck` (`Healthcheck`: `probe`, `interval`, or
     None), `replicas`, `deploy_depends_on` (start order) and `bindings`
     (`Binding`: `key`, `kinds`, `value`, `secret_ref`, `secret_name`,
-    `service_of`, by key). They sit on blank nodes, so a missing or
+    `service_of`, `connects_to`, by key). `connects_to` is the store
+    container a binding `deploy:connectsTo`; it sits beside the value source
+    and is not one of `kinds`. They sit on blank nodes, so a missing or
     duplicated value raises `ResolutionError(container, predicate)`.
   - `DeploymentNode` has `hosts` and `environments`; `Environment` has
     `nodes`.
@@ -171,7 +178,8 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `max_length` (`sh:maxLength`), `editor` (`dash:editor`, e.g.
     `DASH.TextAreaEditor`) and `options` (the `sh:in` values, in list
     order).
-  - `lifecycle`, `read_by` and `written_by`.
+  - `lifecycle`, `read_by`, `written_by` and `stored_in` (the store
+    containers it is `seam:storedIn`).
 - **`model.lifecycles`**: one `Lifecycle` per `state:StateMachine`.
   `model.lifecycles.transitions()` lists the transitions of all of them.
   - `Lifecycle` has `initial`, `states()`, `finals()`, `transitions()`,
@@ -339,6 +347,47 @@ length, bytes, sorted by relative path:
   name), then the framed payloads.
 
 Editing or renaming the model or any payload changes the hash.
+
+## Store resolution
+
+`ModelGraph.store_plan()` answers which store the runtime keeps its rows in,
+from three graph facts (ADR-0011): `deploy:storeKind` on the store container,
+a `deploy:connectsTo` binding on the container that runs the model, and
+`seam:storedIn` from each shape. It returns a frozen `StorePlan`:
+
+| Field | Meaning |
+|---|---|
+| `kind` | `deploy:PostgreSQL` or `deploy:SQLite` (`SUPPORTED_STORE_KINDS`) |
+| `store` | the store container, or None for the default |
+| `container` | the runtime container whose binding connects to the store, or None |
+| `key` | that binding's `deploy:key`, the environment variable holding the connection string, or None |
+| `declared` | False only for the embedded SQLite default |
+
+```python
+seams.ModelGraph("examples/chat-app/chat-app.trig").store_plan()
+# StorePlan(kind=deploy:PostgreSQL, store=:message_db, container=:chat_api, key="DB_URL", declared=True)
+```
+
+Runtime containers are the containers that `seam:executes` a process or
+`seam:exposes` an operation that `seam:writes` a shape. A model with no
+connecting binding on one and no `seam:storedIn` at all gets
+`StorePlan(deploy:SQLite, None, None, None, declared=False)`. Otherwise the
+store is the one a runtime container connects to, else the single store the
+written shapes are `seam:storedIn`. A `deploy:SQLite` store is embedded:
+`key` may be None and the file path still comes from `SEAMS_DB`.
+
+Each failure raises `ResolutionError(subject, predicate)`:
+
+| Case | `subject` | `predicate` |
+|---|---|---|
+| a store with no `deploy:storeKind`, or more than one | the store | `deploy:storeKind` |
+| a kind not in `SUPPORTED_STORE_KINDS` ("unsupported") | the store | `deploy:storeKind` |
+| a PostgreSQL store no runtime container connects to | the first runtime container, or the store when there is none | `deploy:connectsTo` |
+| a written shape with no `seam:storedIn`, or stored elsewhere | the shape | `seam:storedIn` |
+| one container connecting to two stores, or two containers to different stores (v1 runs one store per model) | the container | `deploy:connectsTo` |
+
+The shape view's `stored_in` and the container view's `store_kinds`,
+`stored_shapes` and `connecting_bindings` read the same facts.
 
 ## Errors
 

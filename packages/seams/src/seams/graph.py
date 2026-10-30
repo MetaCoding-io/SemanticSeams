@@ -35,6 +35,7 @@ from .namespaces import COMM, DEPLOY, IFML, PROC, SEAM, STATE
 if TYPE_CHECKING:
     # The views import this module (for the resolver results), so they are
     # imported lazily inside the resolvers.
+    from .views.architecture import Container as ContainerView
     from .views.interfaces import Component, Page
     from .views.operations import Channel as ChannelView
     from .views.operations import Operation
@@ -147,6 +148,31 @@ class PolicyFacts:
     iri: URIRef
     label: str
     permissions: tuple[Permission, ...]
+
+
+#: The deploy:StoreKinds the runtime can open (ADR-0011).
+SUPPORTED_STORE_KINDS = (DEPLOY.PostgreSQL, DEPLOY.SQLite)
+
+
+@dataclass(frozen=True)
+class StorePlan:
+    """Where the runtime keeps its rows (ADR-0011), from ``ModelGraph.store_plan()``.
+
+    ``kind`` is a ``SUPPORTED_STORE_KINDS`` member and ``store`` the store
+    container (None for the undeclared default). ``container`` is the runtime
+    container whose binding deploy:connectsTo the store and ``key`` that
+    binding's deploy:key, the environment variable holding the connection
+    string; both are None without a connecting binding (always so for the
+    default, and allowed for deploy:SQLite, whose path comes from
+    ``SEAMS_DB``). ``declared`` is False only for the embedded SQLite default
+    of a model that declares no store.
+    """
+
+    kind: URIRef
+    store: URIRef | None
+    container: URIRef | None
+    key: str | None
+    declared: bool
 
 
 # ── the graph ───────────────────────────────────────────────────────────────
@@ -561,6 +587,102 @@ class ModelGraph(Model):
 
         p = self.views.intern(Policy, self.curie(policy))
         return PolicyFacts(p.iri, p.label, p.permissions)
+
+    # ── storage (ADR-0011) ──
+
+    def store_plan(self) -> StorePlan:
+        """The store the runtime keeps its rows in, from deploy:storeKind,
+        deploy:connectsTo and seam:storedIn (ADR-0011).
+
+        Runtime containers are those that seam:execute a process or
+        seam:expose an operation that seam:writes a shape. A model with no
+        connecting binding on one and no seam:storedIn at all gets the
+        undeclared embedded SQLite default. Otherwise the store is the one a
+        runtime container connects to, else the one the written shapes are
+        stored in. Every failure raises ``ResolutionError(subject, predicate)``:
+        a container connecting to two stores, or two containers to different
+        stores (container, deploy:connectsTo); a store without exactly one
+        deploy:storeKind, or an unsupported one (store, deploy:storeKind); a
+        PostgreSQL store no runtime container connects to (the container, or
+        the store when there is none; deploy:connectsTo); a written shape not
+        stored in exactly that store (shape, seam:storedIn).
+        """
+        from .views.shapes import Shape
+
+        ds = self.ds
+        views = self.views
+        written = views.many(Shape, views.iris(ds.objects(None, SEAM.writes)), self.subject, SEAM.writes)
+        writers = {w.iri for shape in written for w in shape.written_by}
+        runtime = [
+            c
+            for c in self.architecture.containers()
+            if c.executes or any(endpoint.iri in writers for endpoint in c.exposes)
+        ]
+
+        # The connections: at most one store per container, and one per model.
+        connected: list[tuple[ContainerView, URIRef, str]] = []
+        for c in runtime:
+            bindings = c.connecting_bindings
+            stores = sorted({b.connects_to.iri for b in bindings if b.connects_to is not None}, key=str)
+            if len(stores) > 1:
+                raise ResolutionError(
+                    c.iri, DEPLOY.connectsTo, f"bindings connect to several stores {[str(s) for s in stores]}"
+                )
+            if stores:
+                connected.append((c, stores[0], bindings[0].key))
+        for c, store, _key in connected[1:]:
+            if store != connected[0][1]:
+                raise ResolutionError(
+                    c.iri,
+                    DEPLOY.connectsTo,
+                    f"v1 runs one store per model: {connected[0][0].iri} connects to {connected[0][1]}, this to {store}",
+                )
+
+        stored = views.iris(ds.objects(None, SEAM.storedIn))
+        if not connected and not stored:
+            return StorePlan(DEPLOY.SQLite, None, None, None, declared=False)
+
+        # The store: the connected one, else the one the written shapes are stored in.
+        if connected:
+            store = connected[0][1]
+        else:
+            candidates = sorted({c.iri for shape in written for c in shape.stored_in}, key=str) or stored
+            store = candidates[0]
+            if len(candidates) > 1:
+                pool = written
+                if not any(s.stored_in for s in written):
+                    pool = views.many(Shape, views.iris(ds.subjects(SEAM.storedIn, None)), self.subject, SEAM.storedIn)
+                offender = next(s for s in pool if s.stored_in and s.stored_in.iris() != (store,))
+                raise ResolutionError(
+                    offender.iri,
+                    SEAM.storedIn,
+                    f"v1 runs one store per model; shapes are stored in {[str(c) for c in candidates]}",
+                )
+
+        kinds = sorted(set(ds.objects(store, DEPLOY.storeKind)), key=str)
+        if len(kinds) != 1:
+            found = "none" if not kinds else ", ".join(map(str, kinds))
+            raise ResolutionError(store, DEPLOY.storeKind, f"a store needs exactly one deploy:storeKind, found {found}")
+        kind = kinds[0]
+        if not isinstance(kind, URIRef) or kind not in SUPPORTED_STORE_KINDS:
+            supported = ", ".join(map(str, SUPPORTED_STORE_KINDS))
+            raise ResolutionError(store, DEPLOY.storeKind, f"unsupported store kind {kind}; supported: {supported}")
+        if kind == DEPLOY.PostgreSQL and not connected:
+            raise ResolutionError(
+                runtime[0].iri if runtime else store,
+                DEPLOY.connectsTo,
+                f"a deploy:PostgreSQL store needs a deploy:connectsTo binding to {store} on the executing container",
+            )
+
+        for shape in written:
+            if shape.stored_in.iris() != (store,):
+                where = [str(c) for c in shape.stored_in.iris()] or "no store"
+                raise ResolutionError(
+                    shape.iri, SEAM.storedIn, f"a written shape must be stored in {store}; it is stored in {where}"
+                )
+
+        container, key = (connected[0][0].iri, connected[0][2]) if connected else (None, None)
+        return StorePlan(kind, store, container, key, declared=True)
 
     # ── IFML pages ──
 

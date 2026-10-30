@@ -17,6 +17,7 @@ from ._base import Element, Many, Views, element_type, int_value, sorted_many
 if TYPE_CHECKING:
     from .operations import Channel, Operation
     from .processes import Process
+    from .shapes import Shape
 
 
 @element_type(ARCH.System)
@@ -64,7 +65,8 @@ class Healthcheck:
     interval: str
 
 
-#: The predicates a configuration binding takes its value from; a binding has exactly one.
+#: The predicates a configuration binding takes its value from; a binding has
+#: exactly one. deploy:connectsTo is not one: it sits beside a value source.
 BINDING_KINDS = (DEPLOY.value, DEPLOY.secretRef, DEPLOY.serviceOf)
 
 
@@ -76,6 +78,8 @@ class Binding:
     binding states one): a plain ``value``, an external secret
     (``secret_ref`` and its ``secret_name``) or the URL of another
     container (``service_of``, None when the object is not an IRI).
+    ``connects_to`` is the store container its value reaches
+    (deploy:connectsTo, ADR-0011), or None.
     """
 
     key: str
@@ -84,6 +88,7 @@ class Binding:
     secret_ref: Node | None
     secret_name: str | None
     service_of: Container | None
+    connects_to: Container | None = None
 
 
 @element_type(ARCH.Container)
@@ -228,6 +233,7 @@ class Container(Element):
                 value = self._node_optional(b, DEPLOY.value, what)
                 name = self._node_optional(b, DEPLOY.secretName, what)
                 service = self._node_optional(b, DEPLOY.serviceOf, what)
+                store = self._node_optional(b, DEPLOY.connectsTo, what)
                 found.append(
                     Binding(
                         key=key,
@@ -236,9 +242,27 @@ class Container(Element):
                         secret_ref=self._node_optional(b, DEPLOY.secretRef, what),
                         secret_name=None if name is None else str(name),
                         service_of=self.views.intern(Container, service) if isinstance(service, URIRef) else None,
+                        connects_to=self.views.intern(Container, store) if isinstance(store, URIRef) else None,
                     )
                 )
         return tuple(sorted(found, key=lambda b: (b.key, [str(k) for k in b.kinds])))
+
+    @property
+    def connecting_bindings(self) -> tuple[Binding, ...]:
+        """Its ``bindings`` that deploy:connectsTo a store, by key."""
+        return tuple(b for b in self.bindings if b.connects_to is not None)
+
+    @property
+    def store_kinds(self) -> tuple[URIRef, ...]:
+        """The deploy:storeKind IRIs it states (a store states exactly one), sorted."""
+        return tuple(sorted(self._objects(DEPLOY.storeKind), key=str))
+
+    @property
+    def stored_shapes(self) -> Many[Shape]:
+        """The shapes seam:storedIn it."""
+        from .shapes import Shape
+
+        return self._many(Shape, self._subjects(SEAM.storedIn), SEAM.storedIn)
 
     @property
     def service_bindings(self) -> Mapping[str, URIRef]:

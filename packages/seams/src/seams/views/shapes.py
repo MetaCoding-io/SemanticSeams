@@ -15,6 +15,7 @@ from ..namespaces import DASH, SEAM, local_name
 from ._base import Element, Many, element_type, optional, sorted_many
 
 if TYPE_CHECKING:
+    from .architecture import Container
     from .lifecycles import Lifecycle
 
 
@@ -107,3 +108,10 @@ class Shape(Element):
     def written_by(self) -> Many[Element]:
         """The elements that seam:write it."""
         return self._related(self._subjects(SEAM.writes), SEAM.writes)
+
+    @property
+    def stored_in(self) -> Many[Container]:
+        """The store containers it is seam:storedIn (ADR-0011)."""
+        from .architecture import Container
+
+        return self._many(Container, self._objects(SEAM.storedIn), SEAM.storedIn)

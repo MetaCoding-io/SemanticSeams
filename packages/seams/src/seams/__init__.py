@@ -22,6 +22,7 @@ canned question (``question_names()``).
 from .dmn import DecisionTable, Rule, TableInput, TableOutput, decision_table, parse_dmn
 from .errors import ResolutionError, SeamsError
 from .graph import (
+    SUPPORTED_STORE_KINDS,
     ChannelBinding,
     ChannelStart,
     DecisionBinding,
@@ -33,6 +34,7 @@ from .graph import (
     Permission,
     PolicyFacts,
     ProcessFacts,
+    StorePlan,
     bpmn_start_event_ids,
     dmn_decision_ids,
     dmn_input_types,
@@ -138,9 +140,11 @@ __all__ = [
     "Rule",
     "SEAM",
     "STATE",
+    "SUPPORTED_STORE_KINDS",
     "SeamsError",
     "Shape",
     "State",
+    "StorePlan",
     "System",
     "TableInput",
     "TableOutput",

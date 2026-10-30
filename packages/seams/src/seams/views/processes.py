@@ -111,6 +111,36 @@ class Process(Element):
         param = self._value(PROC.correlationKey)
         return None if param is None else self.views.model.label(param)
 
+    @property
+    def correlation_parameter(self) -> URIRef | None:
+        """Its proc:correlationKey parameter, or None; several raise
+        ``ResolutionError(process, proc:correlationKey)``."""
+        param = self._optional_value(PROC.correlationKey)
+        return param if isinstance(param, URIRef) else None
+
+    @property
+    def triggering_operations(self) -> Many[Operation]:
+        """The operations the events that seam:trigger it seam:submitsTo, by
+        IRI (a UI-started process has one; errors name the process and seam:triggers)."""
+        from .operations import Operation
+
+        ds = self.views.ds
+        iris = self.views.iris(op for ev in self._subjects(SEAM.triggers) for op in ds.objects(ev, SEAM.submitsTo))
+        return self._many(Operation, iris, SEAM.triggers)
+
+    @property
+    def invoked_operations(self) -> Many[Operation]:
+        """The operations it, or an element of a BPMN model it is
+        seam:detailedBy, seam:invokes, by IRI."""
+        from .operations import Operation
+
+        prefixes = tuple(f"{m}#" for m in self._objects(SEAM.detailedBy))
+        ds = self.views.ds
+        iris = self.views.iris(
+            op for s, op in ds.subject_objects(SEAM.invokes) if s == self.iri or str(s).startswith(prefixes)
+        )
+        return self._many(Operation, iris, SEAM.invokes)
+
     def element_iri(self, bpmn_id: str) -> URIRef:
         """``<bpmn_model>#<bpmn_id>``."""
         return URIRef(f"{self.bpmn_model}#{bpmn_id}")
@@ -302,9 +332,14 @@ class ProcessElement(Element):
     @property
     def kind(self) -> str | None:
         """The local name of its proc: class (``UserTask``, ``ServiceTask``, ...)."""
-        types = set(self.views.ds.objects(self.iri, RDF.type))
-        found = sorted(local_name(t) for t in ELEMENT_TYPES if t in types)
+        found = sorted(local_name(t) for t in self.types)
         return found[0] if found else None
+
+    @property
+    def types(self) -> tuple[URIRef, ...]:
+        """The ``ELEMENT_TYPES`` it has, in that order."""
+        ds = self.views.ds
+        return tuple(t for t in ELEMENT_TYPES if (self.iri, RDF.type, t) in ds)
 
     @property
     def process(self) -> Process | None:

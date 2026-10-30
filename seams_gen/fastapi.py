@@ -23,15 +23,31 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from rdflib import RDF, RDFS, Namespace
-from seams import COMM, HYDRA, IFML, PROC, SEAM, ModelGraph, ResolutionError, local_name
+from rdflib import RDF, URIRef
+from seams import (
+    ARCH,
+    COMM,
+    HYDRA,
+    IFML,
+    PROC,
+    SEAM,
+    Channel,
+    Container,
+    Many,
+    Model,
+    Operation,
+    Process,
+    ResolutionError,
+    Shape,
+    load,
+    local_name,
+)
+from seams import Component as ComponentView
 
 from . import GeneratorError
-from .facts import Facts
+from ._views import label, required, view_errors
 from .fragments import ITEM, fragment_for
-from .htmx import _environment, _shape_name, _task_curie, _task_process
-
-ARCH = Namespace("https://w3id.org/seams/arch#")
+from .htmx import _environment, _path_template, _shape_name, _task_curie, _task_process
 
 TEMPLATE_NAME = "fastapi_routes.py.j2"
 
@@ -75,7 +91,7 @@ class Write:
 
 @dataclass(frozen=True)
 class Complete:
-    task: str  # the proc:UserTask as a CURIE seams.ModelGraph.curie expands back to its IRI
+    task: str  # the proc:UserTask as a CURIE seams.Model.curie expands back to its IRI
     payload: str  # the Body var; runtime.complete_task validates it
     key: str  # proc:correlationKey rdfs:label of the task's process, a path variable
 
@@ -148,29 +164,24 @@ class RoutesModel:
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
-def _submitted(f: Facts, op) -> list:
-    """The ifml:Events that seam:submitsTo ``op``, sorted by IRI."""
-    return [e for e in f.subjects(SEAM.submitsTo, op) if (e, RDF.type, IFML.Event) in f.ds]
-
-
-def serving_containers(f: Facts) -> list:
+def serving_containers(model: Model) -> Many[Container]:
     """The arch:Containers that serve routes (D026): each one that
     seam:executes a proc:Process or seam:exposes a hydra:Operation some
-    ifml:Event seam:submitsTo, sorted by IRI. An operation only a task
+    ifml:Event seam:submitsTo, by IRI. An operation only a task
     seam:invokes (the chat app's :completion_op) does not make its container
     serving."""
-    found = set()
-    for c in f.subjects(RDF.type, ARCH.Container):
-        if any((p, RDF.type, PROC.Process) in f.ds for p in f.objects(c, SEAM.executes)) or any(
-            (op, RDF.type, HYDRA.Operation) in f.ds and _submitted(f, op) for op in f.objects(c, SEAM.exposes)
-        ):
-            found.add(c)
-    return sorted(found, key=str)
+    processes, operations = model.processes, model.operations
+    return model.architecture.containers().where(
+        lambda c: (
+            any(p in processes for p in c.executes)
+            or any(isinstance(e, Operation) and e in operations and e.submitted_by for e in c.exposes)
+        )
+    )
 
 
-def extract_routes(model: ModelGraph) -> RoutesModel:
-    f = Facts(model)
-    containers = serving_containers(f)
+def extract_routes(model: Model) -> RoutesModel:
+    with view_errors():
+        containers = serving_containers(model)
     if not containers:
         raise GeneratorError(
             model.subject,
@@ -182,71 +193,77 @@ def extract_routes(model: ModelGraph) -> RoutesModel:
         model_stem=model.path.stem,
         model_file=model.path.name,
         model_hash=model.hash,
-        modules=tuple(_module(f, model, c) for c in containers),
+        modules=tuple(_module(model, c) for c in containers),
     )
 
 
-def _module(f: Facts, model: ModelGraph, container) -> RouteModule:
-    systems = [s for s in f.subjects(ARCH.contains, container) if (s, RDF.type, ARCH.System) in f.ds]
+def _module(model: Model, container: Container) -> RouteModule:
+    systems = container.systems
     if len(systems) != 1:
         raise GeneratorError(
-            container, ARCH.contains, f"expected one arch:System containing the container, found {len(systems)}"
+            container.iri, ARCH.contains, f"expected one arch:System containing the container, found {len(systems)}"
         )
-    processes = f.objects(container, SEAM.executes)
-    triggered = _triggered(f, model, processes)
-    exposed = f.objects(container, SEAM.exposes)
+    processes = container.executes
+    triggered = _triggered(model, processes)
+    exposed = container.exposes
     return RouteModule(
-        file_name=f"{local_name(container)}.py",
-        id=local_name(container),
-        curie=f.curie(container),
-        system=f.curie(systems[0]),
-        exposes=tuple(f.curie(e) for e in exposed),
-        not_routed=_not_routed(f, container, processes),
-        endpoints=tuple(_endpoint(f, e, triggered) for e in exposed),
+        file_name=f"{local_name(container.iri)}.py",
+        id=local_name(container.iri),
+        curie=model.compact(container.iri),
+        system=model.compact(systems[0].iri),
+        exposes=tuple(model.compact(e.iri) for e in exposed),
+        not_routed=_not_routed(model, container, processes),
+        endpoints=tuple(_endpoint(model, e, triggered) for e in exposed),
     )
 
 
-def _triggered(f: Facts, model: ModelGraph, processes) -> dict:
-    """{operation: process} for each executed process's triggering operation
-    (ModelGraph.triggering_operation: the operation the event that
-    seam:triggers the process seam:submitsTo). A channel-started process
-    (ADR-0010: its start event seam:subscribesTo a channel) has no route and
-    is skipped; a process that is neither raises GeneratorError."""
-    found = {}
+def _triggered(model: Model, processes: Many[Process]) -> dict[URIRef, Process]:
+    """{operation IRI: process} for each executed process's triggering
+    operation (``Process.triggering_operations``: the operation the event
+    that seam:triggers the process seam:submitsTo). A channel-started process
+    (ADR-0010: ``Process.channel_starts``, its start event seam:subscribesTo a
+    channel) has no route and is skipped; a process that is neither raises
+    GeneratorError."""
+    found: dict[URIRef, Process] = {}
     for process in processes:
-        if (process, RDF.type, PROC.Process) not in f.ds:
-            raise GeneratorError(process, RDF.type, "a seam:executes target must be a proc:Process")
-        try:
-            op = model.triggering_operation(process)
-        except ResolutionError as err:
+        if process not in model.processes:
+            raise GeneratorError(process.iri, RDF.type, "a seam:executes target must be a proc:Process")
+        ops = process.triggering_operations
+        if len(ops) != 1:
             try:
-                subscribed = model.is_channel_started(process)
-            except ResolutionError as sub_err:
-                raise GeneratorError(process, SEAM.subscribesTo, sub_err.detail) from sub_err
-            if subscribed:
+                starts = process.channel_starts
+            except ResolutionError as err:
+                raise GeneratorError(process.iri, SEAM.subscribesTo, err.detail) from err
+            if len(starts) > 1:
+                raise GeneratorError(
+                    process.iri,
+                    SEAM.subscribesTo,
+                    "expected at most one subscribed start event, found "
+                    f"{[(str(s.event.iri), str(s.channel.iri)) for s in starts]}",
+                )
+            if starts:
                 continue
             raise GeneratorError(
-                process,
+                process.iri,
                 SEAM.triggers,
-                f"{err.detail}, and no proc:MessageCatchEvent start event seam:subscribesTo a comm:Channel (ADR-0010)",
-            ) from err
+                f"expected one triggering event submitting to one operation, found {[str(o) for o in ops.iris()]}"
+                ", and no proc:MessageCatchEvent start event seam:subscribesTo a comm:Channel (ADR-0010)",
+            )
+        op = ops[0].iri
         if op in found:
-            raise GeneratorError(op, SEAM.submitsTo, f"triggers both {found[op]} and {process}")
+            raise GeneratorError(op, SEAM.submitsTo, f"triggers both {found[op].iri} and {process.iri}")
         found[op] = process
     return found
 
 
-def _not_routed(f: Facts, container, processes) -> tuple[NotRouted, ...]:
+def _not_routed(model: Model, container: Container, processes: Many[Process]) -> tuple[NotRouted, ...]:
     """Operations a process (or a task of its BPMN model) seam:invokes that
     another container seam:exposes."""
-    prefixes = tuple(f"{m}#" for p in processes for m in f.objects(p, SEAM.detailedBy))
-    invoked = sorted(
-        {op for s, op in f.ds.subject_objects(SEAM.invokes) if s in processes or str(s).startswith(prefixes)}, key=str
-    )
+    invoked = sorted({op for p in processes for op in p.invoked_operations}, key=lambda op: str(op.iri))
     return tuple(
-        NotRouted(operation=f.curie(op), container=f.curie(other))
+        NotRouted(operation=model.compact(op.iri), container=model.compact(other.iri))
         for op in invoked
-        for other in f.subjects(SEAM.exposes, op)
+        for other in op.exposed_by
         if other != container
     )
 
@@ -256,33 +273,34 @@ def _handler_name(iri) -> str:
     return name[: -len("_op")] if name.endswith("_op") and len(name) > 3 else name
 
 
-def _endpoint(f: Facts, e, triggered) -> Endpoint:
-    if (e, RDF.type, COMM.Channel) in f.ds:
-        return _channel(f, e)
-    if (e, RDF.type, HYDRA.Operation) not in f.ds:
-        raise GeneratorError(e, RDF.type, "an exposed element must be a hydra:Operation or comm:Channel")
-    return _operation(f, e, triggered)
+def _endpoint(model: Model, e: Operation | Channel, triggered: dict[URIRef, Process]) -> Endpoint:
+    if isinstance(e, Channel):
+        return _channel(model, e)
+    if e not in model.operations:
+        raise GeneratorError(e.iri, RDF.type, "an exposed element must be a hydra:Operation or comm:Channel")
+    return _operation(model, e, triggered)
 
 
-def _channel(f: Facts, ch) -> Endpoint:
-    transport = f.one(ch, COMM.transport)
+def _channel(model: Model, ch: Channel) -> Endpoint:
+    transport = required(ch.transport, ch.iri, COMM.transport)
     if transport != COMM.SSE:
-        raise GeneratorError(ch, COMM.transport, f"only comm:SSE channels are routed, found {transport}")
-    template, mappings = f.path_template(ch)
+        raise GeneratorError(ch.iri, COMM.transport, f"only comm:SSE channels are routed, found {transport}")
+    with view_errors():
+        template, _ = _path_template(ch)
+        accepts = ch.accepts
     variables = _variables(template)
     if len(variables) != 1:
         raise GeneratorError(
-            ch, COMM.path, f"an SSE channel needs exactly one path variable as its scope, found {variables}"
+            ch.iri, COMM.path, f"an SSE channel needs exactly one path variable as its scope, found {variables}"
         )
-    accepts = f.optional(ch, SEAM.acceptsShape)
     return Endpoint(
-        curie=f.curie(ch),
-        name=_handler_name(ch),
+        curie=model.compact(ch.iri),
+        name=_handler_name(ch.iri),
         channel=True,
         method="GET",
         path=template,
         arguments=tuple(f"{v}: str" for v in variables),
-        accepts=f.curie(accepts) if accepts is not None else None,
+        accepts=model.compact(accepts.iri) if accepts is not None else None,
         scope=variables[0],
     )
 
@@ -291,77 +309,93 @@ def _variables(template: str) -> list[str]:
     return re.findall(r"\{(\w+)\}", template)
 
 
-def _operation(f: Facts, op, triggered) -> Endpoint:
-    method = str(f.one(op, HYDRA.method)).upper()
+def _correlation_key(model: Model, process: Process) -> str:
+    """The single rdfs:label of the process's single proc:correlationKey."""
+    with view_errors():
+        param = process.correlation_parameter
+    return label(model, required(param, process.iri, PROC.correlationKey))
+
+
+def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) -> Endpoint:
+    method = required(op.method, op.iri, HYDRA.method).upper()
     if method not in METHODS:
-        raise GeneratorError(op, HYDRA.method, f"unknown method {method!r}")
-    kind = f.one(op, SEAM.mediaKind)
+        raise GeneratorError(op.iri, HYDRA.method, f"unknown method {method!r}")
+    kind = required(op.media_kind, op.iri, SEAM.mediaKind)
     if kind != SEAM.UIFragment:
-        raise GeneratorError(op, SEAM.mediaKind, f"only seam:UIFragment operations are routed, found {kind}")
-    template, _ = f.path_template(op)
+        raise GeneratorError(op.iri, SEAM.mediaKind, f"only seam:UIFragment operations are routed, found {kind}")
+    with view_errors():
+        template, _ = _path_template(op)
+        accepts = op.accepts
+        returns = op.returns
     variables = _variables(template)
 
     body = None
-    media_type = f.optional(op, COMM.requestMediaType)
+    media_type = op.request_media_type
     if media_type is not None:
-        if str(media_type) not in REQUEST_BODIES:
-            raise GeneratorError(op, COMM.requestMediaType, f"unknown request media type {str(media_type)!r}")
-        body = Body(*REQUEST_BODIES[str(media_type)])
+        if media_type not in REQUEST_BODIES:
+            raise GeneratorError(op.iri, COMM.requestMediaType, f"unknown request media type {media_type!r}")
+        body = Body(*REQUEST_BODIES[media_type])
 
     validate = None
-    accepts = f.optional(op, SEAM.acceptsShape)
     if accepts is not None:
         if body is None:
-            raise GeneratorError(op, COMM.requestMediaType, "seam:acceptsShape needs a request body")
-        var = _shape_name(accepts)
+            raise GeneratorError(op.iri, COMM.requestMediaType, "seam:acceptsShape needs a request body")
+        var = _shape_name(accepts.iri)
         if var in variables:
             var += "_payload"  # never shadow the path variable (the correlation key)
-        validate = Validate(var=var, shape=f.curie(accepts), source=body.var)
+        validate = Validate(var=var, shape=model.compact(accepts.iri), source=body.var)
 
     complete = None
-    task = _completed_task(f, op)
+    task = _completed_task(op)
     if task is not None:
-        if op in triggered:
+        if op.iri in triggered:
             raise GeneratorError(
-                op, SEAM.submitsTo, f"completes {task} and starts {triggered[op]}; an operation does one"
+                op.iri, SEAM.submitsTo, f"completes {task} and starts {triggered[op.iri].iri}; an operation does one"
             )
         if body is None:
-            raise GeneratorError(op, COMM.requestMediaType, f"completing {task} needs a request body")
-        process = _task_process(f.m, task).iri
-        key = f.label(f.one(process, PROC.correlationKey))
+            raise GeneratorError(op.iri, COMM.requestMediaType, f"completing {task} needs a request body")
+        process = _task_process(model, task)
+        key = _correlation_key(model, process)
         if key not in variables:
             raise GeneratorError(
-                process,
+                process.iri,
                 PROC.correlationKey,
-                f"{key!r} is not a path variable of {op} ({template}), "
+                f"{key!r} is not a path variable of {op.iri} ({template}), "
                 f"so the completion of {task} cannot name its instance",
             )
-        complete = Complete(task=_task_curie(f.m, task), payload=body.var, key=key)
+        complete = Complete(task=_task_curie(model, task), payload=body.var, key=key)
 
     start = None
-    if op in triggered:
-        process = triggered[op]
+    if op.iri in triggered:
+        process = triggered[op.iri]
         if validate is None:
-            raise GeneratorError(op, SEAM.acceptsShape, f"starting {process} needs a validated payload")
-        key = f.label(f.one(process, PROC.correlationKey))
+            raise GeneratorError(op.iri, SEAM.acceptsShape, f"starting {process.iri} needs a validated payload")
+        key = _correlation_key(model, process)
         if key not in variables:
-            raise GeneratorError(process, PROC.correlationKey, f"{key!r} is not a path variable of {op} ({template})")
-        start = Start(process=f.curie(process), payload=validate.var, key=key)
+            raise GeneratorError(
+                process.iri, PROC.correlationKey, f"{key!r} is not a path variable of {op.iri} ({template})"
+            )
+        start = Start(process=model.compact(process.iri), payload=validate.var, key=key)
 
     write = None
-    if start is None and complete is None and accepts is not None and _form_writes(f, op, accepts):
+    if (
+        start is None
+        and complete is None
+        and validate is not None
+        and accepts is not None
+        and _form_writes(op, accepts)
+    ):
         write = Write(shape=validate.shape, var=validate.var, source=validate.source)
 
-    returns = f.optional(op, SEAM.returnsShape)
     query = None
     if (method == "GET" or complete is not None) and returns is not None:
-        query = Query(var=_shape_name(returns) + "s", shape=f.curie(returns), filters=tuple(variables))
+        query = Query(var=_shape_name(returns.iri) + "s", shape=model.compact(returns.iri), filters=tuple(variables))
 
-    name, component, frag_kind = fragment_for(f.m, op)
+    name, component, frag_kind = fragment_for(model, op)
     if frag_kind == ITEM:
         if validate is None or returns != accepts:
             raise GeneratorError(
-                op,
+                op.iri,
                 SEAM.returnsShape,
                 f"the item partial {name} renders the accepted entity, "
                 "so seam:returnsShape must equal seam:acceptsShape",
@@ -370,32 +404,26 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
     else:
         if query is None:
             raise GeneratorError(
-                op,
+                op.iri,
                 SEAM.returnsShape,
                 f"the component partial {name} renders a query of the returned shape "
                 "(a GET, or a user-task completion)",
             )
-        params = sorted(
-            {
-                str(label)
-                for p in f.objects(component, IFML.hasParameter)
-                for label in f.objects(p, RDFS.label)
-                if str(label) in variables
-            }
-        )
+        parameters = model.views.intern(ComponentView, URIRef(str(component))).parameters()
+        params = [p for p in parameters if p in variables]
         render = Render(name=name, data=query.var, params=tuple(params), multiline=method != "GET")
 
     arguments = tuple(f"{v}: str" for v in variables) + (("request: Request",) if body else ())
     if complete is not None:
         arguments += (f'identity: Identity = Depends(runtime.task_policy("{complete.task}"))',)
     return Endpoint(
-        curie=f.curie(op),
-        name=_handler_name(op),
+        curie=model.compact(op.iri),
+        name=_handler_name(op.iri),
         channel=False,
         method=method,
         path=template,
         arguments=arguments,
-        policies=tuple(f.curie(p) for p in f.objects(op, SEAM.governedBy)),
+        policies=tuple(model.compact(p.iri) for p in op.governed_by),
         body=body,
         validate=validate,
         start=start,
@@ -406,35 +434,30 @@ def _operation(f: Facts, op, triggered) -> Endpoint:
     )
 
 
-def _completed_task(f: Facts, op):
+def _submitting_forms(op: Operation) -> list[ComponentView]:
+    """The ifml:Forms that ifml:hasEvent an event that seam:submitsTo ``op``."""
+    with view_errors():
+        forms = [e.component for e in op.submitted_by]
+    return [f for f in forms if f is not None and IFML.Form in f.types]
+
+
+def _completed_task(op: Operation) -> URIRef | None:
     """The proc:UserTask that seam:completedOn an ifml:Form whose event
     seam:submitsTo ``op`` (ADR-0009), or None; several raise."""
     tasks = sorted(
-        {
-            task
-            for event in _submitted(f, op)
-            for form in f.subjects(IFML.hasEvent, event)
-            if (form, RDF.type, IFML.Form) in f.ds
-            for task in f.subjects(SEAM.completedOn, form)
-            if (task, RDF.type, PROC.UserTask) in f.ds
-        },
-        key=str,
+        {t.iri for form in _submitting_forms(op) for t in form.completes if PROC.UserTask in t.types}, key=str
     )
     if len(tasks) > 1:
         raise GeneratorError(
-            op, SEAM.submitsTo, f"completes several user tasks {[str(t) for t in tasks]}; expected one"
+            op.iri, SEAM.submitsTo, f"completes several user tasks {[str(t) for t in tasks]}; expected one"
         )
     return tasks[0] if tasks else None
 
 
-def _form_writes(f: Facts, op, shape) -> bool:
+def _form_writes(op: Operation, shape: Shape) -> bool:
     """Whether an ifml:Form that seam:writes ``shape`` has an event that
     seam:submitsTo ``op`` (the D026 write rule)."""
-    return any(
-        (form, RDF.type, IFML.Form) in f.ds and (form, SEAM.writes, shape) in f.ds
-        for event in _submitted(f, op)
-        for form in f.subjects(IFML.hasEvent, event)
-    )
+    return any(shape in form.writes for form in _submitting_forms(op))
 
 
 # ── rendering ───────────────────────────────────────────────────────────────
@@ -449,7 +472,7 @@ def render_routes(routes: RoutesModel) -> dict[str, str]:
 def route_module(trig_path) -> tuple[str, str]:
     """(file name, text) of the model's one route module; no or several
     serving containers raise GeneratorError(model, seam:executes)."""
-    model = ModelGraph.load(trig_path)
+    model = load(trig_path)
     routes = extract_routes(model)
     if len(routes.modules) != 1:
         raise GeneratorError(

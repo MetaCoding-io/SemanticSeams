@@ -715,3 +715,87 @@ def test_broken_order_binding_and_parameter_raise(chat: seams.Model):
     with pytest.raises(ResolutionError) as binds:
         _ = parts[URIRef(C + "conversation_list")].data_flows.only().binds
     assert binds.value.predicate == str(IFML.targetParameter)
+
+
+# ── deploy: facts and the route generator's process edges (M010/S05/T03) ──
+
+DEPLOY_NS = seams.DEPLOY
+
+
+def test_chat_deploy_facts(chat: seams.Model):
+    a = chat.architecture
+    api, ui, gw, db = (a.containers().by_iri(f":{n}") for n in ("chat_api", "chat_ui", "llm_gateway", "message_db"))
+    assert api.artifact == seams.Artifact("ghcr.io/example/chat-api", "0.3.1")
+    assert api.ports == (seams.Port(8000, None),) and ui.ports == (seams.Port(8000, 8080),)
+    assert api.replicas == 3 and ui.replicas is None
+    assert api.deploy_depends_on.iris() == (URIRef(C + "message_db"),)
+    assert ui.deploy_depends_on.only() is api
+    # arch:dependsOn (C4) and deploy:dependsOn (start order) are different edges
+    assert api.depends_on.iris() == (URIRef(C + "llm_gateway"), URIRef(C + "message_db"))
+    assert db.volumes == (seams.Volume("message_db_data", "/var/lib/postgresql/data"),)
+    assert db.healthcheck == seams.Healthcheck("pg_isready -U postgres", "5s") and api.healthcheck is None
+    assert [b.key for b in api.bindings] == ["DB_URL", "LLM_API_KEY", "LLM_GATEWAY_URL"]
+    db_url, _, gateway = api.bindings
+    assert db_url.kinds == (DEPLOY_NS.secretRef,) and db_url.secret_name == "chat-prod-db-url"
+    assert db_url.secret_ref == URIRef("https://secrets.example.org/chat/prod/db-url")
+    assert gateway.kinds == (DEPLOY_NS.serviceOf,) and gateway.service_of is gw
+    assert gw.bindings[0].value == "https://api.openai.com/v1" and gw.bindings[0].kinds == (DEPLOY_NS.value,)
+    assert dict(api.service_bindings) == {b.key: b.service_of.iri for b in api.bindings if b.service_of}
+    assert all(dataclasses.is_dataclass(x) and type(x).__dataclass_params__.frozen for x in (api.artifact, *api.bindings))  # type: ignore[attr-defined]
+    assert api.systems.only() is a.systems().only()
+
+
+def test_ch08_deploy_facts(ch08: seams.Model):
+    a = ch08.architecture
+    api, portal = a.containers().by_iri(":expense_api"), a.containers().by_iri(":employee_portal")
+    assert api.artifact == seams.Artifact("ghcr.io/example/expense-api", "0.8.0")
+    assert portal.ports == (seams.Port(8000, 8080),) and portal.deploy_depends_on.only() is api
+    assert api.bindings == () and api.volumes == () and api.healthcheck is None
+    assert a.systems().only().containers.iris() == (URIRef(X + "employee_portal"), URIRef(X + "expense_api"))
+
+
+def test_route_edges_of_processes(chat: seams.Model, ch08: seams.Model):
+    send = chat.processes.by_iri(":send_message_process")
+    assert send.triggering_operations.only() is chat.operations.by_iri(":send_message_op")
+    assert send.invoked_operations.iris() == (URIRef(C + "completion_op"), URIRef(C + "send_message_op"))
+    assert send.correlation_parameter == URIRef(C + "conversation")
+    approval, payout = ch08.processes.by_iri(":approval_process"), ch08.processes.by_iri(":payout_process")
+    assert approval.triggering_operations.only().iri == URIRef(X + "submit_expense_op")
+    # channel-started (ADR-0010): no triggering operation, one channel start
+    assert payout.triggering_operations == () and payout.channel_starts.only().channel.iri == URIRef(X + "payouts")
+    with pytest.raises(ResolutionError) as err:
+        payout.triggering_operations.only()
+    assert (err.value.subject, err.value.predicate) == (X + "payout_process", str(SEAM.triggers))
+    approve = ch08.processes.element("approve_expense").only()
+    assert approve.types == (PROC.UserTask,) and approve.kind == "UserTask"
+    assert PROC.UserTask in approve.completed_on.completes.only().types  # type: ignore[union-attr]
+
+
+def test_broken_deploy_facts_name_the_container(chat: seams.Model):
+    ds = _copy(chat)
+    api, db, gw = URIRef(C + "chat_api"), URIRef(C + "message_db"), URIRef(C + "llm_gateway")
+    for artifact in ds.objects(db, DEPLOY_NS.artifact):
+        ds.remove((artifact, DEPLOY_NS.version, None))
+    for port in ds.objects(gw, DEPLOY_NS.port):
+        ds.remove((port, DEPLOY_NS.containerPort, None))
+        ds.add((port, DEPLOY_NS.containerPort, Literal("eighty")))
+    ds.remove((api, DEPLOY_NS.replicas, None))
+    ds.add((api, DEPLOY_NS.replicas, Literal("three")))
+    for cfg in ds.objects(api, DEPLOY_NS.configuration):
+        for b in ds.objects(cfg, DEPLOY_NS.binding):
+            ds.remove((b, DEPLOY_NS.key, None))
+    ds.add((URIRef(C + "chat_system"), ARCH.contains, URIRef(C + "not_a_container")))
+    broken = seams.Model(CHAT, ds)
+    a = broken.architecture
+    cases = [
+        (lambda: a.containers().by_iri(":message_db").artifact, db, DEPLOY_NS.version),
+        (lambda: a.containers().by_iri(":llm_gateway").ports, gw, DEPLOY_NS.containerPort),
+        (lambda: a.containers().by_iri(":chat_api").replicas, api, DEPLOY_NS.replicas),
+        (lambda: a.containers().by_iri(":chat_api").bindings, api, DEPLOY_NS.key),
+    ]
+    for read, subject, predicate in cases:
+        with pytest.raises(ResolutionError) as err:
+            read()
+        assert (err.value.subject, err.value.predicate) == (str(subject), str(predicate))
+    # an untyped arch:contains target is not a container of the system
+    assert URIRef(C + "not_a_container") not in a.systems().only().containers.iris()

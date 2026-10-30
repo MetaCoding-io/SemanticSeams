@@ -250,6 +250,9 @@ The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files
 SEAMS_MODEL=path/to/model.trig python3 -m uvicorn viewer.app:app --port 8000
 ```
 
+`SEAMS_MODEL` may also name a directory: its TriG files load together as one model, and
+payload paths resolve against the directory.
+
 The root view is your model's C4 `seam:Model`. If the file has none, or more than one,
 set `SEAMS_VIEWER_ROOT` to the IRI the viewer should open at. See
 [Getting started](/guide/getting-started#open-the-viewer) for a tour of the views.

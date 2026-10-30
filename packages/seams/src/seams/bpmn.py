@@ -137,7 +137,9 @@ def _flow(el: Any, path: Path, node_ids: set[str]) -> SequenceFlow:
     for attr in ("sourceRef", "targetRef"):
         ref = el.get(attr)
         if ref not in node_ids:
-            raise ResolutionError(f"{path.name}#{flow_id}", f"bpmn:{attr}", f"{ref!r} is not a flow node of the process")
+            raise ResolutionError(
+                f"{path.name}#{flow_id}", f"bpmn:{attr}", f"{ref!r} is not a flow node of the process"
+            )
         refs[attr] = str(ref)
     condition = next((c for c in el if localname(c.tag) == "conditionExpression"), None)
     return SequenceFlow(

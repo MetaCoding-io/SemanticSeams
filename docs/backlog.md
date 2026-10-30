@@ -101,7 +101,7 @@ lockfile, `pyproject.toml` packaging, ruff and a type checker.
 | L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | done (M010/S02) |
 | L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | done (M010/S03) |
 | L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | done (M010/S04) |
-| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | in progress (M010/S05 done: generators and the runtime's ModelGraph read through seams views, goldens byte-identical; S06 viewer and docs generator next) |
+| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | done (M010/S05: generators and the runtime's ModelGraph read through seams views, goldens byte-identical; M010/S06: viewer loads with seams.load, viewer/ifml.py reads model.interfaces so IFML has one interpretation, docs generator uses seams) |
 | L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | planned (M010/S07) |
 
 ## Derived views and model gaps
@@ -266,8 +266,11 @@ UI work must not eat M3.*
      routes and compose generators, `seams_gen.fragments` and the runtime's `ModelGraph`
      read the model only through seams views (D036); `seams_gen/facts.py` is gone,
      `extract_page` is built on `model.interfaces`, and every committed generated output
-     for chat-app and the expenses chapters 3 to 8 is byte-identical. Next: L5's viewer
-     and docs generator (S06).*
+     for chat-app and the expenses chapters 3 to 8 is byte-identical. M010/S06: the viewer
+     loads its model with `seams.load` (a TriG file or a directory), `viewer/ifml.py`
+     derives the IFML diagram from `model.interfaces`, the view the htmx generator reads,
+     so IFML has one interpretation, and `docs/scripts/generate.py` reads namespaces and
+     the question catalog through seams; L5 is done. Next: L6 docs (S07).*
    - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution, the
      shape-to-store seam, SQLite and PostgreSQL backends chosen from the graph, and
      model-health checks. Depends on M010.

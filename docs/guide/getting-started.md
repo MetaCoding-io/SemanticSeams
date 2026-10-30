@@ -12,7 +12,7 @@ example.
 - A browser with internet access. The viewer loads htmx, vis-network, elkjs, bpmn-js,
   dmn-js and diagram-js (via esm.sh) from a CDN.
 - Nothing else: there is no database to start. The viewer reads the example model into
-  memory with rdflib.
+  memory through the `seams` library.
 
 ## Install
 
@@ -33,7 +33,7 @@ members. Each member declares its own dependencies in its `pyproject.toml`:
 | `seams_runtime` | `semanticseams-runtime` | semanticseams, rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn |
 | `seams_gen` | `semanticseams-gen` | semanticseams, rdflib, Jinja2, PyYAML |
 | `seams_gateway` | `semanticseams-gateway` | FastAPI, uvicorn, httpx |
-| `viewer` | `semanticseams-viewer` | FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
+| `viewer` | `semanticseams-viewer` | semanticseams, FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
 
 The root `pyproject.toml` adds a `dev` group with pytest, PyYAML, httpx, ruff and pyright.
 If you prefer not to activate the environment, prefix any command with `uv run`, for
@@ -71,8 +71,8 @@ Ruff covers the whole tree except committed generated code. Pyright checks
 python3 -m uvicorn viewer.app:app --port 8000
 ```
 
-The viewer loads the chat app unless `SEAMS_MODEL` names another TriG file
-(see [Authoring a model](/guide/authoring-a-model#view-it)).
+The viewer loads the chat app unless `SEAMS_MODEL` names another TriG file or a
+directory of TriG files (see [Authoring a model](/guide/authoring-a-model#view-it)).
 
 Open <http://localhost:8000>. The root redirects to the chat app's architecture view,
 the top of the descent. From there:

@@ -117,6 +117,7 @@ export default defineConfig({
         text: "Reference",
         collapsed: false,
         items: [
+          { text: "seams library (Python API)", link: "/reference/seams-library" },
           { text: "Seam predicates", link: "/reference/seam-predicates" },
           { text: "Layer vocabularies", link: "/reference/vocabularies" },
           { text: "SHACL shapes", link: "/reference/shapes" },

@@ -17,7 +17,8 @@ up in stub mode and chats with it (`tests/test_tutorial_e2e.py`).
 
 - **Docker** with **Compose 2.24 or later** (`docker compose version`). The local override
   uses Compose's `!override` merge tag, which older versions reject.
-- **Python 3.12**, only if you want to regenerate the code. Running the app needs only Docker.
+- **[uv](https://docs.astral.sh/uv/)**, only if you want to regenerate the code. It installs
+  Python 3.12 from `.python-version` if needed. Running the app needs only Docker.
 
 ## 2. Clone and look at the model
 
@@ -44,12 +45,12 @@ form's event into the BPMN process, and from its business-rule task into the DMN
 ## 3. Regenerate the code
 
 The generated code is committed, so this step is optional. It shows that the
-code follows from the model. Set up Python once:
+code follows from the model. Set up Python once with uv, which installs the versions
+pinned in `uv.lock`:
 
 ```
-python3.12 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-dev.txt
+uv sync --all-packages
+source .venv/bin/activate
 ```
 
 Then run the three generators:

@@ -39,8 +39,12 @@ Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML se
 
 ## Tests
 
+Install [uv](https://docs.astral.sh/uv/), then sync the workspace from the committed
+`uv.lock` and run the suite:
+
 ```
-pip install -r requirements-dev.txt
+uv sync --all-packages
+source .venv/bin/activate
 pytest
 ```
 

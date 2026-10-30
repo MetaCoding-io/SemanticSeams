@@ -13,7 +13,9 @@ line, a line of #'s), so a page reads in the same order as the file it comes fro
 output point at the source files and become GitHub links at build time.
 
 Run by `npm run build` and `npm run dev` in docs/. Needs rdflib
-(`pip install -r requirements-dev.txt` at the repository root).
+(`uv sync --all-packages` at the repository root). Build with
+`uv run npm --prefix docs run build`: uv run puts the absolute .venv/bin on PATH, which
+a relative .venv/bin does not achieve under npm --prefix.
 """
 
 from __future__ import annotations
@@ -147,7 +149,12 @@ def seam_predicates() -> str:
             node = resolve(g, qname)
             types = set(g.objects(node, RDF.type))
             if types & {
-                RDFS.Class, RDF.Property, OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.AnnotationProperty
+                RDFS.Class,
+                RDF.Property,
+                OWL.Class,
+                OWL.ObjectProperty,
+                OWL.DatatypeProperty,
+                OWL.AnnotationProperty,
             }:
                 kind = "class" if types & {RDFS.Class, OWL.Class} else "predicate"
                 lbl = g.value(node, RDFS.label)
@@ -240,8 +247,12 @@ def shapes() -> str:
         "result on every page as its model-health badge. CI also proves that the shapes reject "
         "deliberately broken seams.\n\n"
     )
-    targets = ((SH.targetClass, "instances of"), (SH.targetSubjectsOf, "subjects of"),
-               (SH.targetObjectsOf, "objects of"), (SH.targetNode, "the node"))
+    targets = (
+        (SH.targetClass, "instances of"),
+        (SH.targetSubjectsOf, "subjects of"),
+        (SH.targetObjectsOf, "objects of"),
+        (SH.targetNode, "the node"),
+    )
     for sec in sections(ROOT / source):
         out.append(f"## {escape(sec.title)}\n\n")
         for qname in sec.terms:
@@ -259,7 +270,12 @@ def shapes() -> str:
                 path = g.value(prop, SH.path)
                 msg = g.value(prop, SH.message)
                 bits = []
-                for p, word in ((SH["class"], "class"), (SH.minCount, "at least"), (SH.maxCount, "at most"), (SH.datatype, "datatype")):
+                for p, word in (
+                    (SH["class"], "class"),
+                    (SH.minCount, "at least"),
+                    (SH.maxCount, "at most"),
+                    (SH.datatype, "datatype"),
+                ):
                     v = g.value(prop, p)
                     if v is not None:
                         bits.append(f"{word} `{q(g, v)}`" if isinstance(v, URIRef) else f"{word} {v}")
@@ -321,10 +337,12 @@ def queries() -> str:
 def comment_prose(lines: list[str]) -> str:
     """A query's header comment as Markdown: paragraphs, with `- ` lines kept as a list."""
     blocks, para = [], []
+
     def flush():
         if para:
             blocks.append(escape(" ".join(" ".join(para).split())))
             para.clear()
+
     for line in lines:
         if not line:
             flush()

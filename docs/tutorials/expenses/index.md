@@ -32,7 +32,8 @@ All eight chapters are written. The last one ends with the whole system running 
   [Getting started](/guide/getting-started):
 
   ```sh
-  pip install -r requirements-dev.txt -r viewer/requirements.txt
+  uv sync --all-packages
+  source .venv/bin/activate
   ```
 
 - A text editor. Every command runs from the repository root.

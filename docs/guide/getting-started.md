@@ -7,7 +7,8 @@ example.
 
 ## What you need
 
-- Python 3.12 or later. CI runs on 3.12.
+- [uv](https://docs.astral.sh/uv/). It installs Python 3.12 from `.python-version` if
+  you do not have it. CI runs on 3.12.
 - A browser with internet access. The viewer loads htmx, vis-network, elkjs, bpmn-js,
   dmn-js and diagram-js (via esm.sh) from a CDN.
 - Nothing else: there is no database to start. The viewer reads the example model into
@@ -18,11 +19,25 @@ example.
 ```sh
 git clone https://github.com/MetaCoding-io/SemanticSeams.git
 cd SemanticSeams
-pip install -r requirements-dev.txt -r viewer/requirements.txt
+uv sync --all-packages
+source .venv/bin/activate
 ```
 
-`requirements-dev.txt` brings rdflib, pySHACL and pytest for the model and its tests.
-`viewer/requirements.txt` adds FastAPI, uvicorn and Jinja2 for the viewer.
+The repository is a uv workspace. `uv sync --all-packages` creates `.venv` with the exact
+versions pinned in `uv.lock`; without `--all-packages` it installs nothing from the
+members. Each member declares its own dependencies in its `pyproject.toml`:
+
+| Member | Distribution | Dependencies |
+|---|---|---|
+| `packages/seams` | `semanticseams` | rdflib, lxml |
+| `seams_runtime` | `semanticseams-runtime` | rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn |
+| `seams_gen` | `semanticseams-gen` | rdflib, Jinja2, PyYAML |
+| `seams_gateway` | `semanticseams-gateway` | FastAPI, uvicorn, httpx |
+| `viewer` | `semanticseams-viewer` | FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
+
+The root `pyproject.toml` adds a `dev` group with pytest, PyYAML, httpx, ruff and pyright.
+If you prefer not to activate the environment, prefix any command with `uv run`, for
+example `uv run pytest`.
 
 ## Run the tests
 
@@ -36,6 +51,19 @@ shapes reject deliberately broken seams, checks that every non-reserved seam pre
 used somewhere, asserts the exact rows of every [canned query](/reference/queries), and
 exercises the viewer's endpoints. CI runs the same command on every push and pull
 request.
+
+## Lint and type-check
+
+CI runs these as their own jobs:
+
+```sh
+uv run ruff check
+uv run ruff format --check
+uv run pyright
+```
+
+Ruff covers the whole tree except committed generated code. Pyright checks
+`packages/seams` in strict mode.
 
 ## Open the viewer
 

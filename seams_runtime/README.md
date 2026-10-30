@@ -6,7 +6,9 @@ SpiffWorkflow. It also validates payloads against SHACL shapes, guards lifecycle
 transitions and enforces `seam:governedBy` policies. Every dispatch decision comes from
 graph facts. No handler is keyed on a bpmn id.
 
-Install: `pip install -r seams_runtime/requirements.txt`.
+Install: `uv sync --all-packages` at the repository root (a uv workspace; this member's
+dependencies are in `seams_runtime/pyproject.toml`). The runtime image installs the same
+locked versions from `uv.lock`.
 
 ## API
 

@@ -8,6 +8,9 @@ byte for byte.
 
 ## Usage
 
+Install with `uv sync --all-packages` at the repository root, then run the commands below
+in the activated `.venv` (or prefix them with `uv run`).
+
 ```
 python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/
 # -> build/chat_page.html, build/conversation_list.html, build/message_thread.html,

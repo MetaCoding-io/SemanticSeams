@@ -6,13 +6,16 @@ how that works today and how to move it to a custom domain.
 
 ## How it works today
 
-On every push to `main` that touches `site/`, `docs/`, `ontology/` or the workflow
-itself, the workflow:
+On every push to `main` that touches `site/`, `docs/`, `ontology/`, `pyproject.toml`,
+`uv.lock` or the workflow itself, the workflow:
 
-1. Installs the Python dev requirements, so the reference-page generator can read the
-   ontology with rdflib.
-2. Runs `npm ci` and `npm run build` in `docs/`, with `DOCS_BASE=/SemanticSeams/docs/`.
-   The build runs `docs/scripts/generate.py` first, then VitePress.
+1. Installs uv with `astral-sh/setup-uv` and runs `uv sync --locked --all-packages`, so
+   the reference-page generator can read the ontology with rdflib. `--locked` fails the
+   job if `uv.lock` is out of date with the `pyproject.toml` files.
+2. Runs `npm ci`, then `uv run npm run build` in `docs/`, with
+   `DOCS_BASE=/SemanticSeams/docs/`. `uv run` puts the workspace's `.venv/bin` on `PATH`
+   by absolute path, so the build's `docs/scripts/generate.py` step finds rdflib before
+   VitePress runs.
 3. Copies `site/` to the root of one artifact and the built docs to `docs/` inside it.
 4. Deploys that artifact to GitHub Pages.
 

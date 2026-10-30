@@ -65,7 +65,7 @@ def golden_target(path, model_hash: str) -> str:
     """The exact text a generator must emit for the golden at ``path``.
 
     Markers are stripped and every ``sha256:<model-hash>`` placeholder becomes
-    ``model_hash`` (``sha256:<hex>``, as returned by seams_runtime.model_hash).
+    ``model_hash`` (``sha256:<hex>``, as returned by seams.model_hash).
     """
     path = Path(path)
     if not model_hash.startswith("sha256:"):

@@ -1,4 +1,4 @@
-# Build context is the repository root; the images only need seams_runtime,
+# Build context is the repository root; the images only need packages/seams, seams_runtime,
 # seams_gateway, the workspace pyproject files and uv.lock, and one app dir.
 .venv
 venv

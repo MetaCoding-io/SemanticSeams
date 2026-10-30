@@ -75,3 +75,15 @@ def test_adr_is_in_adr_index() -> None:
 def test_backlog_cites_adr() -> None:
     backlog = (ROOT / "docs" / "backlog.md").read_text(encoding="utf-8")
     assert "ADR-0011" in backlog
+
+
+def test_consequences_record_s04_as_landed(text: str) -> None:
+    assert "**S04** added the model health checks" in text
+    assert "store_health()" in text
+
+
+def test_backlog_marks_u9_done() -> None:
+    backlog = (ROOT / "docs" / "backlog.md").read_text(encoding="utf-8")
+    row = next(line for line in backlog.splitlines() if line.startswith("| U9 |"))
+    assert "| done (M011)" in row
+    assert "planned" not in row

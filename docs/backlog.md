@@ -123,7 +123,7 @@ derivation exposed, or that a builder meets after launch.
 | U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | planned (M014/S04) |
 | U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | planned (M015/S01) |
 
-| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | `seam:storedIn`, `deploy:storeKind` (controlled `deploy:StoreKind` values) and `deploy:connectsTo` | in progress (M011): [ADR-0011](adr/0011-storage-resolution.md) accepted (S01); vocabulary, SHACL, the chat-app and expenses chapter-08 store facts, the `storedIn` hop in `impact-of-node.rq` and the viewer's `storedIn` edge done (S02); runtime backends done (S03): `Runtime.load` opens SQLite or PostgreSQL from the facts, `/healthz` reports the store, the compose stacks run on their declared PostgreSQL and CI runs the store tests against a PostgreSQL service; the end-to-end store assertion and model-health checks (S04) planned; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
+| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | `seam:storedIn`, `deploy:storeKind` (controlled `deploy:StoreKind` values) and `deploy:connectsTo` | done (M011): [ADR-0011](adr/0011-storage-resolution.md) accepted (S01); vocabulary, SHACL, the chat-app and expenses chapter-08 store facts, the `storedIn` hop in `impact-of-node.rq` and the viewer's `storedIn` edge done (S02); runtime backends done (S03): `Runtime.load` opens SQLite or PostgreSQL from the facts, `/healthz` reports the store, the compose stacks run on their declared PostgreSQL and CI runs the store tests against a PostgreSQL service; model-health checks and end-to-end store assertions done (S04): `ModelGraph.store_health()` feeds the viewer's health panel, which fails on a written shape with no supported store, warns on a store no shape is stored in and notes the embedded-SQLite default, and the tutorial and expenses end-to-end tests assert the written row lands in the declared PostgreSQL and that `/healthz` reports it; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
 
 U1 to U3 can land together. U9 subsumes U2's vocabulary work, so the two are best done
 as one piece.
@@ -280,8 +280,9 @@ UI work must not eat M3.*
      `seam:storedIn`, `deploy:StoreKind` and `deploy:storeKind` in the ontology and
      SHACL, the chat app and expenses chapter 8 declare their stores, and
      `impact-of-node.rq` reaches the stored shapes. S03 done: `Runtime.load` opens the
-     declared store (SQLite or PostgreSQL) and `/healthz` reports it; S04 (end-to-end
-     store assertion, model-health checks) planned.*
+     declared store (SQLite or PostgreSQL) and `/healthz` reports it; S04 done: the
+     viewer's model-health panel checks storage and both end-to-end suites assert the
+     written row lands in the declared PostgreSQL. M011 landed.*
    - **M012, Generate and Check Anywhere** (A1, A2, A3, A6): project file, `seams generate`
      and `seams check`, the generated-file lockfile, a reusable CI action and pre-commit
      hook, and `seams status`. Depends on M010.

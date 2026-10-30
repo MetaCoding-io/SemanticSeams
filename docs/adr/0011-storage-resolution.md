@@ -159,7 +159,10 @@ and `override` is true when the store in use is not the declared kind.
   the store kind and the compose wiring: the runtime reads the bound connection string
   (`DB_URL_FILE`, `DATABASE_URL_FILE`), and both compose stacks run on their declared
   PostgreSQL.
-- **S04** adds the model health checks and an end-to-end assertion that the stacks
-  write to the declared store.
+- **S04** added the model health checks (`ModelGraph.store_health()`, shown in the
+  viewer's health panel: a written shape with no supported store fails, a store no
+  shape is `seam:storedIn` warns, and a model with no store gets an embedded-SQLite
+  note) and end-to-end assertions that both stacks write to the declared store and
+  that `/healthz` reports it.
 - `impact-of-node.rq` can list the data a node holds.
 - Existing models with no store keep working on embedded SQLite.

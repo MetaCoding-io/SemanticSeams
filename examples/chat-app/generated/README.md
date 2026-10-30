@@ -15,12 +15,12 @@ and regenerate. Each file carries the model hash it was generated from.
 Regenerate from the repository root:
 
 ```
-python -m seams_gen fastapi examples/chat-app/chat-app.trig --out examples/chat-app/generated
-python -m seams_gen htmx examples/chat-app/chat-app.trig --out examples/chat-app/generated/templates
-python -m seams_gen compose examples/chat-app/chat-app.trig --out .
+seams generate --project examples/chat-app
 ```
 
+It runs the three generators [`../seams.toml`](../seams.toml) names, writing each output
+above (reference: [docs/reference/seams-cli.md](../../../docs/reference/seams-cli.md)).
 If a generator stops writing a file, delete the committed copy.
 `tests/test_generated_outputs_current.py` fails when a committed file differs from
-what the generators produce, and CI reruns the commands above and fails on any
+what the generators produce, and CI reruns the command above and fails on any
 `git diff` or untracked file under these paths.

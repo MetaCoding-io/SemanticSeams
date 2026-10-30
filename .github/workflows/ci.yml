@@ -39,14 +39,20 @@ jobs:
       - name: Generated outputs are current
         run: |
           # Activated so the commands below stay literal: tests/test_tutorial_doc.py
-          # checks docs/tutorial.md against them.
+          # checks docs/tutorial.md against them. Each seams.toml names its
+          # generators and outputs (docs/reference/seams-cli.md).
           source .venv/bin/activate
-          trig=examples/chat-app/chat-app.trig
-          python -m seams_gen fastapi "$trig" --out examples/chat-app/generated
-          python -m seams_gen htmx "$trig" --out examples/chat-app/generated/templates
-          python -m seams_gen compose "$trig" --out .
-          git diff --exit-code -- examples/chat-app/generated compose.yaml
-          untracked=$(git status --porcelain --untracked-files=all -- examples/chat-app/generated compose.yaml)
+          seams generate --project examples/chat-app
+          seams generate --project examples/expenses/chapter-01
+          seams generate --project examples/expenses/chapter-02
+          seams generate --project examples/expenses/chapter-03
+          seams generate --project examples/expenses/chapter-04
+          seams generate --project examples/expenses/chapter-05
+          seams generate --project examples/expenses/chapter-06
+          seams generate --project examples/expenses/chapter-07
+          seams generate --project examples/expenses/chapter-08
+          git diff --exit-code -- examples compose.yaml
+          untracked=$(git status --porcelain --untracked-files=all -- examples compose.yaml)
           if [ -n "$untracked" ]; then
             echo "Regeneration left untracked or modified files; commit or delete them:"
             echo "$untracked"

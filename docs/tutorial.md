@@ -53,23 +53,25 @@ uv sync --all-packages
 source .venv/bin/activate
 ```
 
-Then run the three generators:
+Then regenerate everything the chat app's project file names:
 
 ```
-python -m seams_gen fastapi examples/chat-app/chat-app.trig --out examples/chat-app/generated
-python -m seams_gen htmx examples/chat-app/chat-app.trig --out examples/chat-app/generated/templates
-python -m seams_gen compose examples/chat-app/chat-app.trig --out .
+seams generate --project examples/chat-app
 ```
 
-They write the FastAPI route module (`examples/chat-app/generated/chat_api.py`), the
-htmx page and partials (`examples/chat-app/generated/templates/`) and the prod-shaped
-`compose.yaml`. On an unchanged model they produce no diff:
+It reads [`examples/chat-app/seams.toml`](../examples/chat-app/seams.toml), which names the
+three generators and their outputs: the FastAPI route module
+(`examples/chat-app/generated/chat_api.py`), the htmx page and partials
+(`examples/chat-app/generated/templates/`) and the prod-shaped root `compose.yaml`. The
+[seams CLI reference](/reference/seams-cli) describes the file. To run a single generator,
+`python -m seams_gen <generator>` still works. On an unchanged model the command produces
+no diff:
 
 ```
 git diff --exit-code -- examples/chat-app/generated compose.yaml
 ```
 
-CI runs exactly these commands and fails if anything changed.
+CI runs exactly this command, and the same for each expenses chapter, and fails if anything changed.
 
 ## 4. Choose an LLM
 

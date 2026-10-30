@@ -2,10 +2,11 @@
 
 examples/chat-app/generated/ (route module and templates) and the root
 compose.yaml are committed so the docker images and `docker compose up` use
-stable paths. Each test regenerates through the same entry point CI uses and
+stable paths. Each test regenerates through the `python -m seams_gen` entry point and
 compares against the committed copy: the same set of files (no stale extra
 file survives) and byte-equal contents. A mismatch fails with a unified diff
-naming the committed path and the command that regenerates it.
+naming the committed path and the command that regenerates it
+(``seams generate --project examples/chat-app``).
 """
 
 from __future__ import annotations
@@ -24,12 +25,10 @@ GENERATED = EXAMPLE / "generated"
 TEMPLATES = GENERATED / "templates"
 COMPOSE = ROOT / "compose.yaml"
 
-TRIG_ARG = "examples/chat-app/chat-app.trig"
-COMMANDS = {
-    "fastapi": f"python -m seams_gen fastapi {TRIG_ARG} --out examples/chat-app/generated",
-    "htmx": f"python -m seams_gen htmx {TRIG_ARG} --out examples/chat-app/generated/templates",
-    "compose": f"python -m seams_gen compose {TRIG_ARG} --out .",
-}
+# Every failure hint gives the one command that rewrites all the chat-app
+# outputs from examples/chat-app/seams.toml.
+REGENERATE = "seams generate --project examples/chat-app"
+COMMANDS = {"fastapi": REGENERATE, "htmx": REGENERATE, "compose": REGENERATE}
 # Files in examples/chat-app/generated/ that no generator writes.
 HAND_WRITTEN = {"README.md"}
 
@@ -94,11 +93,11 @@ def test_compose_file_is_current():
     assert_current(generated, {"compose.yaml": COMPOSE.read_text(encoding="utf-8")}, ROOT, COMMANDS["compose"])
 
 
-def test_generated_readme_names_the_regenerate_commands():
+def test_generated_readme_names_the_regenerate_command():
     readme = (GENERATED / "README.md").read_text(encoding="utf-8")
     assert "Do not edit" in readme
-    for command in COMMANDS.values():
-        assert command in readme
+    assert REGENERATE in readme
+    assert "(../seams.toml)" in readme
 
 
 def test_checker_reports_a_model_edit(tmp_path):

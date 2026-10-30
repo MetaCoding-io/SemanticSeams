@@ -1,8 +1,8 @@
 """docs/tutorial.md shows the commands CI actually runs (M004/S07/T06).
 
-The seams_gen lines are read from the "Generated outputs are current" step of
-.github/workflows/ci.yml, with its ``$trig`` variable expanded, so changing
-the CI regeneration without updating the tutorial (or the reverse) fails here.
+The ``seams generate`` lines are read from the "Generated outputs are current"
+step of .github/workflows/ci.yml, so changing the chat-app regeneration in CI
+without updating the tutorial (or the reverse) fails here.
 The "See where it landed" psql command is the one tests/test_tutorial_e2e.py
 runs against the live stack.
 """
@@ -34,9 +34,7 @@ def _ci_steps() -> dict:
 
 def _regeneration_commands() -> list[str]:
     script = _ci_steps()[("acceptance", "Generated outputs are current")]["run"]
-    trig = re.search(r"^\s*trig=(\S+)\s*$", script, re.M).group(1)
-    lines = [ln.strip() for ln in script.splitlines() if ln.strip().startswith("python -m seams_gen")]
-    return [ln.replace('"$trig"', trig).replace("$trig", trig) for ln in lines]
+    return [ln.strip() for ln in script.splitlines() if ln.strip().startswith("seams generate")]
 
 
 def _code_lines() -> set[str]:
@@ -46,9 +44,14 @@ def _code_lines() -> set[str]:
 
 def test_tutorial_shows_the_ci_regeneration_commands():
     commands = _regeneration_commands()
-    assert [c.split()[3] for c in commands] == ["fastapi", "htmx", "compose"], commands
-    missing = [c for c in commands if c not in _code_lines()]
-    assert not missing, f"docs/tutorial.md lacks the CI regeneration commands: {missing}"
+    chat_app = "seams generate --project examples/chat-app"
+    assert chat_app in commands, commands
+    # Every expenses chapter with a project file is regenerated too.
+    chapters = sorted(p.parent.name for p in (ROOT / "examples" / "expenses").glob("chapter-*/seams.toml"))
+    assert [c for c in commands if c != chat_app] == [
+        f"seams generate --project examples/expenses/{chapter}" for chapter in chapters
+    ], commands
+    assert chat_app in _code_lines(), f"docs/tutorial.md lacks the CI regeneration command: {chat_app}"
 
 
 def test_tutorial_shows_the_compose_lines_the_e2e_job_exercises():

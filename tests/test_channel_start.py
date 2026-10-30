@@ -19,11 +19,7 @@ if str(ROOT) not in sys.path:
 
 from seams_gen import GeneratorError  # noqa: E402
 from seams_gen.compose import extract_compose  # noqa: E402
-from seams_gen.fastapi import (  # noqa: E402
-    Facts,  # noqa: E402
-    extract_routes,
-    serving_containers,
-)
+from seams_gen.fastapi import extract_routes, serving_containers  # noqa: E402
 from seams_gen.htmx import extract_page, render_fragments, render_task_forms  # noqa: E402
 from seams_runtime import (  # noqa: E402
     HeaderAuthenticator,
@@ -257,7 +253,7 @@ def test_generators_skip_the_subscribed_process():
     assert module.id == "expense_api"
     # Only the UI-triggered process gets a start route.
     assert sorted(e.start.process for e in module.endpoints if e.start is not None) == [":approval_process"]
-    assert [str(c) for c in serving_containers(Facts(model))] == [EX + "expense_api"]
+    assert [str(c) for c in serving_containers(model).iris()] == [EX + "expense_api"]
     page = extract_page(model)
     assert render_fragments(page) and render_task_forms(page)
     assert extract_compose(model, base_dir=FIXTURE)

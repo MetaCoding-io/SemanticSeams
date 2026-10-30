@@ -14,7 +14,18 @@ from rdflib.namespace import SH
 
 from ..namespaces import COMM, HYDRA, ODRL, PROC, STATE
 from ._base import Element, HasIri, Many, Views
-from .architecture import Architecture, Container, DeploymentNode, Environment, System
+from .architecture import (
+    Architecture,
+    Artifact,
+    Binding,
+    Container,
+    DeploymentNode,
+    Environment,
+    Healthcheck,
+    Port,
+    System,
+    Volume,
+)
 from .decisions import Decision, all_decisions
 from .interfaces import Component, Event, Flow, InteractionModel, Interfaces, Page, Parameter, ParameterBinding
 from .lifecycles import Lifecycle, Lifecycles, State, Transition
@@ -28,6 +39,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Architecture",
+    "Artifact",
+    "Binding",
     "Channel",
     "Component",
     "Container",
@@ -40,6 +53,7 @@ __all__ = [
     "Flow",
     "FlowNode",
     "HasIri",
+    "Healthcheck",
     "InteractionModel",
     "Interfaces",
     "Lifecycle",
@@ -51,6 +65,7 @@ __all__ = [
     "Parameter",
     "ParameterBinding",
     "PathTemplate",
+    "Port",
     "Policy",
     "Process",
     "ProcessElement",
@@ -60,6 +75,7 @@ __all__ = [
     "System",
     "Transition",
     "Views",
+    "Volume",
     "architecture",
     "channels",
     "decisions",

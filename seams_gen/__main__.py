@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from seams import ModelGraph
+from seams import load
 
 from . import GeneratorError
 from .compose import generate_compose
@@ -31,7 +31,7 @@ def _htmx(trig: Path, out: Path) -> dict[str, str]:
     the fragment partials its UIFragment operations render (GAP-19), the
     partial of each form a user task is completed on (ADR-0009), and each
     other page of ``model.interfaces.served_pages()`` with its partials."""
-    return generate_pages(ModelGraph.load(trig))
+    return generate_pages(load(trig))
 
 
 def _fastapi(trig: Path, out: Path) -> dict[str, str]:

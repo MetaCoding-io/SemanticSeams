@@ -24,7 +24,7 @@ RUNTIME_STACK = [
 # seams itself uses neither; seams_gen renders with jinja2 and yaml
 FORBIDDEN = [*RUNTIME_STACK, "jinja2", "yaml"]
 
-GENERATORS = ["compose", "fastapi", "htmx", "fragments", "facts"]
+GENERATORS = ["compose", "fastapi", "htmx", "fragments", "_views"]
 
 
 def _blocker(forbidden: list[str]) -> str:

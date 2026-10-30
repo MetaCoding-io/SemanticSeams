@@ -38,11 +38,11 @@ from seams import (
     STATE,
     Channel,
     Model,
-    ModelGraph,
     Operation,
     Page,
     ProcessElement,
     ResolutionError,
+    load,
     local_name,
 )
 from seams import Component as ComponentView
@@ -788,14 +788,14 @@ def generate_pages(model: Model) -> dict[str, str]:
 
 def generate_page(trig_path) -> str:
     """Load the model and render its landmark page."""
-    return render_page(extract_page(ModelGraph.load(trig_path)))
+    return render_page(extract_page(load(trig_path)))
 
 
 def generate_fragments(trig_path) -> dict[str, str]:
     """Load the model and render the partials its UIFragment operations name."""
-    return render_fragments(extract_page(ModelGraph.load(trig_path)))
+    return render_fragments(extract_page(load(trig_path)))
 
 
 def generate_task_forms(trig_path) -> dict[str, str]:
     """Load the model and render the partial of each form a user task is completed on."""
-    return render_task_forms(extract_page(ModelGraph.load(trig_path)))
+    return render_task_forms(extract_page(load(trig_path)))

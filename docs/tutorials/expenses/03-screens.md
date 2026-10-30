@@ -166,14 +166,33 @@ and the form `seam:writes :ExpenseShape`. Because the event does not `seam:trigg
 process, the generated handler validates the input and stores it itself
 ([Saving a form without a process](/guide/authoring-a-model#saving-a-form-without-a-process)).
 
-Run the two generators from the repository root. These write into the chapter 3
-checkpoint directory; point the arguments at your own file and an output directory of
-your choice to generate from your copy.
+Each checkpoint with generated code has a project file, `seams.toml`, next to its model.
+It names the model and the generators to run, each with the directory it writes to.
+Paths are relative to the file. Chapter 3's
+([`seams.toml`](../../../examples/expenses/chapter-03/seams.toml)) runs two:
+
+```toml
+model = "expenses.trig"
+
+[[generators]]
+name = "fastapi"
+out = "generated"
+
+[[generators]]
+name = "htmx"
+out = "generated/templates"
+```
+
+With the virtual environment active, `seams generate` runs every generator the project
+file names. From the repository root:
 
 ```sh
-python -m seams_gen fastapi examples/expenses/chapter-03/expenses.trig --out examples/expenses/chapter-03/generated
-python -m seams_gen htmx examples/expenses/chapter-03/expenses.trig --out examples/expenses/chapter-03/generated/templates
+seams generate --project examples/expenses/chapter-03
 ```
+
+This writes into the chapter 3 checkpoint directory. To generate from your copy, put a
+`seams.toml` like this one next to your file and pass its directory to `--project`. The
+[seams CLI reference](/reference/seams-cli) describes the file and the command.
 
 `fastapi` writes `expense_api.py`, the route module of `:expense_api`, the container that
 exposes the operation the form submits to. `htmx` writes the landmark page

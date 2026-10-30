@@ -1,9 +1,8 @@
 """The expense tutorial's chapter-08 compose file is current (M009/S07/T03).
 
 examples/expenses/chapter-08/compose.yaml is generated from the checkpoint's
-deploy facts by ``python -m seams_gen compose
-examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08``
-and committed; tests/test_expense_e2e.py brings it up with the hand-written
+deploy facts by ``seams generate --project examples/expenses/chapter-08``
+(its seams.toml names the compose generator) and committed; tests/test_expense_e2e.py brings it up with the hand-written
 compose.override.yaml. This checks the committed file equals a fresh run, so
 a model edit that changes the model hash (or a deploy fact) cannot leave a
 stale compose file behind, and that the bind mounts are the TriG plus its
@@ -25,7 +24,7 @@ from seams_runtime import ModelGraph  # noqa: E402
 
 APP = ROOT / "examples" / "expenses" / "chapter-08"
 TRIG = APP / "expenses.trig"
-COMMAND = "python -m seams_gen compose examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08"
+COMMAND = "seams generate --project examples/expenses/chapter-08"
 
 
 def test_committed_compose_file_is_current():

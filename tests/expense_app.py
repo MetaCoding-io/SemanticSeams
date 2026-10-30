@@ -1,8 +1,10 @@
 """Shared helpers for the expense tutorial app tests (chapters 3 onward).
 
 Each chapter with generated code commits examples/expenses/chapter-NN/generated/
-(route module plus templates/). ``commands(chapter)`` is the pair of generator
-commands the tutorial page shows and the generated README names;
+(route module plus templates/) and a seams.toml naming its generators.
+``generate_command(chapter)`` is the ``seams generate`` command the tutorial
+page shows and the generated README names; ``commands(chapter)`` maps each
+generator to that command, the failure hint the drift checks print;
 ``assert_generated_current`` regenerates both into tmp_path and diffs them
 against the committed copy (helpers shared with
 tests/test_generated_outputs_current.py). ``serve`` builds the host app for a
@@ -71,14 +73,14 @@ def chapter_dir(chapter: str) -> Path:
     return EXPENSES / chapter
 
 
+def generate_command(chapter: str) -> str:
+    """The regenerate command, run from the repository root."""
+    return f"seams generate --project examples/expenses/{chapter}"
+
+
 def commands(chapter: str) -> dict[str, str]:
-    """The regenerate commands, run from the repository root."""
-    trig = f"examples/expenses/{chapter}/expenses.trig"
-    out = f"examples/expenses/{chapter}/generated"
-    return {
-        "fastapi": f"python -m seams_gen fastapi {trig} --out {out}",
-        "htmx": f"python -m seams_gen htmx {trig} --out {out}/templates",
-    }
+    """The regenerate command to hint for each generator of the chapter."""
+    return {"fastapi": generate_command(chapter), "htmx": generate_command(chapter)}
 
 
 def host_command(chapter: str) -> list[str]:

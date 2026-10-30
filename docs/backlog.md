@@ -139,7 +139,7 @@ the model.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
-| A1 | **Project file and `seams` CLI**: one file names the model, generators, output paths and environments; `seams generate` runs them all, `seams check` validates the model and confirms outputs are current | M | E2 | none | planned (M012/S01, S03) |
+| A1 | **Project file and `seams` CLI**: one file names the model, generators, output paths and environments; `seams generate` runs them all, `seams check` validates the model and confirms outputs are current | M | E2 | none | partly done (M012/S01 done: seams.toml and `seams generate`; `seams check` planned in M012/S03) |
 | A2 | **Lockfile of generated files**: model hash, generator and version, file hash and source elements per output; orphan cleanup and hand-edit detection | S | A1 | none; generators and runtime gain versions | planned (M012/S02) |
 | A3 | **Reusable CI action and pre-commit hook**: shape validation, regenerate-and-diff, canned queries as gates | S | A1 | none | planned (M012/S03) |
 | A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | planned (M016/S01, S02) |
@@ -285,7 +285,10 @@ UI work must not eat M3.*
      written row lands in the declared PostgreSQL. M011 landed.*
    - **M012, Generate and Check Anywhere** (A1, A2, A3, A6): project file, `seams generate`
      and `seams check`, the generated-file lockfile, a reusable CI action and pre-commit
-     hook, and `seams status`. Depends on M010.
+     hook, and `seams status`. Depends on M010. *A1 generate done, M012/S01: the chat app
+     and every expenses chapter have a seams.toml, `seams generate`
+     rewrites their committed outputs byte-for-byte, and CI, the tutorials and the
+     generated READMEs regenerate through it.*
    - **M013, Derived Sequence Diagrams** (U3, U1, U4): the declared delta stream, the
      as-designed deriver, viewer and docs embedding, and the as-executed sequence with
      OpenTelemetry spans. Depends on M010 and M011.

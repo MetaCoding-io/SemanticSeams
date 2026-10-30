@@ -21,9 +21,12 @@ hash it was generated from.
 Regenerate from the repository root:
 
 ```
-python -m seams_gen fastapi examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08/generated
-python -m seams_gen htmx examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08/generated/templates
+seams generate --project examples/expenses/chapter-08
 ```
+
+It runs the three generators [`../seams.toml`](../seams.toml) names, writing each output
+above and the chapter's `../compose.yaml`
+(reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 
 Compared with chapter 7, the route module gains two read routes for the
 finance console (`list_payments`, `paid_expenses`) and the `payouts` SSE

@@ -6,14 +6,15 @@ examples/expenses/chapter-NN/expenses.trig (compared line by line with
 surrounding whitespace stripped and blank lines ignored), every ```xml block
 is likewise an excerpt of one of the chapter's BPMN or DMN payload files, and
 the page links the checkpoint. The pages are chapters 1, 2, 3... with no gap. Chapter 3 and
-every process chapter (4 onward) show the generator commands
+every process chapter (4 onward) show the ``seams generate`` command
 tests/expense_app.py names for them, and the host command with the
-environment the app tests set. Chapter 2 shows the deliberate mistake
+environment the app tests set; chapter 3 also shows its seams.toml verbatim. Chapter 2 shows the deliberate mistake
 tests/test_expense_checkpoints.py replays, and chapters 5 and 6 show the
 edits their app tests make on a copy of the checkpoint. Chapter 8 shows the
 docker compose command tests/test_expense_e2e.py runs and its psql check of
-the declared store, the compose generator command, and the complexity command
-with the report the checkpoint produces.
+the declared store, the seams generate command whose project file names the
+compose generator, and the complexity command with the report the checkpoint
+produces.
 """
 
 import re
@@ -27,8 +28,7 @@ for p in (ROOT, ROOT / "tests"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from expense_app import commands, host_command  # noqa: E402
-from test_expense_chapter3_app import COMMANDS  # noqa: E402
+from expense_app import generate_command, host_command  # noqa: E402
 from test_expense_checkpoints import CHAPTER_2_MISTAKE_TEXT  # noqa: E402
 from test_expense_e2e import PSQL, landed_sql  # noqa: E402
 
@@ -115,10 +115,18 @@ def test_page_links_its_checkpoint(page):
     assert (ROOT / target).resolve() in resolved, f"{page.name} does not link {target}"
 
 
-def test_chapter_3_shows_the_generator_commands_the_app_test_runs():
+def test_chapter_3_shows_the_generate_command():
     page = PAGES_DIR / "03-screens.md"
-    missing = [c for c in COMMANDS.values() if c not in code_lines(page)]
-    assert not missing, f"03-screens.md lacks the generator commands: {missing}"
+    assert generate_command("chapter-03") in code_lines(page), "03-screens.md lacks the seams generate command"
+
+
+def test_chapter_3_shows_its_project_file():
+    page = PAGES_DIR / "03-screens.md"
+    project = normalised((EXPENSES / "chapter-03" / "seams.toml").read_text(encoding="utf-8"))
+    [shown] = blocks(page, "toml")
+    assert contains_run(project, normalised(shown)), (
+        f"03-screens.md's ```toml block is not verbatim in examples/expenses/chapter-03/seams.toml:\n{shown}"
+    )
 
 
 def test_chapter_3_runs_the_host_as_the_app_test_does():
@@ -132,8 +140,7 @@ def test_chapter_3_runs_the_host_as_the_app_test_does():
 @pytest.mark.parametrize("page", PROCESS_PAGES, ids=[p.stem for p in PROCESS_PAGES])
 def test_process_chapter_shows_its_generator_and_host_commands(page):
     chapter = chapter_of(page)
-    missing = [c for c in commands(chapter).values() if c not in code_lines(page)]
-    assert not missing, f"{page.name} lacks the generator commands: {missing}"
+    assert generate_command(chapter) in code_lines(page), f"{page.name} lacks `{generate_command(chapter)}`"
     text = "\n".join(blocks(page, "sh"))
     missing = [fragment for fragment in host_command(chapter) if fragment not in text]
     assert not missing, f"{page.name} lacks the host command fragments: {missing}"
@@ -171,8 +178,9 @@ def test_chapter_6_refusal_diff_is_the_edit_ci_makes():
 
 def test_chapter_8_shows_the_compose_and_complexity_commands():
     """Chapter 8 runs the stack with the two files tests/test_expense_e2e.py
-    merges, regenerates compose.yaml as tests/test_expense_compose.py expects,
-    and measures the checkpoint tests/test_complexity.py pins."""
+    merges, regenerates compose.yaml through the project file (which names the
+    compose generator, as tests/test_seams_generate_examples.py checks), and
+    measures the checkpoint tests/test_complexity.py pins."""
     page = PAGES_DIR / "08-growing-up.md"
     app = "examples/expenses/chapter-08"
     lines = code_lines(page)
@@ -181,7 +189,8 @@ def test_chapter_8_shows_the_compose_and_complexity_commands():
         f'docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml {" ".join(PSQL)} "{landed_sql("hotel")}"'
     )
     assert psql in lines, f"08-growing-up.md lacks {psql}"
-    assert f"python -m seams_gen compose {app}/expenses.trig --out {app}" in lines
+    assert generate_command("chapter-08") in lines
+    assert 'name = "compose"' in (ROOT / app / "seams.toml").read_text(encoding="utf-8")
     assert f"python -m seams_gen.complexity {app}/expenses.trig" in lines
     # the report shown is the one the checkpoint produces now
     from seams_gen.complexity import load_model, measure, report

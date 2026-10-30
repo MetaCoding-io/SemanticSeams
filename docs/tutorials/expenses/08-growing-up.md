@@ -418,11 +418,10 @@ reports `"kind": "postgresql"`. Drop one of the facts, say the `seam:storedIn` o
 
 ## Generate the app
 
-Run the generators on the chapter 8 checkpoint:
+Run the generators the chapter 8 checkpoint's `seams.toml` names:
 
 ```sh
-python -m seams_gen fastapi examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08/generated
-python -m seams_gen htmx examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08/generated/templates
+seams generate --project examples/expenses/chapter-08
 ```
 
 `expense_api.py` gains the two read routes, `list_payments` and `paid_expenses`, and the
@@ -432,11 +431,9 @@ the way it serves the landmark page, because it has an `ifml:path` and holds no 
 form. The full list is in the
 [generated README](../../../examples/expenses/chapter-08/generated/README.md).
 
-The compose generator writes `compose.yaml` from the deploy facts:
-
-```sh
-python -m seams_gen compose examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08
-```
+The same command also writes the chapter's `compose.yaml` from the deploy facts, because
+chapter 8's [`seams.toml`](../../../examples/expenses/chapter-08/seams.toml) names a third
+generator, `compose`, with `out = "."`.
 
 ## Run it in process
 

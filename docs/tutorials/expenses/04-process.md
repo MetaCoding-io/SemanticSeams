@@ -274,8 +274,10 @@ SEAMS_DEV_USER=alice \
 python -m seams_runtime.host --routes examples/expenses/chapter-04/generated/expense_api.py --port 8001
 ```
 
-Submit an expense with its key in the path. The landmark page's form needs a key that
-nothing on the page supplies yet, so use curl for this step:
+Submit an expense with its key in the path. Nothing on the page supplies the key of an
+expense that does not exist yet, so the generated form makes one up: on every submit the
+browser puts a fresh random key in place of `{expense}`. To get a key you can read, use
+curl for this step:
 
 ```sh
 curl -X POST http://localhost:8001/expenses/e1 -d "description=Train to Leeds" -d amount=42.50 -d date=2026-10-01

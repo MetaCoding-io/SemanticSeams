@@ -33,8 +33,10 @@
   {# :submit_expense seam:triggers :approval_process #}
   {# POST, UIFragment response: :employee_portal seam:consumes :submit_expense_op #}
   {# :submit_expense seam:submitsTo :submit_expense_op ; the route enforces seam:governedBy :employee_submit_policy #}
+  {# {expense} starts a new process instance: no component on the page binds it, so the browser fills it with a fresh random key on every submit #}
   <form id="expense_form" aria-label="New Expense"
-        hx-post="/expenses/{{ expense }}"
+        hx-post="/expenses/{expense}"
+        hx-on::config-request="event.detail.path = event.detail.path.replace('{expense}', Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join(''));"
         hx-target="#expense_list_items"
         hx-swap="beforeend">
     <label for="expense_description">description</label>

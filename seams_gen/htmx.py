@@ -122,6 +122,10 @@ class Submit:
     event_policies: tuple[str, ...]
     route_policies: tuple[str, ...]
     flow: Flow
+    # correlation-key variables no page component binds: a form that starts a
+    # new process instance; the path keeps {key} and the browser fills it
+    # with a fresh random key on every submit
+    mint: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -232,11 +236,17 @@ def extract_page(model: ModelGraph, page=None) -> PageModel:
     components.sort(key=lambda oc: oc[0])
 
     page_params = {f.label(p) for _, c in components for p in f.objects(c, IFML.hasParameter)}
+    # Runtime.page_context binds a correlation key only when a component that
+    # seam:reads a shape is scoped by it; any other key in a submit path is new.
+    keys = {f.label(p) for p in f.ds.objects(None, PROC.correlationKey)}
+    bound_keys = {f.label(p) for _, c in components if f.objects(c, SEAM.reads)
+                  for p in f.objects(c, IFML.hasParameter)} & keys
+    mintable = keys - bound_keys
     sse_channels = [ch for ch in f.objects(presenter, SEAM.consumes)
                     if (ch, RDF.type, COMM.Channel) in f.ds
                     and (ch, COMM.transport, COMM.SSE) in f.ds]
 
-    built = tuple(_component(f, c, order, presenter, page_params, sse_channels)
+    built = tuple(_component(f, c, order, presenter, page_params, sse_channels, mintable)
                   for order, c in components)
     task_forms = _task_forms(f, presenter) if landmark else ()
     screens = _screen_components(f, presenter, task_forms, {c.id for c in built}, sse_channels)
@@ -301,7 +311,7 @@ def _presenter(f: _Facts, imodel):
     return presenters[0]
 
 
-def _component(f: _Facts, c, order, presenter, page_params, sse_channels) -> Component:
+def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintable=frozenset()) -> Component:
     types = [t for t in COMPONENT_TYPES if (c, RDF.type, t) in f.ds]
     if len(types) != 1:
         raise GeneratorError(c, RDF.type, f"expected one of {[f.curie(t) for t in COMPONENT_TYPES]}")
@@ -375,7 +385,7 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels) -> Com
     # ifml:Form
     if writes is None:
         raise GeneratorError(c, SEAM.writes, "an ifml:Form must write a shape")
-    submit = _submit(f, c, presenter, fill_param)
+    submit = _submit(f, c, presenter, fill_param, mintable)
     fields = _fields(f, writes)
     bound = {}
     for p in f.objects(c, IFML.hasParameter):
@@ -469,7 +479,7 @@ def _list_link(f: _Facts, c) -> Link:
                 get_path=get_path, vals=tuple(sorted(vals)))
 
 
-def _submit(f: _Facts, c, presenter, fill_param) -> Submit:
+def _submit(f: _Facts, c, presenter, fill_param, mintable=frozenset()) -> Submit:
     events = [e for e in f.objects(c, IFML.hasEvent) if f.objects(e, SEAM.submitsTo)]
     if len(events) != 1:
         subject = f.objects(c, IFML.hasEvent)
@@ -483,9 +493,15 @@ def _submit(f: _Facts, c, presenter, fill_param) -> Submit:
         raise GeneratorError(presenter, SEAM.consumes, f"the presenting container does not consume {op}")
     method = str(f.one(op, HYDRA.method))
     template, _ = f.path_template(op)
+    variables = re.findall(r"\{(\w+)\}", template)
+    mint = tuple(v for v in variables if v in mintable)
+    for var in mint:
+        fill_param(var)  # still a parameter of the page
+    path = re.sub(r"\{(\w+)\}", lambda m: m.group(0) if m.group(1) in mint
+                  else "{{ " + fill_param(m.group(1)) + " }}", template)
     return Submit(
         event=f.curie(event), label=f.label(event), method=method.lower(), method_upper=method.upper(),
-        path=_fill(template, fill_param), operation=f.curie(op),
+        path=path, operation=f.curie(op), mint=mint,
         media_kind=local_name(f.one(op, SEAM.mediaKind)), consumer=f.curie(presenter),
         triggers=tuple(f.curie(p) for p in f.objects(event, SEAM.triggers)),
         event_policies=tuple(f.curie(p) for p in f.objects(event, SEAM.governedBy)),

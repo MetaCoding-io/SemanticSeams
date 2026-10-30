@@ -57,8 +57,14 @@
 [% endif %]
   {# [[ s.method_upper ]], [[ s.media_kind ]] response: [[ s.consumer ]] seam:consumes [[ s.operation ]] #}
   {# [[ s.event ]] seam:submitsTo [[ s.operation ]][[ " ; the route enforces seam:governedBy " ~ s.route_policies|join(", ") if s.route_policies else "" ]] #}
+[% if s.mint %]
+  {# {[[ s.mint|join("}, {") ]]} starts a new process instance: no component on the page binds it, so the browser fills it with a fresh random key on every submit #}
+[% endif %]
   <form id="[[ c.id ]]" aria-label="[[ c.label|e ]]"
         hx-[[ s.method ]]="[[ s.path ]]"
+[% if s.mint %]
+        hx-on::config-request="[% for v in s.mint %]event.detail.path = event.detail.path.replace('{[[ v ]]}', Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join(''));[% endfor %]"
+[% endif %]
         hx-target="#[[ s.flow.target_id ]]"
         hx-swap="[[ s.flow.swap ]]">
 [% for i in c.inputs %]

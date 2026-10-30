@@ -14,9 +14,11 @@ hash it was generated from.
 Regenerate from the repository root:
 
 ```
-python -m seams_gen fastapi examples/expenses/chapter-03/expenses.trig --out examples/expenses/chapter-03/generated
-python -m seams_gen htmx examples/expenses/chapter-03/expenses.trig --out examples/expenses/chapter-03/generated/templates
+seams generate --project examples/expenses/chapter-03
 ```
+
+It runs the two generators [`../seams.toml`](../seams.toml) names, writing each output
+above (reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 
 There is no process yet, so `submit_expense` calls `runtime.write`: it
 validates the form against `:ExpenseShape` (422 naming the failing path) and

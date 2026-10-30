@@ -157,10 +157,12 @@ Chapter 8's architecture graph has deploy facts: an image, ports and start
 order for each container, and one environment (`:prod`, with a node for each
 container). It also declares the store (ADR-0011): `:expense_db` is a
 `postgres:16` container with `deploy:storeKind deploy:PostgreSQL` on `:db01`,
-and the API's `DATABASE_URL` secret binding `deploy:connectsTo` it. The compose generator writes them to `chapter-08/compose.yaml`:
+and the API's `DATABASE_URL` secret binding `deploy:connectsTo` it. The compose generator writes them to `chapter-08/compose.yaml`;
+`chapter-08/seams.toml` names it alongside the code generators, so one command
+regenerates the chapter:
 
 ```
-python -m seams_gen compose examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08
+seams generate --project examples/expenses/chapter-08
 ```
 
 The API container gets the TriG and its four payloads (`approval.bpmn`,

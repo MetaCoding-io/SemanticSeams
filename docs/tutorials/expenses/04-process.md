@@ -242,11 +242,10 @@ from `approval.bpmn`.
 
 ## Generate the app
 
-Run the generators on the chapter 4 checkpoint:
+Run the generators the chapter 4 checkpoint's `seams.toml` names:
 
 ```sh
-python -m seams_gen fastapi examples/expenses/chapter-04/expenses.trig --out examples/expenses/chapter-04/generated
-python -m seams_gen htmx examples/expenses/chapter-04/expenses.trig --out examples/expenses/chapter-04/generated/templates
+seams generate --project examples/expenses/chapter-04
 ```
 
 Compare `submit_expense` in `expense_api.py` with chapter 3's. It no longer calls

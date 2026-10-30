@@ -18,9 +18,11 @@ hash it was generated from.
 Regenerate from the repository root:
 
 ```
-python -m seams_gen fastapi examples/expenses/chapter-06/expenses.trig --out examples/expenses/chapter-06/generated
-python -m seams_gen htmx examples/expenses/chapter-06/expenses.trig --out examples/expenses/chapter-06/generated/templates
+seams generate --project examples/expenses/chapter-06
 ```
+
+It runs the two generators [`../seams.toml`](../seams.toml) names, writing each output
+above (reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 
 Compared with chapter 5, the route module gains one handler,
 `awaiting_approval`, and the templates gain its guarded partial. The partials

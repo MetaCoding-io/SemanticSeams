@@ -202,11 +202,10 @@ opens the decision drawn from `approval.dmn`.
 
 ## Generate the app
 
-Run the generators on the chapter 5 checkpoint:
+Run the generators the chapter 5 checkpoint's `seams.toml` names:
 
 ```sh
-python -m seams_gen fastapi examples/expenses/chapter-05/expenses.trig --out examples/expenses/chapter-05/generated
-python -m seams_gen htmx examples/expenses/chapter-05/expenses.trig --out examples/expenses/chapter-05/generated/templates
+seams generate --project examples/expenses/chapter-05
 ```
 
 Compare `expense_api.py` with chapter 4's. The only new handler is

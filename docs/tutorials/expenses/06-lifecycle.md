@@ -219,11 +219,10 @@ process won the race. A separate block keeps the approval response unconditional
 
 ## Generate the app
 
-Run the generators on the chapter 6 checkpoint:
+Run the generators the chapter 6 checkpoint's `seams.toml` names:
 
 ```sh
-python -m seams_gen fastapi examples/expenses/chapter-06/expenses.trig --out examples/expenses/chapter-06/generated
-python -m seams_gen htmx examples/expenses/chapter-06/expenses.trig --out examples/expenses/chapter-06/generated/templates
+seams generate --project examples/expenses/chapter-06
 ```
 
 `expense_api.py` gains one handler, `awaiting_approval`, which queries the expense and

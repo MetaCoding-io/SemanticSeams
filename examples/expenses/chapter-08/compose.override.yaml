@@ -1,8 +1,8 @@
 # Hand-written local overrides for the generated, prod-shaped compose.yaml next
 # to this file. compose.yaml is generated from the chapter-08 expenses model
-# (python -m seams_gen compose examples/expenses/chapter-08/expenses.trig
-# --out examples/expenses/chapter-08) and must not be edited; everything a
-# laptop or CI run needs that production does not goes here instead.
+# (seams generate --project examples/expenses/chapter-08) and must not be
+# edited; everything a laptop or CI run needs that production does not goes
+# here instead.
 #
 # Compose only merges compose.override.yaml automatically from the working
 # directory, so pass both files (from the repository root):

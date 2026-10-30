@@ -204,11 +204,10 @@ Something does now: every edge of the statechart leads back to a task.
 
 ## Generate the app
 
-Run the generators on the chapter 7 checkpoint:
+Run the generators the chapter 7 checkpoint's `seams.toml` names:
 
 ```sh
-python -m seams_gen fastapi examples/expenses/chapter-07/expenses.trig --out examples/expenses/chapter-07/generated
-python -m seams_gen htmx examples/expenses/chapter-07/expenses.trig --out examples/expenses/chapter-07/generated/templates
+seams generate --project examples/expenses/chapter-07
 ```
 
 `expense_api.py` gains the payment handler, `pay_expense`, and the templates gain its

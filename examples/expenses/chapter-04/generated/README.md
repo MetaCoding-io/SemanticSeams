@@ -16,9 +16,11 @@ hash it was generated from.
 Regenerate from the repository root:
 
 ```
-python -m seams_gen fastapi examples/expenses/chapter-04/expenses.trig --out examples/expenses/chapter-04/generated
-python -m seams_gen htmx examples/expenses/chapter-04/expenses.trig --out examples/expenses/chapter-04/generated/templates
+seams generate --project examples/expenses/chapter-04
 ```
+
+It runs the two generators [`../seams.toml`](../seams.toml) names, writing each output
+above (reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 
 The submit event now `seam:triggers :approval_process`, so `submit_expense`
 validates the form and calls `runtime.start_process` with the `{expense}` path

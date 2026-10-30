@@ -239,6 +239,23 @@ container.
 | `deploy` | `replicas` from `deploy:replicas`; `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node (no label: error on the node and `rdfs:label`). |
 | Top level | `secrets:` and `volumes:` after `services:`, sorted, omitted when empty. |
 
+## Source elements
+
+`seams_gen.sources.output_sources(name, trig, out)` returns, for generator `name`,
+`{relative file name: IRIs}` with exactly the file names the generator writes for the
+same model. Each tuple holds the full IRIs of the model elements the file comes from,
+sorted and de-duplicated; `seams generate` records them in `seams.lock` (D043). They
+are read through the generators' own extract functions and the seams views, so a
+missing or ambiguous fact raises the generator's `GeneratorError`.
+
+| Generator | File | Source elements |
+|---|---|---|
+| `htmx` | `<page>.html` | the `ifml:ViewContainer` and each of its components |
+| `htmx` | fragment partial | the component it renders and each operation that `seam:rendersComponent` it; a partial two pages share lists the union |
+| `htmx` | task form partial | the `ifml:Form`, the `proc:UserTask` `seam:completedOn` it, the shape the form `seam:writes` and the shape the task `seam:reads` (if any) |
+| `fastapi` | `<container>.py` | the serving container, each `proc:Process` it `seam:executes` and the operation or channel of each endpoint |
+| `compose` | `compose.yaml` | the `arch:System` and each `arch:Container` it `arch:contains` |
+
 ## Complexity check
 
 ```

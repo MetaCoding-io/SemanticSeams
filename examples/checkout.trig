@@ -52,7 +52,8 @@
         seam:inModel :checkout_architecture .
 
     :order_db a arch:Container ; rdfs:label "Order Store" ;
-        arch:technology "RDF triplestore" ;
+        arch:technology "PostgreSQL" ;
+        deploy:storeKind deploy:PostgreSQL ;
         seam:inModel :checkout_architecture .
 
     :prod a arch:Environment ; rdfs:label "Production" ;
@@ -222,6 +223,9 @@
         seam:deployedTo :app01 .
 
     :order_db seam:deployedTo :db01 .
+
+    # Data → Architecture: where the order rows live (ADR-0011)
+    :OrderShape seam:storedIn :order_db .
 
     # UI → Process seam edges
     :submit_order seam:triggers :order_process ;

@@ -251,7 +251,7 @@ to 82. `most-reached.rq` ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, 
 ```python
 from seams_gen.complexity import load_model, measure
 r = measure(load_model("examples/checkout.trig"))
-r.multi_model_notations, r.max_reach, r.edges, r.failures   # 1, 4, 36, [...]
+r.multi_model_notations, r.max_reach, r.edges, r.failures   # 1, 4, 37, [...]
 ```
 
 ## Tests

@@ -77,6 +77,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:consumes ,
         seam:deployedTo ,
         seam:executes ,
+        seam:storedIn ,
         seam:triggers ,
         seam:completedOn ,
         seam:visibleWhen ,
@@ -342,9 +343,35 @@ seamsh:BindingShape a sh:NodeShape ;
               [ sh:path deploy:serviceOf ; sh:minCount 1 ] ) ;
     sh:property [ sh:path deploy:serviceOf ; sh:class arch:Container ;
         sh:message "deploy:serviceOf points at an arch:Container." ] ;
+    sh:property [ sh:path deploy:connectsTo ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "deploy:connectsTo points at one arch:Container (a store)." ] ;
     sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef or deploy:serviceOf." .
 
 seamsh:SecretNameShape a sh:NodeShape ;
     sh:targetSubjectsOf deploy:secretName ;
     sh:property [ sh:path deploy:secretRef ; sh:minCount 1 ;
         sh:message "deploy:secretName names the platform secret for a deploy:secretRef binding; a binding with a secretName must carry a secretRef." ] .
+
+#################################################################
+# Storage (ADR-0011)
+#################################################################
+
+seamsh:StoredInShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:storedIn ;
+    sh:class sh:NodeShape ;
+    sh:property [ sh:path seam:storedIn ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "seam:storedIn points at one arch:Container (a store)." ] ;
+    sh:message "Only a sh:NodeShape is seam:storedIn a store." .
+
+seamsh:StoreShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:storedIn , deploy:connectsTo ;
+    sh:property [ sh:path deploy:storeKind ; sh:minCount 1 ;
+        sh:message "A store (the object of seam:storedIn or deploy:connectsTo) declares a deploy:storeKind." ] .
+
+seamsh:StoreKindShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:storeKind ;
+    sh:class arch:Container ;
+    sh:property [ sh:path deploy:storeKind ; sh:maxCount 1 ;
+        sh:in ( deploy:PostgreSQL deploy:SQLite ) ;
+        sh:message "deploy:storeKind is at most one of deploy:PostgreSQL or deploy:SQLite." ] ;
+    sh:message "Only an arch:Container carries a deploy:storeKind." .

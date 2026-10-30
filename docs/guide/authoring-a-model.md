@@ -55,7 +55,9 @@ A model only uses the seam predicates that already exist. If you extend
 or `seam:Layer`, and add it to the `seamsh:RevealShape` target list in
 `ontology/shapes/seam-shapes.ttl`. Open and nest predicates navigate on click
 ([ADR-0005](/adr/0005-navigation-resolution)). A predicate without a mode counts as
-layer, so it only appears in the inspector.
+layer, so it only appears in the inspector. Then use it at least once in
+`examples/checkout.trig`: the acceptance suite fails on a declared seam predicate that
+no example exercises.
 :::
 
 ### Saving a form without a process
@@ -70,6 +72,55 @@ runtime fills it with the new entity's id first, so the form does not ask for it
 entity starts in the lifecycle's initial state when `S` has a `seam:lifecycle`
 (decision D026). Once the event `seam:triggers` a process, the
 handler starts the process instead and the worker does the persisting.
+
+### Where the data is stored
+
+Three facts say where a model's data lives ([ADR-0011](/adr/0011-storage-resolution)):
+
+- `seam:storedIn` goes from a `sh:NodeShape` to the store `arch:Container` that persists
+  its instances.
+- `deploy:storeKind` gives the store its kind, `deploy:PostgreSQL` or `deploy:SQLite`.
+  `arch:technology` stays free text for people.
+- `deploy:connectsTo` on a `deploy:binding` names the store whose connection string the
+  binding carries. The value still comes from `deploy:secretRef` and `deploy:secretName`
+  (or `deploy:value` for a dev URL), and the runtime will read the environment variable
+  named by the binding's `deploy:key`, whatever it is called.
+
+```turtle
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix :       <https://example.org/chat/> .
+
+:MessageShape a sh:NodeShape ; rdfs:label "Message" ;
+    seam:storedIn :message_db .
+
+:message_db a arch:Container ; rdfs:label "Message Store" ;
+    arch:technology "PostgreSQL" ;
+    deploy:storeKind deploy:PostgreSQL .
+
+:chat_api a arch:Container ; rdfs:label "Chat API" ;
+    deploy:configuration [ a deploy:Configuration ;
+        deploy:binding [ deploy:key "DB_URL" ;
+                         deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ;
+                         deploy:secretName "chat-prod-db-url" ;
+                         deploy:connectsTo :message_db ] ] .
+```
+
+Process state follows the container that runs the process. Process instances, worker
+rows and the process's entities live in the store that the container which
+`seam:executes` the process connects to. So each shape the model writes must be
+`seam:storedIn` that same store, and an executing container connects to at most one
+store. A model that declares no store keeps embedded SQLite, with the file path taken
+from `SEAMS_DB`.
+
+The SHACL shapes check these facts now. Only a shape is `seam:storedIn`, and only in one
+`arch:Container`. Every store that a shape is stored in or a binding connects to has a
+`deploy:storeKind`, and has only one, from the supported set. A binding connects to at
+most one container. The runtime does not read the facts yet: it still writes to SQLite.
+A later release resolves the store from them when the model loads.
 
 ### Human tasks
 

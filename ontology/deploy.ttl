@@ -124,6 +124,28 @@ deploy:interval a rdf:Property ;
     rdfs:domain deploy:Healthcheck ;
     rdfs:comment "Time between probes, as a duration string (e.g. '5s')." .
 
+deploy:StoreKind a rdfs:Class ;
+    rdfs:label "Store kind" ;
+    rdfs:comment "Controlled vocabulary of the stores the runtime can use (ADR-0011). The runtime checks a store's deploy:storeKind against it; arch:technology stays free text for people and is never read." .
+
+deploy:PostgreSQL a deploy:StoreKind ;
+    rdfs:label "PostgreSQL" ;
+    rdfs:comment "A PostgreSQL server, reached through a deploy:connectsTo binding on the executing container." .
+
+deploy:SQLite a deploy:StoreKind ;
+    rdfs:label "SQLite" ;
+    rdfs:comment "An embedded SQLite file. No connection is needed; the path comes from the SEAMS_DB environment variable." .
+
+deploy:storeKind a rdf:Property ;
+    rdfs:label "store kind" ;
+    rdfs:domain arch:Container ; rdfs:range deploy:StoreKind ;
+    rdfs:comment "Store arch:Container -> the deploy:StoreKind it is. Exactly one per store (constraint in shapes/seam-shapes.ttl)." .
+
+deploy:connectsTo a rdf:Property ;
+    rdfs:label "connects to" ;
+    rdfs:range arch:Container ;
+    rdfs:comment "On a deploy:binding blank node: the store arch:Container whose connection string the binding carries. It sits beside deploy:serviceOf; the value still comes from deploy:secretRef / deploy:secretName (or deploy:value for a non-secret dev URL), and the runtime reads the environment variable named by the binding's deploy:key, never a fixed key name (ADR-0011)." .
+
 #################################################################
 # Resources, replication, ordering
 #################################################################

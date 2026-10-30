@@ -117,6 +117,15 @@ seam:executes a rdf:Property ;
     rdfs:comment "arch:Container -> proc:Process it runs. Completes impact analysis: 'what breaks if node X dies' must reach the process layer, and the generic graph-literate worker needs to know where a task's process lives." .
 
 #################################################################
+# Data <-> architecture
+#################################################################
+
+seam:storedIn a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "stored in" ;
+    rdfs:comment "sh:NodeShape -> arch:Container (a store) that persists its instances. Lets impact-of-node.rq answer which data is lost if a node goes away (ADR-0011). (Constraint in shapes/seam-shapes.ttl.)" .
+
+#################################################################
 # UI <-> process
 #################################################################
 

@@ -65,7 +65,8 @@
     seam:deployedTo :app01 .   # resolved output of the placement policy
 
 :order_db a arch:Container ; rdfs:label "Order Store" ;
-    arch:technology "RDF triplestore" ;
+    arch:technology "PostgreSQL" ;
+    deploy:storeKind deploy:PostgreSQL ;          # controlled vocabulary the runtime reads (ADR-0011)
     seam:deployedTo :db01 .
 
 :prod a arch:Environment ; rdfs:label "Production" ;
@@ -193,6 +194,7 @@
     sh:property [ sh:path :status ; sh:maxCount 1 ] ;
     seam:lifecycle :order_lifecycle ;
     seam:detailedBy :order_shape_graph ;
+    seam:storedIn :order_db ;                     # where its instances live (ADR-0011)
     seam:inModel :order_shape_graph .
 
 :order_shape_graph a seam:Model ; rdfs:label "Order Data Model" ;

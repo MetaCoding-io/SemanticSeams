@@ -57,7 +57,7 @@ def test_checkout_scores():
     assert sorted(r.models_per_notation[1:]) == [(SEAM + n, 1) for n in NOTATIONS if n != "BPMN"]
     assert r.multi_model_notations == 1
     assert r.max_reach == 4
-    assert r.edges == 36
+    assert r.edges == 37
     shop = "https://example.org/shop/"
     # The fifth row is the IRI-first of many elements tied at 1 (deterministic tie-break).
     assert r.most_reached == [

@@ -4,7 +4,8 @@ Each project under examples/ is copied into tmp_path at its repository-relative
 path, without its outputs, so the chat app's compose target (``../..``, the
 repository-root compose.yaml) lands at tmp_path/compose.yaml. ``seams generate``
 then has to write exactly the committed generated files: nothing missing, which
-catches a project file that forgets a generator, and nothing extra.
+catches a project file that forgets a generator, and nothing extra. The copy
+keeps the committed seams.lock, which generate rewrites byte for byte (D043).
 """
 
 import os
@@ -19,6 +20,7 @@ from seams_cli.__main__ import main
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
 COMPOSE = "compose.yaml"
+LOCK = "seams.lock"
 
 
 @pytest.fixture(autouse=True)
@@ -76,6 +78,19 @@ def test_generate_rewrites_the_committed_outputs(rel, tmp_path):
     before = {p.relative_to(tmp_path) for p in tmp_path.rglob("*") if p.is_file()}
     assert main(["generate", "--project", str(app)]) == 0
     _assert_matches_committed(tmp_path, _written(tmp_path, before), rel)
+    assert (app / LOCK).read_bytes() == (ROOT / rel / LOCK).read_bytes(), f"{rel / LOCK} is not current"
+
+
+@pytest.mark.parametrize("rel", PROJECTS, ids=str)
+def test_generate_recreates_a_removed_lockfile(rel, tmp_path):
+    app = _copy_without_outputs(rel, tmp_path)
+    (app / LOCK).unlink()
+    before = {p.relative_to(tmp_path) for p in tmp_path.rglob("*") if p.is_file()}
+    assert main(["generate", "--project", str(app)]) == 0
+    written = _written(tmp_path, before)
+    assert rel / LOCK in written
+    _assert_matches_committed(tmp_path, written - {rel / LOCK}, rel)
+    assert (app / LOCK).read_bytes() == (ROOT / rel / LOCK).read_bytes()
 
 
 def test_console_script_generates_from_the_working_directory(tmp_path):

@@ -34,9 +34,9 @@ out = "generated/templates"
 
 @pytest.fixture
 def app(tmp_path: Path) -> Path:
-    """chapter-03's model and seed, without its generated outputs."""
+    """chapter-03's model and seed, without its generated outputs and lockfile."""
     app = tmp_path / "app"
-    shutil.copytree(CHAPTER, app, ignore=shutil.ignore_patterns("generated"))
+    shutil.copytree(CHAPTER, app, ignore=shutil.ignore_patterns("generated", "seams.lock"))
     return app
 
 
@@ -64,14 +64,14 @@ def test_generate_rewrites_the_committed_outputs_byte_for_byte(app, capsys):
         assert (app / "generated" / name).read_bytes() == (COMMITTED / name).read_bytes(), name
     printed = capsys.readouterr().out.splitlines()
     assert printed == sorted(printed)
-    assert [Path(line).name for line in printed] == [Path(name).name for name in EXPECTED]
+    assert [Path(line).name for line in printed] == [Path(name).name for name in EXPECTED] + ["seams.lock"]
 
 
 def test_printed_paths_are_relative_to_the_cwd(app, capsys, monkeypatch):
     _project(app, 'model = "expenses.trig"\n' + GENERATORS)
     monkeypatch.chdir(app)
     assert main(["generate"]) == 0
-    assert capsys.readouterr().out.splitlines() == [str(Path("generated") / name) for name in EXPECTED]
+    assert capsys.readouterr().out.splitlines() == [str(Path("generated") / name) for name in EXPECTED] + ["seams.lock"]
 
 
 def test_project_accepts_the_file_or_its_directory(app):

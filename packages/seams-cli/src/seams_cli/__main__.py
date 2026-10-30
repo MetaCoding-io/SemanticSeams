@@ -3,6 +3,15 @@
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
 path is printed, relative to the working directory when it lies below it.
+
+The project's seams.lock (D043) records every output; generate rewrites it
+last and prints its path. An output the old lock lists but no generator writes
+any more is deleted and printed as ``removed <path>`` when it is a regular file
+still matching its locked hash; otherwise it is kept and reported on stderr as
+``kept hand-edited orphan``. A locked output edited by hand is reported as
+``overwrote hand-edited``, a deleted one as ``restored deleted``; both are
+rewritten and the exit code stays 0. A malformed seams.lock exits 2 before
+anything is written.
 A ProjectError or GeneratorError prints ``seams generate: <message>`` to
 stderr and exits 2; a file that cannot be read or written exits 1.
 The ``check`` and ``status`` subcommands are to come (M012/S03, S04).
@@ -16,7 +25,8 @@ from pathlib import Path
 
 from seams_gen import GeneratorError
 
-from .generate import generate_project, write_outputs
+from .generate import apply, generate_project
+from .lockfile import locate
 from .project import ProjectError, load_project, resolve_model
 
 EXIT_PROJECT_ERROR = 2
@@ -48,10 +58,20 @@ def _display(path: Path) -> str:
 
 def _generate(args: argparse.Namespace) -> int:
     project = load_project(args.project)
-    files = generate_project(project, resolve_model(project, args.model))
-    write_outputs(files)
+    model = resolve_model(project, args.model)
+    files = generate_project(project, model)
+    applied = apply(project, model, files)
+    report = applied.audit
+    for kind, paths in (("overwrote hand-edited", report.edited), ("restored deleted", report.missing)):
+        for rel in paths:
+            print(f"seams generate: {kind} {_display(locate(project, rel))}", file=sys.stderr)
+    for path in applied.kept:
+        print(f"seams generate: kept hand-edited orphan {_display(path)}", file=sys.stderr)
     for path in sorted(files):
         print(_display(path))
+    for path in applied.removed:
+        print(f"removed {_display(path)}")
+    print(_display(applied.lock))
     return 0
 
 

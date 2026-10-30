@@ -21,10 +21,8 @@ from seams import (
     STATE,
     ChannelBinding,
     ChannelStart,
-    Container,
     DecisionBinding,
     InputBinding,
-    Lifecycle,
     ModelGraph,
     OperationPath,
     OutputBinding,
@@ -32,7 +30,6 @@ from seams import (
     Permission,
     PolicyFacts,
     ProcessFacts,
-    Transition,
     bpmn_start_event_ids,
     dmn_decision_ids,
     dmn_input_types,
@@ -40,6 +37,9 @@ from seams import (
     model_hash,
     payload_path,
 )
+
+# The resolver results named like a view class; top-level seams exports the views.
+from seams.graph import Container, Lifecycle, Transition
 
 __all__ = [
     "COMM",

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import seams
+import seams.graph
 from rdflib import URIRef
 
 import seams_runtime
@@ -12,6 +13,7 @@ import seams_runtime.model
 
 ROOT = Path(__file__).resolve().parent.parent
 CHAT = ROOT / "examples/chat-app/chat-app.trig"
+RESOLVER_RESULTS = {"Container", "Lifecycle", "Transition"}
 
 
 def test_runtime_names_are_the_seams_objects():
@@ -57,7 +59,10 @@ def test_runtime_names_are_the_seams_objects():
     ],
 )
 def test_model_module_reexports(name):
-    assert getattr(seams_runtime.model, name) is getattr(seams, name)
+    # Container, Lifecycle and Transition at the top level of seams are the
+    # view classes (M010/S03); the runtime keeps the resolver results.
+    source = seams.graph if name in RESOLVER_RESULTS else seams
+    assert getattr(seams_runtime.model, name) is getattr(source, name)
 
 
 def test_runtime_errors_still_subclass_the_one_base():

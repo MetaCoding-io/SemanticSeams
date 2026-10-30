@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlsplit
 
 from rdflib import RDFS, Dataset, URIRef
@@ -17,6 +18,10 @@ from rdflib.term import Node
 
 from .errors import ResolutionError
 from .namespaces import SEAM, local_name
+
+if TYPE_CHECKING:
+    # Imported lazily at run time: the views import this module.
+    from .views import Architecture, Channel, Lifecycles, Many, Operation, Policy, Shape, Views
 
 #: Environment variable naming the model ``load()`` reads when given no path.
 MODEL_ENV = "SEAMS_MODEL"
@@ -68,6 +73,7 @@ class Model:
         self.ds: Dataset = dataset
         # Per-instance cache (never a module-level id()-keyed dict; see MEM010).
         self._hash: str | None = None
+        self._views: Views | None = None
 
     @property
     def hash(self) -> str:
@@ -128,6 +134,59 @@ class Model:
                 raise ResolutionError(model, SEAM.renderPayload, f"payload {path} not found")
             seen[_relpath(path, self.base_dir)] = path
         return sorted(seen.items())
+
+    # ── typed views (seams.views) ──
+
+    @property
+    def views(self) -> Views:
+        """The per-model view registry every view below shares."""
+        if self._views is None:
+            from .views import Views
+
+            self._views = Views(self)
+        return self._views
+
+    @property
+    def architecture(self) -> Architecture:
+        """Systems, containers, deployment nodes and environments."""
+        from . import views
+
+        return views.architecture(self)
+
+    @property
+    def operations(self) -> Many[Operation]:
+        """Every hydra:Operation, by IRI."""
+        from . import views
+
+        return views.operations(self)
+
+    @property
+    def channels(self) -> Many[Channel]:
+        """Every comm:Channel, by IRI."""
+        from . import views
+
+        return views.channels(self)
+
+    @property
+    def shapes(self) -> Many[Shape]:
+        """Every sh:NodeShape, by IRI."""
+        from . import views
+
+        return views.shapes(self)
+
+    @property
+    def lifecycles(self) -> Lifecycles:
+        """Every state:StateMachine, by IRI."""
+        from . import views
+
+        return views.lifecycles(self)
+
+    @property
+    def policies(self) -> Many[Policy]:
+        """Every odrl:Policy, by IRI."""
+        from . import views
+
+        return views.policies(self)
 
     def payload_path(self, model_iri: object) -> Path:
         """The existing payload file ``model_iri`` renders via seam:renderPayload."""

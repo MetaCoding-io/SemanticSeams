@@ -13,6 +13,7 @@ HYDRA = Namespace("http://www.w3.org/ns/hydra/core#")
 ODRL = Namespace("http://www.w3.org/ns/odrl/2/")
 DEPLOY = Namespace("https://w3id.org/seams/deploy#")
 IFML = Namespace("https://w3id.org/seams/ifml#")
+ARCH = Namespace("https://w3id.org/seams/arch#")
 
 
 def local_name(iri: object) -> str:

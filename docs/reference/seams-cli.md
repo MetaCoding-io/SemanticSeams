@@ -233,6 +233,47 @@ fixed in the model.
 
 Errors print to stderr as `seams check: <message>`.
 
+### In CI
+
+The composite action
+[`.github/actions/seams-check`](../../.github/actions/seams-check/README.md) runs
+`seams check --project` for each line of its `projects` input (default `.`), each
+in its own log group, and fails after the last project if any had a finding. The
+CLI is not published, so `seams` must be on PATH before the action runs. This
+repository's acceptance job does:
+
+```yaml
+- run: uv sync --locked --all-packages
+- run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+- name: Generated outputs are current
+  uses: ./.github/actions/seams-check
+  with:
+    projects: |
+      examples/chat-app
+      examples/expenses/chapter-01
+```
+
+Another repository references it as
+`MetaCoding-io/SemanticSeams/.github/actions/seams-check@<ref>`.
+
+### As a pre-commit hook
+
+The repository root's `.pre-commit-hooks.yaml` defines the `seams-check` hook. It
+uses `language: system`, so `seams` must be installed and on PATH; it runs on
+commits that touch a `seams.toml`, `seams.lock`, model, query, BPMN or DMN file or
+anything under `generated/`. Without `args` it checks the `seams.toml` in the
+repository root:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/MetaCoding-io/SemanticSeams
+    rev: <commit or tag>
+    hooks:
+      - id: seams-check
+        args: [--project, examples/chat-app]
+```
+
 ## Generators
 
 The generator names are the `python -m seams_gen` subcommands. The
@@ -276,9 +317,9 @@ out = "../.."
 `examples/chat-app/generated/`, the root `compose.yaml` and
 `examples/chat-app/seams.lock`. Each chapter of the
 [expense tutorial](/tutorials/expenses/) has its own project file in
-`examples/expenses/chapter-NN/seams.toml`. CI runs `seams generate` for the chat
-app and every chapter, then fails on any `git diff` or untracked file under
-`examples/` or `compose.yaml`.
+`examples/expenses/chapter-NN/seams.toml`. CI runs `seams check` for the chat app
+and every chapter through the [seams-check action](#in-ci), and fails on any
+finding.
 
 ## Planned
 

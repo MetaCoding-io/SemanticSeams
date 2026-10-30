@@ -1,0 +1,20 @@
+# pre-commit hook definitions for `seams check` (docs/reference/seams-cli.md).
+#
+# The hook uses `language: system`: the seams CLI is not published, so `seams`
+# must already be installed and on PATH (for example, the venv from
+# `uv sync --all-packages`). With no args it checks the seams.toml in the
+# repository root; name another project with args:
+#
+#   repos:
+#     - repo: https://github.com/MetaCoding-io/SemanticSeams
+#       rev: <commit or tag>
+#       hooks:
+#         - id: seams-check
+#           args: [--project, examples/chat-app]
+- id: seams-check
+  name: seams check
+  description: Validate the model, run its gates and fail on stale or hand-edited generated outputs.
+  entry: seams check
+  language: system
+  pass_filenames: false
+  files: '(seams\.toml|seams\.lock|\.trig|\.ttl|\.rq|\.bpmn|\.dmn)$|(^|/)generated/'

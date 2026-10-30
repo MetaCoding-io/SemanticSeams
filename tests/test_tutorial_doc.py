@@ -1,8 +1,9 @@
 """docs/tutorial.md shows the commands CI actually runs (M004/S07/T06).
 
-The ``seams generate`` lines are read from the "Generated outputs are current"
-step of .github/workflows/ci.yml, so changing the chat-app regeneration in CI
-without updating the tutorial (or the reverse) fails here.
+The project list is read from the "Generated outputs are current" step of
+.github/workflows/ci.yml, which runs the seams-check action on each project, so
+changing the chat-app check in CI without updating the tutorial (or the
+reverse) fails here.
 The "See where it landed" psql command is the one tests/test_tutorial_e2e.py
 runs against the live stack.
 """
@@ -32,9 +33,10 @@ def _ci_steps() -> dict:
     }
 
 
-def _regeneration_commands() -> list[str]:
-    script = _ci_steps()[("acceptance", "Generated outputs are current")]["run"]
-    return [ln.strip() for ln in script.splitlines() if ln.strip().startswith("seams generate")]
+def _checked_projects() -> list[str]:
+    step = _ci_steps()[("acceptance", "Generated outputs are current")]
+    assert step["uses"] == "./.github/actions/seams-check", step
+    return [ln.strip() for ln in step["with"]["projects"].splitlines() if ln.strip()]
 
 
 def _code_lines() -> set[str]:
@@ -42,16 +44,15 @@ def _code_lines() -> set[str]:
     return {ln.strip() for block in blocks for ln in block.splitlines() if ln.strip()}
 
 
-def test_tutorial_shows_the_ci_regeneration_commands():
-    commands = _regeneration_commands()
-    chat_app = "seams generate --project examples/chat-app"
-    assert chat_app in commands, commands
-    # Every expenses chapter with a project file is regenerated too.
+def test_tutorial_shows_the_ci_check_command():
+    projects = _checked_projects()
+    # The chat app, then every expenses chapter with a project file.
     chapters = sorted(p.parent.name for p in (ROOT / "examples" / "expenses").glob("chapter-*/seams.toml"))
-    assert [c for c in commands if c != chat_app] == [
-        f"seams generate --project examples/expenses/{chapter}" for chapter in chapters
-    ], commands
-    assert chat_app in _code_lines(), f"docs/tutorial.md lacks the CI regeneration command: {chat_app}"
+    assert projects == ["examples/chat-app"] + [f"examples/expenses/{c}" for c in chapters], projects
+    lines = _code_lines()
+    assert "seams generate --project examples/chat-app" in lines
+    check = "seams check --project examples/chat-app"
+    assert check in lines, f"docs/tutorial.md lacks the CI check command: {check}"
 
 
 def test_tutorial_shows_the_compose_lines_the_e2e_job_exercises():

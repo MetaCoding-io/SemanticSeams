@@ -73,7 +73,15 @@ model the command produces no diff:
 git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock compose.yaml
 ```
 
-CI runs exactly this command, and the same for each expenses chapter, and fails if anything changed.
+`seams check` confirms the same without writing anything. It also validates the model
+against the SHACL shapes and runs the project's gate queries, and prints one line per
+problem:
+
+```
+seams check --project examples/chat-app
+```
+
+CI runs this check for the chat app and each expenses chapter, and fails on any finding.
 
 ## 4. Choose an LLM
 

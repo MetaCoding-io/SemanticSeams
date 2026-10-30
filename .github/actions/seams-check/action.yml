@@ -1,0 +1,41 @@
+# Runs `seams check` for each listed project and fails if any has a finding
+# (docs/reference/seams-cli.md, D044). The seams CLI is not published, so the
+# caller must put `seams` on PATH first. This repository's acceptance job does:
+#
+#   - run: uv sync --locked --all-packages
+#   - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+#   - uses: ./.github/actions/seams-check
+#     with:
+#       projects: |
+#         examples/chat-app
+#         examples/expenses/chapter-01
+name: seams check
+description: Validate each project's model against the SHACL shapes, run its gate queries, and fail on stale, missing, hand-edited or orphaned outputs or an out-of-date seams.lock.
+inputs:
+  projects:
+    description: Newline-separated project paths, each a seams.toml file or the directory holding one. Blank lines are ignored.
+    required: false
+    default: "."
+runs:
+  using: composite
+  steps:
+    - name: seams check
+      shell: bash
+      # The input arrives through the environment, never interpolated into the
+      # script, so a project path cannot inject shell.
+      env:
+        INPUT_PROJECTS: ${{ inputs.projects }}
+      run: |
+        failed=0
+        while IFS= read -r p || [ -n "$p" ]; do
+          p="${p#"${p%%[![:space:]]*}"}"
+          p="${p%"${p##*[![:space:]]}"}"
+          [ -z "$p" ] && continue
+          echo "::group::seams check --project $p"
+          if ! seams check --project "$p"; then
+            failed=1
+            echo "::error::seams check failed for $p"
+          fi
+          echo "::endgroup::"
+        done <<< "$INPUT_PROJECTS"
+        exit "$failed"

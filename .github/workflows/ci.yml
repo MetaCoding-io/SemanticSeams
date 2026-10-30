@@ -35,29 +35,23 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --all-packages
       - run: uv run pytest -q
-      # The generated chat-app code and compose.yaml are committed; regenerating must change nothing.
+      # The generated code, compose.yaml and each seams.lock are committed; seams check
+      # fails on a stale, missing, hand-edited or orphaned output, a SHACL violation or a
+      # gate returning rows. tests/test_tutorial_doc.py reads the projects list below.
+      - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Generated outputs are current
-        run: |
-          # Activated so the commands below stay literal: tests/test_tutorial_doc.py
-          # checks docs/tutorial.md against them. Each seams.toml names its
-          # generators and outputs (docs/reference/seams-cli.md).
-          source .venv/bin/activate
-          seams generate --project examples/chat-app
-          seams generate --project examples/expenses/chapter-01
-          seams generate --project examples/expenses/chapter-02
-          seams generate --project examples/expenses/chapter-03
-          seams generate --project examples/expenses/chapter-04
-          seams generate --project examples/expenses/chapter-05
-          seams generate --project examples/expenses/chapter-06
-          seams generate --project examples/expenses/chapter-07
-          seams generate --project examples/expenses/chapter-08
-          git diff --exit-code -- examples compose.yaml
-          untracked=$(git status --porcelain --untracked-files=all -- examples compose.yaml)
-          if [ -n "$untracked" ]; then
-            echo "Regeneration left untracked or modified files; commit or delete them:"
-            echo "$untracked"
-            exit 1
-          fi
+        uses: ./.github/actions/seams-check
+        with:
+          projects: |
+            examples/chat-app
+            examples/expenses/chapter-01
+            examples/expenses/chapter-02
+            examples/expenses/chapter-03
+            examples/expenses/chapter-04
+            examples/expenses/chapter-05
+            examples/expenses/chapter-06
+            examples/expenses/chapter-07
+            examples/expenses/chapter-08
 
   # docs/tutorial.md end to end: build and start the compose stack (gateway in
   # stub mode), chat through the generated page and routes, then tear it down.

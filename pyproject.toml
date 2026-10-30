@@ -1,0 +1,21 @@
+# uv workspace root (backlog L1, decisions D031 and D033).
+# Sync everything with `uv sync --all-packages`: a plain `uv sync` at this
+# root installs nothing from the members.
+
+[tool.uv.workspace]
+members = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer"]
+
+[dependency-groups]
+# pyyaml and httpx are imported only by the tests; the members supply the rest.
+dev = ["pytest>=8.0", "pyyaml>=6.0", "httpx>=0.27", "ruff", "pyright"]
+
+[tool.pytest.ini_options]
+# The four existing members are virtual (not installed); their packages
+# resolve from the repository root.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["packages/seams"]
+strict = ["packages/seams"]
+pythonVersion = "3.12"

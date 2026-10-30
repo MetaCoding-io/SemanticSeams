@@ -1,0 +1,16 @@
+# Virtual workspace member (D033): declares dependencies only; the package
+# itself resolves from the repository root and is never built or installed.
+# seams_gen also imports seams_runtime, which resolves from the repository
+# root until M010/S02 moves the shared code into the seams library.
+[project]
+name = "semanticseams-gen"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "rdflib>=7.0",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+]
+
+[tool.uv]
+package = false

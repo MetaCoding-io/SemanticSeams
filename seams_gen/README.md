@@ -53,8 +53,9 @@ docker images and `docker compose up`: `examples/chat-app/generated/chat_api.py`
 ([generated/README.md](../examples/chat-app/generated/README.md) lists the regenerate
 command). `tests/test_generated_outputs_current.py` regenerates each and requires the
 same file set, byte for byte, failing with a diff and the command to run; CI also runs
-`seams generate` for the chat app and each expenses chapter and fails on `git diff` or
-an untracked file under `examples/` or `compose.yaml`.
+`seams check` for the chat app and each expenses chapter (through
+`.github/actions/seams-check`) and fails on any missing, stale, hand-edited or orphaned
+output or an out-of-date `seams.lock`.
 
 ```python
 from seams_gen import generate_page, generate_fragments, fragment_for, extract_page, GeneratorError

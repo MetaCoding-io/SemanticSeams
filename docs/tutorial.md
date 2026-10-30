@@ -10,7 +10,7 @@ minutes. To write a model yourself, one layer per chapter, follow the other trac
 [Build an expense approval app](tutorials/expenses/index.md).
 
 The regeneration and Docker commands below are the ones CI runs: the `acceptance` job
-runs the generators and fails on any diff, and the `tutorial-e2e` job brings the same stack
+runs `seams check` and fails on any stale output, and the `tutorial-e2e` job brings the same stack
 up in stub mode and chats with it (`tests/test_tutorial_e2e.py`).
 
 ## 1. Prerequisites

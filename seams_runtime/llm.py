@@ -45,8 +45,12 @@ class LLMError(RuntimeModelError):
 
 
 class LLMClient:
-    def __init__(self, base_url: str | None = None, transport: httpx.AsyncBaseTransport | None = None,
-                 timeout: httpx.Timeout = DEFAULT_TIMEOUT):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
+        timeout: httpx.Timeout = DEFAULT_TIMEOUT,
+    ):
         self.base_url = base_url
         self.transport = transport
         self.timeout = timeout
@@ -60,8 +64,9 @@ class LLMClient:
             raise LLMError(f"${env_key}", f"no base URL: set {env_key} or pass llm_base_url")
         return value
 
-    async def stream_completion(self, path: str, messages: list[dict], model: str | None = None,
-                                *, base_url: str | None = None) -> AsyncIterator[str]:
+    async def stream_completion(
+        self, path: str, messages: list[dict], model: str | None = None, *, base_url: str | None = None
+    ) -> AsyncIterator[str]:
         """POST ``{"model", "messages", "stream": true}`` and yield each
         ``choices[0].delta.content`` until ``data: [DONE]``."""
         url = (base_url or self.base_url or "").rstrip("/") + "/" + path.lstrip("/")
@@ -71,8 +76,7 @@ class LLMClient:
         log.info("streaming completion from %s (model=%s, %d message(s))", url, model, len(messages))
         try:
             async with httpx.AsyncClient(transport=self.transport, timeout=self.timeout) as client:
-                async with client.stream("POST", url, json=body,
-                                         headers={"Accept": "text/event-stream"}) as resp:
+                async with client.stream("POST", url, json=body, headers={"Accept": "text/event-stream"}) as resp:
                     if resp.status_code >= 400:
                         detail = (await resp.aread())[:200].decode("utf-8", "replace")
                         raise LLMError(url, f"HTTP {resp.status_code}: {detail}")

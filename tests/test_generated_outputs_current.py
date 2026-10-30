@@ -14,8 +14,6 @@ import difflib
 import shutil
 from pathlib import Path
 
-import pytest
-
 from seams_gen import generate_compose
 from seams_gen.__main__ import main
 
@@ -38,8 +36,11 @@ HAND_WRITTEN = {"README.md"}
 
 def committed_files(directory: Path, ignore=frozenset()) -> dict[str, str]:
     """{file name: text} of the regular files directly in ``directory``."""
-    return {p.name: p.read_text(encoding="utf-8") for p in sorted(directory.iterdir())
-            if p.is_file() and p.name not in ignore}
+    return {
+        p.name: p.read_text(encoding="utf-8")
+        for p in sorted(directory.iterdir())
+        if p.is_file() and p.name not in ignore
+    }
 
 
 def regenerate(generator: str, trig: Path, out: Path) -> dict[str, str]:
@@ -48,8 +49,7 @@ def regenerate(generator: str, trig: Path, out: Path) -> dict[str, str]:
     return committed_files(out)
 
 
-def output_diffs(generated: dict[str, str], committed: dict[str, str], committed_dir: Path,
-                 command: str) -> list[str]:
+def output_diffs(generated: dict[str, str], committed: dict[str, str], committed_dir: Path, command: str) -> list[str]:
     """Problems with the committed copy, each naming its path; empty when current."""
     problems = []
     rel = committed_dir.relative_to(ROOT)
@@ -60,9 +60,14 @@ def output_diffs(generated: dict[str, str], committed: dict[str, str], committed
     for name in sorted(generated.keys() & committed.keys()):
         if generated[name] != committed[name]:
             path = str(rel / name)
-            diff = "".join(difflib.unified_diff(
-                committed[name].splitlines(keepends=True), generated[name].splitlines(keepends=True),
-                fromfile=f"{path} (committed)", tofile=f"{path} (regenerated)"))
+            diff = "".join(
+                difflib.unified_diff(
+                    committed[name].splitlines(keepends=True),
+                    generated[name].splitlines(keepends=True),
+                    fromfile=f"{path} (committed)",
+                    tofile=f"{path} (regenerated)",
+                )
+            )
             problems.append(f"{path} is stale; run: {command}\n{diff}")
     return problems
 
@@ -73,21 +78,20 @@ def assert_current(generated, committed, committed_dir, command):
 
 
 def test_route_module_is_current(tmp_path):
-    assert_current(regenerate("fastapi", TRIG, tmp_path), committed_files(GENERATED, HAND_WRITTEN),
-                   GENERATED, COMMANDS["fastapi"])
+    assert_current(
+        regenerate("fastapi", TRIG, tmp_path), committed_files(GENERATED, HAND_WRITTEN), GENERATED, COMMANDS["fastapi"]
+    )
 
 
 def test_templates_are_current(tmp_path):
-    assert_current(regenerate("htmx", TRIG, tmp_path), committed_files(TEMPLATES),
-                   TEMPLATES, COMMANDS["htmx"])
+    assert_current(regenerate("htmx", TRIG, tmp_path), committed_files(TEMPLATES), TEMPLATES, COMMANDS["htmx"])
 
 
 def test_compose_file_is_current():
     # Bind-mount sources are relative to the output directory, so compare the
     # repository-root rendering with the committed root compose.yaml.
     generated = {"compose.yaml": generate_compose(TRIG, base_dir=ROOT)}
-    assert_current(generated, {"compose.yaml": COMPOSE.read_text(encoding="utf-8")},
-                   ROOT, COMMANDS["compose"])
+    assert_current(generated, {"compose.yaml": COMPOSE.read_text(encoding="utf-8")}, ROOT, COMMANDS["compose"])
 
 
 def test_generated_readme_names_the_regenerate_commands():
@@ -107,8 +111,7 @@ def test_checker_reports_a_model_edit(tmp_path):
     trig.write_text(text.replace('ifml:title "Chat"@en', 'ifml:title "Chat (edited)"@en'), encoding="utf-8")
 
     out = tmp_path / "templates"
-    problems = output_diffs(regenerate("htmx", trig, out), committed_files(TEMPLATES),
-                            TEMPLATES, COMMANDS["htmx"])
+    problems = output_diffs(regenerate("htmx", trig, out), committed_files(TEMPLATES), TEMPLATES, COMMANDS["htmx"])
     page = [p for p in problems if p.startswith("examples/chat-app/generated/templates/chat_page.html is stale")]
     assert len(page) == 1, problems
     assert COMMANDS["htmx"] in page[0]

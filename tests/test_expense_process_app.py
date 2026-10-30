@@ -36,9 +36,6 @@ import shutil
 from urllib.parse import quote
 
 import pytest
-from fastapi.testclient import TestClient
-from rdflib import Namespace, URIRef
-
 from expense_app import (
     PROCESS_CHAPTERS,
     assert_generated_current,
@@ -52,7 +49,10 @@ from expense_app import (
     trace,
     until,
 )
+from fastapi.testclient import TestClient
+from rdflib import Namespace, URIRef
 from test_generated_outputs_current import HAND_WRITTEN, committed_files
+
 from viewer import app as viewer_app
 from viewer import validation
 
@@ -222,11 +222,15 @@ def test_approving_finishes_the_instance(app, chapter):
 
 
 @process_apps
-@pytest.mark.parametrize("data, paths", [
-    ({"decision": "maybe"}, ["decision"]),
-    ({}, ["decision"]),
-    ({"decision": "approved", "comment": "x" * 501}, ["comment"]),
-], ids=["not-in-list", "missing", "comment-too-long"])
+@pytest.mark.parametrize(
+    "data, paths",
+    [
+        ({"decision": "maybe"}, ["decision"]),
+        ({}, ["decision"]),
+        ({"decision": "approved", "comment": "x" * 501}, ["comment"]),
+    ],
+    ids=["not-in-list", "missing", "comment-too-long"],
+)
 def test_invalid_approval_is_rejected_and_changes_nothing(app, data, paths):
     c, runtime = app
     _submit(c, runtime)
@@ -310,9 +314,17 @@ def test_three_amounts_take_three_paths_through_one_module(rules_app):
     assert _submit_amount(c, runtime, "large", LARGE) == "waiting"
 
     assert {key: _decision(runtime, key) for key in ("small", "mid", "large")} == {
-        "small": {"route": "auto"}, "mid": {"route": "manager"}, "large": {"route": "finance"}}
+        "small": {"route": "auto"},
+        "mid": {"route": "manager"},
+        "large": {"route": "finance"},
+    }
     assert [r["task"] for r in trace(runtime, "small")] == [
-        "start", "persist_expense", "route_expense", "route_gateway", "auto_approved"]
+        "start",
+        "persist_expense",
+        "route_expense",
+        "route_gateway",
+        "auto_approved",
+    ]
     assert _open_tasks(runtime) == {"mid": "approve_expense", "large": "finance_approve_expense"}
     # every amount was stored by the same process, whatever its path
     assert sorted(e["correlation_key"] for e in runtime.query(":ExpenseShape")) == ["large", "mid", "small"]
@@ -327,10 +339,13 @@ def test_three_amounts_take_three_paths_through_one_module(rules_app):
     assert 'hx-post="/expenses/large/finance-approval"' in html
 
 
-@pytest.mark.parametrize("key, amount, task", [
-    ("mid", MID, "approve_expense"),
-    ("large", LARGE, "finance_approve_expense"),
-])
+@pytest.mark.parametrize(
+    "key, amount, task",
+    [
+        ("mid", MID, "approve_expense"),
+        ("large", LARGE, "finance_approve_expense"),
+    ],
+)
 def test_completing_the_routed_task_finishes_the_instance(rules_app, key, amount, task):
     c, runtime = rules_app
     assert _submit_amount(c, runtime, key, amount) == "waiting"
@@ -345,10 +360,13 @@ def test_completing_the_routed_task_finishes_the_instance(rules_app, key, amount
     assert _open_tasks(runtime) == {}
 
 
-@pytest.mark.parametrize("key, amount, wrong", [
-    ("mid", MID, "finance_approve_expense"),
-    ("large", LARGE, "approve_expense"),
-])
+@pytest.mark.parametrize(
+    "key, amount, wrong",
+    [
+        ("mid", MID, "finance_approve_expense"),
+        ("large", LARGE, "approve_expense"),
+    ],
+)
 def test_the_other_paths_task_is_not_open(rules_app, key, amount, wrong):
     c, runtime = rules_app
     _submit_amount(c, runtime, key, amount)
@@ -413,7 +431,7 @@ def test_changing_the_threshold_moves_only_the_hash_lines(tmp_path):
     for name in sorted(committed):
         new, old = regenerated[name].splitlines(), committed[name].splitlines()
         assert len(new) == len(old), name
-        changed += [(name, a, b) for a, b in zip(old, new) if a != b]
+        changed += [(name, a, b) for a, b in zip(old, new, strict=True) if a != b]
     assert changed, "the model hash covers approval.dmn, so it must change"
     for name, old, new in changed:
         assert "model-hash" in old or "MODEL_HASH" in old, (name, old, new)
@@ -433,6 +451,7 @@ def test_the_committed_module_refuses_the_edited_model(tmp_path, monkeypatch):
     copy, _ = _copy_chapter_5(tmp_path, MANAGER_UP_TO_1000, MANAGER_UP_TO_200)
     shutil.copy(chapter_dir(CHAPTER_5) / "generated" / "expense_api.py", copy / "generated" / "expense_api.py")
     from seams_runtime import ModelHashMismatch
+
     with pytest.raises(ModelHashMismatch):
         with serve_directory(copy, tmp_path, monkeypatch):
             pass
@@ -501,15 +520,18 @@ def _stored_status(runtime, key) -> str:
     return expense["status"]
 
 
-@pytest.mark.parametrize("amount, task, decision, final, recorder", [
-    (SMALL, None, None, "approved", "record_approval"),
-    (MID, "approve_expense", "approved", "approved", "record_approval"),
-    (MID, "approve_expense", "rejected", "rejected", "record_rejection"),
-    (LARGE, "finance_approve_expense", "approved", "approved", "record_approval"),
-    (LARGE, "finance_approve_expense", "rejected", "rejected", "record_rejection"),
-], ids=["auto", "manager-approves", "manager-rejects", "finance-approves", "finance-rejects"])
-def test_each_path_leaves_the_expense_in_its_decided_state(lifecycle_app, amount, task, decision,
-                                                            final, recorder):
+@pytest.mark.parametrize(
+    "amount, task, decision, final, recorder",
+    [
+        (SMALL, None, None, "approved", "record_approval"),
+        (MID, "approve_expense", "approved", "approved", "record_approval"),
+        (MID, "approve_expense", "rejected", "rejected", "record_rejection"),
+        (LARGE, "finance_approve_expense", "approved", "approved", "record_approval"),
+        (LARGE, "finance_approve_expense", "rejected", "rejected", "record_rejection"),
+    ],
+    ids=["auto", "manager-approves", "manager-rejects", "finance-approves", "finance-rejects"],
+)
+def test_each_path_leaves_the_expense_in_its_decided_state(lifecycle_app, amount, task, decision, final, recorder):
     c, runtime = lifecycle_app
     if task is None:
         assert _submit_amount(c, runtime, "e1", amount) == "complete"
@@ -540,12 +562,18 @@ def test_three_amounts_reach_their_states_in_one_app(lifecycle_app):
     _submit_amount(c, runtime, "mid", MID)
     _submit_amount(c, runtime, "large", LARGE)
     assert {key: _stored_status(runtime, key) for key in ("small", "mid", "large")} == {
-        "small": "approved", "mid": "submitted", "large": "submitted"}
+        "small": "approved",
+        "mid": "submitted",
+        "large": "submitted",
+    }
     c.post("/expenses/mid/approval", data={"decision": "rejected"}, headers=APPROVER)
     c.post("/expenses/large/finance-approval", data={"decision": "approved"}, headers=APPROVER)
     until(lambda: status(runtime, "mid") == status(runtime, "large") == "complete")
     assert {key: _stored_status(runtime, key) for key in ("small", "mid", "large")} == {
-        "small": "approved", "mid": "rejected", "large": "approved"}
+        "small": "approved",
+        "mid": "rejected",
+        "large": "approved",
+    }
 
 
 def test_lifecycle_model_opens_in_the_viewer(monkeypatch):
@@ -562,4 +590,3 @@ def test_lifecycle_model_opens_in_the_viewer(monkeypatch):
     finally:
         viewer_app.configure(original)
         validation._clear_cache()
-

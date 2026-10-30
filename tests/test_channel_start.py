@@ -19,8 +19,11 @@ if str(ROOT) not in sys.path:
 
 from seams_gen import GeneratorError  # noqa: E402
 from seams_gen.compose import extract_compose  # noqa: E402
-from seams_gen.fastapi import extract_routes, serving_containers  # noqa: E402
-from seams_gen.fastapi import Facts  # noqa: E402
+from seams_gen.fastapi import (  # noqa: E402
+    Facts,  # noqa: E402
+    extract_routes,
+    serving_containers,
+)
 from seams_gen.htmx import extract_page, render_fragments, render_task_forms  # noqa: E402
 from seams_runtime import (  # noqa: E402
     HeaderAuthenticator,
@@ -47,8 +50,7 @@ MANAGER = Identity("manager")
 
 def make_runtime(tmp_path, model=None, db="seams.sqlite") -> Runtime:
     model = model if model is not None else ModelGraph.load(TRIG)
-    return Runtime(model, Store(tmp_path / db), authenticator=HeaderAuthenticator(),
-                   templates_dir=tmp_path)
+    return Runtime(model, Store(tmp_path / db), authenticator=HeaderAuthenticator(), templates_dir=tmp_path)
 
 
 def fixture_copy(tmp_path, edit) -> Path:
@@ -147,6 +149,7 @@ def test_publish_starts_the_subscriber_with_the_key_and_entities(tmp_path):
         assert result["lifecycle"] == {"Expense": "approved"}
         meta = rt.store.get_instance(sub.id)
         assert (meta["process"], meta["correlation_key"], meta["status"]) == (str(PAYOUT), "e1", "complete")
+
     asyncio.run(main())
 
 
@@ -160,13 +163,18 @@ def test_a_path_that_publishes_nothing_starts_nothing(tmp_path):
         assert {i.process for i in rt.instances.values()} == {APPROVAL}
         [stored] = rt.query(":ExpenseShape", expense="e1")
         assert stored["status"] == "rejected"
+
     asyncio.run(main())
 
 
 def test_a_failing_subscriber_fails_alone(tmp_path):
     # t_pay now leaves "submitted", but the publisher copies "approved".
-    trig = fixture_copy(tmp_path, lambda t: t.replace(
-        ":t_pay a state:Transition ; state:from :s_approved", ":t_pay a state:Transition ; state:from :s_submitted"))
+    trig = fixture_copy(
+        tmp_path,
+        lambda t: t.replace(
+            ":t_pay a state:Transition ; state:from :s_approved", ":t_pay a state:Transition ; state:from :s_submitted"
+        ),
+    )
     rt = make_runtime(tmp_path, ModelGraph.load(trig))
 
     async def main():
@@ -178,6 +186,7 @@ def test_a_failing_subscriber_fails_alone(tmp_path):
         assert payout["error"]["type"] == "LifecycleViolation"
         assert rt.store.get_instance(started["instance"])["status"] == "failed"
         assert rt.store.get_instance(result["instance"])["status"] == "complete"
+
     asyncio.run(main())
 
 
@@ -195,6 +204,7 @@ def test_a_subscriber_that_cannot_start_is_recorded_on_the_publisher(tmp_path):
         assert started["process"] == str(PAYOUT) and started["instance"] is None
         assert started["error"]["type"] == "ResolutionError"
         assert {i.process for i in rt.instances.values()} == {APPROVAL}
+
     asyncio.run(main())
 
 
@@ -207,6 +217,7 @@ def test_start_subscribed_refuses_a_process_that_is_not_channel_started(tmp_path
         with pytest.raises(ResolutionError):
             await rt.start_subscribed(":payout_process", "", {}, {})
         assert rt.instances == {}
+
     asyncio.run(main())
 
 
@@ -216,8 +227,7 @@ def test_a_checkpointed_subscriber_resumes_after_a_restart(tmp_path):
 
     async def first():
         rt = make_runtime(tmp_path)
-        inst = await rt.start_subscribed(":payout_process", "e9", current, status,
-                                         stop_after="payment_received")
+        inst = await rt.start_subscribed(":payout_process", "e9", current, status, stop_after="payment_received")
         assert rt.store.get_instance(inst.id)["status"] == "running"  # checkpointed before it ran
         result = await inst.wait()
         assert result["status"] == "stopped", result["error"]

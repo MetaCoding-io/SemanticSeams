@@ -7,9 +7,8 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-from rdflib import URIRef
-
 import pytest
+from rdflib import URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -134,9 +133,7 @@ def test_output_is_deterministic_and_sorted(level):
     assert first == second
     nodes, edges = first
     assert [(n["parent"] or "", n["id"]) for n in nodes] == sorted((n["parent"] or "", n["id"]) for n in nodes)
-    assert [(e["from"], e["to"], e["label"]) for e in edges] == sorted(
-        (e["from"], e["to"], e["label"]) for e in edges
-    )
+    assert [(e["from"], e["to"], e["label"]) for e in edges] == sorted((e["from"], e["to"], e["label"]) for e in edges)
 
 
 def test_default_level_signature():
@@ -197,7 +194,7 @@ def test_c4_fragment_level_toggle(client):
     import re
 
     html = _fragment(client, CHAT_ARCHITECTURE, "?level=L3")
-    nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
+    nav = html[html.index('class="level-toggle"') : html.index("</nav>", html.index('class="level-toggle"'))]
     links = re.findall(r'<a href="([^"]*)" hx-get="([^"]*)"', nav)
     assert [h for h, _ in links] == [g for _, g in links]
     assert [h.rsplit("level=", 1)[1] for h, _ in links] == ["L1", "L2", "L3", "L4"]
@@ -211,7 +208,7 @@ def test_c4_fragment_unknown_level_marks_default_active(client):
     import re
 
     html = _fragment(client, CHAT_ARCHITECTURE, "?level=bogus")
-    nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
+    nav = html[html.index('class="level-toggle"') : html.index("</nav>", html.index('class="level-toggle"'))]
     assert re.findall(r'data-level="(L\d)"[^>]*aria-current="true"', nav) == ["L2"]
 
 

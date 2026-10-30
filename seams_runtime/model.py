@@ -115,7 +115,7 @@ class ChannelBinding:
 @dataclass(frozen=True)
 class ChannelStart:
     process: URIRef
-    event: URIRef    # the proc:MessageCatchEvent start event
+    event: URIRef  # the proc:MessageCatchEvent start event
     channel: URIRef  # the comm:Channel it seam:subscribesTo
 
 
@@ -219,7 +219,7 @@ class ModelGraph:
         self._contract_cache: dict = {}
 
     @classmethod
-    def load(cls, trig_path) -> "ModelGraph":
+    def load(cls, trig_path) -> ModelGraph:
         return cls(trig_path)
 
     @property
@@ -272,15 +272,14 @@ class ModelGraph:
     # ── BPMN element IRIs ──
 
     def _bpmn_model(self) -> URIRef:
-        models = [m for m in self.ds.subjects(SEAM.notation, SEAM.BPMN)
-                  if (m, SEAM.renderPayload, None) in self.ds]
+        models = [m for m in self.ds.subjects(SEAM.notation, SEAM.BPMN) if (m, SEAM.renderPayload, None) in self.ds]
         if not models:
-            models = [m for m, p in self.ds.subject_objects(SEAM.renderPayload)
-                      if str(p).lower().endswith(".bpmn")]
+            models = [m for m, p in self.ds.subject_objects(SEAM.renderPayload) if str(p).lower().endswith(".bpmn")]
         models = sorted(set(models))
         if len(models) != 1:
             raise ResolutionError(
-                self.subject, SEAM.renderPayload,
+                self.subject,
+                SEAM.renderPayload,
                 f"expected one model rendering a BPMN payload, found {[str(m) for m in models]}",
             )
         return models[0]
@@ -307,8 +306,7 @@ class ModelGraph:
         src = self._one(t, STATE["from"])
         dst = self._one(t, STATE.to)
         trigger = self.ds.value(t, STATE.trigger)
-        return Transition(t, self.label(src), self.label(dst),
-                          None if trigger is None else str(trigger))
+        return Transition(t, self.label(src), self.label(dst), None if trigger is None else str(trigger))
 
     def transitions_from(self, state_label: str, trigger: str | None = None) -> list[Transition]:
         """Transitions leaving the state labelled ``state_label`` (and with the
@@ -343,14 +341,16 @@ class ModelGraph:
         if not shapes:
             shapes = self.written_shapes(iri)
         if len(shapes) != 1:
-            raise ResolutionError(iri, SEAM.writes,
-                                  f"expected one output shape for the user task, found {[str(s) for s in shapes]}")
+            raise ResolutionError(
+                iri, SEAM.writes, f"expected one output shape for the user task, found {[str(s) for s in shapes]}"
+            )
         return shapes[0]
 
     def form_screen(self, form) -> URIRef | None:
         """The ifml:ViewContainer that ifml:contains ``form``, or None."""
-        pages = sorted(p for p in self.ds.subjects(IFML.contains, self.curie(form))
-                       if (p, RDF.type, IFML.ViewContainer) in self.ds)
+        pages = sorted(
+            p for p in self.ds.subjects(IFML.contains, self.curie(form)) if (p, RDF.type, IFML.ViewContainer) in self.ds
+        )
         return pages[0] if pages else None
 
     # ── decisions ──
@@ -370,7 +370,8 @@ class ModelGraph:
         ids = dmn_decision_ids(dmn_path)
         if decision_id not in ids:
             raise ResolutionError(
-                decision, DEC.payloadElement,
+                decision,
+                DEC.payloadElement,
                 f"{decision_id!r} not among DMN decision ids {ids} in {dmn_path.name}, via {iri}",
             )
         inputs = []
@@ -378,20 +379,29 @@ class ModelGraph:
         for node in self.ds.objects(decision, DEC.input):
             path = self._one(node, DEC.fromPath, f"input of {decision}")
             variable = str(self._one(node, DEC.variable, f"input of {decision}"))
-            inputs.append(InputBinding(
-                variable=variable,
-                from_path=local_name(path), from_path_iri=path,
-                measure=self.ds.value(node, DEC.measure),
-                type_ref=types.get(variable),
-            ))
+            inputs.append(
+                InputBinding(
+                    variable=variable,
+                    from_path=local_name(path),
+                    from_path_iri=path,
+                    measure=self.ds.value(node, DEC.measure),
+                    type_ref=types.get(variable),
+                )
+            )
         outputs = []
         for node in self.ds.objects(decision, DEC.output):
-            outputs.append(OutputBinding(
-                variable=str(self._one(node, DEC.variable, f"output of {decision}")),
-                process_variable=str(self._one(node, DEC.processVariable, f"output of {decision}")),
-            ))
+            outputs.append(
+                OutputBinding(
+                    variable=str(self._one(node, DEC.variable, f"output of {decision}")),
+                    process_variable=str(self._one(node, DEC.processVariable, f"output of {decision}")),
+                )
+            )
         return DecisionBinding(
-            iri, decision, model, dmn_path, decision_id,
+            iri,
+            decision,
+            model,
+            dmn_path,
+            decision_id,
             tuple(sorted(inputs, key=lambda b: b.variable)),
             tuple(sorted(outputs, key=lambda b: b.variable)),
         )
@@ -408,7 +418,8 @@ class ModelGraph:
             raise ResolutionError(op, SEAM.exposes, "no container exposes this operation")
         if len(containers) > 1:
             raise ResolutionError(
-                op, SEAM.exposes,
+                op,
+                SEAM.exposes,
                 f"ambiguous: exposed by {[str(c) for c in containers]}",
             )
         c = containers[0]
@@ -425,9 +436,13 @@ class ModelGraph:
         mappings = []
         for m in self.ds.objects(tpl_node, HYDRA.mapping):
             prop = self._one(m, HYDRA.property, f"mapping of {op}")
-            mappings.append(PathMapping(
-                str(self._one(m, HYDRA.variable, f"mapping of {op}")), local_name(prop), prop,
-            ))
+            mappings.append(
+                PathMapping(
+                    str(self._one(m, HYDRA.variable, f"mapping of {op}")),
+                    local_name(prop),
+                    prop,
+                )
+            )
         return OperationPath(op, str(template), tuple(sorted(mappings, key=lambda m: m.variable)))
 
     def channel_for_event(self, task) -> ChannelBinding:
@@ -452,20 +467,22 @@ class ModelGraph:
         iri = self.curie(process)
         containers = sorted(set(self.ds.subjects(SEAM.executes, iri)))
         if len(containers) != 1:
-            raise ResolutionError(iri, SEAM.executes,
-                                  f"expected one executing container, found {[str(c) for c in containers]}")
+            raise ResolutionError(
+                iri, SEAM.executes, f"expected one executing container, found {[str(c) for c in containers]}"
+            )
         return Container(containers[0], self.label(containers[0]), True)
 
     def triggering_operation(self, process) -> URIRef:
         """The operation that the event which seam:triggers the process
         seam:submitsTo."""
         iri = self.curie(process)
-        ops = sorted({op for ev in self.ds.subjects(SEAM.triggers, iri)
-                      for op in self.ds.objects(ev, SEAM.submitsTo)})
+        ops = sorted({op for ev in self.ds.subjects(SEAM.triggers, iri) for op in self.ds.objects(ev, SEAM.submitsTo)})
         if len(ops) != 1:
-            raise ResolutionError(iri, SEAM.triggers,
-                                  f"expected one triggering event submitting to one operation, "
-                                  f"found {[str(o) for o in ops]}")
+            raise ResolutionError(
+                iri,
+                SEAM.triggers,
+                f"expected one triggering event submitting to one operation, found {[str(o) for o in ops]}",
+            )
         return ops[0]
 
     # ── channel-started processes (ADR-0010) ──
@@ -482,8 +499,12 @@ class ModelGraph:
         starts = bpmn_start_event_ids(facts.bpmn_path)
         found = set()
         for el, ch in self.ds.subject_objects(SEAM.subscribesTo):
-            if str(el).startswith(prefix) and (el, RDF.type, PROC.MessageCatchEvent) in self.ds \
-                    and (ch, RDF.type, COMM.Channel) in self.ds and str(el)[len(prefix):] in starts:
+            if (
+                str(el).startswith(prefix)
+                and (el, RDF.type, PROC.MessageCatchEvent) in self.ds
+                and (ch, RDF.type, COMM.Channel) in self.ds
+                and str(el)[len(prefix) :] in starts
+            ):
                 found.add((el, ch))
         return [ChannelStart(facts.iri, el, ch) for el, ch in sorted(found)]
 
@@ -492,9 +513,11 @@ class ModelGraph:
         False when it has none. More than one raises ResolutionError."""
         subs = self._start_subscriptions(process)
         if len(subs) > 1:
-            raise ResolutionError(self.curie(process), SEAM.subscribesTo,
-                                  f"expected at most one subscribed start event, found "
-                                  f"{[(str(s.event), str(s.channel)) for s in subs]}")
+            raise ResolutionError(
+                self.curie(process),
+                SEAM.subscribesTo,
+                f"expected at most one subscribed start event, found {[(str(s.event), str(s.channel)) for s in subs]}",
+            )
         return bool(subs)
 
     def start_channel(self, process) -> ChannelStart:
@@ -502,9 +525,12 @@ class ModelGraph:
         it seam:subscribesTo (there must be exactly one)."""
         subs = self._start_subscriptions(process)
         if len(subs) != 1:
-            raise ResolutionError(self.curie(process), SEAM.subscribesTo,
-                                  f"expected one proc:MessageCatchEvent start event subscribed to a "
-                                  f"comm:Channel, found {[(str(s.event), str(s.channel)) for s in subs]}")
+            raise ResolutionError(
+                self.curie(process),
+                SEAM.subscribesTo,
+                f"expected one proc:MessageCatchEvent start event subscribed to a "
+                f"comm:Channel, found {[(str(s.event), str(s.channel)) for s in subs]}",
+            )
         return subs[0]
 
     def subscribed_processes(self, channel) -> list[URIRef]:
@@ -528,12 +554,19 @@ class ModelGraph:
         seam:publishesTo (there must be exactly one)."""
         facts = self.process_for(process)
         prefix = f"{facts.model}#"
-        channels = sorted({ch for el, ch in self.ds.subject_objects(SEAM.publishesTo)
-                           if str(el).startswith(prefix) and (ch, RDF.type, COMM.Channel) in self.ds})
+        channels = sorted(
+            {
+                ch
+                for el, ch in self.ds.subject_objects(SEAM.publishesTo)
+                if str(el).startswith(prefix) and (ch, RDF.type, COMM.Channel) in self.ds
+            }
+        )
         if len(channels) != 1:
-            raise ResolutionError(facts.iri, SEAM.publishesTo,
-                                  f"expected one channel published to by {prefix}*, "
-                                  f"found {[str(c) for c in channels]}")
+            raise ResolutionError(
+                facts.iri,
+                SEAM.publishesTo,
+                f"expected one channel published to by {prefix}*, found {[str(c) for c in channels]}",
+            )
         ch = channels[0]
         event = self._one(ch, COMM.eventName, f"channel of {facts.iri}")
         return ChannelBinding(ch, self.label(ch), str(event))
@@ -542,24 +575,36 @@ class ModelGraph:
         """The deploy:key of ``container``'s deploy:binding whose
         deploy:serviceOf is ``service_of`` (e.g. LLM_GATEWAY_URL)."""
         c, target = self.curie(container), self.curie(service_of)
-        keys = sorted({str(self.ds.value(b, DEPLOY.key))
-                       for cfg in self.ds.objects(c, DEPLOY.configuration)
-                       for b in self.ds.objects(cfg, DEPLOY.binding)
-                       if (b, DEPLOY.serviceOf, target) in self.ds and self.ds.value(b, DEPLOY.key) is not None})
+        keys = sorted(
+            {
+                str(self.ds.value(b, DEPLOY.key))
+                for cfg in self.ds.objects(c, DEPLOY.configuration)
+                for b in self.ds.objects(cfg, DEPLOY.binding)
+                if (b, DEPLOY.serviceOf, target) in self.ds and self.ds.value(b, DEPLOY.key) is not None
+            }
+        )
         if len(keys) != 1:
-            raise ResolutionError(c, DEPLOY.binding,
-                                  f"expected one deploy:binding with deploy:serviceOf {target}, found {keys}")
+            raise ResolutionError(
+                c, DEPLOY.binding, f"expected one deploy:binding with deploy:serviceOf {target}, found {keys}"
+            )
         return keys[0]
 
     def lifecycle_shape(self, transition) -> URIRef:
         """The shape whose seam:lifecycle machine state:hasTransition ``transition``."""
         t = self.curie(transition)
-        shapes = sorted({shape for machine in self.ds.subjects(STATE.hasTransition, t)
-                         for shape in self.ds.subjects(SEAM.lifecycle, machine)})
+        shapes = sorted(
+            {
+                shape
+                for machine in self.ds.subjects(STATE.hasTransition, t)
+                for shape in self.ds.subjects(SEAM.lifecycle, machine)
+            }
+        )
         if len(shapes) != 1:
-            raise ResolutionError(t, STATE.hasTransition,
-                                  f"expected one shape whose lifecycle owns this transition, "
-                                  f"found {[str(s) for s in shapes]}")
+            raise ResolutionError(
+                t,
+                STATE.hasTransition,
+                f"expected one shape whose lifecycle owns this transition, found {[str(s) for s in shapes]}",
+            )
         return shapes[0]
 
     def correlation_key_labels(self) -> set[str]:
@@ -594,8 +639,9 @@ class ModelGraph:
         for node in self.ds.objects(p, ODRL.permission):
             assignee = self.ds.value(node, ODRL.assignee)
             types = () if assignee is None else tuple(sorted(set(self.ds.objects(assignee, RDF.type))))
-            perms.append(Permission(self.ds.value(node, ODRL.target), self.ds.value(node, ODRL.action),
-                                    assignee, types))
+            perms.append(
+                Permission(self.ds.value(node, ODRL.target), self.ds.value(node, ODRL.action), assignee, types)
+            )
         perms.sort(key=lambda x: (str(x.target), str(x.action), str(x.assignee)))
         return PolicyFacts(p, self.label(p), tuple(perms))
 
@@ -603,12 +649,19 @@ class ModelGraph:
 
     def landmark_page(self) -> URIRef:
         """The single ifml:ViewContainer with ifml:isLandmark true (the app entry page)."""
-        pages = sorted({c for c in self.ds.subjects(RDF.type, IFML.ViewContainer)
-                        if (c, IFML.isLandmark, Literal(True)) in self.ds})
+        pages = sorted(
+            {
+                c
+                for c in self.ds.subjects(RDF.type, IFML.ViewContainer)
+                if (c, IFML.isLandmark, Literal(True)) in self.ds
+            }
+        )
         if len(pages) != 1:
-            raise ResolutionError(self.subject, IFML.isLandmark,
-                                  f"expected one ifml:ViewContainer with ifml:isLandmark true, "
-                                  f"found {[str(p) for p in pages]}")
+            raise ResolutionError(
+                self.subject,
+                IFML.isLandmark,
+                f"expected one ifml:ViewContainer with ifml:isLandmark true, found {[str(p) for p in pages]}",
+            )
         return pages[0]
 
     def secondary_pages(self) -> list[URIRef]:
@@ -632,9 +685,11 @@ class ModelGraph:
 
     def page_components(self, page) -> list[URIRef]:
         """The components a page ifml:contains, by ifml:order (then IRI)."""
+
         def order(c):
             value = self.ds.value(c, IFML.order)
             return (int(value) if value is not None else 1 << 30, str(c))
+
         return sorted(set(self.ds.objects(self.curie(page), IFML.contains)), key=order)
 
     def parameter_labels(self, component) -> set[str]:
@@ -643,8 +698,7 @@ class ModelGraph:
 
     def shape_graph(self) -> Graph:
         """The named graph(s) holding sh:NodeShape subjects (merged when several)."""
-        names = sorted({c for _s, _p, _o, c in self.ds.quads((None, RDF.type, SH.NodeShape))
-                        if c is not None}, key=str)
+        names = sorted({c for _s, _p, _o, c in self.ds.quads((None, RDF.type, SH.NodeShape)) if c is not None}, key=str)
         if not names:
             raise ResolutionError(self.subject, RDF.type, "no graph contains an sh:NodeShape")
         if len(names) == 1:
@@ -660,15 +714,13 @@ class ModelGraph:
 
 def dmn_decision_ids(dmn_path) -> list[str]:
     root = etree.parse(str(dmn_path)).getroot()
-    return [el.get("id") for el in root.iter()
-            if isinstance(el.tag, str) and etree.QName(el).localname == "decision"]
+    return [el.get("id") for el in root.iter() if isinstance(el.tag, str) and etree.QName(el).localname == "decision"]
 
 
 def bpmn_start_event_ids(bpmn_path) -> set[str]:
     """ids of every bpmn:startEvent in the file."""
     root = etree.parse(str(bpmn_path)).getroot()
-    return {el.get("id") for el in root.iter()
-            if isinstance(el.tag, str) and etree.QName(el).localname == "startEvent"}
+    return {el.get("id") for el in root.iter() if isinstance(el.tag, str) and etree.QName(el).localname == "startEvent"}
 
 
 def dmn_input_types(dmn_path, decision_id: str) -> dict[str, str]:
@@ -677,13 +729,16 @@ def dmn_input_types(dmn_path, decision_id: str) -> dict[str, str]:
     root = etree.parse(str(dmn_path)).getroot()
     out = {}
     for decision in root.iter():
-        if not (isinstance(decision.tag, str) and etree.QName(decision).localname == "decision"
-                and decision.get("id") == decision_id):
+        if not (
+            isinstance(decision.tag, str)
+            and etree.QName(decision).localname == "decision"
+            and decision.get("id") == decision_id
+        ):
             continue
         for el in decision.iter():
-            if isinstance(el.tag, str) and etree.QName(el).localname == "inputExpression" \
-                    and el.get("typeRef"):
-                text = "".join(t.text or "" for t in el
-                               if isinstance(t.tag, str) and etree.QName(t).localname == "text")
+            if isinstance(el.tag, str) and etree.QName(el).localname == "inputExpression" and el.get("typeRef"):
+                text = "".join(
+                    t.text or "" for t in el if isinstance(t.tag, str) and etree.QName(t).localname == "text"
+                )
                 out[text.strip()] = el.get("typeRef")
     return out

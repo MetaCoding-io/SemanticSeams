@@ -15,11 +15,12 @@ import argparse
 import sys
 from pathlib import Path
 
+from seams_runtime import ModelGraph
+
 from . import GeneratorError
 from .compose import generate_compose
 from .fastapi import route_module
 from .htmx import generate_pages
-from seams_runtime import ModelGraph
 
 EXIT_GENERATOR_ERROR = 2
 EXIT_IO_ERROR = 1
@@ -55,8 +56,7 @@ GENERATORS = {
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m seams_gen",
-                                     description="Generate code from a seams model.")
+    parser = argparse.ArgumentParser(prog="python -m seams_gen", description="Generate code from a seams model.")
     sub = parser.add_subparsers(dest="generator", required=True, metavar="generator")
     for name, (help_text, generate) in GENERATORS.items():
         p = sub.add_parser(name, help=help_text, description=f"Generate {help_text}.")

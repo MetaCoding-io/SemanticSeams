@@ -55,27 +55,24 @@ def test_env_overrides_argument(tmp_path, monkeypatch, caplog):
     copy = _copy_model(tmp_path)
     monkeypatch.setenv(MODEL_ENV, str(copy))
     with caplog.at_level(logging.INFO, logger="seams_runtime.runtime"):
-        runtime = Runtime.load("/model/chat-app.trig", model_hash=model_hash(copy),
-                               db_path=tmp_path / "db.sqlite")
+        runtime = Runtime.load("/model/chat-app.trig", model_hash=model_hash(copy), db_path=tmp_path / "db.sqlite")
     assert runtime.model.path == copy.resolve()
     assert f"model path {copy} from {MODEL_ENV}" in caplog.text
 
 
 def test_env_model_with_other_hash_is_refused(tmp_path, monkeypatch):
-    copy = _copy_model(tmp_path, extra="\n<urn:test:extra> <urn:test:p> \"different\" .\n")
+    copy = _copy_model(tmp_path, extra='\n<urn:test:extra> <urn:test:p> "different" .\n')
     assert model_hash(copy) != _committed_hash()
     monkeypatch.setenv(MODEL_ENV, str(copy))
     with pytest.raises(ModelHashMismatch):
-        Runtime.load("/model/chat-app.trig", model_hash=_committed_hash(),
-                     db_path=tmp_path / "db.sqlite")
+        Runtime.load("/model/chat-app.trig", model_hash=_committed_hash(), db_path=tmp_path / "db.sqlite")
 
 
 def test_env_model_with_other_hash_allowed(tmp_path, monkeypatch):
-    copy = _copy_model(tmp_path, extra="\n<urn:test:extra> <urn:test:p> \"different\" .\n")
+    copy = _copy_model(tmp_path, extra='\n<urn:test:extra> <urn:test:p> "different" .\n')
     monkeypatch.setenv(MODEL_ENV, str(copy))
     monkeypatch.setenv(ALLOW_MISMATCH_ENV, "1")
-    runtime = Runtime.load("/model/chat-app.trig", model_hash=_committed_hash(),
-                           db_path=tmp_path / "db.sqlite")
+    runtime = Runtime.load("/model/chat-app.trig", model_hash=_committed_hash(), db_path=tmp_path / "db.sqlite")
     assert runtime.model.path == copy.resolve()
 
 

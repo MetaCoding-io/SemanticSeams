@@ -36,7 +36,6 @@ from .facts import DASH, IFML
 from .facts import Facts as _Facts
 from .fragments import fragment_for
 
-
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "htmx_page.html.j2"
 FRAGMENT_TEMPLATE_NAME = "htmx_fragment.html.j2"
@@ -64,60 +63,62 @@ COMPONENT_TYPES = (IFML.List, IFML.Details, IFML.Form)
 
 @dataclass(frozen=True)
 class Field:
-    name: str        # local name of sh:path
-    kind: str        # "textarea" (dash:TextAreaEditor), "datetime", "enum" (sh:in) or "text"
+    name: str  # local name of sh:path
+    kind: str  # "textarea" (dash:TextAreaEditor), "datetime", "enum" (sh:in) or "text"
     order: int | None
     max_length: int | None
-    required: bool   # sh:minCount >= 1
+    required: bool  # sh:minCount >= 1
     options: tuple[str, ...] = ()  # sh:in values, in list order
 
 
 @dataclass(frozen=True)
 class Flow:
     curie: str
-    target: str      # local name of ifml:target
-    swap: str        # hx-swap
-    target_id: str   # hx-target element id (#<target> or #<target>_items)
+    target: str  # local name of ifml:target
+    swap: str  # hx-swap
+    target_id: str  # hx-target element id (#<target> or #<target>_items)
 
 
 @dataclass(frozen=True)
 class Link:
     """The navigation an item of a List fires (ifml:hasEvent -> NavigationFlow)."""
+
     event_trigger: str
     flow: Flow
-    get_path: str    # hx-get, with path variables filled from the item
+    get_path: str  # hx-get, with path variables filled from the item
     vals: tuple[tuple[str, str], ...]  # hx-vals from the DataFlow ParameterBinding
 
 
 @dataclass(frozen=True)
 class Stream:
-    id: str          # local name of the comm:Channel
+    id: str  # local name of the comm:Channel
     curie: str
-    publisher: str   # curie of the element that seam:publishesTo the channel
-    connect: str     # sse-connect path
+    publisher: str  # curie of the element that seam:publishesTo the channel
+    connect: str  # sse-connect path
     event_name: str  # sse-swap
 
 
 @dataclass(frozen=True)
 class Input:
     """A form field: an ifml:Parameter ifml:boundTo a written shape's sh:path."""
+
     id: str
     name: str
-    element: str     # "textarea", "input" or (task forms only) "select"
+    element: str  # "textarea", "input" or (task forms only) "select"
     attributes: tuple[str, ...]
     options: tuple[str, ...] = ()  # a select's sh:in values
 
 
 @dataclass(frozen=True)
 class Submit:
-    event: str       # curie
-    label: str       # button text
-    method: str      # lowercased hydra:method (hx-<method>)
+    event: str  # curie
+    label: str  # button text
+    method: str  # lowercased hydra:method (hx-<method>)
     method_upper: str
     path: str
-    operation: str   # curie
+    operation: str  # curie
     media_kind: str  # local name of seam:mediaKind
-    consumer: str    # curie of the container that seam:consumes the operation
+    consumer: str  # curie of the container that seam:consumes the operation
     triggers: tuple[str, ...]
     event_policies: tuple[str, ...]
     route_policies: tuple[str, ...]
@@ -132,7 +133,7 @@ class Submit:
 class Component:
     id: str
     curie: str
-    kind: str        # "List", "Details" or "Form"
+    kind: str  # "List", "Details" or "Form"
     type_curie: str
     label: str
     order: int
@@ -159,9 +160,10 @@ class Component:
 @dataclass(frozen=True)
 class Fragment:
     """A partial named by the GAP-19 rule (seams_gen.fragments.fragment_for)."""
-    name: str        # file name, <component>.html or <component>_item.html
-    component: str   # local name of the seam:rendersComponent target
-    kind: str        # "component" or "item"
+
+    name: str  # file name, <component>.html or <component>_item.html
+    component: str  # local name of the seam:rendersComponent target
+    kind: str  # "component" or "item"
     operations: tuple[str, ...]  # curies of the operations that render it, by IRI
 
 
@@ -170,14 +172,15 @@ class TaskForm:
     """The partial of an ifml:Form a proc:UserTask seam:completedOn (ADR-0009),
     rendered by the host's task inbox with ``task`` bound to a
     Runtime.user_tasks row."""
-    name: str        # file name, <form local name>.html
-    id: str          # the form's local name
+
+    name: str  # file name, <form local name>.html
+    id: str  # the form's local name
     curie: str
-    label: str       # the form's rdfs:label
-    task: str        # curie of the user task
+    label: str  # the form's rdfs:label
+    task: str  # curie of the user task
     task_label: str  # the task's rdfs:label
-    key: str         # the process's proc:correlationKey rdfs:label
-    entity_class: str | None    # the task's seam:reads shape label, lowercased
+    key: str  # the process's proc:correlationKey rdfs:label
+    entity_class: str | None  # the task's seam:reads shape label, lowercased
     entity_fields: tuple[Field, ...]
     submit: Submit
     inputs: tuple[Input, ...]
@@ -239,15 +242,17 @@ def extract_page(model: ModelGraph, page=None) -> PageModel:
     # Runtime.page_context binds a correlation key only when a component that
     # seam:reads a shape is scoped by it; any other key in a submit path is new.
     keys = {f.label(p) for p in f.ds.objects(None, PROC.correlationKey)}
-    bound_keys = {f.label(p) for _, c in components if f.objects(c, SEAM.reads)
-                  for p in f.objects(c, IFML.hasParameter)} & keys
+    bound_keys = {
+        f.label(p) for _, c in components if f.objects(c, SEAM.reads) for p in f.objects(c, IFML.hasParameter)
+    } & keys
     mintable = keys - bound_keys
-    sse_channels = [ch for ch in f.objects(presenter, SEAM.consumes)
-                    if (ch, RDF.type, COMM.Channel) in f.ds
-                    and (ch, COMM.transport, COMM.SSE) in f.ds]
+    sse_channels = [
+        ch
+        for ch in f.objects(presenter, SEAM.consumes)
+        if (ch, RDF.type, COMM.Channel) in f.ds and (ch, COMM.transport, COMM.SSE) in f.ds
+    ]
 
-    built = tuple(_component(f, c, order, presenter, page_params, sse_channels, mintable)
-                  for order, c in components)
+    built = tuple(_component(f, c, order, presenter, page_params, sse_channels, mintable) for order, c in components)
     task_forms = _task_forms(f, presenter) if landmark else ()
     screens = _screen_components(f, presenter, task_forms, {c.id for c in built}, sse_channels)
     return PageModel(
@@ -278,8 +283,10 @@ def _fragments(f: _Facts, presenter, component_ids) -> tuple[Fragment, ...]:
         if local_name(component) not in component_ids:
             continue
         found.setdefault(name, (local_name(component), kind, []))[2].append(f.curie(op))
-    return tuple(Fragment(name=name, component=comp, kind=kind, operations=tuple(ops))
-                 for name, (comp, kind, ops) in sorted(found.items()))
+    return tuple(
+        Fragment(name=name, component=comp, kind=kind, operations=tuple(ops))
+        for name, (comp, kind, ops) in sorted(found.items())
+    )
 
 
 def _landmark(f: _Facts, model: ModelGraph):
@@ -289,25 +296,29 @@ def _landmark(f: _Facts, model: ModelGraph):
         models = f.subjects(RDF.type, IFML.InteractionModel)
         subject = models[0] if len(models) == 1 else model.subject
         found = ", ".join(map(str, landmarks)) or "none"
-        raise GeneratorError(subject, IFML.isLandmark,
-                             f"expected exactly one ifml:ViewContainer with ifml:isLandmark true, found {found}")
+        raise GeneratorError(
+            subject,
+            IFML.isLandmark,
+            f"expected exactly one ifml:ViewContainer with ifml:isLandmark true, found {found}",
+        )
     return landmarks[0]
 
 
 def _interaction_model(f: _Facts, page):
-    models = [m for m in f.subjects(IFML.contains, page)
-              if (m, RDF.type, IFML.InteractionModel) in f.ds]
+    models = [m for m in f.subjects(IFML.contains, page) if (m, RDF.type, IFML.InteractionModel) in f.ds]
     if len(models) != 1:
-        raise GeneratorError(page, IFML.contains,
-                             f"expected one ifml:InteractionModel containing the page, found {len(models)}")
+        raise GeneratorError(
+            page, IFML.contains, f"expected one ifml:InteractionModel containing the page, found {len(models)}"
+        )
     return models[0]
 
 
 def _presenter(f: _Facts, imodel):
     presenters = f.subjects(SEAM.presents, imodel)
     if len(presenters) != 1:
-        raise GeneratorError(imodel, SEAM.presents,
-                             f"expected one container presenting the model, found {len(presenters)}")
+        raise GeneratorError(
+            imodel, SEAM.presents, f"expected one container presenting the model, found {len(presenters)}"
+        )
     return presenters[0]
 
 
@@ -334,18 +345,23 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintab
         guard_curies = tuple(sorted(f.curie(state) for state in states))
 
     base = dict(
-        id=local_name(c), curie=f.curie(c), kind=local_name(ctype), type_curie=f.curie(ctype),
-        label=f.label(c), order=order,
+        id=local_name(c),
+        curie=f.curie(c),
+        kind=local_name(ctype),
+        type_curie=f.curie(ctype),
+        label=f.label(c),
+        order=order,
         reads=f.curie(reads) if reads is not None else None,
         writes=f.curie(writes) if writes is not None else None,
-        guard_variable=guard_var, guard_states=guard_states, guard_state_curies=guard_curies,
+        guard_variable=guard_var,
+        guard_states=guard_states,
+        guard_state_curies=guard_curies,
         parameters=tuple(sorted(f.label(p) for p in f.objects(c, IFML.hasParameter))),
     )
 
     def fill_param(var: str) -> str:
         if var not in page_params:
-            raise GeneratorError(c, IFML.hasParameter,
-                                 f"path variable {var!r} names no ifml:Parameter of the page")
+            raise GeneratorError(c, IFML.hasParameter, f"path variable {var!r} names no ifml:Parameter of the page")
         return var
 
     if ctype == IFML.List:
@@ -358,8 +374,9 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintab
         display = [fl.name for fl in fields if fl.name not in identifiers]
         if not display:
             raise GeneratorError(reads, SH.property, "no non-identifier datatype property to display")
-        return Component(**base, collection=_shape_name(reads) + "s", loop_var="item",
-                         link=link, display_field=display[0])
+        return Component(
+            **base, collection=_shape_name(reads) + "s", loop_var="item", link=link, display_field=display[0]
+        )
 
     if ctype == IFML.Details:
         if reads is None:
@@ -372,15 +389,24 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintab
             ch = streams[0]
             publishers = f.subjects(SEAM.publishesTo, ch)
             if len(publishers) != 1:
-                raise GeneratorError(ch, SEAM.publishesTo,
-                                     f"expected one publisher, found {len(publishers)}")
+                raise GeneratorError(ch, SEAM.publishesTo, f"expected one publisher, found {len(publishers)}")
             template, _ = f.path_template(ch)
-            stream = Stream(id=local_name(ch), curie=f.curie(ch), publisher=f.curie(publishers[0]),
-                            connect=_fill(template, fill_param),
-                            event_name=str(f.one(ch, COMM.eventName)))
+            stream = Stream(
+                id=local_name(ch),
+                curie=f.curie(ch),
+                publisher=f.curie(publishers[0]),
+                connect=_fill(template, fill_param),
+                event_name=str(f.one(ch, COMM.eventName)),
+            )
         name = _shape_name(reads)
-        return Component(**base, collection=name + "s", loop_var=name,
-                         item_class=f.label(reads).lower(), fields=_fields(f, reads), stream=stream)
+        return Component(
+            **base,
+            collection=name + "s",
+            loop_var=name,
+            item_class=f.label(reads).lower(),
+            fields=_fields(f, reads),
+            stream=stream,
+        )
 
     # ifml:Form
     if writes is None:
@@ -395,8 +421,7 @@ def _component(f: _Facts, c, order, presenter, page_params, sse_channels, mintab
     by_name = {fl.name: fl for fl in fields}
     unknown = sorted(set(bound) - set(by_name))
     if unknown:
-        raise GeneratorError(bound[unknown[0]], IFML.boundTo,
-                             f"{unknown[0]!r} is not a datatype sh:path of {writes}")
+        raise GeneratorError(bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes}")
     prefix = base["id"]
     suffix = "_" + local_name(ctype).lower()
     if prefix.endswith(suffix) and len(prefix) > len(suffix):
@@ -423,11 +448,16 @@ def _fields(f: _Facts, shape) -> tuple[Field, ...]:
         min_count = f.int_value(prop, SH.minCount)
         members = f.optional(prop, SH["in"])
         options = tuple(str(v) for v in Collection(f.ds, members)) if members is not None else ()
-        fields.append(Field(
-            name=local_name(f.one(prop, SH.path)), kind=kind,
-            order=f.int_value(prop, SH.order), max_length=f.int_value(prop, SH.maxLength),
-            required=min_count is not None and min_count >= 1, options=options,
-        ))
+        fields.append(
+            Field(
+                name=local_name(f.one(prop, SH.path)),
+                kind=kind,
+                order=f.int_value(prop, SH.order),
+                max_length=f.int_value(prop, SH.maxLength),
+                required=min_count is not None and min_count >= 1,
+                options=options,
+            )
+        )
     fields.sort(key=lambda fl: (fl.order is None, fl.order or 0, fl.name))
     return tuple(fields)
 
@@ -443,11 +473,9 @@ def _flow(f: _Facts, flow) -> Flow:
 
 
 def _navigation(f: _Facts, event):
-    flows = [fl for fl in f.subjects(IFML.source, event)
-             if (fl, RDF.type, IFML.NavigationFlow) in f.ds]
+    flows = [fl for fl in f.subjects(IFML.source, event) if (fl, RDF.type, IFML.NavigationFlow) in f.ds]
     if len(flows) != 1:
-        raise GeneratorError(event, IFML.source,
-                             f"expected one ifml:NavigationFlow from the event, found {len(flows)}")
+        raise GeneratorError(event, IFML.source, f"expected one ifml:NavigationFlow from the event, found {len(flows)}")
     return flows[0]
 
 
@@ -456,11 +484,11 @@ def _list_link(f: _Facts, c) -> Link:
     flow_iri = _navigation(f, event)
     flow = _flow(f, flow_iri)
     target = f.one(flow_iri, IFML.target)
-    reads_ops = [op for op in f.subjects(SEAM.rendersComponent, target)
-                 if str(f.optional(op, HYDRA.method)) == "GET"]
+    reads_ops = [op for op in f.subjects(SEAM.rendersComponent, target) if str(f.optional(op, HYDRA.method)) == "GET"]
     if len(reads_ops) != 1:
-        raise GeneratorError(target, SEAM.rendersComponent,
-                             f"expected one GET operation rendering {target}, found {len(reads_ops)}")
+        raise GeneratorError(
+            target, SEAM.rendersComponent, f"expected one GET operation rendering {target}, found {len(reads_ops)}"
+        )
     template, mappings = f.path_template(reads_ops[0])
     get_path = _fill(template, lambda var: "item." + mappings[var])
 
@@ -472,11 +500,11 @@ def _list_link(f: _Facts, c) -> Link:
             f.one(binding, IFML.sourceParameter)
             name = f.label(f.one(binding, IFML.targetParameter))
             if name not in mappings:
-                raise GeneratorError(binding, IFML.targetParameter,
-                                     f"{name!r} is not a path variable of {reads_ops[0]}")
+                raise GeneratorError(
+                    binding, IFML.targetParameter, f"{name!r} is not a path variable of {reads_ops[0]}"
+                )
             vals.append((name, "item." + mappings[name]))
-    return Link(event_trigger=str(f.one(event, IFML.trigger)), flow=flow,
-                get_path=get_path, vals=tuple(sorted(vals)))
+    return Link(event_trigger=str(f.one(event, IFML.trigger)), flow=flow, get_path=get_path, vals=tuple(sorted(vals)))
 
 
 def _submit(f: _Facts, c, presenter, fill_param, mintable=frozenset()) -> Submit:
@@ -484,9 +512,11 @@ def _submit(f: _Facts, c, presenter, fill_param, mintable=frozenset()) -> Submit
     if len(events) != 1:
         subject = f.objects(c, IFML.hasEvent)
         subject = subject[0] if len(subject) == 1 else c
-        raise GeneratorError(subject, SEAM.submitsTo,
-                             f"expected one event of form {c} that seam:submitsTo an operation, "
-                             f"found {len(events)}")
+        raise GeneratorError(
+            subject,
+            SEAM.submitsTo,
+            f"expected one event of form {c} that seam:submitsTo an operation, found {len(events)}",
+        )
     event = events[0]
     op = f.one(event, SEAM.submitsTo)
     if (presenter, SEAM.consumes, op) not in f.ds:
@@ -497,12 +527,19 @@ def _submit(f: _Facts, c, presenter, fill_param, mintable=frozenset()) -> Submit
     mint = tuple(v for v in variables if v in mintable)
     for var in mint:
         fill_param(var)  # still a parameter of the page
-    path = re.sub(r"\{(\w+)\}", lambda m: m.group(0) if m.group(1) in mint
-                  else "{{ " + fill_param(m.group(1)) + " }}", template)
+    path = re.sub(
+        r"\{(\w+)\}", lambda m: m.group(0) if m.group(1) in mint else "{{ " + fill_param(m.group(1)) + " }}", template
+    )
     return Submit(
-        event=f.curie(event), label=f.label(event), method=method.lower(), method_upper=method.upper(),
-        path=path, operation=f.curie(op), mint=mint,
-        media_kind=local_name(f.one(op, SEAM.mediaKind)), consumer=f.curie(presenter),
+        event=f.curie(event),
+        label=f.label(event),
+        method=method.lower(),
+        method_upper=method.upper(),
+        path=path,
+        operation=f.curie(op),
+        mint=mint,
+        media_kind=local_name(f.one(op, SEAM.mediaKind)),
+        consumer=f.curie(presenter),
         triggers=tuple(f.curie(p) for p in f.objects(event, SEAM.triggers)),
         event_policies=tuple(f.curie(p) for p in f.objects(event, SEAM.governedBy)),
         route_policies=tuple(f.curie(p) for p in f.objects(op, SEAM.governedBy)),
@@ -517,8 +554,9 @@ def _task_forms(f: _Facts, presenter) -> tuple[TaskForm, ...]:
         if (task, RDF.type, PROC.UserTask) not in f.ds:
             continue
         if form in found:
-            raise GeneratorError(form, SEAM.completedOn,
-                                 f"completes both {found[form]} and {task}; expected one user task")
+            raise GeneratorError(
+                form, SEAM.completedOn, f"completes both {found[form]} and {task}; expected one user task"
+            )
         found[form] = task
     return tuple(_task_form(f, form, found[form], presenter) for form in sorted(found, key=str))
 
@@ -532,31 +570,44 @@ def _task_form(f: _Facts, form, task, presenter) -> TaskForm:
 
     def fill_key(var: str) -> str:
         if var != key:
-            raise GeneratorError(process, PROC.correlationKey,
-                                 f"path variable {var!r} of the completion of {task} is not the "
-                                 f"correlation key {key!r}")
+            raise GeneratorError(
+                process,
+                PROC.correlationKey,
+                f"path variable {var!r} of the completion of {task} is not the correlation key {key!r}",
+            )
         return TASK_KEY
 
     submit = _submit(f, form, presenter, fill_key)
     if TASK_KEY not in submit.path:
-        raise GeneratorError(process, PROC.correlationKey,
-                             f"{key!r} is not a path variable of {submit.operation}, "
-                             f"so the completion of {task} cannot name its instance")
+        raise GeneratorError(
+            process,
+            PROC.correlationKey,
+            f"{key!r} is not a path variable of {submit.operation}, "
+            f"so the completion of {task} cannot name its instance",
+        )
     fields = _fields(f, writes)
-    bound = {local_name(t): p for p in f.objects(form, IFML.hasParameter)
-             for t in [f.optional(p, IFML.boundTo)] if t is not None}
+    bound = {
+        local_name(t): p
+        for p in f.objects(form, IFML.hasParameter)
+        for t in [f.optional(p, IFML.boundTo)]
+        if t is not None
+    }
     by_name = {fl.name for fl in fields}
     unknown = sorted(set(bound) - by_name)
     if unknown:
-        raise GeneratorError(bound[unknown[0]], IFML.boundTo,
-                             f"{unknown[0]!r} is not a datatype sh:path of {writes}")
+        raise GeneratorError(bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes}")
     prefix = local_name(form)
     if prefix.endswith("_form") and len(prefix) > len("_form"):
         prefix = prefix[: -len("_form")]
     reads = f.optional(task, SEAM.reads)
     return TaskForm(
-        name=f"{local_name(form)}.html", id=local_name(form), curie=f.curie(form),
-        label=f.label(form), task=_task_curie(f, task), task_label=f.label(task), key=key,
+        name=f"{local_name(form)}.html",
+        id=local_name(form),
+        curie=f.curie(form),
+        label=f.label(form),
+        task=_task_curie(f, task),
+        task_label=f.label(task),
+        key=key,
         entity_class=f.label(reads).lower() if reads is not None else None,
         entity_fields=_fields(f, reads) if reads is not None else (),
         submit=submit,
@@ -569,12 +620,17 @@ def _task_process(f: _Facts, task):
     """The proc:Process whose seam:detailedBy BPMN model holds ``task`` (its
     IRI is <model>#<bpmn id>, or it is seam:inModel the model)."""
     models = set(f.objects(task, SEAM.inModel))
-    found = [p for p in f.subjects(RDF.type, PROC.Process)
-             if any(m in models or str(task).startswith(f"{m}#") for m in f.objects(p, SEAM.detailedBy))]
+    found = [
+        p
+        for p in f.subjects(RDF.type, PROC.Process)
+        if any(m in models or str(task).startswith(f"{m}#") for m in f.objects(p, SEAM.detailedBy))
+    ]
     if len(found) != 1:
-        raise GeneratorError(task, SEAM.detailedBy,
-                             "expected one proc:Process seam:detailedBy the model holding the task, "
-                             f"found {[str(p) for p in found]}")
+        raise GeneratorError(
+            task,
+            SEAM.detailedBy,
+            f"expected one proc:Process seam:detailedBy the model holding the task, found {[str(p) for p in found]}",
+        )
     return found[0]
 
 
@@ -586,7 +642,7 @@ def _task_curie(f: _Facts, task) -> str:
     s = str(task)
     for ns, prefix in f._ns:
         if s.startswith(ns):
-            return f"{prefix}:{s[len(ns):]}"
+            return f"{prefix}:{s[len(ns) :]}"
     return s
 
 
@@ -602,12 +658,10 @@ def _screen_components(f: _Facts, presenter, task_forms, built_ids, sse_channels
         for screen in f.subjects(IFML.contains, form):
             if (screen, RDF.type, IFML.ViewContainer) not in f.ds:
                 continue
-            params = {f.label(p) for c in f.objects(screen, IFML.contains)
-                      for p in f.objects(c, IFML.hasParameter)}
+            params = {f.label(p) for c in f.objects(screen, IFML.contains) for p in f.objects(c, IFML.hasParameter)}
             for c in f.objects(screen, IFML.contains):
                 if c in rendered and local_name(c) not in built_ids and c not in out:
-                    out[c] = _component(f, c, f.int_value(c, IFML.order) or 0, presenter,
-                                        params, sse_channels)
+                    out[c] = _component(f, c, f.int_value(c, IFML.order) or 0, presenter, params, sse_channels)
     return tuple(out[c] for c in sorted(out, key=str))
 
 
@@ -617,8 +671,7 @@ def _task_input(prefix: str, fl: Field) -> Input:
     if not fl.options:
         return _input(prefix, fl)
     attributes = (f'name="{fl.name}"',) + (("required",) if fl.required else ())
-    return Input(id=f"{prefix}_{fl.name}", name=fl.name, element="select",
-                 attributes=attributes, options=fl.options)
+    return Input(id=f"{prefix}_{fl.name}", name=fl.name, element="select", attributes=attributes, options=fl.options)
 
 
 def _input(prefix: str, fl: Field) -> Input:
@@ -639,11 +692,17 @@ def _input(prefix: str, fl: Field) -> Input:
 def _environment() -> jinja2.Environment:
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(TEMPLATE_DIR)),
-        variable_start_string="[[", variable_end_string="]]",
-        block_start_string="[%", block_end_string="%]",
-        comment_start_string="[#", comment_end_string="#]",
-        keep_trailing_newline=True, trim_blocks=True, lstrip_blocks=True,
-        undefined=jinja2.StrictUndefined, autoescape=False,
+        variable_start_string="[[",
+        variable_end_string="]]",
+        block_start_string="[%",
+        block_end_string="%]",
+        comment_start_string="[#",
+        comment_end_string="#]",
+        keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        undefined=jinja2.StrictUndefined,
+        autoescape=False,
     )
     env.filters["english_list"] = _english_list
     return env
@@ -662,8 +721,7 @@ def render_fragments(page: PageModel) -> dict[str, str]:
     """{file name: text} for every partial in ``page.fragments``."""
     template = _environment().get_template(FRAGMENT_TEMPLATE_NAME)
     by_id = {c.id: c for c in page.components + page.screen_components}
-    return {fr.name: template.render(page=page, fr=fr, c=by_id[fr.component])
-            for fr in page.fragments}
+    return {fr.name: template.render(page=page, fr=fr, c=by_id[fr.component]) for fr in page.fragments}
 
 
 def render_task_forms(page: PageModel) -> dict[str, str]:
@@ -683,8 +741,9 @@ def generate_pages(model: ModelGraph) -> dict[str, str]:
             rendered.update(render_task_forms(page))
         for name, text in rendered.items():
             if files.get(name, text) != text:
-                raise GeneratorError(model.curie(page.curie), IFML.contains,
-                                     f"{name} would be generated twice with different content")
+                raise GeneratorError(
+                    model.curie(page.curie), IFML.contains, f"{name} would be generated twice with different content"
+                )
             files[name] = text
     return files
 

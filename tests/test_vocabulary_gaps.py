@@ -92,7 +92,10 @@ def test_every_chat_container_has_exactly_one_artifact(chat_model):
            } GROUP BY ?c""",
     )
     assert {(c, int(n)) for c, n in rows} == {
-        (CHAT.chat_ui, 1), (CHAT.chat_api, 1), (CHAT.llm_gateway, 1), (CHAT.message_db, 1),
+        (CHAT.chat_ui, 1),
+        (CHAT.chat_api, 1),
+        (CHAT.llm_gateway, 1),
+        (CHAT.message_db, 1),
     }
 
 
@@ -170,10 +173,18 @@ def test_gap_05_secret_names(chat_model):
            }""",
     )
     assert rows == {
-        (CHAT.chat_api, lit("DB_URL"),
-         rdflib.URIRef("https://secrets.example.org/chat/prod/db-url"), lit("chat-prod-db-url")),
-        (CHAT.chat_api, lit("LLM_API_KEY"),
-         rdflib.URIRef("https://secrets.example.org/chat/prod/llm-key"), lit("chat-prod-llm-key")),
+        (
+            CHAT.chat_api,
+            lit("DB_URL"),
+            rdflib.URIRef("https://secrets.example.org/chat/prod/db-url"),
+            lit("chat-prod-db-url"),
+        ),
+        (
+            CHAT.chat_api,
+            lit("LLM_API_KEY"),
+            rdflib.URIRef("https://secrets.example.org/chat/prod/llm-key"),
+            lit("chat-prod-llm-key"),
+        ),
     }
     # Every secretRef binding is named, so no compose secret lacks a source.
     assert not ask(
@@ -267,15 +278,27 @@ def test_deploy_shapes_accept_chat_app(chat_model):
         ('deploy:volume [ a deploy:Volume ; deploy:volumeName "data" ; deploy:mountPath "var/data" ]', MOUNT_MSG),
         ('deploy:healthcheck [ a deploy:Healthcheck ; deploy:interval "5s" ]', PROBE_MSG),
         ('deploy:configuration [ deploy:binding [ deploy:key "K" ] ]', BINDING_MSG),
-        ('deploy:configuration [ deploy:binding [ deploy:key "K" ; deploy:value "x" ; deploy:serviceOf :svc ] ]',
-         BINDING_MSG),
-        ('deploy:configuration [ deploy:binding [ deploy:key "K" ; deploy:value "x" ; deploy:secretName "n" ] ]',
-         SECRET_NAME_MSG),
+        (
+            'deploy:configuration [ deploy:binding [ deploy:key "K" ; deploy:value "x" ; deploy:serviceOf :svc ] ]',
+            BINDING_MSG,
+        ),
+        (
+            'deploy:configuration [ deploy:binding [ deploy:key "K" ; deploy:value "x" ; deploy:secretName "n" ] ]',
+            SECRET_NAME_MSG,
+        ),
     ],
     ids=[
-        "artifact-no-reference", "port-string", "port-out-of-range", "port-missing",
-        "published-port-zero", "volume-no-mount", "volume-relative-mount", "healthcheck-no-probe",
-        "binding-no-value", "binding-two-values", "secret-name-without-ref",
+        "artifact-no-reference",
+        "port-string",
+        "port-out-of-range",
+        "port-missing",
+        "published-port-zero",
+        "volume-no-mount",
+        "volume-relative-mount",
+        "healthcheck-no-probe",
+        "binding-no-value",
+        "binding-two-values",
+        "secret-name-without-ref",
     ],
 )
 def test_deploy_shapes_have_teeth(facts, message):
@@ -412,8 +435,13 @@ def test_gap_09_event_submits_to_operation(chat_model):
            }""",
     )
     assert rows == {
-        (CHAT.send_message, CHAT.send_message_op, lit("POST"),
-         lit("/conversations/{conversation}/messages"), CHAT.user_send_policy),
+        (
+            CHAT.send_message,
+            CHAT.send_message_op,
+            lit("POST"),
+            lit("/conversations/{conversation}/messages"),
+            CHAT.user_send_policy,
+        ),
     }
     # The event still names the process it starts; the operation's handler starts it.
     assert ask(chat_model, "ASK { :send_message seam:triggers :send_message_process }")
@@ -530,31 +558,43 @@ UI_PREFIXES = """
 @pytest.mark.parametrize(
     "facts, message",
     [
-        (":e a arch:Container ; seam:submitsTo :op . :op a hydra:Operation .",
-         "Only an ifml:Event seam:submitsTo an operation."),
-        (":e a ifml:Event ; seam:submitsTo :c . :c a arch:Container .",
-         "seam:submitsTo points at a hydra:Operation."),
-        (":e a ifml:Event ; seam:rendersComponent :v . :v a ifml:List .",
-         "Only a hydra:Operation seam:rendersComponent."),
-        (":op a hydra:Operation ; seam:rendersComponent :p . :p a ifml:ViewContainer .",
-         "seam:rendersComponent points at an ifml:ViewComponent."),
-        (":f a ifml:NavigationFlow ; ifml:swap :sideways .",
-         "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend."),
-        (":f a ifml:NavigationFlow ; ifml:swap ifml:Replace , ifml:Append .",
-         "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend."),
-        (":f a ifml:DataFlow ; ifml:swap ifml:Replace .",
-         "Only an ifml:NavigationFlow carries ifml:swap."),
-        (":p ifml:boundTo :content .",
-         "Only an ifml:Parameter is ifml:boundTo a property."),
-        (":p a ifml:Parameter ; ifml:boundTo :content , :role .",
-         "ifml:boundTo names at most one property IRI."),
-        (':p a ifml:Parameter ; ifml:boundTo "content" .',
-         "ifml:boundTo names at most one property IRI."),
+        (
+            ":e a arch:Container ; seam:submitsTo :op . :op a hydra:Operation .",
+            "Only an ifml:Event seam:submitsTo an operation.",
+        ),
+        (":e a ifml:Event ; seam:submitsTo :c . :c a arch:Container .", "seam:submitsTo points at a hydra:Operation."),
+        (
+            ":e a ifml:Event ; seam:rendersComponent :v . :v a ifml:List .",
+            "Only a hydra:Operation seam:rendersComponent.",
+        ),
+        (
+            ":op a hydra:Operation ; seam:rendersComponent :p . :p a ifml:ViewContainer .",
+            "seam:rendersComponent points at an ifml:ViewComponent.",
+        ),
+        (
+            ":f a ifml:NavigationFlow ; ifml:swap :sideways .",
+            "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend.",
+        ),
+        (
+            ":f a ifml:NavigationFlow ; ifml:swap ifml:Replace , ifml:Append .",
+            "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend.",
+        ),
+        (":f a ifml:DataFlow ; ifml:swap ifml:Replace .", "Only an ifml:NavigationFlow carries ifml:swap."),
+        (":p ifml:boundTo :content .", "Only an ifml:Parameter is ifml:boundTo a property."),
+        (":p a ifml:Parameter ; ifml:boundTo :content , :role .", "ifml:boundTo names at most one property IRI."),
+        (':p a ifml:Parameter ; ifml:boundTo "content" .', "ifml:boundTo names at most one property IRI."),
     ],
     ids=[
-        "submits-from-non-event", "submits-to-non-operation", "renders-from-non-operation",
-        "renders-non-component", "swap-unknown-value", "swap-two-values", "swap-on-data-flow",
-        "bound-from-non-parameter", "bound-to-two", "bound-to-literal",
+        "submits-from-non-event",
+        "submits-to-non-operation",
+        "renders-from-non-operation",
+        "renders-non-component",
+        "swap-unknown-value",
+        "swap-two-values",
+        "swap-on-data-flow",
+        "bound-from-non-parameter",
+        "bound-to-two",
+        "bound-to-literal",
     ],
 )
 def test_ui_seam_shapes_have_teeth(facts, message):
@@ -659,8 +699,10 @@ def test_gap_16_state_guard(chat_model):
                               SUBSTR(?local, 1, STRLEN(?local) - 5), ?local), "_state") AS ?var)
            }""",
     )
-    assert rows == {(CHAT.message_thread, lit("message_state"), lit(label))
-                    for label in ("composing", "sending", "streaming", "complete")}
+    assert rows == {
+        (CHAT.message_thread, lit("message_state"), lit(label))
+        for label in ("composing", "sending", "streaming", "complete")
+    }
     # Every guard resolves through that chain: none names a state outside the
     # lifecycle of a shape its component reads.
     assert not ask(
@@ -704,15 +746,17 @@ ORDER_UNIQUE_MSG = "ifml:order is unique among the components of one ViewContain
 @pytest.mark.parametrize(
     "facts, message",
     [
-        (":page a ifml:ViewContainer ; ifml:contains :a , :b . "
-         ":a a ifml:List ; ifml:order 0 . :b a ifml:Form ; ifml:order 0 .", ORDER_UNIQUE_MSG),
+        (
+            ":page a ifml:ViewContainer ; ifml:contains :a , :b . "
+            ":a a ifml:List ; ifml:order 0 . :b a ifml:Form ; ifml:order 0 .",
+            ORDER_UNIQUE_MSG,
+        ),
         (':a a ifml:List ; ifml:order "0" .', ORDER_MSG),
         (":a a ifml:List ; ifml:order 0 , 1 .", ORDER_MSG),
         (":a a ifml:List ; ifml:order 1.5 .", ORDER_MSG),
         (":p a ifml:ViewContainer ; ifml:order 0 .", "Only an ifml:ViewComponent carries ifml:order."),
     ],
-    ids=["order-duplicate-in-container", "order-string", "order-two-values", "order-decimal",
-         "order-on-container"],
+    ids=["order-duplicate-in-container", "order-string", "order-two-values", "order-decimal", "order-on-container"],
 )
 def test_order_shape_has_teeth(facts, message):
     """Each malformed ifml:order fact trips its own shape, and nothing else."""
@@ -858,8 +902,13 @@ def test_gap_27_implementation_binding(chat_model):
     )
     bpmn = rdflib.Namespace("https://example.org/chat/chat_bpmn#")
     assert rows == {
-        (bpmn.persist_user_msg, CHAT.send_message_op, CHAT.chat_api,
-         lit("/conversations/{conversation}/messages"), lit(True)),
+        (
+            bpmn.persist_user_msg,
+            CHAT.send_message_op,
+            CHAT.chat_api,
+            lit("/conversations/{conversation}/messages"),
+            lit(True),
+        ),
         (bpmn.invoke_llm, CHAT.completion_op, CHAT.llm_gateway, lit("/v1/chat/completions"), lit(False)),
     }
     # No invoked operation is left without exactly one exposing container.

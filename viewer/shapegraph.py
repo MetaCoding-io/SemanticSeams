@@ -105,11 +105,7 @@ def shapegraph_graph_data(model_iri: str, focus: str | None = None) -> tuple[lis
     when model_iri holds no sh:NodeShape."""
     app = _app()
     graph = app.get_graph()
-    shapes = {
-        str(s)
-        for s in graph.subjects(SEAM_IN_MODEL, URIRef(model_iri))
-        if (s, RDF.type, SH.NodeShape) in graph
-    }
+    shapes = {str(s) for s in graph.subjects(SEAM_IN_MODEL, URIRef(model_iri)) if (s, RDF.type, SH.NodeShape) in graph}
     type_label = _shape_label()
     frames = sorted(app.nodes_for(shapes), key=lambda n: n["id"])
     nodes, edges = [], []

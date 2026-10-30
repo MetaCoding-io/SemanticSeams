@@ -46,8 +46,9 @@ def fragment_for(facts_or_model, operation) -> tuple[str, object, str]:
         for flow in f.subjects(IFML.source, event)
     )
     if item and (component, RDF.type, IFML.Details) not in f.ds:
-        raise GeneratorError(component, RDF.type,
-                             f"{operation} appends an item to it, which needs an ifml:Details item list")
+        raise GeneratorError(
+            component, RDF.type, f"{operation} appends an item to it, which needs an ifml:Details item list"
+        )
     if item:
         return f"{local_name(component)}_item.html", component, ITEM
     return f"{local_name(component)}.html", component, COMPONENT

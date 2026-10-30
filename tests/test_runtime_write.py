@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from processless_model import EXPENSES, write_model  # noqa: E402
+
 from seams_runtime import ContractViolation, ModelGraph, Runtime, Store  # noqa: E402
 from seams_runtime.fragments import flatten  # noqa: E402
 
@@ -49,11 +50,15 @@ def test_payload_status_overrides_the_initial_state(runtime):
     assert stored["status"] == stored["data"]["status"] == "submitted"
 
 
-@pytest.mark.parametrize("payload, path", [
-    ({}, "description"),
-    ({"description": "x" * 201}, "description"),
-    ({"description": "Lunch", "status": "paid"}, "status"),
-], ids=["missing-required", "too-long", "status-not-in-list"])
+@pytest.mark.parametrize(
+    "payload, path",
+    [
+        ({}, "description"),
+        ({"description": "x" * 201}, "description"),
+        ({"description": "Lunch", "status": "paid"}, "status"),
+    ],
+    ids=["missing-required", "too-long", "status-not-in-list"],
+)
 def test_invalid_payload_raises_and_stores_nothing(runtime, payload, path):
     with pytest.raises(ContractViolation) as err:
         runtime.write(":ExpenseShape", payload)

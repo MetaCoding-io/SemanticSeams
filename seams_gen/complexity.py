@@ -76,11 +76,11 @@ class Complexity:
     def failures(self) -> list[str]:
         out = []
         if self.multi_model_notations < MIN_MULTI_MODEL_NOTATIONS:
-            out.append(f"notations with 2+ models: {self.multi_model_notations}, "
-                       f"need at least {MIN_MULTI_MODEL_NOTATIONS}")
+            out.append(
+                f"notations with 2+ models: {self.multi_model_notations}, need at least {MIN_MULTI_MODEL_NOTATIONS}"
+            )
         if self.max_reach < MIN_MAX_REACH:
-            out.append(f"most models one element is reached from: {self.max_reach}, "
-                       f"need at least {MIN_MAX_REACH}")
+            out.append(f"most models one element is reached from: {self.max_reach}, need at least {MIN_MAX_REACH}")
         return out
 
 
@@ -115,8 +115,9 @@ def report(result: Complexity) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m seams_gen.complexity",
-                                     description="Measure a seams model's cross-layer complexity.")
+    parser = argparse.ArgumentParser(
+        prog="python -m seams_gen.complexity", description="Measure a seams model's cross-layer complexity."
+    )
     parser.add_argument("trig", type=Path, help="the model's TriG file")
     return parser
 

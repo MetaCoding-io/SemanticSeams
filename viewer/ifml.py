@@ -181,8 +181,16 @@ def _derive(model_iri: str) -> dict:
     for ev in sorted(triggers):
         for proc in triggers[ev]:
             flows.append(
-                {"iri": None, "label": app.label(proc), "layer": app.layer_of(proc), "seams": [],
-                 "kind": "action", "from": ev, "to": proc, "bindings": []}
+                {
+                    "iri": None,
+                    "label": app.label(proc),
+                    "layer": app.layer_of(proc),
+                    "seams": [],
+                    "kind": "action",
+                    "from": ev,
+                    "to": proc,
+                    "bindings": [],
+                }
             )
 
     notes = []
@@ -322,11 +330,10 @@ def _layout(d: dict) -> tuple[int, int]:
     _route_action_flows(d)
 
     width = max([right] + [a["x"] + a["w"] for a in d["actions"].values()]) + MARGIN
-    height = max(
-        [MARGIN]
-        + [b["y"] + b["h"] for b in boxes.values()]
-        + [a["y"] + a["h"] for a in d["actions"].values()]
-    ) + MARGIN
+    height = (
+        max([MARGIN] + [b["y"] + b["h"] for b in boxes.values()] + [a["y"] + a["h"] for a in d["actions"].values()])
+        + MARGIN
+    )
     return width, height
 
 
@@ -380,7 +387,8 @@ def _route_action_flows(d: dict) -> None:
         ay = a["y"] + a["h"] // 2
         mid = a["x"] - ACTION_GAP // 2
         blockers = [
-            b for iri, b in d["components"].items()
+            b
+            for iri, b in d["components"].items()
             if iri != e["owner"] and b["x"] + b["w"] > sx and b["x"] < a["x"] and b["y"] <= sy <= b["y"] + b["h"]
         ]
         if blockers:
@@ -492,8 +500,11 @@ def ifml_diagram(model_iri: str) -> dict:
 
 # --- ELK port graph (M007/S04, D023) ----------------------------------------
 
-_FIXED = {"elk.algorithm": "fixed", "elk.padding": "[top=0,left=0,bottom=0,right=0]",
-          "elk.nodeSize.fixedGraphSize": True}
+_FIXED = {
+    "elk.algorithm": "fixed",
+    "elk.padding": "[top=0,left=0,bottom=0,right=0]",
+    "elk.nodeSize.fixedGraphSize": True,
+}
 
 
 def _note_layer(n: dict, owners: dict) -> str:
@@ -529,8 +540,14 @@ def ifml_elk_graph(diagram: dict) -> dict:
     elements: dict[str, dict] = {}
 
     def base(kind: str, el: dict, **extra) -> dict:
-        return {"kind": kind, "iri": el["iri"], "label": el["label"], "layer": el["layer"],
-                "seams": el["seams"], **extra}
+        return {
+            "kind": kind,
+            "iri": el["iri"],
+            "label": el["label"],
+            "layer": el["layer"],
+            "seams": el["seams"],
+            **extra,
+        }
 
     ports_of: dict[str, list[dict]] = {}
     for e in diagram["events"]:
@@ -538,22 +555,34 @@ def ifml_elk_graph(diagram: dict) -> dict:
         if owner is None:
             continue
         ports_of.setdefault(e["owner"], []).append(
-            {"id": e["iri"], "x": e["cx"] - e["r"] - owner["x"], "y": e["cy"] - e["r"] - owner["y"],
-             "width": 2 * e["r"], "height": 2 * e["r"], "layoutOptions": {"elk.port.side": "EAST"}}
+            {
+                "id": e["iri"],
+                "x": e["cx"] - e["r"] - owner["x"],
+                "y": e["cy"] - e["r"] - owner["y"],
+                "width": 2 * e["r"],
+                "height": 2 * e["r"],
+                "layoutOptions": {"elk.port.side": "EAST"},
+            }
         )
         elements[e["iri"]] = base("event", e, eventKind=e["kind"], owner=e["owner"], r=e["r"])
 
     def node(b: dict, parent: dict | None) -> dict:
-        n = {"id": b["iri"], "x": b["x"] - (parent["x"] if parent else 0),
-             "y": b["y"] - (parent["y"] if parent else 0), "width": b["w"], "height": b["h"],
-             "layoutOptions": dict(_FIXED)}
+        n = {
+            "id": b["iri"],
+            "x": b["x"] - (parent["x"] if parent else 0),
+            "y": b["y"] - (parent["y"] if parent else 0),
+            "width": b["w"],
+            "height": b["h"],
+            "layoutOptions": dict(_FIXED),
+        }
         if b["iri"] in containers:
             kids = sorted(i for i, k in boxes.items() if k.get("parent") == b["iri"])
             n["children"] = [node(boxes[k], b) for k in kids]
             elements[b["iri"]] = base("container", b, title=b["title"], markers=b["markers"])
         else:
-            elements[b["iri"]] = base("component", b, stereotype=b["stereotype"],
-                                      bindings=b["bindings"], fields=b["fields"])
+            elements[b["iri"]] = base(
+                "component", b, stereotype=b["stereotype"], bindings=b["bindings"], fields=b["fields"]
+            )
         if b["iri"] in ports_of:
             n["ports"] = sorted(ports_of[b["iri"]], key=lambda p: p["id"])
             n["layoutOptions"]["elk.portConstraints"] = "FIXED_POS"
@@ -569,9 +598,17 @@ def ifml_elk_graph(diagram: dict) -> dict:
     for n in diagram["notes"]:
         nid = f"note::{n['kind']}::{n['for']}"
         children.append({"id": nid, "x": n["x"], "y": n["y"], "width": n["w"], "height": n["h"]})
-        elements[nid] = {"kind": "note", "iri": n["iri"], "label": n["text"], "layer": _note_layer(n, owners),
-                         "seams": [], "noteKind": n["kind"], "text": n["text"], "for": n["for"],
-                         "connector": n["connector"]}
+        elements[nid] = {
+            "kind": "note",
+            "iri": n["iri"],
+            "label": n["text"],
+            "layer": _note_layer(n, owners),
+            "seams": [],
+            "noteKind": n["kind"],
+            "text": n["text"],
+            "for": n["for"],
+            "connector": n["connector"],
+        }
 
     drawn = set(elements)
     edges = []
@@ -580,20 +617,42 @@ def ifml_elk_graph(diagram: dict) -> dict:
         if not pts or f["from"] not in drawn or f["to"] not in drawn:
             continue
         fid = f["iri"] or f"flow::action::{f['from']}::{f['to']}"
-        edges.append({
-            "id": fid, "sources": [f["from"]], "targets": [f["to"]],
-            "sections": [{"id": f"{fid}::s0",
-                          "startPoint": {"x": pts[0][0], "y": pts[0][1]},
-                          "bendPoints": [{"x": x, "y": y} for x, y in pts[1:-1]],
-                          "endPoint": {"x": pts[-1][0], "y": pts[-1][1]}}],
-        })
-        elements[fid] = {"kind": "flow", "iri": f["iri"] or f["to"], "label": f["label"], "layer": f["layer"],
-                         "seams": f["seams"], "flowKind": f["kind"], "bindings": f["bindings"], "points": pts}
+        edges.append(
+            {
+                "id": fid,
+                "sources": [f["from"]],
+                "targets": [f["to"]],
+                "sections": [
+                    {
+                        "id": f"{fid}::s0",
+                        "startPoint": {"x": pts[0][0], "y": pts[0][1]},
+                        "bendPoints": [{"x": x, "y": y} for x, y in pts[1:-1]],
+                        "endPoint": {"x": pts[-1][0], "y": pts[-1][1]},
+                    }
+                ],
+            }
+        )
+        elements[fid] = {
+            "kind": "flow",
+            "iri": f["iri"] or f["to"],
+            "label": f["label"],
+            "layer": f["layer"],
+            "seams": f["seams"],
+            "flowKind": f["kind"],
+            "bindings": f["bindings"],
+            "points": pts,
+        }
 
     return {
-        "elk": {"id": "root", "x": 0, "y": 0, "width": diagram["width"], "height": diagram["height"],
-                "layoutOptions": dict(_FIXED),
-                "children": sorted(children, key=lambda c: c["id"]),
-                "edges": sorted(edges, key=lambda e: e["id"])},
+        "elk": {
+            "id": "root",
+            "x": 0,
+            "y": 0,
+            "width": diagram["width"],
+            "height": diagram["height"],
+            "layoutOptions": dict(_FIXED),
+            "children": sorted(children, key=lambda c: c["id"]),
+            "edges": sorted(edges, key=lambda e: e["id"]),
+        },
         "elements": elements,
     }

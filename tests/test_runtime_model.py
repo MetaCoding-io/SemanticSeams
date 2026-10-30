@@ -49,6 +49,7 @@ def _copy_chat(tmp_path) -> Path:
 
 # ── model hash ──────────────────────────────────────────────────────────────
 
+
 def test_hash_is_deterministic_and_prefixed(model):
     h = model_hash(TRIG)
     assert h.startswith("sha256:") and len(h) == len("sha256:") + 64
@@ -68,7 +69,7 @@ def test_hash_changes_when_one_byte_of_any_covered_file_changes(tmp_path, name):
     # Flip the case of one letter that no IRI depends on: the TriG's leading
     # comment, or the first name="..." attribute of the BPMN/DMN.
     i = 2 if name.endswith(".trig") else data.index(b'name="') + len(b'name="')
-    data[i:i + 1] = bytes(data[i:i + 1]).swapcase()
+    data[i : i + 1] = bytes(data[i : i + 1]).swapcase()
     target.write_bytes(bytes(data))
     assert model_hash(trig) != model_hash(TRIG)
 
@@ -83,6 +84,7 @@ def test_hash_fails_with_resolution_error_when_payload_missing(tmp_path):
 
 
 # ── term helpers ────────────────────────────────────────────────────────────
+
 
 def test_curie_expands_default_prefix_and_passes_full_iris(model):
     assert model.curie(":send_message_op") == URIRef(CHAT + "send_message_op")
@@ -100,6 +102,7 @@ def test_task_iri_is_derived_from_the_bpmn_model(model):
 
 
 # ── resolvers against the real model ────────────────────────────────────────
+
 
 def test_decision_binding_route_to_provider(model):
     b = model.decision_binding("route_to_provider")
@@ -187,6 +190,7 @@ def test_shape_graph_is_the_data_shapes_graph(model):
 
 # ── negatives: missing hops name the IRI and predicate ──────────────────────
 
+
 def test_missing_decided_by(fresh):
     task = fresh.task_iri("route_to_provider")
     fresh.ds.remove((task, SEAM.decidedBy, None))
@@ -254,17 +258,25 @@ def test_no_shape_graph(fresh):
 
 # ── typed errors ────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("err, status", [
-    (ResolutionError(URIRef(CHAT + "x"), SEAM.fires, "d"), 500),
-    (ModelHashMismatch("sha256:a", "sha256:b", TRIG), 500),
-    (ContractViolation(URIRef(CHAT + "MessageShape"),
-                       [{"path": "content", "constraint": "MinCountConstraintComponent",
-                         "value": None, "message": "m"}],
-                       operation=URIRef(CHAT + "send_message_op")), 422),
-    (LifecycleViolation(URIRef(CHAT + "m1"), URIRef(CHAT + "t_send"), "complete", "composing"), 409),
-    (PolicyDenied(URIRef(CHAT + "user_send_policy"), URIRef(CHAT + "send_message_op"), 401, "no identity"), 401),
-    (PolicyDenied(URIRef(CHAT + "user_send_policy"), None, 403, "no permission"), 403),
-])
+
+@pytest.mark.parametrize(
+    "err, status",
+    [
+        (ResolutionError(URIRef(CHAT + "x"), SEAM.fires, "d"), 500),
+        (ModelHashMismatch("sha256:a", "sha256:b", TRIG), 500),
+        (
+            ContractViolation(
+                URIRef(CHAT + "MessageShape"),
+                [{"path": "content", "constraint": "MinCountConstraintComponent", "value": None, "message": "m"}],
+                operation=URIRef(CHAT + "send_message_op"),
+            ),
+            422,
+        ),
+        (LifecycleViolation(URIRef(CHAT + "m1"), URIRef(CHAT + "t_send"), "complete", "composing"), 409),
+        (PolicyDenied(URIRef(CHAT + "user_send_policy"), URIRef(CHAT + "send_message_op"), 401, "no identity"), 401),
+        (PolicyDenied(URIRef(CHAT + "user_send_policy"), None, 403, "no permission"), 403),
+    ],
+)
 def test_errors_are_json_safe_with_http_status(err, status):
     d = err.to_dict()
     assert err.http_status == status == d["http_status"]

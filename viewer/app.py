@@ -23,9 +23,9 @@ from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
 
 from viewer import ifml, legend
-from viewer.shapegraph import shapegraph_graph_data
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
+from viewer.shapegraph import shapegraph_graph_data
 from viewer.validation import get_model_conformance
 
 # uvicorn configures handlers for its own loggers only, so log through
@@ -147,9 +147,7 @@ def root_iri() -> str:
         else:
             graph = get_graph()
             candidates = sorted(
-                str(s)
-                for s in set(graph.subjects(RDF.type, SEAM.Model))
-                if (s, SEAM.notation, SEAM.C4) in graph
+                str(s) for s in set(graph.subjects(RDF.type, SEAM.Model)) if (s, SEAM.notation, SEAM.C4) in graph
             )
             if len(candidates) != 1:
                 found = ", ".join(candidates) if candidates else "none"
@@ -212,9 +210,7 @@ def ontology_reveal() -> dict[str, str]:
         g = Graph()
         for p in sorted((BASE_DIR.parent / "ontology").glob("*.ttl")):
             g.parse(p, format="turtle")
-        _ontology_reveal = {
-            str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES
-        }
+        _ontology_reveal = {str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES}
     return _ontology_reveal
 
 
@@ -442,11 +438,7 @@ def payload_element_seams(model_iri: str) -> dict[str, list[dict]]:
 
 def card_seams(iri: str) -> list[dict]:
     """Outgoing seam edges of iri as card dots, sorted by predicate then target."""
-    edges = [
-        (p, str(o))
-        for p, o in get_graph().predicate_objects(URIRef(iri))
-        if is_seam_predicate(p)
-    ]
+    edges = [(p, str(o)) for p, o in get_graph().predicate_objects(URIRef(iri)) if is_seam_predicate(p)]
     return [
         {
             "predicate": qname(p),
@@ -496,9 +488,7 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
     graph = get_graph()
     spec = C4_LEVELS[level]
     visible = {
-        m
-        for m in model_members(model_iri)
-        if any(t in spec.classes for t in graph.objects(URIRef(m), RDF.type))
+        m for m in model_members(model_iri) if any(t in spec.classes for t in graph.objects(URIRef(m), RDF.type))
     }
 
     parents: dict[str, str] = {}
@@ -517,10 +507,7 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         nested_via, nested_layers = _nest_targets(visible, parents)
         visible |= set(nested_via) | {o for o, p in parents.items() if p in nested_via}
 
-    nodes = [
-        {**n, "parent": parents.get(n["id"]), "nestedVia": nested_via.get(n["id"])}
-        for n in nodes_for(visible)
-    ]
+    nodes = [{**n, "parent": parents.get(n["id"]), "nestedVia": nested_via.get(n["id"])} for n in nodes_for(visible)]
     if spec.nest:
         for n in nodes:
             if n["id"] in nested_layers and n["layer"] == "other":
@@ -566,9 +553,7 @@ def top_level_members(model_iri: str) -> list[str]:
         for s, o in graph.subject_objects(pred)
         if str(s) in members and str(s) != str(o)
     }
-    return sorted(
-        m for m in members - held if (URIRef(m), RDFS.label, None) in graph
-    )
+    return sorted(m for m in members - held if (URIRef(m), RDFS.label, None) in graph)
 
 
 def _nest_targets(visible: set[str], parents: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
@@ -749,8 +734,12 @@ def toggled(hidden: list[str], type_qname: str) -> list[str]:
 @app.on_event("startup")
 def startup() -> None:
     get_graph()
-    logger.info("viewer model %s (%s), root %s", MODEL_PATH,
-                f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default", root_iri())
+    logger.info(
+        "viewer model %s (%s), root %s",
+        MODEL_PATH,
+        f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default",
+        root_iri(),
+    )
 
 
 @app.get("/")
@@ -804,10 +793,7 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
     # Non-applicable or unknown focus IRIs are not errors: an empty result set
     # (resultCount 0) is meaningful feedback, so execute unconditionally.
     result = canned_queries.execute_query(get_graph(), query_name, focus)
-    wants_html = (
-        request.headers.get("hx-request") == "true"
-        or request.query_params.get("format") == "html"
-    )
+    wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
     if not wants_html:
         return JSONResponse(result)
     query = canned_queries.QUERIES[query_name]
@@ -816,10 +802,7 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
         "query_label": query.label,
         "query_question": query.question,
         "result": result,
-        "cell_rows": [
-            [result_cell(row[col]) for col in result["columns"]]
-            for row in result["rows"]
-        ],
+        "cell_rows": [[result_cell(row[col]) for col in result["columns"]] for row in result["rows"]],
     }
     return templates.TemplateResponse(request, "query-results.html", ctx)
 
@@ -912,9 +895,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "legend": [
             {
                 **entry,
-                "href": href_for(
-                    focus, incoming_trail, view["level"], toggled(view["hiddenTypes"], entry["type"])
-                ),
+                "href": href_for(focus, incoming_trail, view["level"], toggled(view["hiddenTypes"], entry["type"])),
             }
             for entry in view["legend"]
         ],
@@ -972,9 +953,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     for e in ctx["incoming"]:
         e["href"] = link(e["source"])
 
-    ctx["detailed_by_candidates"] = [
-        {**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]
-    ]
+    ctx["detailed_by_candidates"] = [{**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]]
     ctx["relations"] = relation_groups(ctx["outgoing"], ctx["incoming"])
 
     template = "fragment.html" if request.headers.get("hx-request") == "true" else "page.html"

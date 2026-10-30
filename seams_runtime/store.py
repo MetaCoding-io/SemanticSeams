@@ -81,8 +81,9 @@ class Store:
 
     # ── workflow state ──
 
-    def save_state(self, instance_id: str, process, state: str, *,
-                   correlation_key: str | None = None, status: str | None = None) -> None:
+    def save_state(
+        self, instance_id: str, process, state: str, *, correlation_key: str | None = None, status: str | None = None
+    ) -> None:
         self._write(
             "INSERT OR REPLACE INTO workflow_state VALUES (?, ?, ?, ?, ?, ?)",
             (str(instance_id), str(process), correlation_key, state, status, time.time()),
@@ -97,8 +98,10 @@ class Store:
 
     def get_instance(self, instance_id: str) -> dict | None:
         """Instance metadata (no state), or None."""
-        rows = self._read("SELECT instance_id, process, correlation_key, status, updated "
-                          "FROM workflow_state WHERE instance_id = ?", (str(instance_id),))
+        rows = self._read(
+            "SELECT instance_id, process, correlation_key, status, updated FROM workflow_state WHERE instance_id = ?",
+            (str(instance_id),),
+        )
         return dict(rows[0]) if rows else None
 
     def list_instances(self, correlation_key: str | None = None) -> list[dict]:
@@ -112,8 +115,16 @@ class Store:
 
     # ── entities ──
 
-    def put_entity(self, id: str, shape, data: dict, *, correlation_key: str | None = None,
-                   instance_id: str | None = None, status: str | None = None) -> dict:
+    def put_entity(
+        self,
+        id: str,
+        shape,
+        data: dict,
+        *,
+        correlation_key: str | None = None,
+        instance_id: str | None = None,
+        status: str | None = None,
+    ) -> dict:
         """Insert or update an entity. An update keeps the original ``created``."""
         payload = json.dumps(data, sort_keys=True)
         with closing(self._connect()) as con, con:
@@ -139,8 +150,7 @@ class Store:
             sql += " AND correlation_key = ?"
             params.append(filters.pop("correlation_key"))
         rows = [_entity(r) for r in self._read(sql + " ORDER BY created, rowid", tuple(params))]
-        return [e for e in rows
-                if all(k in e["data"] and e["data"][k] == v for k, v in filters.items())]
+        return [e for e in rows if all(k in e["data"] and e["data"][k] == v for k, v in filters.items())]
 
     # ── open user tasks ──
 
@@ -151,14 +161,25 @@ class Store:
         instance_id = str(instance_id)
         now = time.time()
         with closing(self._connect()) as con, con:
-            created = {r["task"]: r["created"] for r in con.execute(
-                "SELECT task, created FROM user_tasks WHERE instance_id = ?", (instance_id,))}
+            created = {
+                r["task"]: r["created"]
+                for r in con.execute("SELECT task, created FROM user_tasks WHERE instance_id = ?", (instance_id,))
+            }
             con.execute("DELETE FROM user_tasks WHERE instance_id = ?", (instance_id,))
             con.executemany(
                 "INSERT INTO user_tasks(instance_id, task, bpmn_id, process, correlation_key, created) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                [(instance_id, str(r["task"]), str(r["bpmn_id"]), str(r["process"]),
-                  r.get("correlation_key"), created.get(str(r["task"]), now)) for r in rows],
+                [
+                    (
+                        instance_id,
+                        str(r["task"]),
+                        str(r["bpmn_id"]),
+                        str(r["process"]),
+                        r.get("correlation_key"),
+                        created.get(str(r["task"]), now),
+                    )
+                    for r in rows
+                ],
             )
 
     def list_user_tasks(self) -> list[dict]:
@@ -168,8 +189,10 @@ class Store:
     def get_user_task(self, task_iri, correlation_key: str) -> dict | None:
         """The open row of ``task_iri`` for ``correlation_key`` (the newest
         when several instances share the key), or None."""
-        rows = self._read("SELECT * FROM user_tasks WHERE task = ? AND correlation_key = ? "
-                          "ORDER BY created DESC, rowid DESC LIMIT 1", (str(task_iri), correlation_key))
+        rows = self._read(
+            "SELECT * FROM user_tasks WHERE task = ? AND correlation_key = ? ORDER BY created DESC, rowid DESC LIMIT 1",
+            (str(task_iri), correlation_key),
+        )
         return dict(rows[0]) if rows else None
 
 

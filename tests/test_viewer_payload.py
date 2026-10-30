@@ -57,7 +57,7 @@ def test_view_payload_url_round_trips_through_payload_route(client):
         resp = client.get(f"/view/{quote(model, safe='')}", headers={"hx-request": "true"})
         assert resp.status_code == 200
         start = resp.text.index('fetch("') + len('fetch("')
-        url = resp.text[start:resp.text.index('"', start)]
+        url = resp.text[start : resp.text.index('"', start)]
         assert client.get(url).status_code == 200
 
 
@@ -85,9 +85,7 @@ def test_bpmn_element_map_covers_lifted_elements():
 
 
 def test_dmn_element_map_covers_decision():
-    assert viewer_app.payload_element_map(ROUTING_DMN) == {
-        "routing_decision": f"{CHAT}routing_decision"
-    }
+    assert viewer_app.payload_element_map(ROUTING_DMN) == {"routing_decision": f"{CHAT}routing_decision"}
 
 
 @pytest.mark.parametrize("model, path", [(CHAT_BPMN, BPMN_FILE), (ROUTING_DMN, DMN_FILE)])

@@ -36,8 +36,14 @@ def _compose_available() -> bool:
 COMPOSE_AVAILABLE = _compose_available()
 
 # Host variables the override reads; cleared so the developer's shell cannot change the result.
-HOST_KNOBS = ("LLM_API_KEY_FILE", "LLM_GATEWAY_STUB", "LLM_MODEL_OVERRIDE", "UPSTREAM_BASE_URL",
-              "SEAMS_APP_DIR", "SEAMS_ROUTES_FILE")
+HOST_KNOBS = (
+    "LLM_API_KEY_FILE",
+    "LLM_GATEWAY_STUB",
+    "LLM_MODEL_OVERRIDE",
+    "UPSTREAM_BASE_URL",
+    "SEAMS_APP_DIR",
+    "SEAMS_ROUTES_FILE",
+)
 
 
 def compose_config(*files: str, **env: str) -> dict:
@@ -48,8 +54,9 @@ def compose_config(*files: str, **env: str) -> dict:
     args = ["docker", "compose"]
     for f in files:
         args += ["-f", f]
-    result = subprocess.run(args + ["config", "--format", "json"], cwd=ROOT, env=environ,
-                            capture_output=True, text=True)
+    result = subprocess.run(
+        args + ["config", "--format", "json"], cwd=ROOT, env=environ, capture_output=True, text=True
+    )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
@@ -83,8 +90,13 @@ def test_runtime_build_args_default_to_the_chat_app(merged):
 
 
 def test_runtime_build_args_pass_through_from_the_host(key_file):
-    cfg = compose_config("compose.yaml", "compose.override.yaml", LLM_API_KEY_FILE=str(key_file),
-                         SEAMS_APP_DIR="examples/other-app", SEAMS_ROUTES_FILE="other_api.py")
+    cfg = compose_config(
+        "compose.yaml",
+        "compose.override.yaml",
+        LLM_API_KEY_FILE=str(key_file),
+        SEAMS_APP_DIR="examples/other-app",
+        SEAMS_ROUTES_FILE="other_api.py",
+    )
     args = cfg["services"]["chat_api"]["build"]["args"]
     assert args == {"SEAMS_APP_DIR": "examples/other-app", "SEAMS_ROUTES_FILE": "other_api.py"}
 
@@ -121,9 +133,14 @@ def test_gateway_is_built_locally_and_reads_the_key_file(merged):
 
 
 def test_gateway_knobs_pass_through_from_the_host(key_file):
-    cfg = compose_config("compose.yaml", "compose.override.yaml", LLM_API_KEY_FILE=str(key_file),
-                         LLM_GATEWAY_STUB="1", LLM_MODEL_OVERRIDE="llama3",
-                         UPSTREAM_BASE_URL="http://host.docker.internal:11434/v1")
+    cfg = compose_config(
+        "compose.yaml",
+        "compose.override.yaml",
+        LLM_API_KEY_FILE=str(key_file),
+        LLM_GATEWAY_STUB="1",
+        LLM_MODEL_OVERRIDE="llama3",
+        UPSTREAM_BASE_URL="http://host.docker.internal:11434/v1",
+    )
     env = cfg["services"]["llm_gateway"]["environment"]
     assert env["LLM_GATEWAY_STUB"] == "1"
     assert env["LLM_MODEL_OVERRIDE"] == "llama3"

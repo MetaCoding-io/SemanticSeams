@@ -45,9 +45,15 @@ def generated(tmp_path, monkeypatch):
         assert not kw, kw  # the generated module passes only the path and the hash
         loads.append(model_hash)
         # model_hash is passed through unchanged: a mismatch must still raise.
-        return original(TRIG, model_hash=model_hash, db_path=tmp_path / "seams.sqlite",
-                        templates_dir=app_dir / "templates", authenticator=HeaderAuthenticator(),
-                        llm_transport=FakeLLM().transport, llm_base_url="http://llm-gateway.test")
+        return original(
+            TRIG,
+            model_hash=model_hash,
+            db_path=tmp_path / "seams.sqlite",
+            templates_dir=app_dir / "templates",
+            authenticator=HeaderAuthenticator(),
+            llm_transport=FakeLLM().transport,
+            llm_base_url="http://llm-gateway.test",
+        )
 
     monkeypatch.setattr(Runtime, "load", classmethod(load))
     name = f"generated_chat_api_{tmp_path.name}"
@@ -95,10 +101,20 @@ async def _first_frame(app, path, timeout=5.0):
         if message["type"] == "http.response.body" and message.get("body"):
             got_frame.set()
 
-    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET",
-             "scheme": "http", "path": path, "raw_path": path.encode(), "root_path": "",
-             "query_string": b"", "headers": [(b"host", b"testserver")],
-             "client": ("testclient", 50000), "server": ("testserver", 80)}
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [(b"host", b"testserver")],
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+    }
     task = asyncio.create_task(app(scope, receive, send))
     try:
         await asyncio.wait_for(got_frame.wait(), timeout)
@@ -169,9 +185,13 @@ def test_thread_partial_shows_stored_messages_while_composing(generated):
     """The visible branch of the same route: a stored composing message is
     listed in the message_thread section with its content escaped."""
     module, client, _app = generated
-    module.runtime.store.put_entity("m1", module.runtime.model.curie(":MessageShape"),
-                                    {"role": "user", "content": "<b>draft</b>", "status": "composing"},
-                                    correlation_key="c2", status="composing")
+    module.runtime.store.put_entity(
+        "m1",
+        module.runtime.model.curie(":MessageShape"),
+        {"role": "user", "content": "<b>draft</b>", "status": "composing"},
+        correlation_key="c2",
+        status="composing",
+    )
     r = client.get("/conversations/c2/messages")
     assert r.status_code == 200, r.text
     assert '<section id="message_thread"' in r.text
@@ -184,10 +204,12 @@ def test_thread_partial_hides_a_failed_conversation(generated):
     the thread's seam:visibleWhen states, so the partial renders no section."""
     module, client, _app = generated
     shape = module.runtime.model.curie(":MessageShape")
-    module.runtime.store.put_entity("m1", shape, {"role": "user", "content": "hi", "status": "complete"},
-                                    correlation_key="c3", status="complete")
-    module.runtime.store.put_entity("m2", shape, {"role": "assistant", "content": "oops", "status": "failed"},
-                                    correlation_key="c3", status="failed")
+    module.runtime.store.put_entity(
+        "m1", shape, {"role": "user", "content": "hi", "status": "complete"}, correlation_key="c3", status="complete"
+    )
+    module.runtime.store.put_entity(
+        "m2", shape, {"role": "assistant", "content": "oops", "status": "failed"}, correlation_key="c3", status="failed"
+    )
     r = client.get("/conversations/c3/messages")
     assert r.status_code == 200, r.text
     assert "<section" not in r.text
@@ -204,9 +226,13 @@ def test_generated_module_refuses_a_different_model_hash(tmp_path, monkeypatch):
     path.write_text(path.read_text().replace(model_hash(TRIG), "sha256:" + "0" * 64))
     original = Runtime.load
     monkeypatch.delenv("SEAMS_ALLOW_HASH_MISMATCH", raising=False)
-    monkeypatch.setattr(Runtime, "load", classmethod(
-        lambda cls, p, model_hash=None, **kw: original(TRIG, model_hash=model_hash,
-                                                       db_path=tmp_path / "s.sqlite")))
+    monkeypatch.setattr(
+        Runtime,
+        "load",
+        classmethod(
+            lambda cls, p, model_hash=None, **kw: original(TRIG, model_hash=model_hash, db_path=tmp_path / "s.sqlite")
+        ),
+    )
     spec = importlib.util.spec_from_file_location(f"stale_chat_api_{tmp_path.name}", path)
     with pytest.raises(ModelHashMismatch):
         spec.loader.exec_module(importlib.util.module_from_spec(spec))

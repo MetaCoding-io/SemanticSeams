@@ -31,8 +31,9 @@ and ``Request`` is only bound inside ``dependency``.
 """
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from rdflib import URIRef
 
@@ -72,8 +73,7 @@ class HeaderAuthenticator:
     The roles are the comma-separated items of ``roles_header``; an absent
     header means no roles."""
 
-    def __init__(self, header: str = DEFAULT_IDENTITY_HEADER,
-                 roles_header: str = DEFAULT_ROLES_HEADER):
+    def __init__(self, header: str = DEFAULT_IDENTITY_HEADER, roles_header: str = DEFAULT_ROLES_HEADER):
         self.header = header
         self.roles_header = roles_header
 
@@ -100,8 +100,7 @@ class StaticUserAuthenticator:
         return self.identity
 
     def __repr__(self) -> str:
-        return (f"StaticUserAuthenticator(user={self.identity.id!r}, "
-                f"roles={sorted(self.identity.roles)!r})")
+        return f"StaticUserAuthenticator(user={self.identity.id!r}, roles={sorted(self.identity.roles)!r})"
 
 
 def authenticator_from_env(environ: Mapping[str, str] | None = None) -> Authenticator:
@@ -120,8 +119,7 @@ def authenticator_from_env(environ: Mapping[str, str] | None = None) -> Authenti
 
 @runtime_checkable
 class PolicyEvaluator(Protocol):
-    def __call__(self, policy: PolicyFacts, operation_iri: URIRef,
-                 identity: Identity) -> tuple[bool, str]: ...
+    def __call__(self, policy: PolicyFacts, operation_iri: URIRef, identity: Identity) -> tuple[bool, str]: ...
 
 
 class PresenceEvaluator:
@@ -177,16 +175,16 @@ class RoleEvaluator:
                 return True, f"{perm.action} on {op} permitted to {perm.assignee}"
         assignees = ", ".join(sorted(str(p.assignee) for p in targeting))
         roles = ", ".join(sorted(identity.roles)) or "none"
-        return False, (f"identity {identity.id!r} (roles: {roles}) is not an assignee "
-                       f"({assignees}) of {policy.iri}")
+        return False, (f"identity {identity.id!r} (roles: {roles}) is not an assignee ({assignees}) of {policy.iri}")
 
 
 # ── the hook ────────────────────────────────────────────────────────────────
 
 
 class PolicyHook:
-    def __init__(self, model: ModelGraph, authenticator: Authenticator | None = None,
-                 evaluator: PolicyEvaluator | None = None):
+    def __init__(
+        self, model: ModelGraph, authenticator: Authenticator | None = None, evaluator: PolicyEvaluator | None = None
+    ):
         self.model = model
         self.authenticator = authenticator if authenticator is not None else HeaderAuthenticator()
         self.evaluator = evaluator if evaluator is not None else RoleEvaluator()
@@ -222,11 +220,9 @@ class PolicyHook:
 
         identity = self.authenticator(request)
         if identity is None:
-            raise PolicyDenied(policy.iri, op_for_error, 401,
-                               f"no authenticated identity ({self.authenticator!r})")
+            raise PolicyDenied(policy.iri, op_for_error, 401, f"no authenticated identity ({self.authenticator!r})")
         if not operations:
-            raise PolicyDenied(policy.iri, None, 403,
-                               "no permission of this policy targets an operation it governs")
+            raise PolicyDenied(policy.iri, None, 403, "no permission of this policy targets an operation it governs")
         for op in operations:
             allowed, reason = self.evaluator(policy, op, identity)
             if not allowed:
@@ -260,8 +256,9 @@ class PolicyHook:
         except PolicyDenied as denied:
             return False, denied.reason
         governed = (self.model.curie(element), SEAM.governedBy, None) in self.model.ds
-        return True, ("every governing policy permits it" if governed
-                      else "ungoverned element: any authenticated identity")
+        return True, (
+            "every governing policy permits it" if governed else "ungoverned element: any authenticated identity"
+        )
 
     def task_dependency(self, task_curie):
         """A FastAPI dependency: ``Depends(hook.task_dependency(":approve"))``

@@ -17,8 +17,11 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 
 def _ci_steps() -> dict:
     jobs = yaml.safe_load(CI.read_text())["jobs"]
-    return {(job, step.get("name") or step.get("run") or step.get("uses")): step
-            for job, spec in jobs.items() for step in spec["steps"]}
+    return {
+        (job, step.get("name") or step.get("run") or step.get("uses")): step
+        for job, spec in jobs.items()
+        for step in spec["steps"]
+    }
 
 
 def _regeneration_commands() -> list[str]:

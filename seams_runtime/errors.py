@@ -64,9 +64,7 @@ class ModelHashMismatch(RuntimeModelError):
         self.expected = str(expected)
         self.actual = str(actual)
         self.path = str(path)
-        super().__init__(
-            f"model hash mismatch for {self.path}: expected {self.expected}, got {self.actual}"
-        )
+        super().__init__(f"model hash mismatch for {self.path}: expected {self.expected}, got {self.actual}")
 
     def _fields(self) -> dict:
         return {"expected": self.expected, "actual": self.actual, "path": self.path}
@@ -95,13 +93,10 @@ class ContractViolation(RuntimeModelError):
                 part += f" ({r['message']})"
             parts.append(part)
         via = f" via {self.operation}" if self.operation else ""
-        super().__init__(
-            f"payload violates {self.shape}{via}: {len(self.results)} result(s): " + "; ".join(parts)
-        )
+        super().__init__(f"payload violates {self.shape}{via}: {len(self.results)} result(s): " + "; ".join(parts))
 
     def _fields(self) -> dict:
-        return {"shape": self.shape, "focus": self.focus, "operation": self.operation,
-                "results": self.results}
+        return {"shape": self.shape, "focus": self.focus, "operation": self.operation, "results": self.results}
 
 
 class LifecycleViolation(RuntimeModelError):
@@ -120,8 +115,12 @@ class LifecycleViolation(RuntimeModelError):
         )
 
     def _fields(self) -> dict:
-        return {"entity": self.entity, "transition": self.transition,
-                "current_state": self.current_state, "expected_from": self.expected_from}
+        return {
+            "entity": self.entity,
+            "transition": self.transition,
+            "current_state": self.current_state,
+            "expected_from": self.expected_from,
+        }
 
 
 class PolicyDenied(RuntimeModelError):

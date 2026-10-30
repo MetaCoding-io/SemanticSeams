@@ -14,8 +14,8 @@ import re
 import secrets
 
 import pytest
-
 from expense_app import PROCESS_CHAPTERS, serve, status, until
+
 from seams_gen.htmx import extract_page
 from seams_runtime import ModelGraph
 
@@ -41,7 +41,7 @@ def test_landmark_form_submits_with_a_fresh_key(chapter, tmp_path, monkeypatch):
             key = secrets.token_hex(8)  # what the handler puts in place of {expense}
             r = c.post(path.replace("{expense}", key), data=EXPENSE, headers=EMPLOYEE)
             assert r.status_code == 200, r.text
-            assert until(lambda: status(runtime, key)), f"no instance under {key}"
+            assert until(lambda key=key: status(runtime, key)), f"no instance under {key}"
             keys.append(key)
         assert len(set(keys)) == 2
 

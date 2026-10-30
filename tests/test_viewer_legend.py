@@ -87,22 +87,16 @@ def test_empty_hidden_set_returns_input_unchanged():
 
 def test_chain_contraction():
     nodes = [node("a"), node("h", "x:H"), node("b")]
-    out_nodes, out_edges = legend.contract_hidden(
-        nodes, [edge("a", "h"), edge("h", "b")], ["x:H"]
-    )
+    out_nodes, out_edges = legend.contract_hidden(nodes, [edge("a", "h"), edge("h", "b")], ["x:H"])
     assert [n["id"] for n in out_nodes] == ["a", "b"]
-    assert out_edges == [
-        {"from": "a", "to": "b", "label": "uses", "kind": "contracted", "via": ["h"]}
-    ]
+    assert out_edges == [{"from": "a", "to": "b", "label": "uses", "kind": "contracted", "via": ["h"]}]
 
 
 def test_multi_hop_chain_mixes_labels():
     nodes = [node("a"), node("h1", "x:H"), node("h2", "x:H"), node("b")]
     edges = [edge("a", "h1", "calls"), edge("h1", "h2", "uses"), edge("h2", "b", "calls")]
     _, out_edges = legend.contract_hidden(nodes, edges, ["x:H"])
-    assert out_edges == [
-        {"from": "a", "to": "b", "label": "calls / uses", "kind": "contracted", "via": ["h1", "h2"]}
-    ]
+    assert out_edges == [{"from": "a", "to": "b", "label": "calls / uses", "kind": "contracted", "via": ["h1", "h2"]}]
 
 
 def test_hidden_node_without_visible_predecessor_drops_its_edges():
@@ -112,13 +106,9 @@ def test_hidden_node_without_visible_predecessor_drops_its_edges():
 
 def test_collapse_into_visible_ancestor():
     nodes = [node("env"), node("h", "x:H", parent="env"), node("c")]
-    out_nodes, out_edges = legend.contract_hidden(
-        nodes, [edge("c", "h", "deployed to")], ["x:H"]
-    )
+    out_nodes, out_edges = legend.contract_hidden(nodes, [edge("c", "h", "deployed to")], ["x:H"])
     assert [n["id"] for n in out_nodes] == ["c", "env"]
-    assert out_edges == [
-        {"from": "c", "to": "env", "label": "deployed to", "kind": "contracted", "via": ["h"]}
-    ]
+    assert out_edges == [{"from": "c", "to": "env", "label": "deployed to", "kind": "contracted", "via": ["h"]}]
 
 
 def test_visible_children_reparent_to_nearest_visible_ancestor():
@@ -158,9 +148,7 @@ def test_rerouted_edges_dedupe_and_merge_via():
     assert out_edges == [edge("a", "b")]
 
     _, out_edges = legend.contract_hidden(nodes, edges[:4], ["x:H"])
-    assert out_edges == [
-        {"from": "a", "to": "b", "label": "uses", "kind": "contracted", "via": ["h1", "h2"]}
-    ]
+    assert out_edges == [{"from": "a", "to": "b", "label": "uses", "kind": "contracted", "via": ["h1", "h2"]}]
 
 
 def test_untouched_edges_keep_their_kind():
@@ -186,9 +174,7 @@ def test_l2_hide_deployment_nodes_contracts_deployments_to_prod():
     assert not [n for n in out_nodes if n["type"] == "arch:DeploymentNode"]
     deployed = {e["from"] for e in out_edges if e["to"] == PROD and e["label"] == "deployed to"}
     assert deployed == CONTAINERS
-    assert all(
-        e["kind"] == "contracted" for e in out_edges if e["to"] == PROD
-    )
+    assert all(e["kind"] == "contracted" for e in out_edges if e["to"] == PROD)
 
 
 def test_l3_hide_operations_reattaches_consumes_to_container():

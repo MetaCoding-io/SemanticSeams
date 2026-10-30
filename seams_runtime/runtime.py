@@ -66,28 +66,49 @@ DEFAULT_TEMPLATES = "templates"
 
 
 class Runtime:
-    def __init__(self, model: ModelGraph, store: Store, *, authenticator=None, evaluator=None,
-                 llm: LLMClient | None = None, bus: ChannelBus | None = None, templates_dir=None):
+    def __init__(
+        self,
+        model: ModelGraph,
+        store: Store,
+        *,
+        authenticator=None,
+        evaluator=None,
+        llm: LLMClient | None = None,
+        bus: ChannelBus | None = None,
+        templates_dir=None,
+    ):
         self.model = model
         self.store = store
         self.engine = Engine(model)
         self.bus = bus if bus is not None else ChannelBus()
         self.guard = LifecycleGuard(model)
-        self.hook = PolicyHook(model, authenticator if authenticator is not None else authenticator_from_env(),
-                               evaluator)
+        self.hook = PolicyHook(
+            model, authenticator if authenticator is not None else authenticator_from_env(), evaluator
+        )
         self.llm = llm if llm is not None else LLMClient()
         self.worker = Worker(model, self.engine, store, self.bus, self.guard, self.llm)
         self.worker.on_published = self._on_published
         self.instances: dict[str, Instance] = {}
         self._task_locks: dict[str, asyncio.Lock] = {}
-        self.templates_dir = Path(templates_dir if templates_dir is not None
-                                  else os.environ.get(TEMPLATES_ENV) or DEFAULT_TEMPLATES)
+        self.templates_dir = Path(
+            templates_dir if templates_dir is not None else os.environ.get(TEMPLATES_ENV) or DEFAULT_TEMPLATES
+        )
         self.fragments = FragmentRenderer(model, self.templates_dir)
 
     @classmethod
-    def load(cls, trig_path, model_hash: str | None = None, *, allow_hash_mismatch: bool = False,
-             db_path=None, authenticator=None, evaluator=None, llm_transport=None,
-             llm_base_url: str | None = None, templates_dir=None) -> "Runtime":
+    def load(
+        cls,
+        trig_path,
+        model_hash: str | None = None,
+        *,
+        allow_hash_mismatch: bool = False,
+        db_path=None,
+        authenticator=None,
+        evaluator=None,
+        llm_transport=None,
+        llm_base_url: str | None = None,
+        templates_dir=None,
+    ) -> Runtime:
         override = os.environ.get(MODEL_ENV)
         if override:
             log.info("model path %s from %s (overrides argument %s)", override, MODEL_ENV, trig_path)
@@ -100,15 +121,21 @@ class Runtime:
         model = ModelGraph(trig_path)
         if model_hash is not None and model_hash != model.hash:
             if allow_hash_mismatch or os.environ.get(ALLOW_MISMATCH_ENV) == "1":
-                log.warning("model hash mismatch allowed for %s: expected %s, got %s",
-                            model.path, model_hash, model.hash)
+                log.warning(
+                    "model hash mismatch allowed for %s: expected %s, got %s", model.path, model_hash, model.hash
+                )
             else:
                 raise ModelHashMismatch(model_hash, model.hash, model.path)
         db = Path(db_path if db_path is not None else os.environ.get(DB_ENV) or DEFAULT_DB)
-        runtime = cls(model, Store(db), authenticator=authenticator, evaluator=evaluator,
-                      llm=LLMClient(llm_base_url, transport=llm_transport), templates_dir=templates_dir)
-        log.info("runtime loaded %s (%s), store %s, templates %s", model.path, model.hash, db,
-                 runtime.templates_dir)
+        runtime = cls(
+            model,
+            Store(db),
+            authenticator=authenticator,
+            evaluator=evaluator,
+            llm=LLMClient(llm_base_url, transport=llm_transport),
+            templates_dir=templates_dir,
+        )
+        log.info("runtime loaded %s (%s), store %s, templates %s", model.path, model.hash, db, runtime.templates_dir)
         return runtime
 
     # ── boundary ──
@@ -145,8 +172,7 @@ class Runtime:
 
     # ── processes ──
 
-    async def start_process(self, process_curie, payload, correlation_key: str, *,
-                            stop_after=None) -> Instance:
+    async def start_process(self, process_curie, payload, correlation_key: str, *, stop_after=None) -> Instance:
         """Validate ``payload`` against the acceptsShape of the operation the
         process's triggering event seam:submitsTo, checkpoint a new instance
         and run the worker as an asyncio task. Returns at once; ``await
@@ -172,16 +198,16 @@ class Runtime:
         log.info("started %s instance %s (correlation %s)", process, instance.id, correlation_key)
         return self._launch(instance)
 
-    async def start_subscribed(self, process_curie, correlation_key: str, current: dict,
-                               status: dict, *, stop_after=None) -> Instance:
+    async def start_subscribed(
+        self, process_curie, correlation_key: str, current: dict, status: dict, *, stop_after=None
+    ) -> Instance:
         """Start a channel-started process (ADR-0010) as the worker does when a
         message throw event publishes on the channel its start event
         seam:subscribesTo: the same correlation key, and a copy of the
         publisher's ``current`` entities (ids kept) and ``status`` map. No
         operation accepts the payload, so nothing is re-validated. The new
         instance is checkpointed before its worker task runs."""
-        return self._start_subscribed(self.model.curie(process_curie), correlation_key, current,
-                                      status, stop_after)
+        return self._start_subscribed(self.model.curie(process_curie), correlation_key, current, status, stop_after)
 
     def _start_subscribed(self, process, correlation_key, current, status, stop_after=None) -> Instance:
         start = self.model.start_channel(process)
@@ -196,8 +222,14 @@ class Runtime:
         wf.data["seams"] = state
         instance = Instance(str(uuid.uuid4()), correlation_key, process, wf, stop_after)
         self.worker._checkpoint(instance, RUNNING)
-        log.info("started %s instance %s from %s on %s (correlation %s)", process, instance.id,
-                 start.event, start.channel, correlation_key)
+        log.info(
+            "started %s instance %s from %s on %s (correlation %s)",
+            process,
+            instance.id,
+            start.event,
+            start.channel,
+            correlation_key,
+        )
         return self._launch(instance)
 
     def _on_published(self, publisher: Instance, channel) -> list[dict]:
@@ -209,18 +241,22 @@ class Runtime:
             processes = self.model.subscribed_processes(channel)
         except Exception as exc:  # noqa: BLE001 - a broken subscription never fails the publisher
             log.exception("instance %s: resolving subscribers of %s failed", publisher.id, channel)
-            return [{"process": None, "instance": None,
-                     "error": {"type": type(exc).__name__, "message": str(exc)}}]
+            return [{"process": None, "instance": None, "error": {"type": type(exc).__name__, "message": str(exc)}}]
         for process in processes:
             try:
-                inst = self._start_subscribed(process, publisher.correlation_key,
-                                              publisher.state["current"], publisher.state["status"])
+                inst = self._start_subscribed(
+                    process, publisher.correlation_key, publisher.state["current"], publisher.state["status"]
+                )
                 started.append({"process": str(process), "instance": inst.id})
             except Exception as exc:  # noqa: BLE001 - the publisher's element already completed
-                log.exception("instance %s: starting subscriber %s on %s failed", publisher.id,
-                              process, channel)
-                started.append({"process": str(process), "instance": None,
-                                "error": {"type": type(exc).__name__, "message": str(exc)}})
+                log.exception("instance %s: starting subscriber %s on %s failed", publisher.id, process, channel)
+                started.append(
+                    {
+                        "process": str(process),
+                        "instance": None,
+                        "error": {"type": type(exc).__name__, "message": str(exc)},
+                    }
+                )
         return started
 
     async def resume(self, instance_id: str, *, stop_after=None) -> Instance:
@@ -229,14 +265,14 @@ class Runtime:
         if meta is None:
             raise LookupError(f"no instance {instance_id} in {self.store.path}")
         wf = self.engine.deserialize(self.store.load_state(instance_id))
-        instance = Instance(instance_id, meta["correlation_key"], self.model.curie(meta["process"]),
-                            wf, stop_after)
+        instance = Instance(instance_id, meta["correlation_key"], self.model.curie(meta["process"]), wf, stop_after)
         log.info("resuming instance %s (was %s)", instance_id, meta["status"])
         return self._launch(instance)
 
     def _launch(self, instance: Instance) -> Instance:
         instance.task = asyncio.get_running_loop().create_task(
-            self.worker.run(instance), name=f"seams-instance-{instance.id}")
+            self.worker.run(instance), name=f"seams-instance-{instance.id}"
+        )
         self.instances[instance.id] = instance
         return instance
 
@@ -255,8 +291,7 @@ class Runtime:
         newest stored entity of the task's seam:reads shape for that key,
         flattened, or None). No identity raises PolicyDenied (401)."""
         if identity is None:
-            raise PolicyDenied("seam:governedBy", None, 401,
-                               f"no authenticated identity ({self.hook.authenticator!r})")
+            raise PolicyDenied("seam:governedBy", None, 401, f"no authenticated identity ({self.hook.authenticator!r})")
         wanted = None if process is None else str(self.model.curie(process))
         out = []
         for row in self.store.list_user_tasks():
@@ -269,15 +304,23 @@ class Runtime:
                 continue
             form = self.model.user_task_form(task)
             screen = self.model.form_screen(form)
-            out.append({
-                "instance": row["instance_id"], "task": str(task), "bpmn_id": row["bpmn_id"],
-                "label": self.model.label(task), "process": row["process"],
-                "correlation_key": row["correlation_key"], "form": str(form),
-                "partial": f"{local_name(form)}.html",
-                "screen": None if screen is None or (screen, IFML.path, None) not in self.model.ds
-                else self.model.page_path(screen),
-                "entity": self._task_entity(task, row), "created": row["created"],
-            })
+            out.append(
+                {
+                    "instance": row["instance_id"],
+                    "task": str(task),
+                    "bpmn_id": row["bpmn_id"],
+                    "label": self.model.label(task),
+                    "process": row["process"],
+                    "correlation_key": row["correlation_key"],
+                    "form": str(form),
+                    "partial": f"{local_name(form)}.html",
+                    "screen": None
+                    if screen is None or (screen, IFML.path, None) not in self.model.ds
+                    else self.model.page_path(screen),
+                    "entity": self._task_entity(task, row),
+                    "created": row["created"],
+                }
+            )
         return out
 
     def _task_entity(self, task, row) -> dict | None:
@@ -288,8 +331,7 @@ class Runtime:
                 return flatten(mine[-1])
         return None
 
-    async def complete_task(self, task_curie, payload, correlation_key: str,
-                            identity: Identity | None) -> Instance:
+    async def complete_task(self, task_curie, payload, correlation_key: str, identity: Identity | None) -> Instance:
         """Complete the open user task ``task_curie`` of the instance with
         ``correlation_key`` as ``identity``, then let the worker continue.
         Raises PolicyDenied (401/403), TaskNotOpen (409) or ContractViolation
@@ -298,8 +340,14 @@ class Runtime:
         try:
             self.hook.check_element(task, identity)
         except PolicyDenied as denied:
-            log.info("complete %s (%s) by %s: denied %s (%s)", task, correlation_key,
-                     getattr(identity, "id", None), denied.http_status, denied.reason)
+            log.info(
+                "complete %s (%s) by %s: denied %s (%s)",
+                task,
+                correlation_key,
+                getattr(identity, "id", None),
+                denied.http_status,
+                denied.reason,
+            )
             raise
         if self.store.get_user_task(task, correlation_key) is None:
             raise TaskNotOpen(task, correlation_key)
@@ -318,8 +366,9 @@ class Runtime:
                 self.instances.pop(instance.id, None)  # next call reloads the last checkpoint
                 log.exception("complete %s on instance %s by %s failed", task, instance.id, identity.id)
                 raise
-            log.info("completed %s on instance %s (correlation %s) by %s", task, instance.id,
-                     correlation_key, identity.id)
+            log.info(
+                "completed %s on instance %s (correlation %s) by %s", task, instance.id, correlation_key, identity.id
+            )
             return self._launch(instance)
 
     async def _waiting_instance(self, instance_id: str) -> Instance:

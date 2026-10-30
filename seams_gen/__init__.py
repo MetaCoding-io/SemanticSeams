@@ -22,14 +22,33 @@ class GeneratorError(Exception):
         super().__init__(f"{message}: {detail}" if detail else message)
 
 
+from .compose import extract_compose, generate_compose, render_compose  # noqa: E402
+from .fastapi import extract_routes, generate_routes, render_routes  # noqa: E402
 from .fragments import fragment_for  # noqa: E402  (needs GeneratorError)
 from .htmx import (  # noqa: E402
-    extract_page, generate_fragments, generate_page, generate_task_forms, render_fragments, render_task_forms,
+    extract_page,
+    generate_fragments,
+    generate_page,
+    generate_task_forms,
+    render_fragments,
+    render_task_forms,
 )
-from .fastapi import extract_routes, generate_routes, render_routes  # noqa: E402
-from .compose import extract_compose, generate_compose, render_compose  # noqa: E402
 
-__all__ = ["GeneratorError", "extract_compose", "extract_page", "extract_routes", "fragment_for",
-           "generate_compose", "generate_fragments", "generate_page", "generate_routes", "generate_task_forms",
-           "golden_target", "render_compose", "render_fragments", "render_routes", "render_task_forms",
-           "strip_markers"]
+__all__ = [
+    "GeneratorError",
+    "extract_compose",
+    "extract_page",
+    "extract_routes",
+    "fragment_for",
+    "generate_compose",
+    "generate_fragments",
+    "generate_page",
+    "generate_routes",
+    "generate_task_forms",
+    "golden_target",
+    "render_compose",
+    "render_fragments",
+    "render_routes",
+    "render_task_forms",
+    "strip_markers",
+]

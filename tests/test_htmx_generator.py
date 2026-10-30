@@ -31,9 +31,15 @@ SEAM = "https://w3id.org/seams/seam#"
 
 
 def _diff(expected: str, actual: str) -> str:
-    return "".join(difflib.unified_diff(
-        expected.splitlines(keepends=True), actual.splitlines(keepends=True),
-        fromfile="golden target", tofile="generated", n=2))
+    return "".join(
+        difflib.unified_diff(
+            expected.splitlines(keepends=True),
+            actual.splitlines(keepends=True),
+            fromfile="golden target",
+            tofile="generated",
+            n=2,
+        )
+    )
 
 
 def test_generated_page_matches_golden():
@@ -117,30 +123,63 @@ def _ifml(local):
     return str(IFML) + local
 
 
-@pytest.mark.parametrize("mutate, subject, predicate", [
-    (lambda ds: _remove(_ifml_graph(ds), CHAT + "chat_page", _ifml("isLandmark")),
-     CHAT + "chat_ifml", _ifml("isLandmark")),
-    (lambda ds: _remove(_seams_graph(ds), CHAT + "send_message", SEAM + "submitsTo"),
-     CHAT + "send_message", SEAM + "submitsTo"),
-    (lambda ds: _remove(_ifml_graph(ds), CHAT + "message_thread", _ifml("order")),
-     CHAT + "message_thread", _ifml("order")),
-    (lambda ds: _remove(_ifml_graph(ds), CHAT + "chat_page", _ifml("title")),
-     CHAT + "chat_page", _ifml("title")),
-    (lambda ds: _remove(_ifml_graph(ds), CHAT + "select_to_thread", _ifml("swap")),
-     CHAT + "select_to_thread", _ifml("swap")),
-    (lambda ds: _remove(_seams_graph(ds), CHAT + "message_thread_op", SEAM + "rendersComponent"),
-     CHAT + "message_thread", SEAM + "rendersComponent"),
-    (lambda ds: _remove(_seams_graph(ds), CHAT + "chat_ui", SEAM + "presents"),
-     CHAT + "chat_ifml", SEAM + "presents"),
-    (lambda ds: _seams_graph(ds).add((URIRef(CHAT + "message_thread"), URIRef(SEAM + "visibleWhen"),
-                                      URIRef(CHAT + "s_bogus"))),
-     CHAT + "message_lifecycle", "https://w3id.org/seams/state#hasState"),
-    (lambda ds: _remove_everywhere(ds, CHAT + "s_complete", str(RDFS.label)),
-     CHAT + "s_complete", str(RDFS.label)),
-    (lambda ds: _add_landmark(ds, CHAT + "other_page"),
-     CHAT + "chat_ifml", _ifml("isLandmark")),
-], ids=["no-landmark", "no-submitsTo", "no-order", "no-title", "no-swap", "no-read-op",
-        "no-presenter", "guard-outside-lifecycle", "guard-state-unlabelled", "two-landmarks"])
+@pytest.mark.parametrize(
+    "mutate, subject, predicate",
+    [
+        (
+            lambda ds: _remove(_ifml_graph(ds), CHAT + "chat_page", _ifml("isLandmark")),
+            CHAT + "chat_ifml",
+            _ifml("isLandmark"),
+        ),
+        (
+            lambda ds: _remove(_seams_graph(ds), CHAT + "send_message", SEAM + "submitsTo"),
+            CHAT + "send_message",
+            SEAM + "submitsTo",
+        ),
+        (
+            lambda ds: _remove(_ifml_graph(ds), CHAT + "message_thread", _ifml("order")),
+            CHAT + "message_thread",
+            _ifml("order"),
+        ),
+        (lambda ds: _remove(_ifml_graph(ds), CHAT + "chat_page", _ifml("title")), CHAT + "chat_page", _ifml("title")),
+        (
+            lambda ds: _remove(_ifml_graph(ds), CHAT + "select_to_thread", _ifml("swap")),
+            CHAT + "select_to_thread",
+            _ifml("swap"),
+        ),
+        (
+            lambda ds: _remove(_seams_graph(ds), CHAT + "message_thread_op", SEAM + "rendersComponent"),
+            CHAT + "message_thread",
+            SEAM + "rendersComponent",
+        ),
+        (
+            lambda ds: _remove(_seams_graph(ds), CHAT + "chat_ui", SEAM + "presents"),
+            CHAT + "chat_ifml",
+            SEAM + "presents",
+        ),
+        (
+            lambda ds: _seams_graph(ds).add(
+                (URIRef(CHAT + "message_thread"), URIRef(SEAM + "visibleWhen"), URIRef(CHAT + "s_bogus"))
+            ),
+            CHAT + "message_lifecycle",
+            "https://w3id.org/seams/state#hasState",
+        ),
+        (lambda ds: _remove_everywhere(ds, CHAT + "s_complete", str(RDFS.label)), CHAT + "s_complete", str(RDFS.label)),
+        (lambda ds: _add_landmark(ds, CHAT + "other_page"), CHAT + "chat_ifml", _ifml("isLandmark")),
+    ],
+    ids=[
+        "no-landmark",
+        "no-submitsTo",
+        "no-order",
+        "no-title",
+        "no-swap",
+        "no-read-op",
+        "no-presenter",
+        "guard-outside-lifecycle",
+        "guard-state-unlabelled",
+        "two-landmarks",
+    ],
+)
 def test_missing_or_ambiguous_fact_raises(mutate, subject, predicate):
     ds = _dataset()
     mutate(ds)
@@ -157,8 +196,9 @@ PAYLOADS = ("chat_process.bpmn", "routing.dmn")
 
 
 def _cli(*args):
-    return subprocess.run([sys.executable, "-m", "seams_gen", *map(str, args)],
-                          cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, "-m", "seams_gen", *map(str, args)], cwd=ROOT, capture_output=True, text=True
+    )
 
 
 def test_cli_writes_the_generated_page(tmp_path):
@@ -188,8 +228,11 @@ def test_cli_unreadable_model_exits_1(tmp_path):
 
 def _guard_labels() -> set[str]:
     ds = _dataset()
-    return {str(label) for state in ds.objects(None, URIRef(SEAM + "visibleWhen"))
-            for label in ds.objects(state, RDFS.label)}
+    return {
+        str(label)
+        for state in ds.objects(None, URIRef(SEAM + "visibleWhen"))
+        for label in ds.objects(state, RDFS.label)
+    }
 
 
 def test_generated_page_has_no_domain_logic():
@@ -212,8 +255,18 @@ def test_generated_page_has_no_domain_logic():
         values = [c.value for c in consts]
         assert set(values) <= labels and values == sorted(values), test
         assert not node.elif_ and not node.else_
-    banned = (nodes.Assign, nodes.AssignBlock, nodes.BinExpr, nodes.UnaryExpr,
-              nodes.Concat, nodes.Call, nodes.CondExpr, nodes.Macro, nodes.Filter, nodes.Test)
+    banned = (
+        nodes.Assign,
+        nodes.AssignBlock,
+        nodes.BinExpr,
+        nodes.UnaryExpr,
+        nodes.Concat,
+        nodes.Call,
+        nodes.CondExpr,
+        nodes.Macro,
+        nodes.Filter,
+        nodes.Test,
+    )
     found = [type(n).__name__ for n in tree.find_all(banned)]
     assert not found, f"generated page holds logic nodes: {found}"
 
@@ -255,7 +308,7 @@ def test_guard_shows_the_thread_in_its_states(state):
 def test_guard_hides_the_thread_outside_its_states():
     html = _render(message_state="failed")
     assert 'id="message_thread"' not in html
-    assert 'sse-connect=' not in html
+    assert "sse-connect=" not in html
     assert 'id="compose_form"' in html
 
 
@@ -287,8 +340,11 @@ def _copy_model(tmp_path, *edits) -> Path:
 
 
 def test_model_edits_change_title_label_and_hash(tmp_path):
-    trig = _copy_model(tmp_path, ('ifml:title "Chat"@en', 'ifml:title "Talk"@en'),
-                       ('rdfs:label "Compose Message"', 'rdfs:label "Write Note"'))
+    trig = _copy_model(
+        tmp_path,
+        ('ifml:title "Chat"@en', 'ifml:title "Talk"@en'),
+        ('rdfs:label "Compose Message"', 'rdfs:label "Write Note"'),
+    )
     original, mutated = generate_page(TRIG), generate_page(trig)
     assert "<title>Chat</title>" in original and "<title>Talk</title>" in mutated
     assert 'aria-label="Write Note"' in mutated and 'aria-label="Compose Message"' not in mutated
@@ -301,10 +357,14 @@ def test_unedited_copy_generates_the_same_page(tmp_path):
     assert generate_page(trig) == generate_page(TRIG)
 
 
-@pytest.mark.parametrize("edit, subject, predicate", [
-    (("        ifml:isLandmark true ;\n", ""), CHAT + "chat_ifml", _ifml("isLandmark")),
-    (("        seam:submitsTo :send_message_op ;\n", ""), CHAT + "send_message", SEAM + "submitsTo"),
-], ids=["no-landmark", "no-submitsTo"])
+@pytest.mark.parametrize(
+    "edit, subject, predicate",
+    [
+        (("        ifml:isLandmark true ;\n", ""), CHAT + "chat_ifml", _ifml("isLandmark")),
+        (("        seam:submitsTo :send_message_op ;\n", ""), CHAT + "send_message", SEAM + "submitsTo"),
+    ],
+    ids=["no-landmark", "no-submitsTo"],
+)
 def test_missing_fact_in_a_model_file_fails_api_and_cli(tmp_path, edit, subject, predicate):
     trig = _copy_model(tmp_path, edit)
     with pytest.raises(GeneratorError) as err:

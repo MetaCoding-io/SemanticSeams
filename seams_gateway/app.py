@@ -68,7 +68,7 @@ class GatewayConfig:
     force_stub: bool = False
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> "GatewayConfig":
+    def from_env(cls, env: Mapping[str, str] | None = None) -> GatewayConfig:
         env = os.environ if env is None else env
         key = (env.get("LLM_API_KEY") or "").strip()
         key_file = (env.get("LLM_API_KEY_FILE") or "").strip()
@@ -160,10 +160,20 @@ def build_app(config: GatewayConfig | None = None, transport: httpx.AsyncBaseTra
 def _stub_response(model: str, messages: list) -> StreamingResponse:
     def chunks():
         for token in stub_tokens(messages):
-            yield _sse({"object": "chat.completion.chunk", "model": model,
-                        "choices": [{"index": 0, "delta": {"content": token}, "finish_reason": None}]})
-        yield _sse({"object": "chat.completion.chunk", "model": model,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+            yield _sse(
+                {
+                    "object": "chat.completion.chunk",
+                    "model": model,
+                    "choices": [{"index": 0, "delta": {"content": token}, "finish_reason": None}],
+                }
+            )
+        yield _sse(
+            {
+                "object": "chat.completion.chunk",
+                "model": model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+        )
         yield b"data: [DONE]\n\n"
 
     return StreamingResponse(chunks(), media_type="text/event-stream")
@@ -173,16 +183,23 @@ async def _upstream_response(config: GatewayConfig, transport, body: dict):
     url = config.completions_url
     client = httpx.AsyncClient(transport=transport, timeout=UPSTREAM_TIMEOUT)
     try:
-        req = client.build_request("POST", url, json=body, headers={
-            "Authorization": f"Bearer {config.api_key}",
-            "Accept": "text/event-stream" if body.get("stream") else "application/json",
-        })
+        req = client.build_request(
+            "POST",
+            url,
+            json=body,
+            headers={
+                "Authorization": f"Bearer {config.api_key}",
+                "Accept": "text/event-stream" if body.get("stream") else "application/json",
+            },
+        )
         resp = await client.send(req, stream=True)
     except httpx.HTTPError as exc:
         await client.aclose()
         log.warning("upstream %s unreachable: %s", url, type(exc).__name__)
-        return JSONResponse({"error": {"message": f"upstream {url} unreachable: {type(exc).__name__}",
-                                       "upstream": url}}, status_code=502)
+        return JSONResponse(
+            {"error": {"message": f"upstream {url} unreachable: {type(exc).__name__}", "upstream": url}},
+            status_code=502,
+        )
 
     if resp.status_code >= 400:
         try:
@@ -191,9 +208,17 @@ async def _upstream_response(config: GatewayConfig, transport, body: dict):
             await resp.aclose()
             await client.aclose()
         log.warning("upstream %s returned HTTP %d", url, resp.status_code)
-        return JSONResponse({"error": {"message": f"upstream {url} returned HTTP {resp.status_code}",
-                                       "upstream": url, "status": resp.status_code, "detail": detail}},
-                            status_code=resp.status_code)
+        return JSONResponse(
+            {
+                "error": {
+                    "message": f"upstream {url} returned HTTP {resp.status_code}",
+                    "upstream": url,
+                    "status": resp.status_code,
+                    "detail": detail,
+                }
+            },
+            status_code=resp.status_code,
+        )
 
     async def relay():
         try:
@@ -207,5 +232,6 @@ async def _upstream_response(config: GatewayConfig, transport, body: dict):
         await client.aclose()
 
     media_type = resp.headers.get("content-type", "text/event-stream")
-    return StreamingResponse(relay(), status_code=resp.status_code, media_type=media_type,
-                             background=BackgroundTask(close))
+    return StreamingResponse(
+        relay(), status_code=resp.status_code, media_type=media_type, background=BackgroundTask(close)
+    )

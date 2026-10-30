@@ -155,8 +155,7 @@ def _literal(value, datatype) -> Literal:
     return Literal(value)
 
 
-def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None,
-           operation=None) -> tuple[Graph, URIRef, dict]:
+def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None, operation=None) -> tuple[Graph, URIRef, dict]:
     """(data graph, focus node, normalised payload) for ``payload`` against ``shape``.
 
     Raises ContractViolation before any SHACL run for keys the shape has no
@@ -169,16 +168,30 @@ def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None,
     errors = []
     for key, value in items:
         if key not in contract.fields:
-            errors.append({"shape": str(contract.shape), "focus": str(focus), "path": key,
-                           "constraint": "unknown-field", "value": None,
-                           "message": f"{key!r} is not a sh:path of {name}"})
+            errors.append(
+                {
+                    "shape": str(contract.shape),
+                    "focus": str(focus),
+                    "path": key,
+                    "constraint": "unknown-field",
+                    "value": None,
+                    "message": f"{key!r} is not a sh:path of {name}",
+                }
+            )
             continue
         datatype = contract.fields[key][1]
         for v in value if isinstance(value, list) else [value]:
             if not _well_formed(v, datatype):
-                errors.append({"shape": str(contract.shape), "focus": str(focus), "path": key,
-                               "constraint": "DatatypeConstraintComponent", "value": _echo(v),
-                               "message": f"{key} of {name}: not a valid {local_name(datatype)}"})
+                errors.append(
+                    {
+                        "shape": str(contract.shape),
+                        "focus": str(focus),
+                        "path": key,
+                        "constraint": "DatatypeConstraintComponent",
+                        "value": _echo(v),
+                        "message": f"{key} of {name}: not a valid {local_name(datatype)}",
+                    }
+                )
     if errors:
         errors.sort(key=lambda d: (d["path"], d["constraint"]))
         raise ContractViolation(contract.shape, errors, focus=focus, operation=operation)
@@ -201,14 +214,16 @@ def _results(results: Graph, shape: URIRef) -> list[dict]:
         comp = results.value(r, SH.sourceConstraintComponent)
         value = results.value(r, SH.value)
         msg = results.value(r, SH.resultMessage)
-        out.append({
-            "shape": str(shape),
-            "focus": str(results.value(r, SH.focusNode)),
-            "path": None if path is None else local_name(path),
-            "constraint": None if comp is None else local_name(comp),
-            "value": _echo(value),
-            "message": _echo(msg),
-        })
+        out.append(
+            {
+                "shape": str(shape),
+                "focus": str(results.value(r, SH.focusNode)),
+                "path": None if path is None else local_name(path),
+                "constraint": None if comp is None else local_name(comp),
+                "value": _echo(value),
+                "message": _echo(msg),
+            }
+        )
     out.sort(key=lambda d: (d["path"] or "", d["constraint"] or "", d["value"] or ""))
     return out
 
@@ -219,10 +234,13 @@ def validate(model: ModelGraph, shape, payload: Mapping, operation=None) -> dict
     contract = shape_contract(model, shape)
     data, focus, normalised = to_rdf(model, contract.shape, payload, operation=operation)
     conforms, results, _text = _shacl_validate(
-        data, shacl_graph=contract.graph, focus_nodes=[focus],
-        use_shapes=[contract.shape], inference="none", advanced=False,
+        data,
+        shacl_graph=contract.graph,
+        focus_nodes=[focus],
+        use_shapes=[contract.shape],
+        inference="none",
+        advanced=False,
     )
     if not conforms:
-        raise ContractViolation(contract.shape, _results(results, contract.shape),
-                                focus=focus, operation=operation)
+        raise ContractViolation(contract.shape, _results(results, contract.shape), focus=focus, operation=operation)
     return normalised

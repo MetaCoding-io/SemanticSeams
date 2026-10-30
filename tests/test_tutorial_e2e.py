@@ -31,14 +31,14 @@ UP_TIMEOUT = 300  # seconds: image builds plus healthchecks on a cold runner
 STREAM_TIMEOUT = 30
 POLL_TIMEOUT = 30
 
-pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1",
-                                reason="live docker compose test; set SEAMS_E2E=1")
+pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1", reason="live docker compose test; set SEAMS_E2E=1")
 
 
 def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
     env = {**os.environ, "LLM_GATEWAY_STUB": "1"}
-    return subprocess.run(["docker", "compose", *args], cwd=ROOT, env=env, timeout=timeout,
-                          check=check, capture_output=True, text=True)
+    return subprocess.run(
+        ["docker", "compose", *args], cwd=ROOT, env=env, timeout=timeout, check=check, capture_output=True, text=True
+    )
 
 
 def _logs() -> str:
@@ -68,11 +68,14 @@ def stack(request):
         try:
             _compose("up", "-d", "--build", "--wait", timeout=UP_TIMEOUT)
         except subprocess.CalledProcessError as exc:
-            pytest.fail(f"docker compose up failed ({exc.returncode}):\n{exc.stdout}\n{exc.stderr}\n"
-                        f"--- docker compose logs ---\n{_logs()}")
+            pytest.fail(
+                f"docker compose up failed ({exc.returncode}):\n{exc.stdout}\n{exc.stderr}\n"
+                f"--- docker compose logs ---\n{_logs()}"
+            )
         except subprocess.TimeoutExpired:
-            pytest.fail(f"docker compose up did not finish within {UP_TIMEOUT}s\n"
-                        f"--- docker compose logs ---\n{_logs()}")
+            pytest.fail(
+                f"docker compose up did not finish within {UP_TIMEOUT}s\n--- docker compose logs ---\n{_logs()}"
+            )
         with httpx.Client(base_url=BASE, timeout=10) as client:
             yield client
         if request.session.testsfailed > failed_before:

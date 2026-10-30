@@ -42,8 +42,9 @@ def chapter_of(page: Path) -> str:
 
 
 def blocks(page: Path, lang: str | None = None) -> list[str]:
-    return [body for info, body in FENCE.findall(page.read_text(encoding="utf-8"))
-            if lang is None or info.strip() == lang]
+    return [
+        body for info, body in FENCE.findall(page.read_text(encoding="utf-8")) if lang is None or info.strip() == lang
+    ]
 
 
 def normalised(text: str) -> list[str]:
@@ -52,7 +53,7 @@ def normalised(text: str) -> list[str]:
 
 def contains_run(haystack: list[str], needle: list[str]) -> bool:
     n = len(needle)
-    return any(haystack[i:i + n] == needle for i in range(len(haystack) - n + 1))
+    return any(haystack[i : i + n] == needle for i in range(len(haystack) - n + 1))
 
 
 def code_lines(page: Path) -> set[str]:
@@ -76,8 +77,10 @@ def test_every_trig_block_is_an_excerpt_of_the_checkpoint(page):
     trig_blocks = blocks(page, "trig")
     assert trig_blocks, f"{page.name} shows no ```trig block"
     missing = [body for body in trig_blocks if not contains_run(checkpoint, normalised(body))]
-    assert not missing, (f"{page.name}: these ```trig blocks are not verbatim in "
-                         f"examples/expenses/{chapter_of(page)}/expenses.trig:\n" + "\n---\n".join(missing))
+    assert not missing, (
+        f"{page.name}: these ```trig blocks are not verbatim in "
+        f"examples/expenses/{chapter_of(page)}/expenses.trig:\n" + "\n---\n".join(missing)
+    )
 
 
 XML_PAGES = [p for p in PAGES if blocks(p, "xml")]
@@ -90,12 +93,16 @@ def test_bpmn_and_dmn_chapters_show_xml():
 @pytest.mark.parametrize("page", XML_PAGES, ids=[p.stem for p in XML_PAGES])
 def test_every_xml_block_is_an_excerpt_of_a_payload(page):
     directory = EXPENSES / chapter_of(page)
-    payloads = [normalised(f.read_text(encoding="utf-8"))
-                for f in sorted([*directory.glob("*.bpmn"), *directory.glob("*.dmn")])]
-    missing = [body for body in blocks(page, "xml")
-               if not any(contains_run(payload, normalised(body)) for payload in payloads)]
-    assert not missing, (f"{page.name}: these ```xml blocks are not verbatim in a .bpmn or .dmn "
-                         f"file of examples/expenses/{chapter_of(page)}/:\n" + "\n---\n".join(missing))
+    payloads = [
+        normalised(f.read_text(encoding="utf-8")) for f in sorted([*directory.glob("*.bpmn"), *directory.glob("*.dmn")])
+    ]
+    missing = [
+        body for body in blocks(page, "xml") if not any(contains_run(payload, normalised(body)) for payload in payloads)
+    ]
+    assert not missing, (
+        f"{page.name}: these ```xml blocks are not verbatim in a .bpmn or .dmn "
+        f"file of examples/expenses/{chapter_of(page)}/:\n" + "\n---\n".join(missing)
+    )
 
 
 @pytest.mark.parametrize("page", PAGES, ids=PAGE_IDS)
@@ -133,13 +140,15 @@ def test_process_chapter_shows_its_generator_and_host_commands(page):
 def test_chapter_2_shows_the_mistake_as_a_diff():
     page = PAGES_DIR / "02-data.md"
     diffs = blocks(page, "diff")
-    assert any(f"-    {CHAPTER_2_MISTAKE_TEXT}" in body for body in diffs), \
+    assert any(f"-    {CHAPTER_2_MISTAKE_TEXT}" in body for body in diffs), (
         "02-data.md must show deleting the mistake's triple in a ```diff block"
+    )
     assert CHAPTER_2_MISTAKE_TEXT in page.read_text(encoding="utf-8")
 
 
 def test_chapter_5_threshold_diff_is_the_edit_ci_makes():
-    from test_expense_process_app import MANAGER_UP_TO_1000, MANAGER_UP_TO_200
+    from test_expense_process_app import MANAGER_UP_TO_200, MANAGER_UP_TO_1000
+
     [diff] = blocks(PAGES_DIR / "05-rules.md", "diff")
     removed = [ln[1:] for ln in diff.splitlines() if ln.startswith("-")]
     added = [ln[1:] for ln in diff.splitlines() if ln.startswith("+")]
@@ -151,6 +160,7 @@ def test_chapter_5_threshold_diff_is_the_edit_ci_makes():
 
 def test_chapter_6_refusal_diff_is_the_edit_ci_makes():
     from test_expense_lifecycle import FIRES_APPROVE, FIRES_PAY
+
     [diff] = blocks(PAGES_DIR / "06-lifecycle.md", "diff")
     removed = [ln[1:].strip() for ln in diff.splitlines() if ln.startswith("-")]
     added = [ln[1:].strip() for ln in diff.splitlines() if ln.startswith("+")]
@@ -164,12 +174,13 @@ def test_chapter_8_shows_the_compose_and_complexity_commands():
     page = PAGES_DIR / "08-growing-up.md"
     app = "examples/expenses/chapter-08"
     lines = code_lines(page)
-    assert (f"docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml up --build"
-            in lines)
+    assert f"docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml up --build" in lines
     assert f"python -m seams_gen compose {app}/expenses.trig --out {app}" in lines
     assert f"python -m seams_gen.complexity {app}/expenses.trig" in lines
     # the report shown is the one the checkpoint produces now
     from seams_gen.complexity import load_model, measure, report
+
     shown = report(measure(load_model(ROOT / app / "expenses.trig")))
-    assert shown in [body for info, body in FENCE.findall(page.read_text(encoding="utf-8"))
-                     if not info.strip()], f"08-growing-up.md must show the report:\n{shown}"
+    assert shown in [body for info, body in FENCE.findall(page.read_text(encoding="utf-8")) if not info.strip()], (
+        f"08-growing-up.md must show the report:\n{shown}"
+    )

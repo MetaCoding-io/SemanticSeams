@@ -50,13 +50,13 @@ def only(v: ContractViolation, path: str) -> dict:
 
 def test_valid_payload_passes_and_normalises(model):
     assert validate(model, ":MessageShape", {"content": "hi", "role": "user"}) == {
-        "content": "hi", "role": "user",
+        "content": "hi",
+        "role": "user",
     }
 
 
 def test_full_payload_with_status_and_timestamp_passes(model):
-    payload = {"content": "hi", "role": "user", "status": "sending",
-               "timestamp": "2026-10-28T12:00:00Z"}
+    payload = {"content": "hi", "role": "user", "status": "sending", "timestamp": "2026-10-28T12:00:00Z"}
     assert validate(model, ":MessageShape", payload) == payload
 
 
@@ -129,8 +129,7 @@ def test_ill_formed_decimal_is_one_datatype_result(amount):
     # caught before SHACL, like a bad xsd:date: one result, no rdflib cast traceback
     with pytest.raises(ContractViolation) as exc:
         validate(ModelGraph(EXPENSES_TRIG), ":ExpenseShape", {**EXPENSE, "amount": amount})
-    assert [(r["path"], r["constraint"]) for r in exc.value.results] == [
-        ("amount", "DatatypeConstraintComponent")]
+    assert [(r["path"], r["constraint"]) for r in exc.value.results] == [("amount", "DatatypeConstraintComponent")]
 
 
 @pytest.mark.parametrize("amount", ["12", "12.50", "+0.01", ".5", "3."])

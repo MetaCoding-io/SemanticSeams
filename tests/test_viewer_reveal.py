@@ -242,11 +242,32 @@ def test_relations_rows_carry_mode_and_direction(client):
 
 def test_relations_groups_are_sorted_and_merged():
     out = [
-        {"predicateLabel": "reads", "targetLabel": "B", "targetLayer": "data", "target": "b", "reveal": "layer", "href": "/view/b"},
-        {"predicateLabel": "detailed by", "targetLabel": "Z", "targetLayer": "x", "target": "z", "reveal": "open", "href": "/view/z"},
+        {
+            "predicateLabel": "reads",
+            "targetLabel": "B",
+            "targetLayer": "data",
+            "target": "b",
+            "reveal": "layer",
+            "href": "/view/b",
+        },
+        {
+            "predicateLabel": "detailed by",
+            "targetLabel": "Z",
+            "targetLayer": "x",
+            "target": "z",
+            "reveal": "open",
+            "href": "/view/z",
+        },
     ]
     inc = [
-        {"predicateLabel": "decided by", "sourceLabel": "A", "sourceLayer": "process", "source": "a", "reveal": "open", "href": "/view/a"},
+        {
+            "predicateLabel": "decided by",
+            "sourceLabel": "A",
+            "sourceLayer": "process",
+            "source": "a",
+            "reveal": "open",
+            "href": "/view/a",
+        },
     ]
     groups = viewer_app.relation_groups(out, inc)
     assert [g["mode"] for g in groups] == ["open", "layer"]

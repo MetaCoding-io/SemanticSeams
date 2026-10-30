@@ -33,7 +33,6 @@ from pathlib import Path
 
 from lxml import etree
 from rdflib import RDFS, URIRef
-
 from SpiffWorkflow.bpmn.parser.TaskParser import TaskParser
 from SpiffWorkflow.bpmn.parser.util import full_tag
 from SpiffWorkflow.bpmn.serializer import BpmnWorkflowSerializer
@@ -97,11 +96,16 @@ class GraphBoundParser(BpmnDmnParser):
 
 
 def _parser_classes(model: ModelGraph, bpmn_model: URIRef):
-    brt = type("BoundBusinessRuleTaskParser", (GraphBoundBusinessRuleTaskParser,),
-               {"model": model, "bpmn_model": bpmn_model})
-    parser_cls = type("BoundGraphParser", (GraphBoundParser,), {
-        "OVERRIDE_PARSER_CLASSES": {full_tag("businessRuleTask"): (brt, BusinessRuleTask)},
-    })
+    brt = type(
+        "BoundBusinessRuleTaskParser", (GraphBoundBusinessRuleTaskParser,), {"model": model, "bpmn_model": bpmn_model}
+    )
+    parser_cls = type(
+        "BoundGraphParser",
+        (GraphBoundParser,),
+        {
+            "OVERRIDE_PARSER_CLASSES": {full_tag("businessRuleTask"): (brt, BusinessRuleTask)},
+        },
+    )
     return brt, parser_cls
 
 
@@ -120,8 +124,10 @@ def make_serializer() -> BpmnWorkflowSerializer:
 def bpmn_process_ids(bpmn_path: Path) -> list[tuple[str, str | None, bool]]:
     """(id, name, isExecutable) of every bpmn:process in the file."""
     root = etree.parse(str(bpmn_path)).getroot()
-    return [(p.get("id"), p.get("name"), p.get("isExecutable", "false").lower() == "true")
-            for p in root.iterfind("bpmn:process", _NS)]
+    return [
+        (p.get("id"), p.get("name"), p.get("isExecutable", "false").lower() == "true")
+        for p in root.iterfind("bpmn:process", _NS)
+    ]
 
 
 # ── the engine ──────────────────────────────────────────────────────────────
@@ -158,7 +164,8 @@ class Engine:
         if not named and len(executable) == 1:
             return executable[0]
         raise ResolutionError(
-            facts.iri, RDFS.label,
+            facts.iri,
+            RDFS.label,
             f"cannot pick a bpmn:process in {facts.bpmn_path.name}: "
             f"label {facts.label!r} matches {named}, executable processes {executable}",
         )
@@ -180,8 +187,13 @@ class Engine:
             spec = parser.get_spec(pid)
             subprocesses = parser.get_subprocess_specs(pid)
             self._specs[iri] = (facts, pid, spec, subprocesses)
-            log.info("parsed %s -> bpmn process %r from %s (%d decision binding(s))",
-                     iri, pid, facts.bpmn_path.name, len(self._bindings))
+            log.info(
+                "parsed %s -> bpmn process %r from %s (%d decision binding(s))",
+                iri,
+                pid,
+                facts.bpmn_path.name,
+                len(self._bindings),
+            )
         return self._specs[iri]
 
     def new_workflow(self, process_curie) -> BpmnWorkflow:
@@ -222,9 +234,11 @@ class Engine:
         wf.catch(BpmnEvent(definition, {}))
         waiting = [t for t in wf.get_tasks(spec_name=start_id) if t.state != TaskState.READY]
         if waiting:
-            raise ResolutionError(start_event, "bpmn:messageEventDefinition",
-                                  f"start event is {TaskState.get_name(waiting[0].state)} "
-                                  f"after its message was delivered")
+            raise ResolutionError(
+                start_event,
+                "bpmn:messageEventDefinition",
+                f"start event is {TaskState.get_name(waiting[0].state)} after its message was delivered",
+            )
         return True
 
     def serialize(self, wf: BpmnWorkflow) -> str:
@@ -268,7 +282,8 @@ class Engine:
         for b in binding.inputs:
             if b.from_path not in entity:
                 raise ResolutionError(
-                    b.from_path_iri, DEC.fromPath,
+                    b.from_path_iri,
+                    DEC.fromPath,
                     f"entity has no field {b.from_path!r} for input {b.variable!r} of {binding.decision}",
                 )
             value = entity[b.from_path]
@@ -279,12 +294,14 @@ class Engine:
                     out[b.variable] = len(value)
                 except TypeError:
                     raise ResolutionError(
-                        b.from_path_iri, DEC.measure,
+                        b.from_path_iri,
+                        DEC.measure,
                         f"dec:Length of non-sized {type(value).__name__} for input {b.variable!r}",
                     ) from None
             else:
                 raise ResolutionError(
-                    binding.decision, DEC.measure,
+                    binding.decision,
+                    DEC.measure,
                     f"unknown measure {b.measure} for input {b.variable!r}",
                 )
         return out
@@ -303,7 +320,8 @@ class Engine:
             number = None
         if isinstance(value, bool) or number is None or not number.is_finite():
             raise ResolutionError(
-                binding.decision, DEC.input,
+                binding.decision,
+                DEC.input,
                 f"input {b.variable!r} of decision {binding.decision_id!r} is typeRef number, "
                 f"but {b.from_path!r} is {value!r}",
             )
@@ -316,9 +334,9 @@ class Engine:
         for b in binding.outputs:
             if b.variable not in task_data:
                 raise ResolutionError(
-                    binding.decision, DEC.output,
-                    f"decision {binding.decision_id!r} produced no {b.variable!r} "
-                    f"(have {sorted(task_data)})",
+                    binding.decision,
+                    DEC.output,
+                    f"decision {binding.decision_id!r} produced no {b.variable!r} (have {sorted(task_data)})",
                 )
             mapped[b.process_variable] = task_data[b.variable]
         task_data.update(mapped)
@@ -332,8 +350,9 @@ class Engine:
         if not _is_business_rule(task):
             return {}
         if entity is None:
-            raise ResolutionError(self.task_iri(task), SEAM.decidedBy,
-                                  "business-rule task needs an entity to evaluate inputs")
+            raise ResolutionError(
+                self.task_iri(task), SEAM.decidedBy, "business-rule task needs an entity to evaluate inputs"
+            )
         inputs = self.evaluate_inputs(self.binding(task), entity)
         task.data.update(inputs)
         return inputs

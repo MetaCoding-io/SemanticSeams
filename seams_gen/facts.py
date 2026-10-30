@@ -25,8 +25,7 @@ class Facts:
     def __init__(self, model: ModelGraph):
         self.m = model
         self.ds = model.ds
-        self._ns = sorted(((str(ns), prefix) for prefix, ns in self.ds.namespaces()),
-                          key=lambda p: (-len(p[0]), p[1]))
+        self._ns = sorted(((str(ns), prefix) for prefix, ns in self.ds.namespaces()), key=lambda p: (-len(p[0]), p[1]))
 
     def curie(self, iri) -> str:
         """prefix:local for the longest bound namespace; the local part is the
@@ -47,8 +46,11 @@ class Facts:
         values = self.objects(s, p)
         if len(values) != 1:
             found = "none" if not values else ", ".join(str(v) for v in values)
-            raise GeneratorError(s, p, f"{detail}: expected exactly one, found {found}"
-                                 if detail else f"expected exactly one, found {found}")
+            raise GeneratorError(
+                s,
+                p,
+                f"{detail}: expected exactly one, found {found}" if detail else f"expected exactly one, found {found}",
+            )
         return values[0]
 
     def optional(self, s, p):

@@ -49,20 +49,20 @@ ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 @dataclass(frozen=True)
 class Healthcheck:
-    test: str        # the JSON-quoted deploy:probe
+    test: str  # the JSON-quoted deploy:probe
     interval: str
 
 
 @dataclass(frozen=True)
 class Service:
-    name: str        # the container's local name
+    name: str  # the container's local name
     image: str
-    ports: tuple[str, ...]        # "published:container"
-    expose: tuple[str, ...]       # "container"
+    ports: tuple[str, ...]  # "published:container"
+    expose: tuple[str, ...]  # "container"
     depends_on: tuple[str, ...]
     environment: tuple[tuple[str, str], ...]  # (key, YAML scalar)
     secrets: tuple[str, ...]
-    volumes: tuple[str, ...]      # YAML scalars
+    volumes: tuple[str, ...]  # YAML scalars
     healthcheck: Healthcheck | None = None
     replicas: int | None = None
     placement: str | None = None  # the constraint, as a YAML scalar
@@ -70,8 +70,8 @@ class Service:
 
 @dataclass(frozen=True)
 class Secret:
-    key: str         # the lower-cased deploy:key
-    name: str        # deploy:secretName, as a YAML scalar
+    key: str  # the lower-cased deploy:key
+    name: str  # deploy:secretName, as a YAML scalar
 
 
 @dataclass(frozen=True)
@@ -121,16 +121,16 @@ def extract_compose(model: ModelGraph, base_dir) -> ComposeModel:
     f = Facts(model)
     systems = f.subjects(RDF.type, ARCH.System)
     if len(systems) != 1:
-        raise GeneratorError(model.subject, ARCH.contains,
-                             f"expected one arch:System, found {len(systems)}")
+        raise GeneratorError(model.subject, ARCH.contains, f"expected one arch:System, found {len(systems)}")
     containers = [c for c in f.objects(systems[0], ARCH.contains) if (c, RDF.type, ARCH.Container) in f.ds]
     if not containers:
         raise GeneratorError(systems[0], ARCH.contains, "the arch:System contains no arch:Container")
 
     executing = serving_containers(f)
     if len(executing) > 1:
-        raise GeneratorError(model.subject, SEAM.executes,
-                             f"expected at most one serving container, found {[str(c) for c in executing]}")
+        raise GeneratorError(
+            model.subject, SEAM.executes, f"expected at most one serving container, found {[str(c) for c in executing]}"
+        )
     mounts = _model_mounts(model, base_dir) if executing else ()
     try:
         model_hash = model.hash
@@ -140,8 +140,8 @@ def extract_compose(model: ModelGraph, base_dir) -> ComposeModel:
     secrets: dict[str, Secret] = {}
     volumes: set[str] = set()
     services = tuple(
-        _service(f, model, c, set(containers), mounts if c in executing else None, secrets, volumes)
-        for c in containers)
+        _service(f, model, c, set(containers), mounts if c in executing else None, secrets, volumes) for c in containers
+    )
     return ComposeModel(
         model_stem=model.path.stem,
         model_hash=model_hash,
@@ -165,8 +165,10 @@ def _model_mounts(model: ModelGraph, base_dir) -> tuple[str, ...]:
 
 def _service(f: Facts, model: ModelGraph, c, services: set, mounts, secrets: dict, volumes: set) -> Service:
     artifact = f.one(c, DEPLOY.artifact)
-    image = (f"{_value(f, c, artifact, DEPLOY.reference, 'deploy:artifact')}:"
-             f"{_value(f, c, artifact, DEPLOY.version, 'deploy:artifact')}")
+    image = (
+        f"{_value(f, c, artifact, DEPLOY.reference, 'deploy:artifact')}:"
+        f"{_value(f, c, artifact, DEPLOY.version, 'deploy:artifact')}"
+    )
 
     ports, expose = [], []
     for node in sorted(f.objects(c, DEPLOY.port), key=lambda n: _port(f, c, n)):
@@ -184,8 +186,10 @@ def _service(f: Facts, model: ModelGraph, c, services: set, mounts, secrets: dic
 
     environment, own_secrets = [], []
     if mounts is not None:
-        environment += [("SEAMS_MODEL", _scalar(f"{MODEL_MOUNT}/{model.path.name}")),
-                        ("SEAMS_MODEL_HASH", json.dumps(model.hash))]
+        environment += [
+            ("SEAMS_MODEL", _scalar(f"{MODEL_MOUNT}/{model.path.name}")),
+            ("SEAMS_MODEL_HASH", json.dumps(model.hash)),
+        ]
     for key, entry in _bindings(f, c, services, secrets):
         environment.append(entry)
         if key is not None:
@@ -202,15 +206,15 @@ def _service(f: Facts, model: ModelGraph, c, services: set, mounts, secrets: dic
     if hc is not None:
         healthcheck = Healthcheck(
             test=json.dumps(_value(f, c, hc, DEPLOY.probe, "deploy:healthcheck")),
-            interval=_scalar(_value(f, c, hc, DEPLOY.interval, "deploy:healthcheck")))
+            interval=_scalar(_value(f, c, hc, DEPLOY.interval, "deploy:healthcheck")),
+        )
 
     placement = None
     node = f.optional(c, SEAM.deployedTo)
     if node is not None:
         labels = f.objects(node, RDFS.label)
         if len(labels) != 1:
-            raise GeneratorError(node, RDFS.label,
-                                 f"the seam:deployedTo node of {c} needs exactly one rdfs:label")
+            raise GeneratorError(node, RDFS.label, f"the seam:deployedTo node of {c} needs exactly one rdfs:label")
         placement = _scalar(f"node.labels.seams.node == {labels[0]}")
 
     return Service(
@@ -246,9 +250,12 @@ def _bindings(f: Facts, c, services: set, secrets: dict) -> list[tuple[str | Non
         b = found[key]
         kinds = [p for p in (DEPLOY.value, DEPLOY.secretRef, DEPLOY.serviceOf) if f.objects(b, p)]
         if len(kinds) != 1:
-            raise GeneratorError(c, DEPLOY.binding,
-                                 f"binding {key!r} needs exactly one of deploy:value, deploy:secretRef, "
-                                 f"deploy:serviceOf, found {len(kinds)}")
+            raise GeneratorError(
+                c,
+                DEPLOY.binding,
+                f"binding {key!r} needs exactly one of deploy:value, deploy:secretRef, "
+                f"deploy:serviceOf, found {len(kinds)}",
+            )
         kind = kinds[0]
         if kind == DEPLOY.value:
             entries.append((None, (key, _scalar(_value(f, c, b, DEPLOY.value, f"binding {key!r}")))))
@@ -257,21 +264,26 @@ def _bindings(f: Facts, c, services: set, secrets: dict) -> list[tuple[str | Non
             name = _value(f, c, b, DEPLOY.secretName, f"binding {key!r}")
             secret = Secret(key=key.lower(), name=_scalar(name))
             if secrets.setdefault(secret.key, secret) != secret:
-                raise GeneratorError(c, DEPLOY.secretName,
-                                     f"binding {key!r}: secret {secret.key} is already named "
-                                     f"{secrets[secret.key].name}")
+                raise GeneratorError(
+                    c,
+                    DEPLOY.secretName,
+                    f"binding {key!r}: secret {secret.key} is already named {secrets[secret.key].name}",
+                )
             entries.append((secret.key, (f"{key}_FILE", _scalar(f"{SECRETS_DIR}/{secret.key}"))))
         else:
             targets = f.objects(b, DEPLOY.serviceOf)
             target = targets[0] if len(targets) == 1 else None
             if target not in services:
-                raise GeneratorError(c, DEPLOY.serviceOf,
-                                     f"binding {key!r} needs one deploy:serviceOf container of the arch:System")
+                raise GeneratorError(
+                    c, DEPLOY.serviceOf, f"binding {key!r} needs one deploy:serviceOf container of the arch:System"
+                )
             ports = f.objects(target, DEPLOY.port)
             if len(ports) != 1:
-                raise GeneratorError(target, DEPLOY.port,
-                                     f"binding {key!r} of {c} needs the service's single deploy:port, "
-                                     f"found {len(ports)}")
+                raise GeneratorError(
+                    target,
+                    DEPLOY.port,
+                    f"binding {key!r} of {c} needs the service's single deploy:port, found {len(ports)}",
+                )
             url = f"http://{local_name(target)}:{_port(f, target, ports[0])}"
             entries.append((None, (key, _scalar(url))))
     return entries
@@ -292,5 +304,13 @@ def generate_compose(trig_path, base_dir=None) -> str:
     return render_compose(extract_compose(ModelGraph.load(trig_path), base_dir))
 
 
-__all__ = ["ComposeModel", "Service", "Secret", "Healthcheck", "extract_compose", "generate_compose",
-           "render_compose", "TEMPLATE_NAME"]
+__all__ = [
+    "ComposeModel",
+    "Service",
+    "Secret",
+    "Healthcheck",
+    "extract_compose",
+    "generate_compose",
+    "render_compose",
+    "TEMPLATE_NAME",
+]

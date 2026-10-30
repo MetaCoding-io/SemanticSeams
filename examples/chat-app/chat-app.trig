@@ -58,7 +58,8 @@
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "DB_URL" ;
                                                 deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ;
-                                                deploy:secretName "chat-prod-db-url" ] ;
+                                                deploy:secretName "chat-prod-db-url" ;
+                                                deploy:connectsTo :message_db ] ;
                                deploy:binding [ deploy:key "LLM_API_KEY" ;
                                                 deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ;
                                                 deploy:secretName "chat-prod-llm-key" ] ;
@@ -84,6 +85,7 @@
 
     :message_db a arch:Container ; rdfs:label "Message Store" ;
         arch:technology "PostgreSQL" ;
+        deploy:storeKind deploy:PostgreSQL ;
         deploy:artifact [ a deploy:Artifact ;
                           deploy:reference "postgres" ;
                           deploy:version "16" ] ;
@@ -293,6 +295,11 @@
         seam:deployedTo :app01 .
 
     :message_db seam:deployedTo :db01 .
+
+    # Data → Architecture seam edges (ADR-0011): where each shape's rows live.
+    # Conversations are seeded rows too (seed.json), so both shapes are stored.
+    :MessageShape seam:storedIn :message_db .
+    :ConversationShape seam:storedIn :message_db .
 
     # UI → Process seam edges
     :send_message seam:triggers :send_message_process ;

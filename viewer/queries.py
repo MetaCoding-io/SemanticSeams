@@ -44,7 +44,7 @@ QUERIES: dict[str, CannedQuery] = {
     "impact-of-node": CannedQuery(
         name="impact-of-node",
         label="What breaks if this node goes away?",
-        question=("What breaks — containers *and processes* — if this deployment node goes away?"),
+        question=("What breaks — containers, processes *and data* — if this deployment node goes away?"),
         focusVariable="node",
         focusType=ARCH.DeploymentNode,
     ),

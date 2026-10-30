@@ -77,11 +77,14 @@ to the model you are already viewing gets no badge.
 
 ### A question
 
-![The db01 deployment node with the question "What breaks if this node goes away?" answered: four impacted results](./img/viewer-impact-question.webp)
+![The db01 deployment node with the question "What breaks if this node goes away?" answered: six impacted results](./img/viewer-impact-question.webp)
 
 Some elements have canned questions. On a deployment node, **What breaks if this node
-goes away?** runs one SPARQL query and lists the containers and the process that depend
-on it, each linked to its own view.
+goes away?** runs one SPARQL query and lists the containers, the process and the data
+that depend on it, each linked to its own view. On the chat app's db01 that is six
+results: the message store, chat API, web interface, send-message process, and the
+Message and Conversation shapes stored in the message store (`seam:storedIn`,
+[ADR-0011](/adr/0011-storage-resolution)).
 
 ## The parts of the page
 
@@ -109,7 +112,9 @@ Results appear inline with each value linked. The catalog is on the
 
 **Details.** The inspector: the element's IRI, its types, its native element ID and
 payload where it has them, and its outgoing and incoming seam edges with readable
-predicate labels. Edges along a navigational predicate are links.
+predicate labels. Edges along a navigational predicate are links. A data shape that
+says where its rows live lists a **stored in** edge to its store, e.g. MessageShape
+stored in Message Store.
 
 **Relations.** Under Details, the same seam edges grouped by the reveal mode
 each predicate declares in `ontology/seam.ttl` (`seam:reveal`). **Open** edges

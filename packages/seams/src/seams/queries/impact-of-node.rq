@@ -1,11 +1,12 @@
 # What breaks if ?node goes away?
 #
 # Returns everything that transitively depends on a container deployed to the
-# node — including the deployed containers themselves (path length 0) and the
-# processes they execute. Dependency edges walked:
+# node — including the deployed containers themselves (path length 0), the
+# processes they execute and the data stored on it. Dependency edges walked:
 #   - arch:dependsOn               : design-time dependency
 #   - seam:consumes/^seam:exposes  : contract-level dependency via an operation/channel
 #   - ^seam:executes               : a process depends on the container that runs it
+#   - seam:storedIn                : a data shape depends on the store holding its rows
 #
 # Bind ?node to an arch:DeploymentNode.
 
@@ -17,5 +18,6 @@ SELECT DISTINCT ?impacted WHERE {
   ?impacted ( arch:dependsOn
             | (seam:consumes/^seam:exposes)
             | ^seam:executes
+            | seam:storedIn
             )* ?container .
 }

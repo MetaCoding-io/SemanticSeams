@@ -154,8 +154,8 @@ def test_what_writes_shape(model):
 
 
 def test_impact_of_node(model):
-    """'What breaks if db01 goes away' — must reach containers AND processes,
-    and must NOT depend on deploy:dependsOn (startup ordering)."""
+    """'What breaks if db01 goes away' — must reach containers, processes AND
+    the data stored on it, and must NOT depend on deploy:dependsOn (startup ordering)."""
     rows = model.query(canned("impact-of-node.rq"), initBindings={"node": SHOP.db01})
     assert {r.impacted for r in rows} == {
         SHOP.order_db,
@@ -163,6 +163,7 @@ def test_impact_of_node(model):
         SHOP.web_ui,
         SHOP.order_process,
         SHOP.fulfillment_process,
+        SHOP.OrderShape,
     }
 
 
@@ -320,13 +321,15 @@ def test_chat_app_screens_by_role_writing_shape(chat_model):
 
 def test_chat_app_impact_of_node(chat_model):
     """'What breaks if db01 goes away' — must reach message_db, chat_api, chat_ui,
-    and the send_message_process."""
+    the send_message_process, and the shapes stored in message_db (ADR-0011)."""
     rows = chat_model.query(canned("impact-of-node.rq"), initBindings={"node": CHAT.db01})
     assert {r.impacted for r in rows} == {
         CHAT.message_db,
         CHAT.chat_api,
         CHAT.chat_ui,
         CHAT.send_message_process,
+        CHAT.MessageShape,
+        CHAT.ConversationShape,
     }
 
 

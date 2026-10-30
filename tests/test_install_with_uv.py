@@ -108,3 +108,10 @@ def test_dockerignore_keeps_the_local_venv_out_of_the_images():
     assert ".venv" in entries
     assert "uv.lock" not in entries
     assert "pyproject.toml" not in entries
+
+
+def test_runtime_image_installs_the_seams_library():
+    # seams_runtime imports ModelGraph and the errors from seams (D034).
+    lines = (ROOT / "docker" / "runtime.Dockerfile").read_text(encoding="utf-8").splitlines()
+    assert "COPY packages/seams /app/packages/seams" in lines
+    assert any(line.startswith("RUN uv sync --locked --no-dev") and "--no-editable" in line for line in lines)

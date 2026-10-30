@@ -165,8 +165,11 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   `permissions` holds `Permission` tuples sorted as `ModelGraph.policy`
   sorts them. `governs` lists the operations and tasks that are
   `seam:governedBy` the policy.
-- **`model.interfaces`** (IFML) has `models()`, `pages()`, `landmark()`
-  and `served_pages()`.
+- **`model.interfaces`** (IFML) has `models()`, `pages()`, `components()`
+  (every element typed with an IFML component class), `events()`, `flows()`,
+  `landmark()` and `served_pages()`. Each list covers every IFML model;
+  `.where(lambda e: e.in_model(":my_ifml"))` keeps one model's members
+  (`Element.in_model(model)` is true for each `seam:inModel` it states).
   - `landmark()` is the one page with `ifml:isLandmark true`. Zero or
     several raise `ResolutionError(model, ifml:isLandmark, "expected one
     ifml:ViewContainer with ifml:isLandmark true, found [...]")`.
@@ -175,8 +178,10 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     path that does not host a task form.
   - `InteractionModel` has `pages()` and `presented_by` (the `Container`
     that `seam:presents` it).
-  - `Page` has `path`, `title` (`ifml:title`), `is_landmark`,
-    `interaction_model`, `components()` (by `ifml:order`, then IRI; a
+  - `Page` has `path`, `title` (`ifml:title`), `is_landmark`, `is_xor`,
+    `is_default` (`ifml:isXOR`/`ifml:isDefault` true), `pages()` (the nested
+    pages it contains), `parents` (the pages that contain it), `visible_when`
+    (lifecycle `State`s, as on `Component`), `interaction_model`, `components()` (by `ifml:order`, then IRI; a
     non-integer order raises `ResolutionError(component, ifml:order)`) and `hosts_task_form` (a part it contains
     is the form a user task is `seam:completedOn`, ADR-0009).
   - `Component` has `kind` (`Form`, `Details`, `List`, `ViewComponent`),
@@ -188,7 +193,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     renders in) and `completes` (the user tasks completed on the form).
     `parameter_bindings` holds one `Parameter` (`iri`, `label`, `bound_to`:
     the `sh:path` it is `ifml:boundTo`, or None) per parameter, by IRI.
-  - `Event` has `trigger`, `component`, `triggers` (a `Process`),
+  - `Event` has `trigger`, `component` (exactly one owner, as a
+    `Component`), `owners` (every element that `ifml:hasEvent` it, typed as
+    the graph says), `triggers` (a `Process`),
     `triggers_all` (every process it triggers), `governed_by` (a
     `Many[Policy]`), `submits_to` (an `Operation`), `flows`, `navigates_to`
     (a `Page`) and `updates` (the components its navigation flows swap).

@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from rdflib import RDF, Literal, URIRef
+from rdflib import RDF, URIRef
 from rdflib.term import Node
 
 from ..errors import ResolutionError
 from ..namespaces import IFML, SEAM, local_name
-from ._base import Element, Many, Views, element_type, one_value, optional
+from ._base import E, Element, Many, Views, element_type, one_value, optional
 
 if TYPE_CHECKING:
     from .architecture import Container
@@ -68,7 +68,37 @@ class Page(Element):
     @property
     def is_landmark(self) -> bool:
         """True when it is ifml:isLandmark true (the app's entry page)."""
-        return (self.iri, IFML.isLandmark, Literal(True)) in self.views.ds
+        return self._flag(IFML.isLandmark)
+
+    @property
+    def is_xor(self) -> bool:
+        """True when it is ifml:isXOR true (its children are mutually exclusive)."""
+        return self._flag(IFML.isXOR)
+
+    @property
+    def is_default(self) -> bool:
+        """True when it is ifml:isDefault true (shown first among XOR siblings)."""
+        return self._flag(IFML.isDefault)
+
+    def pages(self) -> Many[Page]:
+        """The nested ifml:ViewContainers it ifml:contains, by IRI."""
+        views = self.views
+        iris = [i for i in self._objects(IFML.contains) if (i, RDF.type, IFML.ViewContainer) in views.ds]
+        return self._many(Page, iris, IFML.contains)
+
+    @property
+    def parents(self) -> Many[Page]:
+        """The ifml:ViewContainers that ifml:contain it, by IRI (empty for a top-level page)."""
+        views = self.views
+        iris = [i for i in self._subjects(IFML.contains) if (i, RDF.type, IFML.ViewContainer) in views.ds]
+        return self._many(Page, iris, IFML.contains)
+
+    @property
+    def visible_when(self) -> Many[State]:
+        """The lifecycle states it renders in (seam:visibleWhen); empty means always."""
+        from .lifecycles import State
+
+        return self._many(State, self._objects(SEAM.visibleWhen), SEAM.visibleWhen)
 
     @property
     def interaction_model(self) -> InteractionModel | None:
@@ -212,6 +242,12 @@ class Event(Element):
     def component(self) -> Component | None:
         """The component that ifml:hasEvent it."""
         return optional(self._many(Component, self._subjects(IFML.hasEvent), IFML.hasEvent))
+
+    @property
+    def owners(self) -> Many[Element]:
+        """Every element that ifml:hasEvent it, typed as the graph says (a
+        component, a page, or an action such as a process), by IRI."""
+        return self._related(self._subjects(IFML.hasEvent), IFML.hasEvent)
 
     @property
     def triggers(self) -> Process | None:
@@ -372,6 +408,23 @@ class Interfaces:
     def pages(self) -> Many[Page]:
         """Every ifml:ViewContainer, by IRI."""
         return self._views.all(Page, IFML.ViewContainer)
+
+    def components(self) -> Many[Component]:
+        """Every element typed with one of ``COMPONENT_TYPES``, by IRI."""
+        return self._all_of(Component, COMPONENT_TYPES)
+
+    def events(self) -> Many[Event]:
+        """Every ifml:Event, by IRI."""
+        return self._views.all(Event, IFML.Event)
+
+    def flows(self) -> Many[Flow]:
+        """Every ifml:NavigationFlow and ifml:DataFlow, by IRI."""
+        return self._all_of(Flow, FLOW_TYPES)
+
+    def _all_of(self, cls: type[E], rdf_types: tuple[URIRef, ...]) -> Many[E]:
+        views = self._views
+        iris = [i for t in rdf_types for i in views.typed(t)]
+        return views.many(cls, iris, views.model.subject, RDF.type)
 
     def landmark(self) -> Page:
         """The single page with ifml:isLandmark true. Zero or several raise

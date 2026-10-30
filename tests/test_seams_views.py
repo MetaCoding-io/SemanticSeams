@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import seams
 from rdflib import RDF, Dataset, Literal, URIRef
+from rdflib.namespace import SH
 from seams import ARCH, COMM, HYDRA, IFML, ODRL, PROC, SEAM, STATE, Many, ModelGraph, ResolutionError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -717,6 +718,86 @@ def test_broken_order_binding_and_parameter_raise(chat: seams.Model):
     assert binds.value.predicate == str(IFML.targetParameter)
 
 
+# ── the viewer's IFML facts (M010/S06/T02) ──
+
+
+def test_interfaces_lists_scope_to_one_ifml_model(ch08: seams.Model):
+    i = ch08.interfaces
+
+    def names(items: Many[seams.Element], model: str) -> list[str]:
+        return [ch08.compact(e.iri) for e in items.where(lambda e: e.in_model(model))]
+
+    assert names(i.pages(), ":finance_console") == [":payouts_page"]
+    assert names(i.components(), ":finance_console") == [":paid_expenses", ":payment_list"]
+    assert names(i.events(), ":finance_console") == []
+    assert names(i.flows(), ":finance_console") == []
+    assert names(i.events(), ":expense_ifml") == [
+        ":submit_approval",
+        ":submit_expense",
+        ":submit_finance_approval",
+        ":submit_payment",
+    ]
+    assert names(i.flows(), ":expense_ifml") == [
+        ":approval_to_details",
+        ":finance_approval_to_details",
+        ":payment_to_details",
+        ":submit_to_list",
+    ]
+    for items in (i.components(), i.events(), i.flows()):
+        assert [str(x) for x in items.iris()] == sorted(str(x) for x in items.iris())
+    expense_form = i.components().by_iri(":expense_form")
+    assert expense_form.in_model(URIRef(X + "expense_ifml")) and not expense_form.in_model(":finance_console")
+
+
+def test_page_markers_nesting_and_guards(chat: seams.Model):
+    ds = _copy(chat)
+    page, tab = URIRef(C + "chat_page"), URIRef(C + "settings_tab")
+    ds.add((tab, RDF.type, IFML.ViewContainer))
+    ds.add((page, IFML.contains, tab))
+    ds.add((page, IFML.isXOR, Literal(True)))
+    ds.add((tab, IFML.isDefault, Literal(True)))
+    ds.add((tab, SEAM.visibleWhen, URIRef(C + "s_complete")))
+    m = seams.Model(CHAT, ds)
+    outer, inner = m.interfaces.pages().by_iri(":chat_page"), m.interfaces.pages().by_iri(":settings_tab")
+    assert (outer.is_landmark, outer.is_xor, outer.is_default) == (True, True, False)
+    assert (inner.is_landmark, inner.is_xor, inner.is_default) == (False, False, True)
+    assert outer.pages().only() is inner and not inner.pages()
+    assert inner.parents.only() is outer and not outer.parents
+    assert inner.visible_when.only() is m.lifecycles.only().states().by_iri(":s_complete")
+    assert not outer.visible_when
+    # chat-app as shipped has no XOR or default page and no nested page.
+    shipped = chat.interfaces.landmark()
+    assert (shipped.is_xor, shipped.is_default, shipped.pages(), shipped.parents) == (False, False, (), ())
+
+
+def test_event_owners_include_non_components(chat: seams.Model):
+    ds = _copy(chat)
+    send, proc = URIRef(C + "send_message"), URIRef(C + "send_message_process")
+    ds.add((proc, IFML.hasEvent, send))
+    m = seams.Model(CHAT, ds)
+    event = m.interfaces.events().by_iri(":send_message")
+    form = m.interfaces.components().by_iri(":compose_form")
+    assert event.owners.iris() == (form.iri, proc)
+    assert event.owners[0] is form
+    assert isinstance(event.owners[1], seams.Process)
+    # Event.component (the generators' accessor) still wants a single owner.
+    with pytest.raises(ResolutionError) as err:
+        _ = event.component
+    assert (err.value.subject, err.value.predicate) == (str(send), str(IFML.hasEvent))
+    assert chat.interfaces.events().by_iri(":select_conversation").owners.iris() == (URIRef(C + "conversation_list"),)
+
+
+def test_form_property_without_iri_path_raises(chat: seams.Model):
+    ds = _copy(chat)
+    shape = URIRef(C + "MessageShape")
+    prop = next(iter(ds.objects(shape, SH.property)))
+    ds.remove((prop, SH.path, None))
+    m = seams.Model(CHAT, ds)
+    with pytest.raises(ResolutionError) as err:
+        m.interfaces.components().by_iri(":compose_form").writes.only().fields()
+    assert (err.value.subject, err.value.predicate) == (str(shape), str(SH.path))
+
+
 # ── deploy: facts and the route generator's process edges (M010/S05/T03) ──
 
 DEPLOY_NS = seams.DEPLOY
@@ -741,7 +822,9 @@ def test_chat_deploy_facts(chat: seams.Model):
     assert gateway.kinds == (DEPLOY_NS.serviceOf,) and gateway.service_of is gw
     assert gw.bindings[0].value == "https://api.openai.com/v1" and gw.bindings[0].kinds == (DEPLOY_NS.value,)
     assert dict(api.service_bindings) == {b.key: b.service_of.iri for b in api.bindings if b.service_of}
-    assert all(dataclasses.is_dataclass(x) and type(x).__dataclass_params__.frozen for x in (api.artifact, *api.bindings))  # type: ignore[attr-defined]
+    assert all(
+        dataclasses.is_dataclass(x) and type(x).__dataclass_params__.frozen for x in (api.artifact, *api.bindings)
+    )  # type: ignore[attr-defined]
     assert api.systems.only() is a.systems().only()
 
 

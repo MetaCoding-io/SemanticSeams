@@ -165,7 +165,17 @@ class Element:
         }
         return tuple(sorted(found, key=lambda po: (str(po[0]), str(po[1]))))
 
+    def in_model(self, model: object) -> bool:
+        """True when it is ``seam:inModel`` this ``seam:Model`` (an IRI or
+        CURIE). An element in several models is in each of them, where
+        ``model`` names only one."""
+        return (self.iri, SEAM.inModel, self.views.model.curie(model)) in self.views.ds
+
     # ── helpers for the view modules ──
+
+    def _flag(self, predicate: URIRef) -> bool:
+        """True when ``predicate`` is the boolean literal true on it."""
+        return (self.iri, predicate, Literal(True)) in self.views.ds
 
     def _objects(self, predicate: URIRef) -> list[URIRef]:
         return self.views.iris(self.views.ds.objects(self.iri, predicate))

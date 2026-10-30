@@ -11,13 +11,10 @@ from __future__ import annotations
 import re
 
 from rdflib import RDFS, Literal, Namespace
-
-from seams_runtime import ModelGraph
-from seams_runtime.model import COMM, HYDRA, local_name
+from seams import COMM, HYDRA, ModelGraph, local_name
 
 from . import GeneratorError
 
-IFML = Namespace("https://w3id.org/seams/ifml#")
 DASH = Namespace("http://datashapes.org/dash#")
 
 

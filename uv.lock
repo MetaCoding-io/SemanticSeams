@@ -895,6 +895,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "semanticseams" },
 ]
 
 [package.metadata]
@@ -902,6 +903,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rdflib", specifier = ">=7.0" },
+    { name = "semanticseams", editable = "packages/seams" },
 ]
 
 [[package]]

@@ -8,7 +8,7 @@ UIFragment operations name (GAP-19, D017) through htmx_fragment.html.j2, plus,
 for each ``ifml:Form`` a ``proc:UserTask`` ``seam:completedOn`` (ADR-0009), a
 task form partial through htmx_task_form.html.j2 and the partials of the
 components its completion renders on the form's screen. ``generate_pages``
-adds each ``ModelGraph.secondary_pages`` page (an ``ifml:path`` and no task
+adds each ``seams.ModelGraph.secondary_pages`` page (an ``ifml:path`` and no task
 form), extracted the same way and rendered with its own partials. The
 template holds the fixed text only: every model-specific string comes from the
 ``PageModel``, and every collection is sorted explicitly (components by
@@ -27,12 +27,10 @@ import jinja2
 from rdflib import RDF, XSD, Literal
 from rdflib.collection import Collection
 from rdflib.namespace import SH
-
-from seams_runtime import ModelGraph
-from seams_runtime.model import COMM, HYDRA, PROC, SEAM, STATE, local_name
+from seams import COMM, HYDRA, IFML, PROC, SEAM, STATE, ModelGraph, local_name
 
 from . import GeneratorError
-from .facts import DASH, IFML
+from .facts import DASH
 from .facts import Facts as _Facts
 from .fragments import fragment_for
 
@@ -201,7 +199,7 @@ class PageModel:
     fragments: tuple[Fragment, ...] = ()
     task_forms: tuple[TaskForm, ...] = ()
     screen_components: tuple[Component, ...] = ()  # rendered components of task form screens
-    landmark: bool = True  # False for a ModelGraph.secondary_pages page
+    landmark: bool = True  # False for a seams.ModelGraph.secondary_pages page
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
@@ -221,7 +219,7 @@ def _fill(template: str, fill) -> str:
 
 
 def extract_page(model: ModelGraph, page=None) -> PageModel:
-    """The landmark page, or ``page`` (one of ``ModelGraph.secondary_pages``).
+    """The landmark page, or ``page`` (one of ``seams.ModelGraph.secondary_pages``).
     Only the landmark's PageModel carries the task forms and their screens'
     components; a secondary page carries its own components and partials."""
     f = _Facts(model)
@@ -636,7 +634,7 @@ def _task_process(f: _Facts, task):
 
 def _task_curie(f: _Facts, task) -> str:
     """``prefix:rest`` for the longest bound namespace, keeping the whole rest
-    (``:approval_bpmn#approve_expense``), so that ModelGraph.curie expands it
+    (``:approval_bpmn#approve_expense``), so that seams.ModelGraph.curie expands it
     back to the task IRI; Facts.curie shortens a BPMN element to ``:id``,
     which would name a different, ungoverned IRI."""
     s = str(task)

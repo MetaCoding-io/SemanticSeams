@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from seams_runtime import ModelGraph
+from seams import ModelGraph
 
 from . import GeneratorError
 from .compose import generate_compose
@@ -30,7 +30,7 @@ def _htmx(trig: Path, out: Path) -> dict[str, str]:
     """{file name: content}: the landmark page as <page local name>.html, plus
     the fragment partials its UIFragment operations render (GAP-19), the
     partial of each form a user task is completed on (ADR-0009), and each
-    secondary page (``ModelGraph.secondary_pages``) with its partials."""
+    secondary page (``seams.ModelGraph.secondary_pages``) with its partials."""
     return generate_pages(ModelGraph.load(trig))
 
 

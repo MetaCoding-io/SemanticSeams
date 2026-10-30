@@ -28,9 +28,7 @@ from pathlib import Path
 
 import yaml
 from rdflib import RDF, RDFS
-
-from seams_runtime import ModelGraph, ResolutionError
-from seams_runtime.model import DEPLOY, SEAM, _payload_files, local_name
+from seams import DEPLOY, SEAM, ModelGraph, ResolutionError, local_name
 
 from . import GeneratorError
 from .facts import Facts
@@ -156,7 +154,7 @@ def _model_mounts(model: ModelGraph, base_dir) -> tuple[str, ...]:
     base_dir = Path(base_dir)
     trig = f"{_posix_relpath(model.path, base_dir)}:{MODEL_MOUNT}/{model.path.name}:ro"
     try:
-        payloads = _payload_files(model.ds, model.base_dir)
+        payloads = model.payloads()
     except ResolutionError as err:
         raise GeneratorError(err.subject, err.predicate, err.detail) from err
     binds = sorted(f"{_posix_relpath(path, base_dir)}:{MODEL_MOUNT}/{rel}:ro" for rel, path in payloads)

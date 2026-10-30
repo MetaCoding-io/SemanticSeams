@@ -24,12 +24,10 @@ import re
 from dataclasses import dataclass
 
 from rdflib import RDF, RDFS, Namespace
-
-from seams_runtime import ModelGraph, ResolutionError
-from seams_runtime.model import COMM, HYDRA, PROC, SEAM, local_name
+from seams import COMM, HYDRA, IFML, PROC, SEAM, ModelGraph, ResolutionError, local_name
 
 from . import GeneratorError
-from .facts import IFML, Facts
+from .facts import Facts
 from .fragments import ITEM, fragment_for
 from .htmx import _environment, _shape_name, _task_curie, _task_process
 
@@ -77,7 +75,7 @@ class Write:
 
 @dataclass(frozen=True)
 class Complete:
-    task: str  # the proc:UserTask as a CURIE ModelGraph.curie expands back to its IRI
+    task: str  # the proc:UserTask as a CURIE seams.ModelGraph.curie expands back to its IRI
     payload: str  # the Body var; runtime.complete_task validates it
     key: str  # proc:correlationKey rdfs:label of the task's process, a path variable
 

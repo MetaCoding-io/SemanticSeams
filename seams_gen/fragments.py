@@ -13,12 +13,10 @@ so a route can never name a partial that was not generated.
 from __future__ import annotations
 
 from rdflib import RDF
-
-from seams_runtime import ModelGraph
-from seams_runtime.model import SEAM, local_name
+from seams import IFML, SEAM, ModelGraph, local_name
 
 from . import GeneratorError
-from .facts import IFML, Facts
+from .facts import Facts
 
 ITEM_SWAPS = (IFML.Append, IFML.Prepend)
 

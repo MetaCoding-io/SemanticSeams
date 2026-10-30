@@ -5,15 +5,19 @@ view over the files CI already parses and validates, never a second copy of them
   seam-predicates.md  ontology/seam.ttl
   vocabularies.md     ontology/{arch,ifml,proc,state,comm,deploy}.ttl
   shapes.md           ontology/shapes/seam-shapes.ttl
-  queries.md          docs/queries/*.rq, with the question table in docs/queries/README.md
+  queries.md          the seams question catalog (the same bytes as docs/queries/*.rq),
+                      with the question table in docs/queries/README.md
+
+Reads namespaces and the question catalog through the seams library; the ontology
+files are Turtle, not models, so they are parsed with rdflib directly.
 
 Sections follow the banner comments in each source file (a line of #'s, a `# Title`
 line, a line of #'s), so a page reads in the same order as the file it comes from.
 `.vitepress/config.ts` rewrites each page to `reference/`. Relative links in the
 output point at the source files and become GitHub links at build time.
 
-Run by `npm run build` and `npm run dev` in docs/. Needs rdflib
-(`uv sync --all-packages` at the repository root). Build with
+Run by `npm run build` and `npm run dev` in docs/. Needs the seams workspace package
+and rdflib (`uv sync --all-packages` at the repository root). Build with
 `uv run npm --prefix docs run build`: uv run puts the absolute .venv/bin on PATH, which
 a relative .venv/bin does not achieve under npm --prefix.
 """
@@ -24,13 +28,14 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
+import seams
+from rdflib import OWL, RDF, RDFS, Graph, URIRef
+from rdflib.namespace import SH
+from seams import SEAM
 
 DOCS = Path(__file__).resolve().parent.parent
 ROOT = DOCS.parent
 OUT = DOCS / "generated"
-SH = Namespace("http://www.w3.org/ns/shacl#")
-SEAM = Namespace("https://w3id.org/seams/seam#")
 
 VOCABULARIES = ["arch", "ifml", "proc", "state", "comm", "deploy"]
 
@@ -310,8 +315,10 @@ def queries() -> str:
         "CI runs every query against the worked examples and asserts the exact expected rows, so a "
         "traversal cannot silently regress to zero results.\n\n"
     )
-    for path in sorted(qdir.glob("*.rq")):
-        src = path.read_text(encoding="utf-8").splitlines()
+    # Sorted by file name, as the docs/queries/*.rq listing was.
+    for stem in sorted(seams.question_names(), key=lambda n: n + ".rq"):
+        filename = f"{stem}.rq"
+        src = seams.load_question(stem).splitlines()
         comment, body, started = [], [], False
         for line in src:
             if not started and line.startswith("#"):
@@ -319,9 +326,9 @@ def queries() -> str:
             else:
                 started = True
                 body.append(line)
-        question, focus = table.get(path.name, (comment[0] if comment else path.stem, ""))
-        out.append(f"## {escape(question)} {{#{path.stem}}}\n\n")
-        meta = f"Source: [`docs/queries/{path.name}`](../queries/{path.name})"
+        question, focus = table.get(filename, (comment[0] if comment else stem, ""))
+        out.append(f"## {escape(question)} {{#{stem}}}\n\n")
+        meta = f"Source: [`docs/queries/{filename}`](../queries/{filename})"
         if focus:
             meta += f" · focus variable `{focus}`"
         out.append(meta + "\n\n")

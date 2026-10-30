@@ -58,7 +58,7 @@ updated reason.
 |---|---|---|---|---|
 | 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. That example now exists: the expense-approval build-along tutorial's final checkpoint (E1, done in M009/S07) passes the complexity check (E3), and the slice opens by running that check; see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
 | 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item | planned (M008/S01) |
-| 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief | planned (M008/S04) |
+| 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief. If the reason no longer holds, I1 to I5 are the plan ([note](research/2026-10-30-domain-ide-and-generator-kit.md)) | planned (M008/S04) |
 | 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
 
 Resolved open questions from the Levels note: L4 is a preset of reveal
@@ -161,6 +161,30 @@ milestone covers.
 |---|---|---|---|---|---|
 | A10 | **More than one replica**: the chat-app model declares `deploy:replicas 3`, but only one replica works, because process instances and the live-update stream are held in memory. Needs the shared store from U9 and a shared channel for the stream. Until then, M016 caps generated replicas at one. See "Not covered" in the [storage plan](research/2026-10-29-runtime-storage.md) | M | U9, A4 | none expected | proposed |
 | U10 | **Scheduled and background work**: lift BPMN timer start events and run recurring jobs (reminders, cleanups, digests), with a seam to the container that runs the schedule. See section 3.6 of the [UML coverage note](research/2026-10-29-uml-coverage-and-gaps.md) | M | ADR first | a seam to the scheduling container | proposed |
+
+## Generator kit and domain IDE
+
+*Added 2026-10-30 from the [generator kit and domain IDE note](research/2026-10-30-domain-ide-and-generator-kit.md),
+which reads Boersma's* Building User-Friendly DSLs *and Parr's* Language Implementation
+Patterns *against the repository. Not yet scheduled.* Users can write their own
+generators once the library (L) and the CLI (A1, A2) exist, but nothing packages the
+method G2 used. The kit items do that. The IDE items refine P2 item 13 (Editing), which
+stays a v1 non-goal until M008/S04 checks it again. K1 and K2 stand alone and are worth
+doing first: today a model can show *Conforms* in the viewer and still fail generation.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| K1 | **Shapes catch every generator fault first**: a parity test with one minimal broken model per `GeneratorError` condition; each fault gets a shape or is listed as generator-only with the reason. Starts with `ifml:order` on page components and `seam:reads` on `ifml:List`, which the generator requires and the shapes do not | S | none | shapes only | proposed |
+| K2 | **Static checks for decisions**: DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s | S | none | shapes or SPARQL checks only | proposed |
+| K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | proposed |
+| K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | proposed |
+| K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); the L6 guide written as the reference-first method | S | K3, K4, L6 | none | proposed |
+| K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | proposed |
+| I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | proposed |
+| I2 | **Forms from shapes**: edit one element through a form derived from the shapes that target its class; save invalid models and flag them | M | I1, K1 | none | proposed |
+| I3 | **Live checks and preview**: re-run the shapes and the generators in lenient mode after each save; show the generated page beside the model | M | I2, K3 | none | proposed |
+| I4 | **BPMN and DMN round-trip**: modelers in place of viewers, an ID rename that rewrites the seams graph (ADR-0002), a model-health check that lifted IRIs exist in the XML | M | I1 | none | proposed |
+| I5 | **Domain profiles**: a package of vocabulary, shapes, generators, palette and labels, attached by the reserved `seam:conformsTo`, restricting what the editor offers | L | ADR first, I2, K3 | extends `seam:Profile` | proposed |
 
 ## Generation: what is planned, what is not
 

@@ -39,20 +39,14 @@ QUERIES: dict[str, CannedQuery] = {
     "what-writes-shape": CannedQuery(
         name="what-writes-shape",
         label="What writes this shape?",
-        question=(
-            "Which UI events can eventually write this data shape, "
-            "and through which task?"
-        ),
+        question=("Which UI events can eventually write this data shape, and through which task?"),
         focusVariable="shape",
         focusType=SH.NodeShape,
     ),
     "impact-of-node": CannedQuery(
         name="impact-of-node",
         label="What breaks if this node goes away?",
-        question=(
-            "What breaks — containers *and processes* — if this "
-            "deployment node goes away?"
-        ),
+        question=("What breaks — containers *and processes* — if this deployment node goes away?"),
         focusVariable="node",
         focusType=ARCH.DeploymentNode,
     ),
@@ -67,8 +61,7 @@ QUERIES: dict[str, CannedQuery] = {
         name="screens-by-role-writing-shape",
         label="Which screens can each role use to write this shape?",
         question=(
-            "Which screens can each role use whose events eventually write "
-            "this data shape, and through which task?"
+            "Which screens can each role use whose events eventually write this data shape, and through which task?"
         ),
         focusVariable="shape",
         focusType=SH.NodeShape,
@@ -115,10 +108,7 @@ def execute_query(graph, query_name: str, focus_iri: str) -> dict:
             truncated = True
             break
         rows.append(
-            {
-                col: (str(val) if val is not None else "")
-                for col, val in zip(columns, binding_row)
-            }
+            {col: (str(val) if val is not None else "") for col, val in zip(columns, binding_row, strict=False)}
         )
     duration_ms = (time.perf_counter() - start) * 1000
     payload = {

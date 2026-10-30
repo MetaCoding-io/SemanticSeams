@@ -1,6 +1,7 @@
 """seams_runtime.policy: the seam:governedBy hook behind a FastAPI route (D014, GAP-20)."""
 
 from pathlib import Path
+from typing import Annotated
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -41,7 +42,7 @@ def _client(hook: PolicyHook) -> TestClient:
     app = FastAPI()
 
     @app.post("/send")
-    def send(identity: Identity = Depends(hook.dependency(":user_send_policy"))):
+    def send(identity: Annotated[Identity, Depends(hook.dependency(":user_send_policy"))]):
         return {"user": identity.id}
 
     return TestClient(app)
@@ -121,12 +122,10 @@ def test_custom_evaluator_denial_is_403_with_its_reason(model):
         seen.append((policy.iri, operation_iri, identity))
         return False, "mallory is banned"
 
-    response = _client(PolicyHook(model, evaluator=deny)).post(
-        "/send", headers={"X-Forwarded-User": "mallory"})
+    response = _client(PolicyHook(model, evaluator=deny)).post("/send", headers={"X-Forwarded-User": "mallory"})
     assert response.status_code == 403
     assert response.json()["detail"]["reason"] == "mallory is banned"
-    assert seen == [(URIRef(CHAT + "user_send_policy"), URIRef(CHAT + "send_message_op"),
-                     Identity("mallory"))]
+    assert seen == [(URIRef(CHAT + "user_send_policy"), URIRef(CHAT + "send_message_op"), Identity("mallory"))]
 
 
 # ── framework-free core ──
@@ -139,8 +138,7 @@ class _Req:
 
 def test_check_returns_identity_and_raises_policy_denied(model):
     hook = PolicyHook(model)
-    assert hook.check(":user_send_policy", ":send_message_op", _Req({"X-Forwarded-User": "a"})) \
-        == Identity("a")
+    assert hook.check(":user_send_policy", ":send_message_op", _Req({"X-Forwarded-User": "a"})) == Identity("a")
     with pytest.raises(PolicyDenied) as exc:
         hook.check(":user_send_policy", None, _Req({}))
     assert exc.value.http_status == 401
@@ -194,8 +192,7 @@ def test_policy_hook_default_is_role_evaluator(model):
 def _role_facts():
     op = URIRef(CHAT + "send_message_op")
     employee = URIRef(CHAT + "employee")
-    policy = PolicyFacts(URIRef(CHAT + "employee_submit_policy"), "p",
-                         (Permission(op, ODRL.use, employee, ()),))
+    policy = PolicyFacts(URIRef(CHAT + "employee_submit_policy"), "p", (Permission(op, ODRL.use, employee, ()),))
     return op, employee, policy
 
 
@@ -217,8 +214,9 @@ def test_role_evaluator_denies_a_non_matching_role_with_reason():
     op, employee, policy = _role_facts()
     allowed, reason = RoleEvaluator()(policy, op, Identity("bob", frozenset({"manager", "finance"})))
     assert not allowed
-    assert reason == (f"identity 'bob' (roles: finance, manager) is not an assignee "
-                      f"({employee}) of {CHAT}employee_submit_policy")
+    assert reason == (
+        f"identity 'bob' (roles: finance, manager) is not an assignee ({employee}) of {CHAT}employee_submit_policy"
+    )
     allowed, reason = RoleEvaluator()(policy, op, Identity("bob"))
     assert not allowed and "(roles: none)" in reason
 
@@ -226,8 +224,9 @@ def test_role_evaluator_denies_a_non_matching_role_with_reason():
 def test_role_evaluator_party_collection_and_no_assignee_admit_anyone():
     op = URIRef(CHAT + "send_message_op")
     ev = RoleEvaluator()
-    collection = PolicyFacts(URIRef(CHAT + "p"), "p", (
-        Permission(op, ODRL.use, URIRef(CHAT + "users"), (ODRL.PartyCollection,)),))
+    collection = PolicyFacts(
+        URIRef(CHAT + "p"), "p", (Permission(op, ODRL.use, URIRef(CHAT + "users"), (ODRL.PartyCollection,)),)
+    )
     assert ev(collection, op, Identity("anyone"))[0]
     open_perm = PolicyFacts(URIRef(CHAT + "p"), "p", (Permission(op, ODRL.use, None, ()),))
     assert ev(open_perm, op, Identity("anyone", frozenset({"x"})))[0]

@@ -160,7 +160,9 @@ def test_written_shape_with_no_stored_in(tmp_path: Path):
 
 
 def test_written_shape_stored_elsewhere(tmp_path: Path):
-    extra = f"{PG}\n:other a arch:Container ; deploy:storeKind deploy:PostgreSQL .\n:MessageShape seam:storedIn :other ."
+    extra = (
+        f"{PG}\n:other a arch:Container ; deploy:storeKind deploy:PostgreSQL .\n:MessageShape seam:storedIn :other ."
+    )
     err = raises(tmp_path, extra, "db")
     assert (err.subject, err.predicate) == (T + "MessageShape", str(SEAM.storedIn))
 

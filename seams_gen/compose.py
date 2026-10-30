@@ -107,14 +107,7 @@ def extract_compose(model: Model, base_dir) -> ComposeModel:
     if not containers:
         raise GeneratorError(systems[0].iri, ARCH.contains, "the arch:System contains no arch:Container")
 
-    with view_errors():
-        executing = serving_containers(model)
-    if len(executing) > 1:
-        raise GeneratorError(
-            model.subject,
-            SEAM.executes,
-            f"expected at most one serving container, found {[str(c) for c in executing.iris()]}",
-        )
+    executing = _executing(model)
     mounts = _model_mounts(model, base_dir) if executing else ()
     with view_errors():
         model_hash = model.hash
@@ -131,6 +124,25 @@ def extract_compose(model: Model, base_dir) -> ComposeModel:
         secrets=tuple(secrets[k] for k in sorted(secrets)),
         volumes=tuple(sorted(volumes)),
     )
+
+
+def _executing(model: Model):
+    """The serving containers, which get the model mounts and SEAMS_MODEL_HASH; at most one."""
+    with view_errors():
+        executing = serving_containers(model)
+    if len(executing) > 1:
+        raise GeneratorError(
+            model.subject,
+            SEAM.executes,
+            f"expected at most one serving container, found {[str(c) for c in executing.iris()]}",
+        )
+    return executing
+
+
+def runtime_containers(model: Model) -> tuple[str, ...]:
+    """The local names of the containers the compose file gives SEAMS_MODEL_HASH
+    (the runtime containers ``seams status`` asks for /healthz, D045), sorted."""
+    return tuple(sorted(local_name(c.iri) for c in _executing(model)))
 
 
 def _model_mounts(model: Model, base_dir) -> tuple[str, ...]:

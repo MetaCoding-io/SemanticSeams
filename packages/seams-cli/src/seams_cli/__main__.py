@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check [--project PATH] [--model PATH]``.
+"""Command line: ``seams generate|check|status [--project PATH] [--model PATH]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -20,8 +20,17 @@ SHACL shapes, runs the project's gate queries and compares the outputs
 generate would write with the disk and seams.lock. Each finding prints to
 stdout as ``<kind> <detail>``; with any finding, ``seams check: N problem(s)``
 goes to stderr and the exit code is 1. A model that cannot be loaded, a bad
-gate or a malformed seams.lock exits 2. The ``status`` subcommand is to come
-(M012/S04).
+gate or a malformed seams.lock exits 2.
+
+``seams status [--env NAME] [--timeout SECONDS]`` (D045) GETs /healthz from
+each runtime container of the model at the base URL that
+``[environments.<name>].endpoints`` gives it, and prints
+``<container> <verdict> <reported hash or -> <detail>`` per container, sorted,
+then ``current model <hash>``. A verdict is current, behind (the hash is in
+seams.lock's git history), ahead (it is not) or unreachable. With any container
+not current, ``seams status: N of M not current`` goes to stderr and the exit
+code is 1. ``--env`` defaults to the only environment with endpoints; a missing
+or unknown environment, or an endpoint that is not a runtime container, exits 2.
 """
 
 from __future__ import annotations
@@ -30,12 +39,15 @@ import argparse
 import sys
 from pathlib import Path
 
+import seams
+
 from seams_gen import GeneratorError
 
 from .check import FILE_KINDS, run_check
 from .generate import apply, generate_project
 from .lockfile import locate
 from .project import ProjectError, load_project, resolve_model
+from .status import run_status
 
 EXIT_PROJECT_ERROR = 2
 EXIT_IO_ERROR = 1
@@ -58,6 +70,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _project_arguments(check)
     check.set_defaults(run=_check)
+    status = sub.add_parser(
+        "status",
+        help="report whether each running runtime container is on the current model",
+        description="Read each runtime container's /healthz in an environment and compare its model hash.",
+    )
+    _project_arguments(status)
+    status.add_argument("--env", help="the [environments.<name>] to read (default: the only one with endpoints)")
+    status.add_argument("--timeout", type=float, default=5.0, help="seconds to wait for each /healthz (default: 5)")
+    status.set_defaults(run=_status)
     return parser
 
 
@@ -102,6 +123,20 @@ def _check(args: argparse.Namespace) -> int:
         print(f"{finding.kind} {detail}")
     if findings:
         print(f"seams check: {len(findings)} problem(s)", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _status(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    model = resolve_model(project, args.model)
+    statuses = run_status(project, model, args.env, args.timeout)
+    for s in statuses:
+        print(" ".join(part for part in (s.container, s.verdict, s.reported or "-", s.detail) if part))
+    print(f"current model {seams.model_hash(model)}")
+    behind = sum(s.verdict != "current" for s in statuses)
+    if behind:
+        print(f"seams status: {behind} of {len(statuses)} not current", file=sys.stderr)
         return 1
     return 0
 

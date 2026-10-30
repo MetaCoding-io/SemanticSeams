@@ -16,19 +16,22 @@ and the app's environments::
     gates = ["gates/ungoverned-writes.rq"]
 
     [environments.dev]
+    endpoints = { expense_api = "http://localhost:8080" }
 
 Relative paths resolve against the directory of the project file, so the
 command gives the same result from any working directory. ``gates`` lists
 SPARQL SELECT queries that ``seams check`` runs over the model; each must
-return no rows (D044). ``environments`` is a placeholder: only the names are
-read for now.
+return no rows (D044). Each ``[environments.<name>]`` may carry an
+``endpoints`` table, a runtime container's local name to the base URL whose
+/healthz ``seams status`` reads (D045); its other keys are still ignored.
 """
 
 from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from seams.loader import MODEL_ENV
@@ -51,7 +54,9 @@ class GeneratorTarget:
 @dataclass(frozen=True)
 class Project:
     """A loaded project file. ``path`` is the file, ``root`` its directory;
-    ``model``, every ``out`` and every gate are absolute."""
+    ``model``, every ``out`` and every gate are absolute. ``endpoints`` maps an
+    environment name to {container local name: base URL}, for the environments
+    that declare any."""
 
     path: Path
     root: Path
@@ -59,6 +64,7 @@ class Project:
     generators: tuple[GeneratorTarget, ...]
     environments: tuple[str, ...]
     gates: tuple[Path, ...] = ()
+    endpoints: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
 
 
 def _known_generators() -> dict:
@@ -103,6 +109,17 @@ def load_project(path: Path | str) -> Project:
     environments = data.get("environments", {})
     if not isinstance(environments, dict) or not all(isinstance(env, dict) for env in environments.values()):
         raise ProjectError(f"{path}: `environments` must be a table of tables ([environments.<name>])")
+    endpoints = {}
+    for name, env in environments.items():
+        if "endpoints" not in env:
+            continue
+        table = env["endpoints"]
+        if not isinstance(table, dict) or not all(isinstance(url, str) for url in table.values()):
+            raise ProjectError(
+                f"{path}: `environments.{name}.endpoints` must be a table of strings, "
+                'e.g. { chat_api = "http://localhost:8080" }'
+            )
+        endpoints[name] = dict(table)
 
     gates = data.get("gates", [])
     if not isinstance(gates, list):
@@ -118,6 +135,7 @@ def load_project(path: Path | str) -> Project:
         generators=tuple(targets),
         environments=tuple(environments),
         gates=tuple(root / gate for gate in gates),
+        endpoints=endpoints,
     )
 
 

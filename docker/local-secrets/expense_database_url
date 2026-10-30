@@ -1,0 +1,1 @@
+postgresql://postgres:seams-dev@expense_db:5432/expenses

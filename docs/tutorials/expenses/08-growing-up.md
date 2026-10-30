@@ -304,27 +304,113 @@ container runs. Add the deploy prefix:
 ```
 
 Then give each container an image, its ports and its start order. The portal publishes
-port 8080 on the host and starts after the API. The API is only reachable from inside
-the stack, and runs in the one environment, `:prod`:
+port 8080 on the host and starts after the API:
 
 ```trig
+    :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
+        arch:technology "htmx + server-rendered fragments" ;
+        arch:dependsOn :expense_api ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/expense-api" ;
-                          deploy:version "0.8.0" ] ;
-        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+                          deploy:reference "ghcr.io/example/expense-portal" ;
+                          deploy:version "latest" ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
+        deploy:dependsOn :expense_api ;
+        seam:inModel :expense_architecture .
+```
+
+The API gets an image and a port too, but publishes nothing, so it is only reachable
+from inside the stack. It runs in the one environment, `:prod`:
+
+```trig
         deploy:placement [ a deploy:PlacementPolicy ;
                            deploy:targetEnvironment :prod ] ;
-        seam:inModel :expense_architecture .
-
-    # One environment with a node for each container (seam:deployedTo, in
-    # the seams graph, places them).
-    :prod a arch:Environment ; rdfs:label "Production" ;
-        arch:contains :web01 , :app01 ;
-        seam:inModel :expense_architecture .
 ```
 
 The `seam:deployedTo` edges you saw above put the portal on `:web01` and the API on
 `:app01`.
+
+## Where the data lives
+
+So far the model says nothing about where the expenses are kept. The runtime keeps them
+in a SQLite file it chooses itself, and a reader of the model cannot tell. Three facts
+from [ADR-0011](/adr/0011-storage-resolution) put the store in the model.
+
+First, the store is a container like any other. `deploy:storeKind` says what kind of
+store it is, one of `deploy:PostgreSQL` and `deploy:SQLite`. It runs the `postgres:16`
+image, keeps its data on a named volume and reports ready through `pg_isready`:
+
+```trig
+    # Where the data lives: a PostgreSQL store with its own volume.
+    :expense_db a arch:Container ; rdfs:label "Expense Store" ;
+        arch:technology "PostgreSQL" ;
+        deploy:storeKind deploy:PostgreSQL ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "postgres" ;
+                          deploy:version "16" ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "POSTGRES_DB" ;
+                                                deploy:value "expenses" ] ] ;
+        deploy:volume [ a deploy:Volume ;
+                        deploy:volumeName "expense_db_data" ;
+                        deploy:mountPath "/var/lib/postgresql/data" ] ;
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "pg_isready -U postgres" ;
+                             deploy:interval "5s" ] ;
+        seam:inModel :expense_architecture .
+```
+
+Add it to `:expense_system`'s `arch:contains`, and give it a node of its own in `:prod`:
+
+```trig
+    :prod a arch:Environment ; rdfs:label "Production" ;
+        arch:contains :web01 , :app01 , :db01 ;
+        seam:inModel :expense_architecture .
+```
+
+Second, the API reaches the store through a connection string. It is a secret, so the
+binding names a secret rather than a value, and `deploy:connectsTo` says which store
+the secret leads to:
+
+```trig
+        arch:dependsOn :expense_db ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "ghcr.io/example/expense-api" ;
+                          deploy:version "0.8.0" ] ;
+        # The connection string is a secret; deploy:connectsTo says which
+        # store it reaches, so no key-name convention is needed (ADR-0011).
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "DATABASE_URL" ;
+                                                deploy:secretRef <https://secrets.example.org/expenses/prod/database-url> ;
+                                                deploy:secretName "expenses-prod-database-url" ;
+                                                deploy:connectsTo :expense_db ] ] ;
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        deploy:dependsOn :expense_db ;
+```
+
+The key is `DATABASE_URL`. The chat app calls its key `DB_URL`, and both are fine:
+nothing reads the store from the key's name. `deploy:connectsTo` is what links the
+binding to the store, so a model can keep whatever name its image already expects.
+That is why this chapter picks a different name on purpose.
+
+Third, each shape says where its rows live, in the seams graph next to the store's
+`seam:deployedTo`:
+
+```trig
+    :expense_db seam:deployedTo :db01 .
+
+    # Data to architecture (ADR-0011): where each shape's rows live.
+    :ExpenseShape seam:storedIn :expense_db .
+    :ApprovalShape seam:storedIn :expense_db .
+    :PaymentShape seam:storedIn :expense_db .
+```
+
+Now the model answers "what breaks if `db01` goes away?" all the way down to the data.
+The impact query, `docs/queries/impact-of-node.rq` on the [query reference](/reference/queries), returns the store, the API and the portal above it, both
+processes the API runs, and the three shapes. In the viewer, each shape's inspector
+shows a "stored in" edge to `:expense_db`.
+
+The runtime does not use the declared store yet. It still keeps its rows in SQLite, and
+a later release switches it to the store the model names.
 
 ## Generate the app
 
@@ -401,8 +487,13 @@ expenses they pay.
 a hand-written
 [`compose.override.yaml`](../../../examples/expenses/chapter-08/compose.override.yaml)
 beside it. The override builds the runtime image with the chapter 8 code, makes the
-portal a Caddy reverse proxy in front of the API, adds a volume for the store and names
-the project `seams-expenses`. Pass both files from the repository root:
+portal a Caddy reverse proxy in front of the API, adds a volume for the runtime's SQLite
+file and names the project `seams-expenses`. The generated file also has an `expense_db`
+service from the store's deploy facts. The override gives it a dev-only
+`POSTGRES_PASSWORD`, and points the `database_url` secret at a committed placeholder,
+`docker/local-secrets/expense_database_url`, because the generated secret is a swarm
+secret that plain compose cannot create. The API does not read that secret yet. Pass
+both files from the repository root:
 
 ```sh
 docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml up --build
@@ -440,13 +531,13 @@ most reached (distinct models):
   payouts: 3
   submit_expense_op: 3
   ApprovalShape: 2
-seam edges: 111 (reported, not gated)
+seam edges: 115 (reported, not gated)
 PASS
 ```
 
 It passes when at least 3 notations have two or more models, and some element is reached
 from at least 5 distinct models. This model has 4 such notations. `ExpenseShape` is
-reached from 6 models: both screen models, both processes and both decisions. The seam-edge count, 111, is reported but not gated. The chat app scores 0 and
+reached from 6 models: both screen models, both processes and both decisions. The seam-edge count, 115, is reported but not gated. Four of those edges are the storage facts above. The chat app scores 0 and
 3 and fails, because it has one model per notation. The command exits 0 on a pass, so
 CI can gate on it, and `tests/test_complexity.py` pins these numbers.
 

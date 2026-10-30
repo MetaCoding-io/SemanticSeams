@@ -495,3 +495,49 @@ def test_screens_by_role_ungoverned_writer_has_no_role():
 def test_screens_by_role_unrelated_shape_has_no_rows(chat_model):
     """A focus no event writes returns nothing, governed or not."""
     assert _screens_by_role(chat_model, CHAT.ConversationShape) == set()
+
+
+# --- Expense tutorial chapter 8: storage (ADR-0011) ---
+
+EXPENSES_CHAPTER_8_TRIG = ROOT / "examples" / "expenses" / "chapter-08" / "expenses.trig"
+
+
+@pytest.fixture(scope="session")
+def expenses_8_model() -> rdflib.Graph:
+    """Union graph of the ontologies plus the chapter-08 expense checkpoint."""
+    ds = load_dataset(*ONTOLOGY_FILES, trig_path=EXPENSES_CHAPTER_8_TRIG)
+    g = rdflib.Graph()
+    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+        g.add((s, p, o))
+    return g
+
+
+def test_expenses_chapter_8_conforms_to_seam_shapes(expenses_8_model):
+    conforms, _, report = pyshacl.validate(expenses_8_model, shacl_graph=str(SHAPES_FILE), inference="none")
+    assert conforms, report
+
+
+def test_expenses_chapter_8_impact_of_node(expenses_8_model):
+    """A second model declares its store under a different key (DATABASE_URL),
+    and db01's impact still reaches the store, the API and portal above it,
+    both processes the API runs and the three shapes stored in expense_db."""
+    rows = expenses_8_model.query(canned("impact-of-node.rq"), initBindings={"node": EXPENSES.db01})
+    assert {r.impacted for r in rows} == {
+        EXPENSES.expense_db,
+        EXPENSES.expense_api,
+        EXPENSES.employee_portal,
+        EXPENSES.approval_process,
+        EXPENSES.payout_process,
+        EXPENSES.ExpenseShape,
+        EXPENSES.ApprovalShape,
+        EXPENSES.PaymentShape,
+    }
+
+
+def test_expenses_chapter_8_impact_of_app_node_skips_the_shapes(expenses_8_model):
+    """The shapes depend on the store, not on the API: losing app01 does not
+    reach them, because nothing stored on app01 holds their rows."""
+    rows = expenses_8_model.query(canned("impact-of-node.rq"), initBindings={"node": EXPENSES.app01})
+    impacted = {r.impacted for r in rows}
+    assert EXPENSES.expense_api in impacted
+    assert not impacted & {EXPENSES.expense_db, EXPENSES.ExpenseShape, EXPENSES.ApprovalShape, EXPENSES.PaymentShape}

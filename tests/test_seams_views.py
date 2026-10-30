@@ -833,8 +833,21 @@ def test_ch08_deploy_facts(ch08: seams.Model):
     api, portal = a.containers().by_iri(":expense_api"), a.containers().by_iri(":employee_portal")
     assert api.artifact == seams.Artifact("ghcr.io/example/expense-api", "0.8.0")
     assert portal.ports == (seams.Port(8000, 8080),) and portal.deploy_depends_on.only() is api
-    assert api.bindings == () and api.volumes == () and api.healthcheck is None
-    assert a.systems().only().containers.iris() == (URIRef(X + "employee_portal"), URIRef(X + "expense_api"))
+    assert api.volumes == () and api.healthcheck is None
+    # ADR-0011: the API's one binding is the DATABASE_URL secret, a different key
+    # from the chat app's DB_URL; the store is a container like any other
+    (secret,) = api.bindings
+    assert (secret.key, secret.secret_name) == ("DATABASE_URL", "expenses-prod-database-url")
+    db = a.containers().by_iri(":expense_db")
+    assert db.artifact == seams.Artifact("postgres", "16")
+    assert api.deploy_depends_on.only() is db and api.depends_on.only() is db
+    assert db.volumes == (seams.Volume("expense_db_data", "/var/lib/postgresql/data"),)
+    assert db.healthcheck == seams.Healthcheck("pg_isready -U postgres", "5s")
+    assert a.systems().only().containers.iris() == (
+        URIRef(X + "employee_portal"),
+        URIRef(X + "expense_api"),
+        URIRef(X + "expense_db"),
+    )
 
 
 def test_route_edges_of_processes(chat: seams.Model, ch08: seams.Model):

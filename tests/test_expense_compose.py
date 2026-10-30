@@ -39,7 +39,7 @@ def test_committed_compose_file_is_current():
 
 def test_compose_file_mounts_the_model_and_its_payloads():
     services = yaml.safe_load((APP / "compose.yaml").read_text(encoding="utf-8"))["services"]
-    assert set(services) == {"employee_portal", "expense_api"}
+    assert set(services) == {"employee_portal", "expense_api", "expense_db"}
     api = services["expense_api"]
     assert api["volumes"] == [
         f"./{name}:/model/{name}:ro"
@@ -49,6 +49,22 @@ def test_compose_file_mounts_the_model_and_its_payloads():
     assert api["environment"]["SEAMS_MODEL_HASH"] == ModelGraph.load(TRIG).hash
     assert services["employee_portal"]["ports"] == ["8080:8000"]
     assert services["employee_portal"]["depends_on"] == ["expense_api"]
+
+
+def test_compose_file_declares_the_expense_store():
+    """ADR-0011: the store is a PostgreSQL service on db01, and expense_api
+    reaches it through the DATABASE_URL secret its binding connectsTo."""
+    compose = yaml.safe_load((APP / "compose.yaml").read_text(encoding="utf-8"))
+    db = compose["services"]["expense_db"]
+    assert db["image"] == "postgres:16"
+    assert db["environment"] == {"POSTGRES_DB": "expenses"}
+    assert db["volumes"] == ["expense_db_data:/var/lib/postgresql/data"]
+    assert db["deploy"]["placement"]["constraints"] == ["node.labels.seams.node == db01"]
+    api = compose["services"]["expense_api"]
+    assert api["depends_on"] == ["expense_db"]
+    assert api["secrets"] == ["database_url"]
+    assert api["environment"]["DATABASE_URL_FILE"] == "/run/secrets/database_url"
+    assert compose["secrets"]["database_url"] == {"name": "expenses-prod-database-url", "external": True}
 
 
 class _OverrideLoader(yaml.SafeLoader):
@@ -77,3 +93,11 @@ def test_override_builds_chapter_8_into_the_runtime_image():
     assert (ROOT / build["args"]["SEAMS_APP_DIR"] / "generated" / build["args"]["SEAMS_ROUTES_FILE"]).is_file()
     # no static dev user: identities (and so roles) come from the request headers
     assert "SEAMS_DEV_USER" not in str(override)
+
+
+def test_override_gives_the_store_a_password_and_a_local_secret_file():
+    override = yaml.load((APP / "compose.override.yaml").read_text(encoding="utf-8"), Loader=_OverrideLoader)
+    assert override["services"]["expense_db"]["environment"] == {"POSTGRES_PASSWORD": "seams-dev"}
+    secret_file = (APP / override["secrets"]["database_url"]["file"]).resolve()
+    assert secret_file == ROOT / "docker" / "local-secrets" / "expense_database_url"
+    assert "@expense_db:5432/expenses" in secret_file.read_text(encoding="utf-8")

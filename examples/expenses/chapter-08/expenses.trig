@@ -22,6 +22,12 @@
 # places containers by seam:deployedTo and has no notion of a second
 # (staging) environment.
 #
+# The architecture also says where the data lives (ADR-0011): a PostgreSQL
+# :expense_db container on its own :db01 node, a DATABASE_URL binding on
+# :expense_api that deploy:connectsTo it, and seam:storedIn edges from the
+# three shapes to the store. The runtime still keeps its rows in SQLite; it
+# starts using the declared store in a later release.
+#
 # A model is a TriG file: Turtle triples grouped into named graphs. Each
 # seam:Model gets its own graph, and every link between models (and every
 # seam: annotation such as seam:notation) lives in the seams graph at the end.
@@ -51,9 +57,9 @@
     :expense_architecture a seam:Model ;
         rdfs:label "Expense Architecture" .
 
-    # The system and the two containers it is built from.
+    # The system and the three containers it is built from.
     :expense_system a arch:System ; rdfs:label "Expense Approval" ;
-        arch:contains :employee_portal , :expense_api ;
+        arch:contains :employee_portal , :expense_api , :expense_db ;
         seam:inModel :expense_architecture .
 
     # Deploy facts: the image each container runs, its ports and start
@@ -70,23 +76,52 @@
 
     :expense_api a arch:Container ; rdfs:label "Expense API" ;
         arch:technology "FastAPI" ;
+        arch:dependsOn :expense_db ;
         deploy:artifact [ a deploy:Artifact ;
                           deploy:reference "ghcr.io/example/expense-api" ;
                           deploy:version "0.8.0" ] ;
+        # The connection string is a secret; deploy:connectsTo says which
+        # store it reaches, so no key-name convention is needed (ADR-0011).
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "DATABASE_URL" ;
+                                                deploy:secretRef <https://secrets.example.org/expenses/prod/database-url> ;
+                                                deploy:secretName "expenses-prod-database-url" ;
+                                                deploy:connectsTo :expense_db ] ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        deploy:dependsOn :expense_db ;
         deploy:placement [ a deploy:PlacementPolicy ;
                            deploy:targetEnvironment :prod ] ;
+        seam:inModel :expense_architecture .
+
+    # Where the data lives: a PostgreSQL store with its own volume.
+    :expense_db a arch:Container ; rdfs:label "Expense Store" ;
+        arch:technology "PostgreSQL" ;
+        deploy:storeKind deploy:PostgreSQL ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "postgres" ;
+                          deploy:version "16" ] ;
+        deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "POSTGRES_DB" ;
+                                                deploy:value "expenses" ] ] ;
+        deploy:volume [ a deploy:Volume ;
+                        deploy:volumeName "expense_db_data" ;
+                        deploy:mountPath "/var/lib/postgresql/data" ] ;
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "pg_isready -U postgres" ;
+                             deploy:interval "5s" ] ;
         seam:inModel :expense_architecture .
 
     # One environment with a node for each container (seam:deployedTo, in
     # the seams graph, places them).
     :prod a arch:Environment ; rdfs:label "Production" ;
-        arch:contains :web01 , :app01 ;
+        arch:contains :web01 , :app01 , :db01 ;
         seam:inModel :expense_architecture .
 
     :web01 a arch:DeploymentNode ; rdfs:label "web01" ;
         seam:inModel :expense_architecture .
     :app01 a arch:DeploymentNode ; rdfs:label "app01" ;
+        seam:inModel :expense_architecture .
+    :db01  a arch:DeploymentNode ; rdfs:label "db01" ;
         seam:inModel :expense_architecture .
 }
 
@@ -532,6 +567,12 @@
             :pay_expense_op , :list_payments_op , :paid_expenses_op , :payouts ;
         seam:executes :approval_process , :payout_process ;
         seam:deployedTo :app01 .
+    :expense_db seam:deployedTo :db01 .
+
+    # Data to architecture (ADR-0011): where each shape's rows live.
+    :ExpenseShape seam:storedIn :expense_db .
+    :ApprovalShape seam:storedIn :expense_db .
+    :PaymentShape seam:storedIn :expense_db .
 
     # UI to data and API: the form writes an ExpenseShape, its event submits
     # it to the operation, and the list reads ExpenseShapes.

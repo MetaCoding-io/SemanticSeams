@@ -64,5 +64,19 @@ services:
       retries: 12
       start_period: 5s
 
+  expense_db:
+    # postgres:16 refuses to start without a password; this is a dev-only value.
+    environment:
+      POSTGRES_PASSWORD: seams-dev
+
+# The generated secret is an external (swarm) secret, which plain compose cannot
+# create; locally it is a file.
+secrets:
+  database_url: !override
+    # DATABASE_URL is unused: the runtime's store is still SQLite (SEAMS_DB). The
+    # committed placeholder only satisfies the generated expense_api secret
+    # reference; a later release wires the runtime to the declared store.
+    file: ../../../docker/local-secrets/expense_database_url
+
 volumes:
   expense_api_data: {}

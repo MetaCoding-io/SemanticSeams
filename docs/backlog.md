@@ -247,7 +247,10 @@ UI work must not eat M3.*
    when it starts.
    - **M010, Modern Tooling and the seams Library** (L1 to L6): uv workspace, the
      read-only `seams` library, typed views, native BPMN and DMN joins, and every consumer
-     ported with golden outputs unchanged.
+     ported with golden outputs unchanged. *L1 done, M010/S01: the repository is a uv
+     workspace with a committed `uv.lock`; CI, the docs workflow and both Dockerfiles
+     install with `uv sync --locked`, ruff and pyright run in CI, and the four
+     requirements files are gone.*
    - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution, the
      shape-to-store seam, SQLite and PostgreSQL backends chosen from the graph, and
      model-health checks. Depends on M010.

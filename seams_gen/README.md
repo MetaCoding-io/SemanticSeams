@@ -242,11 +242,11 @@ is the passing worked example.
 **Exit codes.** 0 pass, 1 fail, 2 when the model file is missing, unreadable or not
 valid TriG (the message goes to stderr).
 
-**Model only.** `load_model(trig)` parses only the TriG, as the union of its graphs. It
-never loads `ontology/*.ttl`: the ontology's `seam:reveal` annotations are `seam:`
-triples too and would raise the chat app's edge count from 58 to 82. `most-reached.rq`
-ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, so `measure` drops the limit,
-sorts by count descending then IRI, and takes the top five.
+**Model only.** `load_model(trig)` loads through `seams.load`: still TriG only, as the
+union of its graphs. It never loads `ontology/*.ttl`: the ontology's `seam:reveal`
+annotations are `seam:` triples too and would raise the chat app's edge count from 58
+to 82. `most-reached.rq` ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, so
+`measure` drops the limit, sorts by count descending then IRI, and takes the top five.
 
 ```python
 from seams_gen.complexity import load_model, measure

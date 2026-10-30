@@ -84,7 +84,9 @@ def test_expenses_output_names_both_processes_and_a_rule(script: Path):
     for label in labels:
         assert f"## {label}" in out, f"checklist for {EXPENSES} does not name process {label!r}"
     rule_ids = [rule.id for d in model.decisions for rule in d.table.rules]
-    assert any(rule_id in out for rule_id in rule_ids), f"checklist for {EXPENSES} names none of the DMN rules {rule_ids}"
+    assert any(rule_id in out for rule_id in rule_ids), (
+        f"checklist for {EXPENSES} names none of the DMN rules {rule_ids}"
+    )
 
 
 def test_seams_model_env_is_the_fallback(script: Path):

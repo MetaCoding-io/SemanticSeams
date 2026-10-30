@@ -189,6 +189,12 @@ pre-commit hook (D044):
 2. **Gates.** Each file the project lists under `gates` is a SPARQL SELECT
    query that runs over the same union graph. Every row it returns is a `gate`
    finding: the gate path, relative to the project, then the row's values.
+   This repository's gate, `docs/queries/gates/ungoverned-writes.rq`, lists
+   each UI event that can write a data shape with no policy governing it: a
+   write open to any authenticated identity. The chat app and expense chapters
+   7 and 8 reach it with a path that climbs out of the project into `docs/`;
+   a project outside this repository keeps its gates next to its `seams.toml`,
+   for example `gates = ["gates/ungoverned-writes.rq"]`.
 3. **Outputs.** Every generator runs in memory and the result is compared with
    the disk and with `seams.lock`.
 

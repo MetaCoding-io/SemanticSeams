@@ -43,3 +43,10 @@ the cross-layer seam edge count; see [seams_gen/README.md](../../seams_gen/READM
 They are not focus-node questions and are not rendered on the query reference page,
 which only reads the `.rq` files at this top level. `tests/test_complexity.py` checks
 their results against the chat app, checkout and expense chapter-08 models.
+
+`gates/` holds gate queries: SELECT queries that must return no rows.
+`seams check` runs the ones a project lists under `gates` in its seams.toml and reports
+every row as a problem (see [the CLI reference](../reference/seams-cli.md#seams-check)).
+`gates/ungoverned-writes.rq` lists each UI event that can write a data shape with no policy
+governing it; the chat app and expense chapters 7 and 8 run it. Like `complexity/`, the
+gates are kept off the query reference page. `tests/test_gate_queries.py` checks their rows.

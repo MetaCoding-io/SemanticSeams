@@ -1,0 +1,28 @@
+# Gate: which UI events can eventually write a data shape with no policy governing them?
+#
+# A gate is a query `seams check` runs from a project's `gates` and that must
+# return no rows. Each row here is a write open to any authenticated identity:
+# ?event reaches ?writer, which writes ?shape, yet neither the event nor the
+# operation it submits to is seam:governedBy a policy.
+#
+# The walk from event to writer is the one in ../what-writes-shape.rq:
+#   - triggers/detailedBy/^inModel : into the elements of the triggered process
+#   - decidedBy, invokes           : deeper behavioral hops
+#   - publishesTo/^subscribesTo/inModel/^inModel : the async hop through a channel
+#     into the subscribing process's elements
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX ifml: <https://w3id.org/seams/ifml#>
+
+SELECT DISTINCT ?event ?writer ?shape WHERE {
+  ?event a ifml:Event .
+  ?event ( (seam:triggers/seam:detailedBy/^seam:inModel)
+         | seam:decidedBy
+         | seam:invokes
+         | (seam:publishesTo/^seam:subscribesTo/seam:inModel/^seam:inModel)
+         )+ ?writer .
+  ?writer seam:writes ?shape .
+  FILTER NOT EXISTS {
+    ?event (seam:governedBy | (seam:submitsTo/seam:governedBy)) ?policy .
+  }
+}

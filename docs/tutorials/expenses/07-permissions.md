@@ -321,6 +321,11 @@ follows what a screen sets in motion, which is the question an access review ask
 `docs/queries/screens-by-role-writing-shape.rq`, listed on the
 [query reference](/reference/queries).
 
+With every write now governed, the checkpoint's `seams.toml` turns the question into a
+gate: `seams check --project examples/expenses/chapter-07` runs
+`docs/queries/gates/ungoverned-writes.rq` and fails if any event can write data with no
+policy governing it ([`seams check`](/reference/seams-cli#seams-check)).
+
 CI checks every step of this chapter: the roles, the refusals, the payment and the
 viewer's answer (`tests/test_expense_roles.py`), and the generated app on every path
 (`tests/test_expense_process_app.py`).

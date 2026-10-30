@@ -6,6 +6,9 @@
 
 model = "chat-app.trig"
 
+# `seams check` fails if any UI event can write data with no policy governing it.
+gates = ["../../docs/queries/gates/ungoverned-writes.rq"]
+
 [[generators]]
 name = "fastapi"
 out = "generated"

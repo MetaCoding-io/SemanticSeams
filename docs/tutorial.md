@@ -64,11 +64,13 @@ three generators and their outputs: the FastAPI route module
 (`examples/chat-app/generated/chat_api.py`), the htmx page and partials
 (`examples/chat-app/generated/templates/`) and the prod-shaped root `compose.yaml`. The
 [seams CLI reference](/reference/seams-cli) describes the file. To run a single generator,
-`python -m seams_gen <generator>` still works. On an unchanged model the command produces
-no diff:
+`python -m seams_gen <generator>` still works. It also rewrites
+[`examples/chat-app/seams.lock`](../examples/chat-app/seams.lock), which records the model
+hash, generator version, file hash and source elements of every output. On an unchanged
+model the command produces no diff:
 
 ```
-git diff --exit-code -- examples/chat-app/generated compose.yaml
+git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock compose.yaml
 ```
 
 CI runs exactly this command, and the same for each expenses chapter, and fails if anything changed.

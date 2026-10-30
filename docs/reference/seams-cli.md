@@ -79,10 +79,81 @@ compose.yaml
 examples/chat-app/generated/chat_api.py
 examples/chat-app/generated/templates/chat_page.html
 ...
+examples/chat-app/seams.lock
 ```
 
-A generator that stops writing a file does not delete its old copy; delete the
-committed file yourself.
+The last line is always the project's lockfile, written after every output.
+
+### The lockfile
+
+`seams generate` keeps a `seams.lock` next to the `seams.toml` and commits it
+with the outputs. It is JSON with sorted keys, two-space indentation and a
+trailing newline, so the same model and generators give the same bytes and a
+diff shows which model hash and generator version produced each file. The top
+level holds:
+
+| Key | Meaning |
+|---|---|
+| `lockfile_version` | The format version, `1`. |
+| `model` | The model path, relative to the project directory. |
+| `model_hash` | `seams.model_hash` of the model, `sha256:<hex>`. |
+| `outputs` | One entry per generated file, sorted by `path`. |
+
+Each output entry records the generator, its version, the model hash, the
+file's sha256 and the full IRIs of the model elements the file came from
+(`seams_gen.sources`, see the [seams_gen README](../../seams_gen/README.md)).
+The `path` is POSIX and relative to the project directory, so it may start with
+`../`. An entry from
+[`examples/chat-app/seams.lock`](../../examples/chat-app/seams.lock):
+
+```json
+{
+  "generator": "compose",
+  "generator_version": "0.1.0",
+  "model_hash": "sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6",
+  "path": "../../compose.yaml",
+  "sha256": "f1f50c2aeaa06ce79e7f90352db5935c3825d545434fdc7a1fec9884497c7845",
+  "sources": [
+    "https://example.org/chat/chat_api",
+    "https://example.org/chat/chat_system",
+    "https://example.org/chat/chat_ui",
+    "https://example.org/chat/llm_gateway",
+    "https://example.org/chat/message_db"
+  ]
+}
+```
+
+A project whose generators write nothing (expense chapters 1 and 2) gets a lock
+with an empty `outputs` list.
+
+Before writing, `seams generate` compares the old lock with the files on disk
+and with the new outputs:
+
+- **Orphans.** An output the old lock lists but no generator writes any more,
+  for example after a generator is removed from `seams.toml`, is deleted and
+  printed on stdout as `removed <path>`, but only when it is a regular file (not
+  a symlink) whose sha256 still equals the locked one. Otherwise it is kept and
+  reported. A lock can therefore delete only a file whose exact content it
+  already records.
+- **Hand edits.** A locked output whose file differs from both the locked hash
+  and the new text is overwritten and reported.
+- **Deleted outputs.** A locked output missing on disk is written again and
+  reported.
+
+The reports go to stderr and do not change the exit code:
+
+```
+seams generate: overwrote hand-edited examples/chat-app/generated/chat_api.py
+seams generate: restored deleted examples/chat-app/generated/templates/chat_page.html
+seams generate: kept hand-edited orphan examples/chat-app/generated/old.html
+```
+
+Without a lock (a first run) there is nothing to compare, so nothing is
+reported or deleted. A `seams.lock` that is not valid JSON or does not match the
+format exits 2 before any file is written, naming the file and the key. A
+failing generator likewise leaves the old lock and every file untouched. The
+planned `seams check` (M012/S03) will use the same comparison and fail when an
+output was edited by hand.
 
 ### Exit codes
 
@@ -90,7 +161,7 @@ committed file yourself.
 |---|---|
 | 0 | Every output was written. |
 | 1 | A file could not be read or written. |
-| 2 | The project file is missing or malformed, no model was given, or a generator found a missing or ambiguous graph fact. |
+| 2 | The project file is missing or malformed, `seams.lock` is malformed, no model was given, or a generator found a missing or ambiguous graph fact. |
 
 Errors print to stderr as `seams generate: <message>`. A project-file error
 names the file by its absolute path and the offending key, for example
@@ -137,7 +208,8 @@ out = "../.."
 ```
 
 `seams generate --project examples/chat-app` rewrites
-`examples/chat-app/generated/` and the root `compose.yaml`. Each chapter of the
+`examples/chat-app/generated/`, the root `compose.yaml` and
+`examples/chat-app/seams.lock`. Each chapter of the
 [expense tutorial](/tutorials/expenses/) has its own project file in
 `examples/expenses/chapter-NN/seams.toml`. CI runs `seams generate` for the chat
 app and every chapter, then fails on any `git diff` or untracked file under
@@ -145,6 +217,6 @@ app and every chapter, then fails on any `git diff` or untracked file under
 
 ## Planned
 
-`seams check` (validate the model and confirm the outputs are current),
-`seams status` and a lockfile recording what was generated are planned; see
+`seams check` (validate the model and confirm the outputs match `seams.lock`)
+and `seams status` are planned; see
 [the backlog](/backlog#artifact-management-and-deployment).

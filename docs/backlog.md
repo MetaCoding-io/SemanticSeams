@@ -140,7 +140,7 @@ the model.
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
 | A1 | **Project file and `seams` CLI**: one file names the model, generators, output paths and environments; `seams generate` runs them all, `seams check` validates the model and confirms outputs are current | M | E2 | none | partly done (M012/S01 done: seams.toml and `seams generate`; `seams check` planned in M012/S03) |
-| A2 | **Lockfile of generated files**: model hash, generator and version, file hash and source elements per output; orphan cleanup and hand-edit detection | S | A1 | none; generators and runtime gain versions | planned (M012/S02) |
+| A2 | **Lockfile of generated files**: model hash, generator and version, file hash and source elements per output; orphan cleanup and hand-edit detection | S | A1 | none; generators and runtime gain versions | done (M012/S02): `seams generate` writes a deterministic `seams.lock` per project recording each output's generator, version, model hash, sha256 and source IRIs; it deletes unchanged orphans, reports hand-edited and deleted outputs, and every example commits its lock. `seams_gen` and `seams_runtime` carry `__version__`, and `/healthz` reports `runtime_version` |
 | A3 | **Reusable CI action and pre-commit hook**: shape validation, regenerate-and-diff, canned queries as gates | S | A1 | none | planned (M012/S03) |
 | A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | planned (M016/S01, S02) |
 | A5 | **Image build and publish** for containers that run generated code, tagged with the model hash or a release version | M | A4 | none expected | planned (M016/S03) |
@@ -288,7 +288,8 @@ UI work must not eat M3.*
      hook, and `seams status`. Depends on M010. *A1 generate done, M012/S01: the chat app
      and every expenses chapter have a seams.toml, `seams generate`
      rewrites their committed outputs byte-for-byte, and CI, the tutorials and the
-     generated READMEs regenerate through it.*
+     generated READMEs regenerate through it. A2 done, M012/S02: every project commits a
+     `seams.lock`; `seams generate` deletes unchanged orphans and reports hand edits.*
    - **M013, Derived Sequence Diagrams** (U3, U1, U4): the declared delta stream, the
      as-designed deriver, viewer and docs embedding, and the as-executed sequence with
      OpenTelemetry spans. Depends on M010 and M011.

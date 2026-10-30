@@ -37,7 +37,9 @@ the runtime reads it from the `X-Forwarded-Groups` header (or
 `SEAMS_DEV_ROLES` locally) and matches it against the policy's
 `odrl:assignee`.
 
-If a generator stops writing a file, delete the committed copy.
+`seams generate` records every output in [`../seams.lock`](../seams.lock) (model
+hash, generator version, file hash and source elements), deletes a file no
+generator writes any more, and reports a file edited by hand.
 `tests/test_expense_process_app.py` fails when a committed file differs from
 what the generators produce, and serves the generated app in process.
 `tests/test_expense_roles.py` covers the roles, the payment and the

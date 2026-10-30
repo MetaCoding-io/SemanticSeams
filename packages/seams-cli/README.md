@@ -48,6 +48,15 @@ path is printed, relative to the working directory when it lies below it.
 Files are written as UTF-8 with `\n` newlines, byte-for-byte what
 `python -m seams_gen` writes.
 
+The command also writes `seams.lock` next to `seams.toml` and prints its path
+last. The lock is deterministic JSON recording, per output, the generator and its
+version, the model hash, the file's sha256 and the source element IRIs (D043);
+`lockfile.py` reads, builds and audits it. An output the old lock lists but no
+generator writes any more is deleted (`removed <path>` on stdout) when it is a
+regular file still matching its locked hash; otherwise it is kept. Hand-edited,
+deleted and kept outputs are reported on stderr. Commit the lock with the
+outputs. See [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#the-lockfile).
+
 The model is, in order of precedence: `--model`, the project's `model`, then
 the `SEAMS_MODEL` environment variable when it is non-empty. As with
 `seams.load`, an explicit path beats the environment (D034). With none of the
@@ -59,7 +68,7 @@ three, the command fails.
 |---|---|
 | 0 | every output was written |
 | 1 | a file could not be read or written |
-| 2 | the project file is missing or malformed, no model was given, or a generator found a missing or ambiguous graph fact |
+| 2 | the project file is missing or malformed, `seams.lock` is malformed, no model was given, or a generator found a missing or ambiguous graph fact |
 
 Errors print to stderr as `seams generate: <message>`; a project-file error
 names the file and the offending key.

@@ -32,7 +32,9 @@ before the task runs and stores the new state after it, so the statechart in
 `../expenses.trig` and the gateways in [`../approval.bpmn`](../approval.bpmn)
 decide which state an expense reaches.
 
-If a generator stops writing a file, delete the committed copy.
+`seams generate` records every output in [`../seams.lock`](../seams.lock) (model
+hash, generator version, file hash and source elements), deletes a file no
+generator writes any more, and reports a file edited by hand.
 `tests/test_expense_process_app.py` fails when a committed file differs from
 what the generators produce, and serves the generated app in process.
 `tests/test_expense_lifecycle.py` covers the refused transition and the guard.

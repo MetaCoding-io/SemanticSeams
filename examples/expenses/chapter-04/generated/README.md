@@ -29,6 +29,8 @@ expense. `approve_expense` is the completion route of the `approve_expense`
 user task (ADR-0009): it calls `runtime.complete_task`, which validates the
 form against `:ApprovalShape` and lets the process finish.
 
-If a generator stops writing a file, delete the committed copy.
+`seams generate` records every output in [`../seams.lock`](../seams.lock) (model
+hash, generator version, file hash and source elements), deletes a file no
+generator writes any more, and reports a file edited by hand.
 `tests/test_expense_process_app.py` fails when a committed file differs from
 what the generators produce, and serves the generated app in process.

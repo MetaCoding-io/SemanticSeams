@@ -24,6 +24,8 @@ There is no process yet, so `submit_expense` calls `runtime.write`: it
 validates the form against `:ExpenseShape` (422 naming the failing path) and
 stores the expense with a runtime-assigned `:id` (D026).
 
-If a generator stops writing a file, delete the committed copy.
+`seams generate` records every output in [`../seams.lock`](../seams.lock) (model
+hash, generator version, file hash and source elements), deletes a file no
+generator writes any more, and reports a file edited by hand.
 `tests/test_expense_chapter3_app.py` fails when a committed file differs from
 what the generators produce, and serves the generated app in process.

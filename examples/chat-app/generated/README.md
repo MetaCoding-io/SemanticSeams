@@ -20,7 +20,9 @@ seams generate --project examples/chat-app
 
 It runs the three generators [`../seams.toml`](../seams.toml) names, writing each output
 above (reference: [docs/reference/seams-cli.md](../../../docs/reference/seams-cli.md)).
-If a generator stops writing a file, delete the committed copy.
+`seams generate` records every output in [`../seams.lock`](../seams.lock) (model
+hash, generator version, file hash and source elements), deletes a file no
+generator writes any more, and reports a file edited by hand.
 `tests/test_generated_outputs_current.py` fails when a committed file differs from
 what the generators produce, and CI reruns the command above and fails on any
 `git diff` or untracked file under these paths.

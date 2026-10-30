@@ -37,7 +37,9 @@ there (ADR-0010). The templates gain the `/payouts` page and its two
 partials. The host serves that page as it serves the landmark page, because
 it has an `ifml:path` and holds no task form.
 
-If a generator stops writing a file, delete the committed copy.
+`seams generate` records every output in [`../seams.lock`](../seams.lock) (model
+hash, generator version, file hash and source elements), deletes a file no
+generator writes any more, and reports a file edited by hand.
 `tests/test_expense_payout.py` fails when a committed file differs from what
 the generators produce, serves the generated app in process, and runs an
 expense from submit through the payout.

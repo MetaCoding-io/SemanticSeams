@@ -190,7 +190,7 @@
     <p class="sub">Because everything is one graph, cross-layer questions are SPARQL. Three ship as canned queries with exact expected rows asserted in CI, and they are buttons on the viewer's inspector, not SPARQL a user sees.</p>
     <div class="grid3">
       <div class="card"><p class="q">Which UI events can eventually write to this data shape, and through which task?</p><p><code>what-writes-shape.rq</code> · compliance and security review</p></div>
-      <div class="card"><p class="q">What breaks, containers and processes both, if this deployment node goes away?</p><p><code>impact-of-node.rq</code> · impact analysis and drift</p></div>
+      <div class="card"><p class="q">What breaks, containers, processes and data, if this deployment node goes away?</p><p><code>impact-of-node.rq</code> · impact analysis and drift</p></div>
       <div class="card"><p class="q">Which process tasks may move an entity out of this state?</p><p><code>what-moves-state.rq</code> · lifecycle audit</p></div>
     </div>
     <p class="sub" style="margin:22px 0 10px">The first one, as it ships in <code>docs/queries/what-writes-shape.rq</code>: a property path from an IFML event through the seams to whatever writes the shape, including the async hop through a channel.</p>
@@ -233,7 +233,7 @@
       <figure class="shot"><a href="img/viewer-process.webp"><img src="img/viewer-process.webp" width="1280" height="710" loading="lazy" alt="The message-processing BPMN diagram: persist the user message, route to provider, invoke the LLM, persist the response, signal stream complete"></a><figcaption><b>Process</b>Clicking Send Message lands on the BPMN process it triggers, drawn by bpmn-js from the native XML.</figcaption></figure>
       <figure class="shot"><a href="img/viewer-disambiguation.webp"><img src="img/viewer-disambiguation.webp" width="1280" height="710" loading="lazy" alt="A chooser for Route to Provider offering two detail views: the DMN decision model and the chat data model"></a><figcaption><b>A choice</b>The rule task's decision is detailed by two models, so the viewer asks which to open.</figcaption></figure>
       <figure class="shot"><a href="img/viewer-decision-table.webp"><img src="img/viewer-decision-table.webp" width="1280" height="710" loading="lazy" alt="The Route to Provider decision table, hit policy First: long user messages go to a long-context provider, everything else to the default provider"></a><figcaption><b>Decision</b>The DMN decision table behind the rule task, drawn by dmn-js.</figcaption></figure>
-      <figure class="shot"><a href="img/viewer-impact-question.webp"><img src="img/viewer-impact-question.webp" width="1280" height="710" loading="lazy" alt="The db01 deployment node with its question answered: four impacted results, the message store, chat API, web interface and send-message process"></a><figcaption><b>A question</b>What breaks if db01 goes away: containers and a process, answered inline from one SPARQL query.</figcaption></figure>
+      <figure class="shot"><a href="img/viewer-impact-question.webp"><img src="img/viewer-impact-question.webp" width="1280" height="710" loading="lazy" alt="The db01 deployment node with its question answered: four impacted results, the message store, chat API, web interface and send-message process"></a><figcaption><b>A question</b>What breaks if db01 goes away: containers, a process and the data stored there, answered inline from one SPARQL query.</figcaption></figure>
     </div>
 
     <h3 class="part" id="coming-soon">Coming soon</h3>

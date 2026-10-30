@@ -49,7 +49,9 @@ examples/expenses/
   chapter-07/seed.json       an empty seed ({})
   chapter-08/expenses.trig   growing up: chapter 7 plus the payouts channel, the payout_bpmn process it
                              starts, the payout_dmn decision, the payment_lifecycle statechart and the
-                             finance_console interaction model with its /payouts page
+                             finance_console interaction model with its /payouts page, plus the
+                             expense_db PostgreSQL store on db01 that the three shapes are
+                             seam:storedIn and the API's DATABASE_URL binding connectsTo (ADR-0011)
   chapter-08/approval.bpmn   chapter 7's process with the paid end event made a message end event
                              that publishes on payouts
   chapter-08/approval.dmn    chapter 7's routing table, unchanged
@@ -64,8 +66,9 @@ examples/expenses/
                              (do not edit; regenerate it)
   chapter-08/compose.override.yaml
                              the hand-written local override: builds the runtime image with
-                             chapter 8's generated code, puts Caddy in front as the portal and
-                             adds the /data volume
+                             chapter 8's generated code, puts Caddy in front as the portal,
+                             adds the /data volume, gives expense_db a dev password and points
+                             the database_url secret at docker/local-secrets/expense_database_url
 ```
 
 Every checkpoint is a cumulative copy of the one before it, so the diff between
@@ -146,13 +149,15 @@ but not yet paid, starts no payout, and no generated route starts the payout
 process. `GET /payouts`, the finance console page, lists the payment, and the
 viewer opens the new models. The same checkpoint is the passing example of
 `python -m seams_gen.complexity` (4 notations with two models, `:ExpenseShape`
-reached from 6 models, 111 seam edges), pinned by `tests/test_complexity.py`.
+reached from 6 models, 115 seam edges), pinned by `tests/test_complexity.py`.
 
 ## Running chapter 8 under docker compose
 
 Chapter 8's architecture graph has deploy facts: an image, ports and start
 order for each container, and one environment (`:prod`, with a node for each
-container). The compose generator writes them to `chapter-08/compose.yaml`:
+container). It also declares the store (ADR-0011): `:expense_db` is a
+`postgres:16` container with `deploy:storeKind deploy:PostgreSQL` on `:db01`,
+and the API's `DATABASE_URL` secret binding `deploy:connectsTo` it. The compose generator writes them to `chapter-08/compose.yaml`:
 
 ```
 python -m seams_gen compose examples/expenses/chapter-08/expenses.trig --out examples/expenses/chapter-08
@@ -168,7 +173,11 @@ second environment, so the checkpoint models no staging environment.
 `docker/runtime.Dockerfile` with `SEAMS_APP_DIR=examples/expenses/chapter-08`
 and `SEAMS_ROUTES_FILE=expense_api.py`, makes the portal a Caddy reverse proxy
 to the API, adds healthchecks and a volume for `/data`, and names the project
-`seams-expenses`. Compose only merges an override from the working directory,
+`seams-expenses`. It also gives the generated `expense_db` service a dev-only
+`POSTGRES_PASSWORD` and points the generated `database_url` swarm secret at the
+committed placeholder `docker/local-secrets/expense_database_url`. The runtime
+does not read that secret yet: it still keeps its rows in SQLite (`SEAMS_DB`),
+and a later release wires it to the declared store. Compose only merges an override from the working directory,
 so pass both files from the repository root:
 
 ```

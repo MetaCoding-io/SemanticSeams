@@ -13,7 +13,7 @@ and gates two of the numbers:
 
 Only the TriG is loaded, never ``ontology/*.ttl``: the ontology's
 ``seam:reveal`` annotations are seam: triples too and would inflate the edge
-count (58 to 82 for the chat app). Exits 0 on pass, 1 on fail, and 2 with the
+count (60 to 86 for the chat app). Exits 0 on pass, 1 on fail, and 2 with the
 message on stderr when the model cannot be read or parsed.
 """
 

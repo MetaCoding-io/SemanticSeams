@@ -302,7 +302,7 @@ fact is absent. When the graph states the fact twice, they raise
 ```python
 model = seams.load("examples/chat-app/chat-app.trig")
 model.sparql("SELECT ?p WHERE { ?p a ifml:ViewContainer }")  # [{"p": URIRef(…chat_page)}]
-model.question("impact-of-node", node=":db01")              # [{"impacted": URIRef(…chat_api)}, …]
+model.question("impact-of-node", node=":db01")              # [{"impacted": URIRef(…ConversationShape)}, …]
 seams.question_names()  # ["c4-l1-rollup", "impact-of-node", …]
 ```
 

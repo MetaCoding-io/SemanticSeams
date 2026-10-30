@@ -36,6 +36,8 @@ def test_impact_of_node_matches_viewer(chat: seams.Model):
     rows = chat.question("impact-of-node", node=":db01")
     # The same rows tests/test_viewer_queries.py pins for viewer.queries.execute_query.
     assert [r["impacted"] for r in rows] == [
+        URIRef(C + "ConversationShape"),
+        URIRef(C + "MessageShape"),
         URIRef(C + "chat_api"),
         URIRef(C + "chat_ui"),
         URIRef(C + "message_db"),

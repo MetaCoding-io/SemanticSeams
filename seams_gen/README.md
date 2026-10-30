@@ -233,7 +233,7 @@ then `PASS` or `FAIL` with one line per failed threshold (actual vs required).
 |---|---|---|---|
 | Notations with 2+ models | at least 3 (`MIN_MULTI_MODEL_NOTATIONS`) | 0 | 4 (BPMN, DMN, IFML, statechart) |
 | Most models one element is reached from | at least 5 (`MIN_MAX_REACH`) | 3 | 6 (`:ExpenseShape`) |
-| Cross-layer seam edges | reported, not gated | 58 | 111 |
+| Cross-layer seam edges | reported, not gated | 60 | 115 |
 
 The chat app fails by design: it is a one-model-per-layer quick start. The
 expense tutorial's final checkpoint, `examples/expenses/chapter-08/expenses.trig`,
@@ -244,8 +244,8 @@ valid TriG (the message goes to stderr).
 
 **Model only.** `load_model(trig)` loads through `seams.load`: still TriG only, as the
 union of its graphs. It never loads `ontology/*.ttl`: the ontology's `seam:reveal`
-annotations are `seam:` triples too and would raise the chat app's edge count from 58
-to 82. `most-reached.rq` ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, so
+annotations are `seam:` triples too and would raise the chat app's edge count from 60
+to 86. `most-reached.rq` ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, so
 `measure` drops the limit, sorts by count descending then IRI, and takes the top five.
 
 ```python
@@ -287,8 +287,8 @@ the parsed structure (read-only model binds, external secrets), bind sources fol
 missing artifact, `deploy:secretName` and node label failing through the API and the
 CLI, the CLI writing exactly `compose.yaml`, and `docker compose config -q` accepting
 the output (skipped when docker compose is not installed).
-`tests/test_complexity.py`: the chat app (0 / 3 / 58, two failures), checkout and
-expense chapter 8 (4 / 6 / 111, passing, also through the CLI) scores,
+`tests/test_complexity.py`: the chat app (0 / 3 / 60, two failures), checkout and
+expense chapter 8 (4 / 6 / 115, passing, also through the CLI) scores,
 determinism, the ontology not being loaded, a synthetic passing model and its
 one-short-of-each-threshold boundary, an empty model, the CLI's exit codes 0, 1 and 2
 (missing file, invalid TriG, a directory), and the complexity queries staying out of

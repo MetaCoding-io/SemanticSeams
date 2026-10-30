@@ -21,7 +21,7 @@ triple is there.
 | 5 | [The rules](./05-rules) | A DMN table that routes approvals by amount, and a gateway with one path per route | Different paths for different amounts, with no code change |
 | 6 | [The lifecycle](./06-lifecycle) | A statechart: draft, submitted, approved or rejected, paid; the tasks that fire each transition; a block guarded by state | Each path ending in its state, a block shown only while submitted, an illegal transition refused |
 | 7 | [People and permissions](./07-permissions) | Employee, manager and finance roles, a policy on the submit operation and on each user task, and a payment task | A 403 for the wrong role, an expense ending paid, and the viewer naming the screens an employee can use that write a payment |
-| 8 | [Growing up](./08-growing-up) | A payouts channel, a payout process started from it with its own decision and payment lifecycle, a finance console, and deploy facts | The payout running on its own after finance pays, the whole system under `docker compose up`, and the complexity check passing |
+| 8 | [Growing up](./08-growing-up) | A payouts channel, a payout process started from it with its own decision and payment lifecycle, a finance console, deploy facts, and where the data lives (a PostgreSQL store the shapes are `seam:storedIn`) | The payout running on its own after finance pays, the whole system under `docker compose up`, and the complexity check passing |
 
 All eight chapters are written. The last one ends with the whole system running under
 `docker compose up` and a model large enough to pass `python -m seams_gen.complexity`.

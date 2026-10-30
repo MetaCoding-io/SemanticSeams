@@ -70,12 +70,14 @@ def test_execute_screens_by_role_writing_shape_chat_app():
 def test_execute_impact_of_node_chat_app():
     result = queries.execute_query(get_graph(), "impact-of-node", DB01)
     assert result["columns"] == ["impacted"]
-    assert result["resultCount"] == 4
+    assert result["resultCount"] == 6
     assert {r["impacted"] for r in result["rows"]} == {
         CHAT + "message_db",
         CHAT + "chat_api",
         CHAT + "chat_ui",
         CHAT + "send_message_process",
+        CHAT + "MessageShape",
+        CHAT + "ConversationShape",
     }
 
 
@@ -163,12 +165,14 @@ def test_query_endpoint_impact_of_node():
     resp = _client().get(_query_url("impact-of-node", DB01))
     assert resp.status_code == 200
     body = resp.json()
-    assert body["resultCount"] == 4
+    assert body["resultCount"] == 6
     assert {r["impacted"] for r in body["rows"]} == {
         CHAT + "message_db",
         CHAT + "chat_api",
         CHAT + "chat_ui",
         CHAT + "send_message_process",
+        CHAT + "MessageShape",
+        CHAT + "ConversationShape",
     }
 
 

@@ -115,7 +115,7 @@ derivation exposed, or that a builder meets after launch.
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
 | U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | planned (M013/S02) |
-| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | vocabulary and impact query landed (M011/S02): `seam:storedIn` and the `deploy:` store facts, and `impact-of-node.rq` reaches stored shapes; the runtime reads them in S03/S04. Predicate fixed by [ADR-0011](adr/0011-storage-resolution.md) |
+| U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | vocabulary and impact query landed (M011/S02): `seam:storedIn` and the `deploy:` store facts, and `impact-of-node.rq` reaches stored shapes; the runtime reads them since S03. Predicate fixed by [ADR-0011](adr/0011-storage-resolution.md) |
 | U3 | **Declare the LLM delta stream** in the chat app, so the runtime infers no publish the graph does not state | S | none | none expected; may tighten `process_channel` in the runtime | planned (M013/S01) |
 | U4 | **As-executed sequence diagram** from the worker's trace rows, then OpenTelemetry spans carrying element IRIs | M | U1 | none for the diagram; an as-observed named graph later | planned (M013/S04) |
 | U5 | **Scenarios and derived tests**: a small scenario vocabulary, generated DMN, SHACL-example and policy tests, and coverage queries | M | none | a scenario/verification annotation vocabulary | planned (M015/S03, S04) |
@@ -123,7 +123,7 @@ derivation exposed, or that a builder meets after launch.
 | U7 | **Error shapes and boundary events**: error shapes on operations, lifted BPMN error boundary events, runtime support | M | none | `comm:`/`proc:` additions | planned (M014/S04) |
 | U8 | **Shape diff**: classify changes between model versions as compatible or breaking, for stored data and for operation contracts | M | none | none; a query and tooling over two named graphs | planned (M015/S01) |
 
-| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | `seam:storedIn`, `deploy:storeKind` (controlled `deploy:StoreKind` values) and `deploy:connectsTo` | in progress (M011): [ADR-0011](adr/0011-storage-resolution.md) accepted (S01); vocabulary, SHACL, the chat-app and expenses chapter-08 store facts, the `storedIn` hop in `impact-of-node.rq` and the viewer's `storedIn` edge done (S02); runtime backends (S03) and deployment wiring and model-health checks (S04) planned; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
+| U9 | **The runtime stores data where the model says**: storage backends behind one interface (embedded SQLite, PostgreSQL), chosen at load from graph facts, with model-health checks for unresolved or unused stores. Fixes the chat app writing to SQLite while its model declares a Postgres message store. [Plan](research/2026-10-29-runtime-storage.md) | M | ADR first, U2 | `seam:storedIn`, `deploy:storeKind` (controlled `deploy:StoreKind` values) and `deploy:connectsTo` | in progress (M011): [ADR-0011](adr/0011-storage-resolution.md) accepted (S01); vocabulary, SHACL, the chat-app and expenses chapter-08 store facts, the `storedIn` hop in `impact-of-node.rq` and the viewer's `storedIn` edge done (S02); runtime backends done (S03): `Runtime.load` opens SQLite or PostgreSQL from the facts, `/healthz` reports the store, the compose stacks run on their declared PostgreSQL and CI runs the store tests against a PostgreSQL service; the end-to-end store assertion and model-health checks (S04) planned; agreed 2026-10-29 to fix the runtime and keep ADR-0007 |
 
 U1 to U3 can land together. U9 subsumes U2's vocabulary work, so the two are best done
 as one piece.
@@ -279,8 +279,9 @@ UI work must not eat M3.*
      model-health checks. Depends on M010. *S01 done: ADR-0011 accepted. S02 done:
      `seam:storedIn`, `deploy:StoreKind` and `deploy:storeKind` in the ontology and
      SHACL, the chat app and expenses chapter 8 declare their stores, and
-     `impact-of-node.rq` reaches the stored shapes; the runtime still ignores these
-     facts until S03.*
+     `impact-of-node.rq` reaches the stored shapes. S03 done: `Runtime.load` opens the
+     declared store (SQLite or PostgreSQL) and `/healthz` reports it; S04 (end-to-end
+     store assertion, model-health checks) planned.*
    - **M012, Generate and Check Anywhere** (A1, A2, A3, A6): project file, `seams generate`
      and `seams check`, the generated-file lockfile, a reusable CI action and pre-commit
      hook, and `seams status`. Depends on M010.

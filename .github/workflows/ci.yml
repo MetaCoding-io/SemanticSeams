@@ -8,6 +8,24 @@ on:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
+    # The runtime store contract tests run against both backends: SQLite in a temp
+    # file, PostgreSQL in this service. SEAMS_REQUIRE_POSTGRES turns a missing or
+    # unreachable server into a failure instead of a skip.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SEAMS_TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      SEAMS_REQUIRE_POSTGRES: "1"
     steps:
       - uses: actions/checkout@v4
       # setup-uv reads .python-version; the sync installs every member from uv.lock and

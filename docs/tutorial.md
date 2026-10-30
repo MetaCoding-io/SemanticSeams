@@ -159,7 +159,7 @@ generated from a different model (ADR-0007 rule 2).
 |---|---|---|
 | **Generated** from the model | `examples/chat-app/generated/chat_api.py`, `examples/chat-app/generated/templates/*.html`, `compose.yaml` | Never. Regenerate them; CI fails if they drift from the model. |
 | **Runtime**, generic and model-agnostic | `packages/seams/` (reads the model), `seams_runtime/` (SpiffWorkflow for BPMN/DMN, pySHACL contracts, lifecycle guard, policy hook, SSE bus, host), `seams_gateway/` | Yes. It names no chat-app term; it reads the model at runtime. |
-| **Local override** | `compose.override.yaml`, `docker/*.Dockerfile`, `examples/chat-app/seed.json` | Yes. This is what a laptop run needs and production does not: local image builds, file secrets, a dev Postgres password, a single replica, the reverse proxy and the seed data. |
+| **Local override** | `compose.override.yaml`, `docker/*.Dockerfile`, `examples/chat-app/seed.json` | Yes. This is what a laptop run needs and production does not: local image builds, file secrets, a dev Postgres database (`chat`, password and `DB_URL` the runtime connects with), a single replica, the reverse proxy and the seed data. |
 
 The generated code holds no business logic. The workflow order lives in the BPMN, the
 routing rules in the DMN, and the validation in the SHACL shapes, and the runtime executes

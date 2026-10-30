@@ -409,8 +409,12 @@ The impact query, `docs/queries/impact-of-node.rq` on the [query reference](/ref
 processes the API runs, and the three shapes. In the viewer, each shape's inspector
 shows a "stored in" edge to `:expense_db`.
 
-The runtime does not use the declared store yet. It still keeps its rows in SQLite, and
-a later release switches it to the store the model names.
+The runtime uses the declared store. When the model loads it reads these three facts,
+opens PostgreSQL at the URL in `DATABASE_URL` (or the file `DATABASE_URL_FILE` names),
+and keeps the expenses, approvals, payments and process instances there. `GET /healthz`
+reports `"kind": "postgresql"`. Drop one of the facts, say the `seam:storedIn` on
+`:PaymentShape`, and the host refuses to start with a `ResolutionError` naming
+`:PaymentShape` and `seam:storedIn`.
 
 ## Generate the app
 
@@ -436,11 +440,16 @@ python -m seams_gen compose examples/expenses/chapter-08/expenses.trig --out exa
 
 ## Run it in process
 
-Start the host on the chapter 8 files, with identities from the headers as in chapter 7:
+Start the host on the chapter 8 files, with identities from the headers as in chapter 7.
+The model now asks for PostgreSQL, which a quick run on a laptop does not have, so
+`SEAMS_STORE_OVERRIDE=sqlite` keeps the rows in the `SEAMS_DB` file instead. The host
+logs a warning and `/healthz` reports `"override": true`. To use a local PostgreSQL
+instead, drop both lines and set `DATABASE_URL` to its URL.
 
 ```sh
 SEAMS_MODEL=examples/expenses/chapter-08/expenses.trig \
 SEAMS_TEMPLATES=examples/expenses/chapter-08/generated/templates \
+SEAMS_STORE_OVERRIDE=sqlite \
 SEAMS_DB=/tmp/expenses-08.sqlite \
 python -m seams_runtime.host --routes examples/expenses/chapter-08/generated/expense_api.py --port 8001
 ```
@@ -487,13 +496,14 @@ expenses they pay.
 a hand-written
 [`compose.override.yaml`](../../../examples/expenses/chapter-08/compose.override.yaml)
 beside it. The override builds the runtime image with the chapter 8 code, makes the
-portal a Caddy reverse proxy in front of the API, adds a volume for the runtime's SQLite
-file and names the project `seams-expenses`. The generated file also has an `expense_db`
-service from the store's deploy facts. The override gives it a dev-only
-`POSTGRES_PASSWORD`, and points the `database_url` secret at a committed placeholder,
-`docker/local-secrets/expense_database_url`, because the generated secret is a swarm
-secret that plain compose cannot create. The API does not read that secret yet. Pass
-both files from the repository root:
+portal a Caddy reverse proxy in front of the API and names the project
+`seams-expenses`. The generated file also has an `expense_db` service from the store's
+deploy facts. The override gives it a dev-only `POSTGRES_PASSWORD`, makes the API wait
+until the database is healthy, and points the `database_url` secret at a committed dev
+URL, `docker/local-secrets/expense_database_url`, because the generated secret is a
+swarm secret that plain compose cannot create. The API reads that secret through
+`DATABASE_URL_FILE` and keeps its data in `expense_db`, so no SQLite volume is needed.
+Pass both files from the repository root:
 
 ```sh
 docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml up --build

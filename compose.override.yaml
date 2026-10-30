@@ -37,16 +37,17 @@ services:
       SEAMS_DEV_USER: builder
       # Seed the demo conversations once (idempotent on restart).
       SEAMS_SEED: /app/seed.json
-    volumes:
-      # Process instances and entities live in SQLite (SEAMS_DB=/data/seams.sqlite).
-      - chat_api_data:/data
+    # Process instances and entities live in message_db: the model declares it a
+    # PostgreSQL store that chat_api connectsTo with key DB_URL, so the runtime
+    # reads the connection string from DB_URL_FILE (the db_url secret below).
     # Placement constraints are swarm-only and ignored here. Process instances and
     # the SSE bus are in-process, so a single replica is the only correct local shape.
     deploy:
       replicas: 1
     depends_on: !override
+      # The runtime opens its store at load, so the database must accept connections.
       message_db:
-        condition: service_started
+        condition: service_healthy
       llm_gateway:
         condition: service_healthy
     healthcheck:
@@ -90,19 +91,20 @@ services:
 
   message_db:
     # postgres:16 refuses to start without a password; this is a dev-only value.
+    # POSTGRES_DB repeats compose.yaml's value so this file states the database
+    # docker/local-secrets/db_url connects to.
     environment:
+      POSTGRES_DB: chat
       POSTGRES_PASSWORD: seams-dev
 
 # The generated secrets are external (swarm) secrets, which plain compose cannot
 # create; locally they are files.
 secrets:
   db_url: !override
-    # DB_URL is unused: the runtime's store is SQLite (SEAMS_DB). The committed
-    # placeholder only satisfies the generated chat_api secret reference.
+    # The runtime reads DB_URL_FILE through the model's deploy:connectsTo binding
+    # (chat_api -> message_db, key DB_URL). The committed dev URL points at
+    # message_db with the password above: postgresql://postgres:seams-dev@message_db:5432/chat.
     file: ./docker/local-secrets/db_url
   llm_api_key: !override
     # Created by the tutorial; leave it empty to run the gateway's stub.
     file: ${LLM_API_KEY_FILE:-./.secrets/llm_api_key}
-
-volumes:
-  chat_api_data: {}

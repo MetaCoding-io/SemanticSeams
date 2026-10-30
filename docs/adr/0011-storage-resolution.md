@@ -116,6 +116,19 @@ Observability: `/healthz` reports the store kind. Model health (S04) fails on a 
 shape with no supported store, and warns on a store container that no shape is
 `seam:storedIn`.
 
+### Development override
+
+Two ways run the runtime on another store than the model declares, for tests and local
+runs without a database. Both resolve the facts first, so a broken model still fails at
+load:
+
+- `Runtime.load(..., store=...)` injects a backend, as the test suite does.
+- `SEAMS_STORE_OVERRIDE=sqlite` keeps embedded SQLite at `SEAMS_DB` and logs a warning.
+  Any other value fails at load.
+
+Neither is silent: `/healthz` reports `{"kind", "declared", "container", "override"}`,
+and `override` is true when the store in use is not the declared kind.
+
 ### Out of scope
 
 - Replicas (backlog A10, the in-memory stream).
@@ -142,8 +155,11 @@ shape with no supported store, and warns on a store container that no shape is
   values, and `deploy:connectsTo` to the ontologies with their SHACL, and states the
   facts in `examples/chat-app/chat-app.trig` and the expenses tutorial chapter 8.
 - **S03** adds the store interface and its SQLite and PostgreSQL backends, resolved at
-  `Runtime.load` under the error contract above.
-- **S04** adds the compose wiring (the runtime reads the bound connection string) and
-  the model health checks, and `/healthz` reports the store kind.
+  `Runtime.load` under the error contract above. It also landed `/healthz` reporting
+  the store kind and the compose wiring: the runtime reads the bound connection string
+  (`DB_URL_FILE`, `DATABASE_URL_FILE`), and both compose stacks run on their declared
+  PostgreSQL.
+- **S04** adds the model health checks and an end-to-end assertion that the stacks
+  write to the declared store.
 - `impact-of-node.rq` can list the data a node holds.
 - Existing models with no store keep working on embedded SQLite.

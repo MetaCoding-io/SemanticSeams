@@ -81,7 +81,9 @@ def test_chat_api_is_built_locally_with_one_replica(merged):
     assert api["environment"]["SEAMS_DEV_USER"] == "builder"
     assert api["environment"]["SEAMS_SEED"] == "/app/seed.json"
     assert "healthz" in " ".join(api["healthcheck"]["test"])
-    assert any(v["type"] == "volume" and v["target"] == "/data" for v in api["volumes"])
+    # the store is message_db (PostgreSQL), so no SQLite volume is mounted
+    assert not any(v["target"] == "/data" for v in api["volumes"])
+    assert "chat_api_data" not in merged.get("volumes", {})
 
 
 def test_runtime_build_args_default_to_the_chat_app(merged):
@@ -168,6 +170,22 @@ def test_chat_ui_is_a_caddy_proxy_to_chat_api(merged):
 
 def test_message_db_has_a_password(merged):
     assert merged["services"]["message_db"]["environment"]["POSTGRES_PASSWORD"]
+
+
+def test_message_db_matches_the_local_db_url(merged):
+    # The runtime connects through DB_URL_FILE (ADR-0011 binding chat_api -> message_db),
+    # so the database name and password must be the ones the committed URL names.
+    env = merged["services"]["message_db"]["environment"]
+    url = (ROOT / "docker" / "local-secrets" / "db_url").read_text(encoding="utf-8").strip()
+    assert url == f"postgresql://postgres:{env['POSTGRES_PASSWORD']}@message_db:5432/{env['POSTGRES_DB']}"
+    assert env["POSTGRES_DB"] == "chat"
+
+
+def test_chat_api_waits_for_a_healthy_message_db(merged):
+    # The runtime opens its store at load; a started-but-not-ready Postgres would fail it.
+    depends = merged["services"]["chat_api"]["depends_on"]
+    assert depends["message_db"]["condition"] == "service_healthy"
+    assert merged["services"]["message_db"]["healthcheck"]["test"] == ["CMD-SHELL", "pg_isready -U postgres"]
 
 
 def test_generated_model_mounts_and_hash_survive(merged):

@@ -97,7 +97,22 @@ def test_override_builds_chapter_8_into_the_runtime_image():
 
 def test_override_gives_the_store_a_password_and_a_local_secret_file():
     override = yaml.load((APP / "compose.override.yaml").read_text(encoding="utf-8"), Loader=_OverrideLoader)
-    assert override["services"]["expense_db"]["environment"] == {"POSTGRES_PASSWORD": "seams-dev"}
+    env = override["services"]["expense_db"]["environment"]
+    assert env == {"POSTGRES_DB": "expenses", "POSTGRES_PASSWORD": "seams-dev"}
     secret_file = (APP / override["secrets"]["database_url"]["file"]).resolve()
     assert secret_file == ROOT / "docker" / "local-secrets" / "expense_database_url"
-    assert "@expense_db:5432/expenses" in secret_file.read_text(encoding="utf-8")
+    # the runtime connects with this URL (ADR-0011 binding expense_api -> expense_db)
+    url = secret_file.read_text(encoding="utf-8").strip()
+    assert url == f"postgresql://postgres:{env['POSTGRES_PASSWORD']}@expense_db:5432/{env['POSTGRES_DB']}"
+
+
+def test_override_waits_for_a_healthy_store_and_drops_the_sqlite_volume():
+    override = yaml.load((APP / "compose.override.yaml").read_text(encoding="utf-8"), Loader=_OverrideLoader)
+    api = override["services"]["expense_api"]
+    # the runtime opens its store at load, so the database must be ready first
+    assert api["depends_on"] == {"expense_db": {"condition": "service_healthy"}}
+    generated = yaml.safe_load((APP / "compose.yaml").read_text(encoding="utf-8"))
+    assert "healthcheck" in generated["services"]["expense_db"]
+    # the store is expense_db (PostgreSQL), so nothing mounts a SQLite /data volume
+    assert "volumes" not in api
+    assert "expense_api_data" not in override.get("volumes", {})

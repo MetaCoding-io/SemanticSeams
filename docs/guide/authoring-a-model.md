@@ -116,11 +116,31 @@ rows and the process's entities live in the store that the container which
 store. A model that declares no store keeps embedded SQLite, with the file path taken
 from `SEAMS_DB`.
 
-The SHACL shapes check these facts now. Only a shape is `seam:storedIn`, and only in one
+The SHACL shapes check these facts. Only a shape is `seam:storedIn`, and only in one
 `arch:Container`. Every store that a shape is stored in or a binding connects to has a
 `deploy:storeKind`, and has only one, from the supported set. A binding connects to at
-most one container. The runtime does not read the facts yet: it still writes to SQLite.
-A later release resolves the store from them when the model loads.
+most one container.
+
+The runtime reads the same facts when the model loads and opens that store
+([ADR-0011](/adr/0011-storage-resolution)). For `deploy:PostgreSQL` it takes the
+connection string from the environment variable the binding's `deploy:key` names, or
+from the file `<key>_FILE` names, so the chat app reads `DB_URL` or `DB_URL_FILE`. For
+`deploy:SQLite`, or no store at all, it uses the `SEAMS_DB` file. A fact that is missing
+or wrong stops `Runtime.load` with a `ResolutionError` naming the subject and predicate:
+
+| Problem | Subject | Predicate |
+|---|---|---|
+| a store with no `deploy:storeKind`, more than one, or one not supported | the store | `deploy:storeKind` |
+| a PostgreSQL store no executing container connects to | the container | `deploy:connectsTo` |
+| a container connecting to more than one store | the container | `deploy:connectsTo` |
+| a written shape with no `seam:storedIn`, or stored elsewhere | the shape | `seam:storedIn` |
+| a PostgreSQL store whose connection string is in neither `<key>` nor `<key>_FILE` | the connecting container | `deploy:connectsTo` |
+
+`GET /healthz` reports the store the runtime opened as
+`{"kind", "declared", "container", "override"}`. For a run without a database, such as
+a test or a quick local check, `SEAMS_STORE_OVERRIDE=sqlite` keeps embedded SQLite at
+`SEAMS_DB` whatever the model declares. The runtime logs a warning and `/healthz` reports
+`"override": true`, so the substitution is never silent.
 
 ### Human tasks
 

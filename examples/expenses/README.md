@@ -172,12 +172,13 @@ second environment, so the checkpoint models no staging environment.
 `chapter-08/compose.override.yaml` is written by hand. It builds
 `docker/runtime.Dockerfile` with `SEAMS_APP_DIR=examples/expenses/chapter-08`
 and `SEAMS_ROUTES_FILE=expense_api.py`, makes the portal a Caddy reverse proxy
-to the API, adds healthchecks and a volume for `/data`, and names the project
-`seams-expenses`. It also gives the generated `expense_db` service a dev-only
-`POSTGRES_PASSWORD` and points the generated `database_url` swarm secret at the
-committed placeholder `docker/local-secrets/expense_database_url`. The runtime
-does not read that secret yet: it still keeps its rows in SQLite (`SEAMS_DB`),
-and a later release wires it to the declared store. Compose only merges an override from the working directory,
+to the API, adds healthchecks, and names the project `seams-expenses`. It also
+gives the generated `expense_db` service a dev-only `POSTGRES_PASSWORD`, makes
+the API wait until it is healthy, and points the generated `database_url` swarm
+secret at the committed dev URL `docker/local-secrets/expense_database_url`.
+The runtime reads that secret through `DATABASE_URL_FILE` (the binding that
+`deploy:connectsTo :expense_db`) and keeps its rows in PostgreSQL, so no SQLite
+volume is mounted. Compose only merges an override from the working directory,
 so pass both files from the repository root:
 
 ```

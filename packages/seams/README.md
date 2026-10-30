@@ -29,6 +29,11 @@ model that declares no store gets embedded SQLite (`declared=False`). A
 missing or duplicated store kind, an unsupported kind, a PostgreSQL store
 with no connecting binding, a written shape not stored in the store, or more
 than one store raises `ResolutionError` naming the subject and predicate.
+`ModelGraph.store_health()` reports the same checks without raising, as a
+sorted list of `StoreFinding` (`severity`, `subject`, `predicate`,
+`message`): a `Violation` for each resolution error, a `Warning` for a store
+container no shape is `seam:storedIn`, and an `Info` when the model declares
+no store and the runtime keeps embedded SQLite.
 
 The full API, views, SPARQL and model-hash reference is
 [The seams library](../../docs/reference/seams-library.md) on the docs site.

@@ -175,6 +175,28 @@ class StorePlan:
     declared: bool
 
 
+#: ``StoreFinding.severity`` values, most severe first (SHACL's sh:Violation,
+#: sh:Warning and sh:Info local names).
+STORE_FINDING_SEVERITIES = ("Violation", "Warning", "Info")
+
+
+@dataclass(frozen=True)
+class StoreFinding:
+    """One storage health finding (ADR-0011), from ``ModelGraph.store_health()``.
+
+    ``severity`` is a ``STORE_FINDING_SEVERITIES`` member: a Violation is a
+    store the runtime cannot resolve (``subject``/``predicate`` name the
+    missing hop, as ``ResolutionError`` does), a Warning a store container no
+    shape is seam:storedIn (predicate seam:storedIn), an Info the embedded
+    SQLite default of a model that declares no store (no subject).
+    """
+
+    severity: str
+    subject: URIRef | None
+    predicate: URIRef | None
+    message: str
+
+
 # ── the graph ───────────────────────────────────────────────────────────────
 
 
@@ -683,6 +705,48 @@ class ModelGraph(Model):
 
         container, key = (connected[0][0].iri, connected[0][2]) if connected else (None, None)
         return StorePlan(kind, store, container, key, declared=True)
+
+    def store_health(self) -> list[StoreFinding]:
+        """Storage health findings for model-health tools (ADR-0011 Observability).
+
+        A Violation when ``store_plan()`` raises; an Info when the model
+        declares no store, so the runtime keeps embedded SQLite at
+        ``SEAMS_DB``; and, either way, a Warning for each store container (one
+        with a deploy:storeKind or that a binding deploy:connectsTo) no shape
+        is seam:storedIn. Sorted by severity, then subject. Never raises.
+        """
+        findings: list[StoreFinding] = []
+        try:
+            plan = self.store_plan()
+        except ResolutionError as err:
+            findings.append(StoreFinding("Violation", URIRef(err.subject), URIRef(err.predicate), str(err)))
+        else:
+            if not plan.declared:
+                findings.append(
+                    StoreFinding(
+                        "Info",
+                        None,
+                        None,
+                        "no store is declared, so the runtime keeps embedded SQLite at SEAMS_DB",
+                    )
+                )
+
+        ds = self.ds
+        stores = {s for s in ds.subjects(DEPLOY.storeKind, None) if isinstance(s, URIRef)}
+        stores |= {o for o in ds.objects(None, DEPLOY.connectsTo) if isinstance(o, URIRef)}
+        stored = set(ds.objects(None, SEAM.storedIn))
+        for store in stores - stored:
+            findings.append(
+                StoreFinding(
+                    "Warning",
+                    store,
+                    SEAM.storedIn,
+                    f"store {store} is declared but no shape is seam:storedIn it",
+                )
+            )
+
+        order = {severity: i for i, severity in enumerate(STORE_FINDING_SEVERITIES)}
+        return sorted(findings, key=lambda f: (order[f.severity], str(f.subject or "")))
 
     # ── IFML pages ──
 

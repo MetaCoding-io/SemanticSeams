@@ -85,7 +85,8 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   element, and `has_lifecycle(shape)`, `governing_policies(element)` and
   `rendered_components()` answer the runtime's yes/no and list questions;
   `Lifecycle.transitions` lists the machine's state:hasTransition IRIs.
-  `store_plan()` resolves where the runtime keeps its rows (ADR-0011); see
+  `store_plan()` resolves where the runtime keeps its rows (ADR-0011) and
+  `store_health()` reports what is wrong with that; see
   [Store resolution](#store-resolution).
   `seams_runtime` re-exports it unchanged. Three of its result types share a
   name with a view class (`Container`, `Lifecycle`, `Transition`): import
@@ -388,6 +389,29 @@ Each failure raises `ResolutionError(subject, predicate)`:
 
 The shape view's `stored_in` and the container view's `store_kinds`,
 `stored_shapes` and `connecting_bindings` read the same facts.
+
+`ModelGraph.store_health()` turns the same checks into findings for a
+model-health tool (the viewer's health panel uses it). It never raises for a
+model the loader accepts, and returns a list of frozen
+`StoreFinding(severity, subject, predicate, message)`, sorted by severity
+(`STORE_FINDING_SEVERITIES`: `"Violation"`, `"Warning"`, `"Info"`, the SHACL
+severity names) and then subject:
+
+| Severity | When | `subject` | `predicate` |
+|---|---|---|---|
+| `Violation` | `store_plan()` raises any of the errors above | the error's subject | the error's predicate |
+| `Warning` | a store container (one with a `deploy:storeKind`, or that a binding `deploy:connectsTo`) that no shape is `seam:storedIn` | the store | `seam:storedIn` |
+| `Info` | the model declares no store, so the runtime keeps embedded SQLite at `SEAMS_DB` | None | None |
+
+The warning is reported whether or not the plan resolves, so a declared
+PostgreSQL container next to an embedded-SQLite runtime is visible:
+
+```python
+seams.ModelGraph("examples/chat-app/chat-app.trig").store_health()
+# []
+seams.ModelGraph("examples/checkout.trig").store_health()
+# [StoreFinding(severity="Violation", subject=:order_api, predicate=deploy:connectsTo, message="cannot resolve ...")]
+```
 
 ## Errors
 

@@ -3,7 +3,7 @@
 # root installs nothing from the members.
 
 [tool.uv.workspace]
-members = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer"]
+members = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer", "packages/seams-cli"]
 
 [dependency-groups]
 # pyyaml and httpx are imported only by the tests; types-lxml types the seams

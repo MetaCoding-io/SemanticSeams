@@ -23,6 +23,7 @@ COPY seams_runtime/pyproject.toml /app/seams_runtime/
 COPY seams_gen/pyproject.toml /app/seams_gen/
 COPY seams_gateway/pyproject.toml /app/seams_gateway/
 COPY viewer/pyproject.toml /app/viewer/
+COPY packages/seams-cli/pyproject.toml packages/seams-cli/README.md /app/packages/seams-cli/
 RUN uv sync --locked --no-dev --package semanticseams-gateway --no-install-workspace
 
 COPY seams_gateway /app/seams_gateway

@@ -34,6 +34,7 @@ members. Each member declares its own dependencies in its `pyproject.toml`:
 | `seams_gen` | `semanticseams-gen` | semanticseams, rdflib, Jinja2, PyYAML |
 | `seams_gateway` | `semanticseams-gateway` | FastAPI, uvicorn, httpx |
 | `viewer` | `semanticseams-viewer` | semanticseams, FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
+| `packages/seams-cli` | `semanticseams-cli` | semanticseams, rdflib, Jinja2, PyYAML |
 
 The root `pyproject.toml` adds a `dev` group with pytest, PyYAML, httpx, ruff and pyright.
 If you prefer not to activate the environment, prefix any command with `uv run`, for

@@ -1,8 +1,9 @@
 """The repository is a uv workspace with a locked environment (M010/S01, backlog L1).
 
-Pins the workspace layout: the five members, the virtual status of the four
-existing packages (D033), the seams library's dependency allowlist (D031) and
-the removal of the old pip requirements files.
+Pins the workspace layout: the six members, the virtual status of the four
+existing packages (D033), the packaged seams-cli member and its `seams` script
+(D042), the seams library's dependency allowlist (D031) and the removal of the
+old pip requirements files.
 """
 
 import importlib
@@ -12,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-MEMBERS = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer"]
+MEMBERS = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer", "packages/seams-cli"]
 VIRTUAL_MEMBERS = ["seams_runtime", "seams_gen", "seams_gateway", "viewer"]
 SEAMS_ALLOWED_DEPENDENCIES = {"rdflib", "lxml"}
 REMOVED_REQUIREMENTS = [
@@ -34,7 +35,7 @@ def _requirement_name(requirement: str) -> str:
     return re.sub(r"[-_.]+", "-", name.group(1)).lower()
 
 
-def test_root_lists_exactly_the_five_members():
+def test_root_lists_exactly_the_six_members():
     root = _toml(ROOT / "pyproject.toml")
     assert root["tool"]["uv"]["workspace"]["members"] == MEMBERS
 
@@ -58,6 +59,16 @@ def test_seams_library_is_a_real_package():
     assert pyproject["build-system"]["build-backend"] == "uv_build"
     assert pyproject["tool"]["uv"]["build-backend"]["module-name"] == "seams"
     assert pyproject.get("tool", {}).get("uv", {}).get("package") is not False
+
+
+def test_seams_cli_is_packaged_and_declares_the_seams_script():
+    # uv installs no console scripts for virtual members (D033), so the CLI is packaged (D042).
+    pyproject = _toml(ROOT / "packages/seams-cli/pyproject.toml")
+    assert pyproject["project"]["name"] == "semanticseams-cli"
+    assert pyproject.get("tool", {}).get("uv", {}).get("package") is not False
+    assert pyproject["build-system"]["build-backend"] == "hatchling.build"
+    assert pyproject["project"]["scripts"] == {"seams": "seams_cli.__main__:main"}
+    assert "semanticseams" in {_requirement_name(r) for r in pyproject["project"]["dependencies"]}
 
 
 def test_seams_depends_only_on_rdflib_and_lxml():

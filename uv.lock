@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "semanticseams",
+    "semanticseams-cli",
     "semanticseams-gateway",
     "semanticseams-gen",
     "semanticseams-runtime",
@@ -937,6 +938,25 @@ dependencies = [
 requires-dist = [
     { name = "lxml", specifier = ">=5.0" },
     { name = "rdflib", specifier = ">=7.0" },
+]
+
+[[package]]
+name = "semanticseams-cli"
+version = "0.1.0"
+source = { editable = "packages/seams-cli" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "pyyaml" },
+    { name = "rdflib" },
+    { name = "semanticseams" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rdflib", specifier = ">=7.0" },
+    { name = "semanticseams", editable = "packages/seams" },
 ]
 
 [[package]]

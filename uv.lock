@@ -946,6 +946,7 @@ version = "0.1.0"
 source = { editable = "packages/seams-cli" }
 dependencies = [
     { name = "jinja2" },
+    { name = "pyshacl" },
     { name = "pyyaml" },
     { name = "rdflib" },
     { name = "semanticseams" },
@@ -954,6 +955,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
+    { name = "pyshacl", specifier = ">=0.30" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rdflib", specifier = ">=7.0" },
     { name = "semanticseams", editable = "packages/seams" },

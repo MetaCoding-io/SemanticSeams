@@ -1,4 +1,4 @@
-"""Command line: ``seams generate [--project PATH] [--model PATH]``.
+"""Command line: ``seams generate|check [--project PATH] [--model PATH]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -14,7 +14,14 @@ rewritten and the exit code stays 0. A malformed seams.lock exits 2 before
 anything is written.
 A ProjectError or GeneratorError prints ``seams generate: <message>`` to
 stderr and exits 2; a file that cannot be read or written exits 1.
-The ``check`` and ``status`` subcommands are to come (M012/S03, S04).
+
+``seams check`` (D044) writes nothing. It validates the model against the
+SHACL shapes, runs the project's gate queries and compares the outputs
+generate would write with the disk and seams.lock. Each finding prints to
+stdout as ``<kind> <detail>``; with any finding, ``seams check: N problem(s)``
+goes to stderr and the exit code is 1. A model that cannot be loaded, a bad
+gate or a malformed seams.lock exits 2. The ``status`` subcommand is to come
+(M012/S04).
 """
 
 from __future__ import annotations
@@ -25,6 +32,7 @@ from pathlib import Path
 
 from seams_gen import GeneratorError
 
+from .check import FILE_KINDS, run_check
 from .generate import apply, generate_project
 from .lockfile import locate
 from .project import ProjectError, load_project, resolve_model
@@ -41,12 +49,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="rewrite every generated output the project file names",
         description="Run every generator of the project file and write its outputs.",
     )
-    gen.add_argument(
+    _project_arguments(gen)
+    gen.set_defaults(run=_generate)
+    check = sub.add_parser(
+        "check",
+        help="fail on SHACL violations, gate rows and stale outputs; writes nothing",
+        description="Validate the model, run the project's gate queries and compare the outputs with the disk.",
+    )
+    _project_arguments(check)
+    check.set_defaults(run=_check)
+    return parser
+
+
+def _project_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
         "--project", type=Path, default=Path("."), help="seams.toml or a directory holding one (default: .)"
     )
-    gen.add_argument("--model", type=Path, help="the model (.trig); overrides the project file and SEAMS_MODEL")
-    gen.set_defaults(run=_generate)
-    return parser
+    parser.add_argument("--model", type=Path, help="the model (.trig); overrides the project file and SEAMS_MODEL")
 
 
 def _display(path: Path) -> str:
@@ -72,6 +91,18 @@ def _generate(args: argparse.Namespace) -> int:
     for path in applied.removed:
         print(f"removed {_display(path)}")
     print(_display(applied.lock))
+    return 0
+
+
+def _check(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    findings = run_check(project, resolve_model(project, args.model))
+    for finding in findings:
+        detail = _display(Path(finding.detail)) if finding.kind in FILE_KINDS else finding.detail
+        print(f"{finding.kind} {detail}")
+    if findings:
+        print(f"seams check: {len(findings)} problem(s)", file=sys.stderr)
+        return 1
     return 0
 
 

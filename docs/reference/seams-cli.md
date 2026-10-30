@@ -1,8 +1,9 @@
 # The seams CLI
 
 `seams` is the command line for a Semantic Seams project. It reads a project
-file, `seams.toml`, kept next to an app's model, and runs every generator the
-file names. Its distribution name is `semanticseams-cli` and its import name is
+file, `seams.toml`, kept next to an app's model. `seams generate` runs every
+generator the file names; `seams check` fails when the model, its gate queries
+or the generated outputs are not in order, and writes nothing. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -36,9 +37,10 @@ out = "generated/templates"
 | `[[generators]]` | array of tables | One entry per generator to run, in any order. |
 | `[[generators]].name` | string | A generator name from `seams_gen` (see [Generators](#generators)). |
 | `[[generators]].out` | string | The directory the generator writes into. |
+| `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. Only the names are read for now; the tables are a placeholder. |
 
-Relative paths (`model` and every `out`) resolve against the directory holding
+Relative paths (`model`, every `out` and every gate) resolve against the directory holding
 the `seams.toml`, not the working directory, so the command gives the same
 result wherever it is run from.
 
@@ -51,7 +53,7 @@ The model is the first of:
 3. the `SEAMS_MODEL` environment variable, when it is set and non-empty.
 
 An explicit path always beats the environment, as with `seams.load`. With none
-of the three, `seams generate` fails with exit code 2.
+of the three, `seams generate` and `seams check` fail with exit code 2.
 
 ## seams generate
 
@@ -151,9 +153,9 @@ seams generate: kept hand-edited orphan examples/chat-app/generated/old.html
 Without a lock (a first run) there is nothing to compare, so nothing is
 reported or deleted. A `seams.lock` that is not valid JSON or does not match the
 format exits 2 before any file is written, naming the file and the key. A
-failing generator likewise leaves the old lock and every file untouched. The
-planned `seams check` (M012/S03) will use the same comparison and fail when an
-output was edited by hand.
+failing generator likewise leaves the old lock and every file untouched.
+[`seams check`](#seams-check) uses the same comparison and fails when an output
+was edited by hand.
 
 ### Exit codes
 
@@ -167,6 +169,63 @@ Errors print to stderr as `seams generate: <message>`. A project-file error
 names the file by its absolute path and the offending key, for example
 ``/…/examples/chat-app/seams.toml: `generators[0]` needs a string `out` ``, and
 an unknown generator name lists the known ones.
+
+## seams check
+
+```sh
+seams check                                       # the seams.toml in the working directory
+seams check --project examples/expenses/chapter-08
+seams check --project path/to/seams.toml --model other.trig
+```
+
+The options are those of `seams generate`. The command runs three checks,
+reports every finding and writes nothing, so it is safe in CI and in a
+pre-commit hook (D044):
+
+1. **Shapes.** The model, unioned with `ontology/*.ttl`, is validated with
+   pyshacl (inference off) against `ontology/shapes/seam-shapes.ttl`, the same
+   check as the viewer's health panel. Each validation result is a `shacl`
+   finding: focus node, path and message.
+2. **Gates.** Each file the project lists under `gates` is a SPARQL SELECT
+   query that runs over the same union graph. Every row it returns is a `gate`
+   finding: the gate path, relative to the project, then the row's values.
+3. **Outputs.** Every generator runs in memory and the result is compared with
+   the disk and with `seams.lock`.
+
+| Kind | Meaning |
+|---|---|
+| `shacl` | The model breaks a shape. |
+| `gate` | A gate query returned a row. |
+| `missing` | An output generate would write is absent on disk. |
+| `stale` | An output on disk differs from what generate would write now, for example after a model change. |
+| `hand-edited` | A stale output whose sha256 is not the locked one either: someone edited it. |
+| `orphan` | `seams.lock` lists an output no generator writes any more, and it is still on disk. |
+| `lock-out-of-date` | There is no `seams.lock`, or the lock generate would write differs from it. |
+
+Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
+the working directory when they lie below it. A closing count goes to stderr:
+
+```
+$ seams check --project examples/expenses/chapter-05
+gate examples/expenses/chapter-05/gates/events.rq https://example.org/expenses/submit_expense
+hand-edited examples/expenses/chapter-05/generated/expense_api.py
+lock-out-of-date examples/expenses/chapter-05/seams.lock
+shacl https://example.org/expenses/expense_data https://w3id.org/seams/seam#notation Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
+seams check: 4 problem(s)
+```
+
+`seams generate` fixes every output finding. A `shacl` or `gate` finding is
+fixed in the model.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | No findings. |
+| 1 | At least one finding, or a file could not be read. |
+| 2 | The project file is missing or malformed, a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a generator found a missing or ambiguous graph fact. |
+
+Errors print to stderr as `seams check: <message>`.
 
 ## Generators
 
@@ -217,6 +276,5 @@ app and every chapter, then fails on any `git diff` or untracked file under
 
 ## Planned
 
-`seams check` (validate the model and confirm the outputs match `seams.lock`)
-and `seams status` are planned; see
+`seams status` is planned; see
 [the backlog](/backlog#artifact-management-and-deployment).

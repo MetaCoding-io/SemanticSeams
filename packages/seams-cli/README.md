@@ -28,6 +28,9 @@ out = "generated/templates"
 - `generators` (array of tables): each entry has a `name`, one of the
   `python -m seams_gen` generators (`compose`, `fastapi`, `htmx`), and an `out`
   directory.
+- `gates` (array of strings, optional): SPARQL SELECT files, relative to the
+  project file, that `seams check` runs over the model; each must return no
+  rows.
 - `environments` (table of tables, optional): environment names. Only the
   names are read for now; the tables are a placeholder.
 
@@ -73,4 +76,22 @@ three, the command fails.
 Errors print to stderr as `seams generate: <message>`; a project-file error
 names the file and the offending key.
 
-`seams check` and `seams status` are planned (M012/S03, S04).
+## seams check
+
+```sh
+seams check                            # the seams.toml in the working directory
+seams check --project examples/expenses/chapter-08
+```
+
+It writes nothing (D044, `check.py`). It validates the model, unioned with
+`ontology/*.ttl`, against `ontology/shapes/seam-shapes.ttl`; runs each gate
+query over the same graph; and runs every generator in memory to compare the
+outputs with the disk and `seams.lock`. Each finding prints to stdout as
+`<kind> <detail>`, with kind one of `shacl`, `gate`, `missing`, `stale`,
+`hand-edited`, `orphan` and `lock-out-of-date`, followed by
+`seams check: N problem(s)` on stderr. It exits 0 with no findings, 1 with any,
+and 2 for the errors of `seams generate` plus a missing, unparsable or
+non-SELECT gate or a model that cannot be loaded. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-check).
+
+`seams status` is planned (M012/S04).

@@ -13,11 +13,15 @@ and the app's environments::
     name = "htmx"
     out = "generated/templates"
 
+    gates = ["gates/ungoverned-writes.rq"]
+
     [environments.dev]
 
 Relative paths resolve against the directory of the project file, so the
-command gives the same result from any working directory. ``environments``
-is a placeholder: only the names are read for now.
+command gives the same result from any working directory. ``gates`` lists
+SPARQL SELECT queries that ``seams check`` runs over the model; each must
+return no rows (D044). ``environments`` is a placeholder: only the names are
+read for now.
 """
 
 from __future__ import annotations
@@ -47,13 +51,14 @@ class GeneratorTarget:
 @dataclass(frozen=True)
 class Project:
     """A loaded project file. ``path`` is the file, ``root`` its directory;
-    ``model`` and every ``out`` are absolute."""
+    ``model``, every ``out`` and every gate are absolute."""
 
     path: Path
     root: Path
     model: Path | None
     generators: tuple[GeneratorTarget, ...]
     environments: tuple[str, ...]
+    gates: tuple[Path, ...] = ()
 
 
 def _known_generators() -> dict:
@@ -99,12 +104,20 @@ def load_project(path: Path | str) -> Project:
     if not isinstance(environments, dict) or not all(isinstance(env, dict) for env in environments.values()):
         raise ProjectError(f"{path}: `environments` must be a table of tables ([environments.<name>])")
 
+    gates = data.get("gates", [])
+    if not isinstance(gates, list):
+        raise ProjectError(f"{path}: `gates` must be an array of strings, got {type(gates).__name__}")
+    for index, gate in enumerate(gates):
+        if not isinstance(gate, str):
+            raise ProjectError(f"{path}: `gates[{index}]` must be a string, got {type(gate).__name__}")
+
     return Project(
         path=path,
         root=root,
         model=root / model if model is not None else None,
         generators=tuple(targets),
         environments=tuple(environments),
+        gates=tuple(root / gate for gate in gates),
     )
 
 

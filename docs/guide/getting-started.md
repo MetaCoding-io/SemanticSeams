@@ -30,8 +30,8 @@ members. Each member declares its own dependencies in its `pyproject.toml`:
 | Member | Distribution | Dependencies |
 |---|---|---|
 | `packages/seams` | `semanticseams` | rdflib, lxml |
-| `seams_runtime` | `semanticseams-runtime` | rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn |
-| `seams_gen` | `semanticseams-gen` | rdflib, Jinja2, PyYAML |
+| `seams_runtime` | `semanticseams-runtime` | semanticseams, rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn |
+| `seams_gen` | `semanticseams-gen` | semanticseams, rdflib, Jinja2, PyYAML |
 | `seams_gateway` | `semanticseams-gateway` | FastAPI, uvicorn, httpx |
 | `viewer` | `semanticseams-viewer` | FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
 

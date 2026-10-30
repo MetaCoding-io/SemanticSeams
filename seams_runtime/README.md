@@ -48,6 +48,12 @@ means no open user task matches: it was already completed, never reached, or the
 correlation key is unknown. A generated app maps `RuntimeModelError` to a JSON response
 with one exception handler.
 
+`ModelGraph`, `model_hash` and `ResolutionError` come from the `seams` library
+([packages/seams](../packages/seams/README.md), D034) and are re-exported here, as are
+the namespaces and resolver results in `seams_runtime.model`. `RuntimeModelError` is an
+alias of `seams.SeamsError`, so that one handler and the worker's `isinstance` checks
+also catch every `ResolutionError` a resolver raises.
+
 ## Host
 
 `python -m seams_runtime.host --routes /app/chat_api.py --host 0.0.0.0 --port 8000`
@@ -59,7 +65,7 @@ It includes `module.router` and adds:
 - `GET /healthz`, which returns `{"status": "ok", "model_hash": ...}`;
 - the landmark page at its `ifml:path`, rendered by `render_page`. Only correlation-key
   query parameters such as `?conversation=` reach the template;
-- each of `ModelGraph.secondary_pages()` at its own `ifml:path`, rendered the same way.
+- each page `seams.ModelGraph.secondary_pages()` returns, at its own `ifml:path`, rendered the same way.
   A secondary page is an `ifml:ViewContainer` with an `ifml:path` that is not the
   landmark and holds no form a user task is `seam:completedOn`. Task-form screens are
   reached through `GET /tasks` instead;

@@ -38,6 +38,19 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   raised when a graph hop is missing.
 - Namespaces: `SEAM`, `COMM`, `DEC`, `PROC`, `STATE`, `HYDRA`, `ODRL`,
   `DEPLOY`, `IFML`, plus `local_name(iri)`.
+- `ModelGraph(path, dataset=None)` (and `ModelGraph.load(path)`) is a `Model`
+  plus the one-of-each resolvers the runtime and the generators share, such as
+  `landmark_page()`, `secondary_pages()`, `triggering_operation(process)`,
+  `is_channel_started(process)`, `decision_binding(task)`,
+  `implementing_container(operation)`, `lifecycle_for(shape)`, `policy(policy)`
+  and `shape_graph()`. Each answers from graph facts and raises
+  `ResolutionError` naming the subject and predicate when a hop is missing.
+  Results are frozen dataclasses (`Transition`, `DecisionBinding`, `Container`,
+  `OperationPath`, `ChannelBinding`, `ChannelStart`, `ProcessFacts`,
+  `Lifecycle`, `PolicyFacts` and the rest), and `dmn_decision_ids`,
+  `dmn_input_types` and `bpmn_start_event_ids` read the payload XML.
+  `ModelGraph` is **transitional**: the views planned next supersede it.
+  `seams_runtime` re-exports it unchanged.
 
 ## The model hash
 

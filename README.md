@@ -30,6 +30,7 @@ ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             deploy.ttl      — deployment stub: artifact/config/placement; desired-state half of a GitOps loop
   shapes/   seam-shapes.ttl — SHACL constraints on the seams themselves (the project's own methodology, applied to itself)
 examples/   checkout.ttl    — worked example exercising every non-reserved seam edge; the ontology smoke test
+packages/   seams/          — the read-only `seams` model library (rdflib + lxml only): loader, model hash, payloads, ModelGraph
 tests/      executable acceptance test: parse everything, validate against the shapes, assert the canned queries' rows
 site/       the public project page (GitHub Pages, no build step)
 viewer/     the read-only multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js)

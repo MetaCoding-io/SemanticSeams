@@ -21,7 +21,19 @@ from .namespaces import SEAM, local_name
 
 if TYPE_CHECKING:
     # Imported lazily at run time: the views import this module.
-    from .views import Architecture, Channel, Lifecycles, Many, Operation, Policy, Shape, Views
+    from .views import (
+        Architecture,
+        Channel,
+        Decision,
+        Interfaces,
+        Lifecycles,
+        Many,
+        Operation,
+        Policy,
+        Processes,
+        Shape,
+        Views,
+    )
 
 #: Environment variable naming the model ``load()`` reads when given no path.
 MODEL_ENV = "SEAMS_MODEL"
@@ -187,6 +199,27 @@ class Model:
         from . import views
 
         return views.policies(self)
+
+    @property
+    def interfaces(self) -> Interfaces:
+        """Interaction models, pages (landmark and served), components and events."""
+        from . import views
+
+        return views.interfaces(self)
+
+    @property
+    def processes(self) -> Processes:
+        """Every proc:Process, by IRI, and its BPMN elements."""
+        from . import views
+
+        return views.processes(self)
+
+    @property
+    def decisions(self) -> Many[Decision]:
+        """Every bound dec:Decision, by IRI."""
+        from . import views
+
+        return views.decisions(self)
 
     def payload_path(self, model_iri: object) -> Path:
         """The existing payload file ``model_iri`` renders via seam:renderPayload."""

@@ -12,6 +12,7 @@ from ..namespaces import SEAM, STATE
 from ._base import Element, Many, element_type, optional, sorted_many
 
 if TYPE_CHECKING:
+    from .processes import ProcessElement
     from .shapes import Shape
 
 
@@ -84,9 +85,11 @@ class Transition(Element):
         return optional(self._many(Lifecycle, self._subjects(STATE.hasTransition), STATE.hasTransition))
 
     @property
-    def fired_by(self) -> Many[Element]:
-        """The elements (process tasks) that seam:fire it."""
-        return self._related(self._subjects(SEAM.fires), SEAM.fires)
+    def fired_by(self) -> Many[ProcessElement]:
+        """The process tasks that seam:fire it."""
+        from .processes import ProcessElement
+
+        return self._many(ProcessElement, self._subjects(SEAM.fires), SEAM.fires)
 
 
 class Lifecycles(Many[Lifecycle]):

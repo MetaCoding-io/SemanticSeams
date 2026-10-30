@@ -18,11 +18,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
-from lxml import etree
 from rdflib import RDF, RDFS, Dataset, Graph, Literal, URIRef
 from rdflib.namespace import SH
 from rdflib.term import Node
 
+from ._xml import elements as _elements
+from ._xml import localname as _localname
 from .errors import ResolutionError
 from .loader import Model, payload_path
 from .namespaces import COMM, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, local_name
@@ -616,17 +617,6 @@ class ModelGraph(Model):
 
 
 # ── payload XML ─────────────────────────────────────────────────────────────
-
-
-def _elements(path: str | os.PathLike[str]):  # -> list of lxml elements (their type is private)
-    """Every element of the XML file at ``path`` (comments and PIs left out)."""
-    root = etree.parse(str(path)).getroot()
-    return [el for el in root.iter() if isinstance(el.tag, str)]
-
-
-def _localname(tag: object) -> str | None:
-    """The local name of an element tag; None for comments and PIs."""
-    return etree.QName(tag).localname if isinstance(tag, str) else None
 
 
 def dmn_decision_ids(dmn_path: str | os.PathLike[str]) -> list[str]:

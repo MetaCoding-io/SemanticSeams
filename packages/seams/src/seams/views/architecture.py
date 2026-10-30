@@ -14,6 +14,7 @@ from ._base import Element, Many, Views, element_type, sorted_many
 
 if TYPE_CHECKING:
     from .operations import Channel, Operation
+    from .processes import Process
 
 
 @element_type(ARCH.System)
@@ -57,9 +58,11 @@ class Container(Element):
         return self._endpoints(self._objects(SEAM.consumes), SEAM.consumes)
 
     @property
-    def executes(self) -> Many[Element]:
+    def executes(self) -> Many[Process]:
         """The processes it seam:executes (in-process)."""
-        return self._related(self._objects(SEAM.executes), SEAM.executes)
+        from .processes import Process
+
+        return self._many(Process, self._objects(SEAM.executes), SEAM.executes)
 
     @property
     def deployed_to(self) -> Many[DeploymentNode]:

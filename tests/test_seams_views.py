@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 import seams
-from rdflib import RDF, Dataset, URIRef
-from seams import ARCH, COMM, HYDRA, ODRL, SEAM, STATE, Many, ModelGraph, ResolutionError
+from rdflib import RDF, Dataset, Literal, URIRef
+from seams import ARCH, COMM, HYDRA, IFML, ODRL, PROC, SEAM, STATE, Many, ModelGraph, ResolutionError
 
 ROOT = Path(__file__).resolve().parent.parent
 CHAT = ROOT / "examples/chat-app/chat-app.trig"
@@ -46,6 +46,10 @@ def _layers(m: seams.Model) -> dict[str, Many[seams.Element]]:
         "shapes": m.shapes,
         "lifecycles": m.lifecycles,
         "policies": m.policies,
+        "interaction_models": m.interfaces.models(),
+        "pages": m.interfaces.pages(),
+        "processes": m.processes,
+        "decisions": m.decisions,
     }
 
 
@@ -65,7 +69,9 @@ def test_every_layer_is_non_empty_and_sorted(model: seams.Model):
     for name, items in _layers(model).items():
         assert items, name
         assert [str(i.iri) for i in items] == sorted(str(i.iri) for i in items), name
-        assert items.subject == str(model.subject) and items.predicate == str(RDF.type), name
+        assert items.subject == str(model.subject), name
+        if name != "decisions":  # gathered from seam:decidedBy and dec:payloadElement
+            assert items.predicate == str(RDF.type), name
 
 
 def test_elements_are_frozen_and_raw_is_the_iri(model: seams.Model):
@@ -355,3 +361,221 @@ def test_untyped_related_element_is_a_plain_element(chat: seams.Model):
 
 def test_arch_namespace_matches_the_trig(chat: seams.Model):
     assert dict(chat.ds.namespaces())["arch"] == URIRef(str(ARCH))
+
+
+# ── interfaces, processes and decisions (T02) ──
+
+
+def test_served_pages_match_the_resolvers(model: seams.Model):
+    graph = ModelGraph(model.path)
+    served = model.interfaces.served_pages()
+    assert served[0] is model.interfaces.landmark()
+    assert served.iris() == (graph.landmark_page(), *graph.secondary_pages())
+    for page in model.interfaces.pages():
+        assert page.components().iris() == tuple(graph.page_components(page.iri))
+        assert page.interaction_model in model.interfaces.models()
+
+
+def test_process_facts_match_the_resolvers(model: seams.Model):
+    graph = ModelGraph(model.path)
+    for process in model.processes:
+        facts = graph.process_for(process.iri)
+        assert (process.bpmn_model, process.bpmn_path) == (facts.model, facts.bpmn_path)
+        assert process.executed_by.only().iri == graph.executing_container(process.iri).iri
+        assert process.correlation_key == graph.correlation_key(process.iri)
+        assert [(s.event.iri, s.channel.iri) for s in process.channel_starts] == [
+            (s.event, s.channel)
+            for s in graph._start_subscriptions(process.iri)  # pyright: ignore[reportPrivateUsage]
+        ]
+        for pid in process.bpmn_process_ids:
+            assert model.processes.for_bpmn_process(pid).only() is process
+        for el in process.elements():
+            assert el.process is process
+            assert process.element_iri(el.bpmn_id) == el.iri
+            assert model.processes.element(el.bpmn_id).only() is el
+            assert el.reads.iris() == tuple(graph.read_shapes(el.iri))
+            assert el.writes.iris() == tuple(graph.written_shapes(el.iri))
+
+
+def test_decisions_match_the_resolvers(model: seams.Model):
+    graph = ModelGraph(model.path)
+    assert model.decisions
+    for decision in model.decisions:
+        for task in decision.decides_for:
+            assert task.decided_by is decision
+            binding = graph.decision_binding(task.iri)
+            assert (decision.decision_id, decision.dmn_model, decision.dmn_path) == (
+                binding.decision_id,
+                binding.model,
+                binding.dmn_path,
+            )
+            assert (decision.inputs, decision.outputs) == (binding.inputs, binding.outputs)
+
+
+def test_forward_references_are_typed(model: seams.Model):
+    for c in model.architecture.containers():
+        assert all(p is model.processes.by_iri(p.iri) for p in c.executes)
+    for t in model.lifecycles.transitions():
+        assert all(isinstance(e, seams.ProcessElement) and e.fires is t for e in t.fired_by)
+
+
+def test_chat_interfaces_and_process(chat: seams.Model):
+    i = chat.interfaces
+    landmark = i.landmark()
+    assert landmark.iri == URIRef(C + "chat_page") and landmark.path == "/"
+    assert i.served_pages() == (landmark,)
+    assert not landmark.hosts_task_form
+    ifml = i.models().only()
+    assert ifml.pages() == (landmark,)
+    assert ifml.presented_by is chat.architecture.containers().by_iri(":chat_ui")
+    assert [c.kind for c in landmark.components()] == ["List", "Details", "Form"]
+    form = landmark.components().by_iri(":compose_form")
+    assert form.writes.only() is chat.shapes.by_iri(":MessageShape")
+    assert form.parameters() == ("message input",)
+    assert form.page is landmark and not form.completes
+    send = form.events().only()
+    process = chat.processes.only()
+    assert send.triggers is process and send.trigger == "submit"
+    assert send.submits_to is chat.operations.by_iri(":send_message_op")
+    assert send.navigates_to is None
+    assert send.updates.only().iri == URIRef(C + "message_thread")
+    assert process.triggered_by.only() is send
+    thread = landmark.components().by_iri(":message_thread")
+    assert [s.label for s in thread.visible_when] == ["complete", "composing", "sending", "streaming"]
+    assert process.bpmn_process_ids == ("send_message_process",)
+    assert not process.channel_starts
+
+
+def test_chat_route_to_provider_decision(chat: seams.Model):
+    task = chat.processes.element("route_to_provider").only()
+    assert task.kind == "BusinessRuleTask"
+    decision = task.decided_by
+    assert decision is not None and decision is chat.decisions.only()
+    binding = ModelGraph(CHAT).decision_binding("route_to_provider")
+    assert decision.decision_id == binding.decision_id == "routing_decision"
+    assert [b.variable for b in decision.inputs] == ["message_length", "message_role"]
+    assert decision.outputs[0].process_variable == "provider"
+    assert decision.reads.only() is chat.shapes.by_iri(":MessageShape")
+    persist = chat.processes.element("persist_user_msg").only()
+    assert persist.invokes is chat.operations.by_iri(":send_message_op")
+    assert persist.fires is chat.lifecycles.transitions().by_iri(":t_send")
+    assert chat.processes.element("stream_complete_event").only().publishes_to.only() is chat.channels.only()
+
+
+def test_ch08_two_processes_two_bpmn_models(ch08: seams.Model):
+    procs = ch08.processes
+    assert procs.iris() == (URIRef(X + "approval_process"), URIRef(X + "payout_process"))
+    assert procs.all() == tuple(procs)
+    approval = procs.for_bpmn_process("approval_process").only()
+    payout = procs.for_bpmn_process("payout_process").only()
+    assert approval.bpmn_model == URIRef(X + "approval_bpmn") and approval.bpmn_path.name == "approval.bpmn"
+    assert payout.bpmn_model == URIRef(X + "payout_bpmn") and payout.bpmn_path.name == "payout.bpmn"
+    assert approval.triggered_by.only().iri == URIRef(X + "submit_expense")
+    assert not payout.triggered_by
+    start = payout.channel_starts.only()
+    assert isinstance(start.channel, seams.Channel) and start.channel is ch08.channels.only()
+    assert start.event.bpmn_id == "payout_requested" and start.event.kind == "MessageCatchEvent"
+    assert start.event.subscribes_to.only() is start.channel
+    assert not approval.channel_starts
+    with pytest.raises(ResolutionError) as none:
+        procs.for_bpmn_process("no_such_process").only()
+    assert (none.value.subject, none.value.predicate) == (str(ch08.subject), str(SEAM.detailedBy))
+    assert ch08.processes.element("send_now").only().fires is ch08.lifecycles.transitions().by_iri(":t_send")
+
+
+def test_ch08_served_pages_and_task_forms(ch08: seams.Model):
+    i = ch08.interfaces
+    assert i.served_pages().iris() == (URIRef(X + "expenses_page"), URIRef(X + "payouts_page"))
+    approvals = i.pages().by_iri(":approvals_page")
+    assert approvals.hosts_task_form and approvals.path == "/approvals"
+    assert approvals not in i.served_pages()
+    task = ch08.processes.element("approve_expense").only()
+    assert task.kind == "UserTask"
+    form = task.completed_on
+    assert isinstance(form, seams.Component) and form.kind == "Form"
+    assert form.page is approvals and form.completes.only() is task
+    assert [c.iri for c in i.models().by_iri(":finance_console").pages()] == [URIRef(X + "payouts_page")]
+    assert i.models().by_iri(":finance_console").presented_by is ch08.architecture.containers().by_iri(
+        ":employee_portal"
+    )
+    governed = ch08.policies.by_iri(":manager_approval_policy").governs.only()
+    assert governed is task
+
+
+def test_ch08_decisions(ch08: seams.Model):
+    assert ch08.decisions.iris() == (URIRef(X + "approval_routing"), URIRef(X + "payout_method"))
+    payout = ch08.decisions.by_iri(":payout_method")
+    assert payout.dmn_path.name == "payout.dmn"
+    assert payout.decides_for.only() is ch08.processes.element("choose_payout").only()
+    assert payout.inputs[0].type_ref == "number"
+
+
+# ── broken graphs (T02) ──
+
+
+def test_second_landmark_names_is_landmark(chat: seams.Model):
+    ds = _copy(chat)
+    ds.add((URIRef(C + "other_page"), RDF.type, IFML.ViewContainer))
+    ds.add((URIRef(C + "other_page"), IFML.isLandmark, Literal(True)))
+    broken = seams.Model(CHAT, ds)
+    with pytest.raises(ResolutionError) as err:
+        broken.interfaces.landmark()
+    assert (err.value.subject, err.value.predicate) == (str(broken.subject), str(IFML.isLandmark))
+    assert "expected one ifml:ViewContainer with ifml:isLandmark true" in err.value.detail
+    assert "other_page" in err.value.detail
+    with pytest.raises(ResolutionError):
+        broken.interfaces.served_pages()
+
+
+def test_no_landmark_raises(chat: seams.Model):
+    ds = _copy(chat)
+    ds.remove((None, IFML.isLandmark, None))
+    broken = seams.Model(CHAT, ds)
+    with pytest.raises(ResolutionError) as err:
+        broken.interfaces.landmark()
+    assert err.value.predicate == str(IFML.isLandmark) and "found []" in err.value.detail
+
+
+def test_bpmn_id_in_two_models_is_ambiguous(ch08: seams.Model):
+    ds = _copy(ch08)
+    clash = URIRef(X + "payout_bpmn#persist_expense")
+    ds.add((clash, RDF.type, PROC.ServiceTask))
+    broken = seams.Model(ch08.path, ds)
+    found = broken.processes.element("persist_expense")
+    assert found.iris() == (URIRef(X + "approval_bpmn#persist_expense"), clash)
+    with pytest.raises(ResolutionError) as err:
+        found.only()
+    assert (err.value.subject, err.value.predicate) == (str(broken.subject), str(SEAM.detailedBy))
+    assert str(clash) in err.value.detail
+
+
+def test_process_without_bpmn_model_names_detailed_by(chat: seams.Model):
+    ds = _copy(chat)
+    process = URIRef(C + "send_message_process")
+    ds.remove((process, SEAM.detailedBy, None))
+    broken = seams.Model(CHAT, ds)
+    with pytest.raises(ResolutionError) as err:
+        _ = broken.processes.only().bpmn_model
+    assert (err.value.subject, err.value.predicate) == (str(process), str(SEAM.detailedBy))
+
+
+def test_unknown_decision_id_names_payload_element(chat: seams.Model):
+    ds = _copy(chat)
+    decision = URIRef(C + "routing_decision")
+    ds.remove((decision, seams.DEC.payloadElement, None))
+    ds.add((decision, seams.DEC.payloadElement, Literal("no_such_decision")))
+    broken = seams.Model(CHAT, ds)
+    with pytest.raises(ResolutionError) as err:
+        _ = broken.decisions.only().decision_id
+    assert (err.value.subject, err.value.predicate) == (str(decision), str(seams.DEC.payloadElement))
+    assert "no_such_decision" in err.value.detail
+
+
+def test_task_with_two_forms_raises(ch08: seams.Model):
+    ds = _copy(ch08)
+    task = URIRef(X + "approval_bpmn#approve_expense")
+    ds.add((task, SEAM.completedOn, URIRef(X + "payment_form")))
+    broken = seams.Model(ch08.path, ds)
+    with pytest.raises(ResolutionError) as err:
+        _ = broken.processes.element("approve_expense").only().completed_on
+    assert (err.value.subject, err.value.predicate) == (str(task), str(SEAM.completedOn))

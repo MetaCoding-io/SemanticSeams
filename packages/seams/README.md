@@ -68,6 +68,10 @@ op = model.operations.by_iri(":submit_expense_op")
 op.exposed_by.only() is api            # True: one object per IRI and model
 op.governed_by.only().permissions      # (Permission(target=…, action=odrl:use, …),)
 model.lifecycles.only()                # ResolutionError: two state machines
+model.interfaces.served_pages().iris() # (…expenses_page, …payouts_page)
+payout = model.processes.for_bpmn_process("payout_process").only()
+payout.channel_starts.only().channel   # Channel(iri=…payouts, …)
+model.processes.element("choose_payout").only().decided_by.decision_id  # "payout_method"
 ```
 
 - **`Many[T]`** is an immutable tuple, always built in a documented order
@@ -124,6 +128,48 @@ model.lifecycles.only()                # ResolutionError: two state machines
   `permissions` holds `Permission` tuples sorted as `ModelGraph.policy`
   sorts them. `governs` lists the operations and tasks that are
   `seam:governedBy` the policy.
+- **`model.interfaces`** (IFML) has `models()`, `pages()`, `landmark()`
+  and `served_pages()`.
+  - `landmark()` is the one page with `ifml:isLandmark true`. Zero or
+    several raise `ResolutionError(model, ifml:isLandmark, "expected one
+    ifml:ViewContainer with ifml:isLandmark true, found [...]")`.
+  - `served_pages()` lists the pages the generated app serves at their
+    `ifml:path`: the landmark first, then by IRI every other page with a
+    path that does not host a task form.
+  - `InteractionModel` has `pages()` and `presented_by` (the `Container`
+    that `seam:presents` it).
+  - `Page` has `path`, `is_landmark`, `interaction_model`, `components()`
+    (by `ifml:order`, then IRI) and `hosts_task_form` (a part it contains
+    is the form a user task is `seam:completedOn`, ADR-0009).
+  - `Component` has `kind` (`Form`, `Details`, `List`, `ViewComponent`),
+    `page`, `reads`, `writes`, `parameters()` (labels), `events()`,
+    `visible_when` (the lifecycle `State`s it renders in) and `completes`
+    (the user tasks completed on the form).
+  - `Event` has `trigger`, `component`, `triggers` (a `Process`),
+    `submits_to` (an `Operation`), `navigates_to` (a `Page`) and `updates`
+    (the components its navigation flows swap).
+- **`model.processes`**: one `Process` per `proc:Process`, by IRI.
+  - `Process` has `bpmn_model` (the model it is `seam:detailedBy`),
+    `bpmn_path`, `bpmn_process_ids` (read from the BPMN XML),
+    `executed_by`, `triggered_by`, `correlation_key`, `channel_starts`
+    (each `MessageStart`: a message start event and the `Channel` it
+    `seam:subscribesTo`), `elements()` and `element_iri(bpmn_id)`.
+  - A `ProcessElement` is a task or event whose IRI is
+    `<bpmn_model>#<bpmn id>`. It has `bpmn_id`, `kind` (`UserTask`,
+    `ServiceTask`, ...), `process`, `invokes`, `reads`, `writes`, `fires`,
+    `decided_by`, `completed_on` (a `Component`), `publishes_to` and
+    `subscribes_to`.
+  - `model.processes.for_bpmn_process(pid)` lists the processes whose BPMN
+    file declares `bpmn:process` `pid`. `model.processes.element(bpmn_id)`
+    lists the elements with that id across every BPMN model. Call
+    `.only()` on either; an id used in two BPMN models raises.
+  - Element ids are listed as the graph states them, not in flow order.
+    S04 adds the flow order read from the BPMN XML.
+- **`model.decisions`**: each `dec:Decision` a task is `seam:decidedBy`.
+  It has `decision_id`, `dmn_model`, `dmn_path`, `inputs` and `outputs`
+  (`InputBinding` and `OutputBinding`, as `ModelGraph.decision_binding`
+  returns them), `reads` and `decides_for`. S04 adds the DMN table
+  (hit policy and rules).
 
 Single-valued edges (`accepts`, `lifecycle`, `shape`) return None when the
 fact is absent. When the graph states the fact twice, they raise

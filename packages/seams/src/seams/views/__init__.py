@@ -12,12 +12,15 @@ from typing import TYPE_CHECKING
 
 from rdflib.namespace import SH
 
-from ..namespaces import COMM, HYDRA, ODRL, STATE
+from ..namespaces import COMM, HYDRA, ODRL, PROC, STATE
 from ._base import Element, HasIri, Many, Views
 from .architecture import Architecture, Container, DeploymentNode, Environment, System
+from .decisions import Decision, all_decisions
+from .interfaces import Component, Event, InteractionModel, Interfaces, Page
 from .lifecycles import Lifecycle, Lifecycles, State, Transition
 from .operations import Channel, Operation, PathTemplate
 from .policies import Policy
+from .processes import MessageStart, Process, ProcessElement, Processes
 from .shapes import Field, Shape
 
 if TYPE_CHECKING:
@@ -26,18 +29,28 @@ if TYPE_CHECKING:
 __all__ = [
     "Architecture",
     "Channel",
+    "Component",
     "Container",
+    "Decision",
     "DeploymentNode",
     "Element",
     "Environment",
+    "Event",
     "Field",
     "HasIri",
+    "InteractionModel",
+    "Interfaces",
     "Lifecycle",
     "Lifecycles",
     "Many",
+    "MessageStart",
     "Operation",
+    "Page",
     "PathTemplate",
     "Policy",
+    "Process",
+    "ProcessElement",
+    "Processes",
     "Shape",
     "State",
     "System",
@@ -45,9 +58,12 @@ __all__ = [
     "Views",
     "architecture",
     "channels",
+    "decisions",
+    "interfaces",
     "lifecycles",
     "operations",
     "policies",
+    "processes",
     "shapes",
 ]
 
@@ -85,3 +101,23 @@ def lifecycles(model: Model) -> Lifecycles:
 def policies(model: Model) -> Many[Policy]:
     views = model.views
     return views.view("policies", lambda: views.all(Policy, ODRL.Policy))
+
+
+def interfaces(model: Model) -> Interfaces:
+    views = model.views
+    return views.view("interfaces", lambda: Interfaces(views))
+
+
+def processes(model: Model) -> Processes:
+    views = model.views
+
+    def build() -> Processes:
+        found = views.all(Process, PROC.Process)
+        return Processes(found, found.subject, found.predicate, model.curie)
+
+    return views.view("processes", build)
+
+
+def decisions(model: Model) -> Many[Decision]:
+    views = model.views
+    return views.view("decisions", lambda: all_decisions(views))

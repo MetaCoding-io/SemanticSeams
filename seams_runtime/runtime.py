@@ -50,7 +50,7 @@ from .errors import ModelHashMismatch, PolicyDenied, ResolutionError, TaskNotOpe
 from .fragments import FragmentRenderer, flatten
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient
-from .model import IFML, SEAM, ModelGraph, local_name
+from .model import ModelGraph, local_name
 from .policy import Identity, PolicyHook, authenticator_from_env
 from .store import Store
 from .worker import RUNNING, Instance, Worker, new_state
@@ -163,7 +163,7 @@ class Runtime:
             payload = {**dict(_items(payload)), "id": entity_id}
         data = dict(_validate(self.model, shape, payload))
         status = None
-        if (shape, SEAM.lifecycle, None) in self.model.ds:
+        if self.model.has_lifecycle(shape):
             status = data.get("status") or self.model.lifecycle_for(shape).initial
             data["status"] = status
         entity = self.store.put_entity(entity_id, shape, data, status=status)
@@ -188,7 +188,7 @@ class Runtime:
         wf = self.engine.new_workflow(process)
         state = new_state(process, correlation_key)
         state["current"][str(shape)] = {"id": None, "data": dict(message)}
-        if (shape, SEAM.lifecycle, None) in self.model.ds:
+        if self.model.has_lifecycle(shape):
             status = message.get("status") or self.model.lifecycle_for(shape).initial
             state["status"][str(shape)] = status
             state["history"][str(shape)] = [status]
@@ -314,9 +314,7 @@ class Runtime:
                     "correlation_key": row["correlation_key"],
                     "form": str(form),
                     "partial": f"{local_name(form)}.html",
-                    "screen": None
-                    if screen is None or (screen, IFML.path, None) not in self.model.ds
-                    else self.model.page_path(screen),
+                    "screen": None if screen is None else self.model.page(screen).path,
                     "entity": self._task_entity(task, row),
                     "created": row["created"],
                 }
@@ -420,9 +418,9 @@ class Runtime:
         keys = self.model.correlation_key_labels()
         blocks = []
         for component in self.model.page_components(page):
-            shape = self.model.ds.value(component, SEAM.reads)
-            if shape is not None:
-                blocks.append((component, shape, sorted(keys & self.model.parameter_labels(component))))
+            reads = self.model.component(component).reads
+            if reads:
+                blocks.append((component, reads[0].iri, sorted(keys & self.model.parameter_labels(component))))
         ctx: dict = {}
         ids = []
         for component, shape, scope in blocks:

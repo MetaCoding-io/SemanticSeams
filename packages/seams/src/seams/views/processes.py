@@ -72,9 +72,14 @@ class Process(Element):
     """A proc:Process."""
 
     @property
+    def bpmn_models(self) -> tuple[URIRef, ...]:
+        """Every seam:Model it is seam:detailedBy, by IRI (a well-formed process has one)."""
+        return tuple(self._objects(SEAM.detailedBy))
+
+    @property
     def bpmn_model(self) -> URIRef:
         """The BPMN seam:Model it is seam:detailedBy (exactly one)."""
-        found = self._objects(SEAM.detailedBy)
+        found = self.bpmn_models
         if len(found) != 1:
             raise ResolutionError(
                 self.iri, SEAM.detailedBy, f"expected one BPMN model, found {[str(m) for m in found]}"
@@ -110,6 +115,11 @@ class Process(Element):
         """The label of its proc:correlationKey parameter, or None."""
         param = self._value(PROC.correlationKey)
         return None if param is None else self.views.model.label(param)
+
+    @property
+    def correlation_parameters(self) -> tuple[URIRef, ...]:
+        """Every proc:correlationKey parameter it names, by IRI (a process has at most one)."""
+        return tuple(self._objects(PROC.correlationKey))
 
     @property
     def correlation_parameter(self) -> URIRef | None:

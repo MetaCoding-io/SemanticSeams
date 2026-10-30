@@ -19,19 +19,27 @@ BPMN models; an id in two of them raises) and ``landmark_page`` is
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from rdflib import RDF, RDFS, Dataset, Graph, Literal, URIRef
+from rdflib import RDF, Dataset, Graph, URIRef
 from rdflib.namespace import SH
-from rdflib.term import Node
 
 from ._xml import elements as _elements
 from ._xml import localname as _localname
 from .errors import ResolutionError
-from .loader import Model, payload_path
-from .namespaces import COMM, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, local_name
+from .loader import Model
+from .namespaces import COMM, DEPLOY, IFML, PROC, SEAM, STATE
+
+if TYPE_CHECKING:
+    # The views import this module (for the resolver results), so they are
+    # imported lazily inside the resolvers.
+    from .views.interfaces import Component, Page
+    from .views.operations import Channel as ChannelView
+    from .views.operations import Operation
+    from .views.processes import Process, ProcessElement
+    from .views.shapes import Shape
 
 # ── resolver results ────────────────────────────────────────────────────────
 
@@ -123,6 +131,7 @@ class Lifecycle:
     iri: URIRef
     initial: str
     states: dict[URIRef, str]  # state IRI -> label
+    transitions: frozenset[URIRef] = field(default_factory=frozenset[URIRef])  # its state:hasTransition
 
 
 @dataclass(frozen=True)
@@ -140,25 +149,16 @@ class PolicyFacts:
     permissions: tuple[Permission, ...]
 
 
-def _iri(node: Node) -> URIRef:
-    """A graph term the model writes as an IRI (typing only; no conversion)."""
-    return cast(URIRef, node)
-
-
-def _opt_iri(node: Node | None) -> URIRef | None:
-    return None if node is None else cast(URIRef, node)
-
-
-def _iris(nodes: Any) -> list[URIRef]:
-    """Distinct terms, sorted (typing only; no conversion)."""
-    return sorted(set(cast("list[URIRef]", nodes)))
-
-
 # ── the graph ───────────────────────────────────────────────────────────────
 
 
 class ModelGraph(Model):
-    """A loaded seams model plus the resolvers the worker and generators dispatch on."""
+    """A loaded seams model plus the resolvers the worker and generators dispatch on.
+
+    A facade over the views: every resolver below reads the graph through
+    ``model.processes``, ``model.operations``, ``model.lifecycles`` and the
+    other views, and turns a missing hop into ``ResolutionError`` naming the
+    subject IRI and the predicate it could not follow."""
 
     def __init__(self, trig_path: str | os.PathLike[str], dataset: Dataset | None = None) -> None:
         super().__init__(trig_path, dataset)
@@ -169,13 +169,45 @@ class ModelGraph(Model):
     def load(cls, trig_path: str | os.PathLike[str]) -> ModelGraph:
         return cls(trig_path)
 
-    # ── term helpers ──
+    # ── view elements by IRI (interned; any IRI, typed or not) ──
 
-    def _one(self, subject: Node, predicate: Node, detail: str = "") -> Node:
-        value = self.ds.value(subject, predicate)
-        if value is None:
-            raise ResolutionError(subject, predicate, detail)
-        return value
+    def task_element(self, task: object) -> ProcessElement:
+        """The ``ProcessElement`` view of a BPMN element (bpmn id, CURIE or IRI)."""
+        from .views.processes import ProcessElement
+
+        return self.views.intern(ProcessElement, self._task(task))
+
+    def shape(self, shape: object) -> Shape:
+        """The ``Shape`` view of ``shape`` (CURIE or IRI)."""
+        from .views.shapes import Shape
+
+        return self.views.intern(Shape, self.curie(shape))
+
+    def page(self, page: object) -> Page:
+        """The ``Page`` view of ``page`` (CURIE or IRI)."""
+        from .views.interfaces import Page
+
+        return self.views.intern(Page, self.curie(page))
+
+    def component(self, component: object) -> Component:
+        """The ``Component`` view of ``component`` (CURIE or IRI)."""
+        from .views.interfaces import Component
+
+        return self.views.intern(Component, self.curie(component))
+
+    def _operation(self, operation: object) -> Operation:
+        from .views.operations import Operation
+
+        return self.views.intern(Operation, self.curie(operation))
+
+    def _process(self, process: object) -> Process:
+        """The typed proc:Process ``process``; anything else raises
+        ``ResolutionError(iri, rdf:type)``."""
+        iri = self.curie(process)
+        found = self.processes.where(lambda p: p.iri == iri)
+        if not found:
+            raise ResolutionError(iri, RDF.type, "not a proc:Process")
+        return found[0]
 
     # ── BPMN element IRIs ──
 
@@ -189,11 +221,7 @@ class ModelGraph(Model):
         lifted = processes.element(bpmn_id)
         if lifted:
             return lifted.only().iri
-        holders = [
-            p
-            for p in processes
-            if len(set(self.ds.objects(p.iri, SEAM.detailedBy))) == 1 and bpmn_id in self._bpmn_ids(p.bpmn_path)
-        ]
+        holders = [p for p in processes if len(p.bpmn_models) == 1 and bpmn_id in self._bpmn_ids(p.bpmn_path)]
         if len(holders) != 1:
             raise ResolutionError(
                 self.subject,
@@ -216,48 +244,62 @@ class ModelGraph(Model):
     # ── task facts ──
 
     def invoked_operation(self, task: object) -> URIRef:
-        return _iri(self._one(self._task(task), SEAM.invokes, "task invokes no operation"))
+        element = self.task_element(task)
+        op = element.invokes
+        if op is None:
+            raise ResolutionError(element.iri, SEAM.invokes, "task invokes no operation")
+        return op.iri
 
     def fired_transition(self, task: object) -> Transition:
-        t = self._one(self._task(task), SEAM.fires, "task fires no transition")
-        return self._transition(t)
+        element = self.task_element(task)
+        t = element.fires
+        if t is None:
+            raise ResolutionError(element.iri, SEAM.fires, "task fires no transition")
+        return self._transition(t.iri)
 
-    def _transition(self, t: Node) -> Transition:
-        src = self._one(t, STATE["from"])
-        dst = self._one(t, STATE.to)
-        trigger = self.ds.value(t, STATE.trigger)
-        return Transition(_iri(t), self.label(src), self.label(dst), None if trigger is None else str(trigger))
+    def _transition(self, transition: object) -> Transition:
+        """The (iri, from label, to label, trigger) of a state:Transition; a
+        missing state:from or state:to raises ``ResolutionError(transition, predicate)``."""
+        from .views.lifecycles import Transition as TransitionView
+
+        t = self.views.intern(TransitionView, self.curie(transition))
+        return Transition(t.iri, t.from_state.label, t.to_state.label, t.trigger)
 
     def transitions_from(self, state_label: str, trigger: str | None = None) -> list[Transition]:
         """Transitions leaving the state labelled ``state_label`` (and with the
         given state:trigger, if any), sorted by IRI."""
+        from .views.lifecycles import Transition as TransitionView
+
         out: list[Transition] = []
-        for t in _iris(self.ds.subjects(RDF.type, STATE.Transition)):
-            src = self.ds.value(t, STATE["from"])
-            if src is None or self.label(src) != state_label:
+        for t in self.views.all(TransitionView, STATE.Transition):
+            if not t.from_states or t.from_states[0].label != state_label:
                 continue
-            tr = self._transition(t)
+            tr = self._transition(t.iri)
             if trigger is None or tr.trigger == trigger:
                 out.append(tr)
         return out
 
     def read_shapes(self, task: object) -> list[URIRef]:
-        return _iris(self.ds.objects(self._task(task), SEAM.reads))
+        return list(self.task_element(task).reads.iris())
 
     def written_shapes(self, task: object) -> list[URIRef]:
-        return _iris(self.ds.objects(self._task(task), SEAM.writes))
+        return list(self.task_element(task).writes.iris())
 
     # ── user tasks (ADR-0009) ──
 
     def user_task_form(self, task: object) -> URIRef:
         """The ifml:Form a user task is seam:completedOn."""
-        return _iri(self._one(self._task(task), SEAM.completedOn, "user task names no form it is completed on"))
+        element = self.task_element(task)
+        form = element.completed_on
+        if form is None:
+            raise ResolutionError(element.iri, SEAM.completedOn, "user task names no form it is completed on")
+        return form.iri
 
     def task_output_shape(self, task: object) -> URIRef:
         """The shape completing a user task writes: its form's seam:writes,
         else the task's own seam:writes (there must be exactly one)."""
         iri = self._task(task)
-        shapes = _iris(self.ds.objects(self.user_task_form(iri), SEAM.writes))
+        shapes = list(self.component(self.user_task_form(iri)).writes.iris())
         if not shapes:
             shapes = self.written_shapes(iri)
         if len(shapes) != 1:
@@ -268,64 +310,27 @@ class ModelGraph(Model):
 
     def form_screen(self, form: object) -> URIRef | None:
         """The ifml:ViewContainer that ifml:contains ``form``, or None."""
-        pages = sorted(
-            _iri(p)
-            for p in self.ds.subjects(IFML.contains, self.curie(form))
-            if (p, RDF.type, IFML.ViewContainer) in self.ds
-        )
-        return pages[0] if pages else None
+        screens = self.component(form).screens
+        return screens[0].iri if screens else None
 
     # ── decisions ──
 
     def decision_binding(self, task: object) -> DecisionBinding:
         """task -seam:decidedBy-> decision -dec:payloadElement-> DMN decision id;
-        decision -seam:inModel-> model -seam:renderPayload-> DMN file."""
-        iri = self._task(task)
-        decision = _iri(self._one(iri, SEAM.decidedBy, "business-rule task has no decision"))
-        element = self._one(decision, DEC.payloadElement, f"via {iri}")
-        model = _iri(self._one(decision, SEAM.inModel, f"via {iri}"))
-        payload = self._one(model, SEAM.renderPayload, f"via {iri}")
-        dmn_path = payload_path(payload, self.base_dir)
-        if not dmn_path.is_file():
-            raise ResolutionError(model, SEAM.renderPayload, f"payload {dmn_path} not found, via {iri}")
-        decision_id = str(element)
-        ids = dmn_decision_ids(dmn_path)
-        if decision_id not in ids:
-            raise ResolutionError(
-                decision,
-                DEC.payloadElement,
-                f"{decision_id!r} not among DMN decision ids {ids} in {dmn_path.name}, via {iri}",
-            )
-        inputs: list[InputBinding] = []
-        types = dmn_input_types(dmn_path, decision_id)
-        for node in self.ds.objects(decision, DEC.input):
-            path = _iri(self._one(node, DEC.fromPath, f"input of {decision}"))
-            variable = str(self._one(node, DEC.variable, f"input of {decision}"))
-            inputs.append(
-                InputBinding(
-                    variable=variable,
-                    from_path=local_name(path),
-                    from_path_iri=path,
-                    measure=_opt_iri(self.ds.value(node, DEC.measure)),
-                    type_ref=types.get(variable),
-                )
-            )
-        outputs: list[OutputBinding] = []
-        for node in self.ds.objects(decision, DEC.output):
-            outputs.append(
-                OutputBinding(
-                    variable=str(self._one(node, DEC.variable, f"output of {decision}")),
-                    process_variable=str(self._one(node, DEC.processVariable, f"output of {decision}")),
-                )
-            )
+        decision -seam:inModel-> model -seam:renderPayload-> DMN file
+        (``model.decisions``)."""
+        element = self.task_element(task)
+        decision = element.decided_by
+        if decision is None:
+            raise ResolutionError(element.iri, SEAM.decidedBy, "business-rule task has no decision")
         return DecisionBinding(
-            iri,
-            decision,
-            model,
-            dmn_path,
-            decision_id,
-            tuple(sorted(inputs, key=lambda b: b.variable)),
-            tuple(sorted(outputs, key=lambda b: b.variable)),
+            element.iri,
+            decision.iri,
+            decision.dmn_model,
+            decision.dmn_path,
+            decision.decision_id,
+            decision.inputs,
+            decision.outputs,
         )
 
     # ── operations, containers, channels ──
@@ -334,101 +339,91 @@ class ModelGraph(Model):
         """The container that seam:exposes the operation. ``in_process`` is
         True when it also seam:executes ``process`` (or any process, when no
         process is given)."""
-        op = self.curie(operation)
-        containers = _iris(self.ds.subjects(SEAM.exposes, op))
+        op = self._operation(operation)
+        containers = op.exposed_by
         if not containers:
-            raise ResolutionError(op, SEAM.exposes, "no container exposes this operation")
+            raise ResolutionError(op.iri, SEAM.exposes, "no container exposes this operation")
         if len(containers) > 1:
             raise ResolutionError(
-                op,
+                op.iri,
                 SEAM.exposes,
-                f"ambiguous: exposed by {[str(c) for c in containers]}",
+                f"ambiguous: exposed by {[str(c) for c in containers.iris()]}",
             )
         c = containers[0]
-        if process is None:
-            in_process = (c, SEAM.executes, None) in self.ds
-        else:
-            in_process = (c, SEAM.executes, self.curie(process)) in self.ds
-        return Container(c, self.label(c), in_process)
+        executes = c.executes.iris()
+        in_process = bool(executes) if process is None else self.curie(process) in executes
+        return Container(c.iri, c.label, in_process)
 
     def operation_path(self, operation: object) -> OperationPath:
-        op = self.curie(operation)
-        tpl_node = self._one(op, COMM.path, "operation has no comm:path")
-        template = self._one(tpl_node, HYDRA.template, f"comm:path of {op}")
-        mappings: list[PathMapping] = []
-        for m in self.ds.objects(tpl_node, HYDRA.mapping):
-            prop = _iri(self._one(m, HYDRA.property, f"mapping of {op}"))
-            mappings.append(
-                PathMapping(
-                    str(self._one(m, HYDRA.variable, f"mapping of {op}")),
-                    local_name(prop),
-                    prop,
-                )
-            )
-        return OperationPath(op, str(template), tuple(sorted(mappings, key=lambda m: m.variable)))
+        op = self._operation(operation)
+        path = op.path
+        if path is None:
+            raise ResolutionError(op.iri, COMM.path, "operation has no comm:path")
+        return OperationPath(op.iri, path.template, path.mappings)
+
+    def _channel(self, channel: ChannelView, via: URIRef) -> ChannelBinding:
+        event = channel.event_name
+        if event is None:
+            raise ResolutionError(channel.iri, COMM.eventName, f"channel of {via}")
+        return ChannelBinding(channel.iri, channel.label, event)
 
     def channel_for_event(self, task: object) -> ChannelBinding:
-        iri = self._task(task)
-        for ch in _iris(self.ds.objects(iri, SEAM.publishesTo)):
-            if (ch, RDF.type, COMM.Channel) in self.ds:
-                event = self._one(ch, COMM.eventName, f"channel of {iri}")
-                return ChannelBinding(ch, self.label(ch), str(event))
-        raise ResolutionError(iri, SEAM.publishesTo, "no comm:Channel target")
+        element = self.task_element(task)
+        typed = self.channels
+        for ch in element.publishes_to:
+            if ch in typed:
+                return self._channel(ch, element.iri)
+        raise ResolutionError(element.iri, SEAM.publishesTo, "no comm:Channel target")
 
     # ── processes, lifecycles, policies, shapes ──
 
     def process_for(self, curie: object) -> ProcessFacts:
-        iri = self.curie(curie)
-        if (iri, RDF.type, PROC.Process) not in self.ds:
-            raise ResolutionError(iri, RDF.type, "not a proc:Process")
-        model = _iri(self._one(iri, SEAM.detailedBy, "process has no BPMN model"))
-        return ProcessFacts(iri, self.label(iri), model, self.payload_path(model))
+        process = self._process(curie)
+        if not process.bpmn_models:
+            raise ResolutionError(process.iri, SEAM.detailedBy, "process has no BPMN model")
+        return ProcessFacts(process.iri, process.label, process.bpmn_model, process.bpmn_path)
 
     def executing_container(self, process: object) -> Container:
         """The single container that seam:executes the process (in-process)."""
+        from .views.processes import Process
+
         iri = self.curie(process)
-        containers = _iris(self.ds.subjects(SEAM.executes, iri))
+        containers = self.views.intern(Process, iri).executed_by
         if len(containers) != 1:
             raise ResolutionError(
-                iri, SEAM.executes, f"expected one executing container, found {[str(c) for c in containers]}"
+                iri, SEAM.executes, f"expected one executing container, found {[str(c) for c in containers.iris()]}"
             )
-        return Container(containers[0], self.label(containers[0]), True)
+        return Container(containers[0].iri, containers[0].label, True)
 
     def triggering_operation(self, process: object) -> URIRef:
         """The operation that the event which seam:triggers the process
         seam:submitsTo."""
+        from .views.processes import Process
+
         iri = self.curie(process)
-        ops = _iris(op for ev in self.ds.subjects(SEAM.triggers, iri) for op in self.ds.objects(ev, SEAM.submitsTo))
+        ops = self.views.intern(Process, iri).triggering_operations
         if len(ops) != 1:
             raise ResolutionError(
                 iri,
                 SEAM.triggers,
-                f"expected one triggering event submitting to one operation, found {[str(o) for o in ops]}",
+                f"expected one triggering event submitting to one operation, found {[str(o) for o in ops.iris()]}",
             )
-        return ops[0]
+        return ops[0].iri
 
     # ── channel-started processes (ADR-0010) ──
 
     def _start_subscriptions(self, process: object) -> list[ChannelStart]:
         """(start event, channel) for each proc:MessageCatchEvent of the
         process's BPMN model that seam:subscribesTo a comm:Channel and is a
-        bpmn:startEvent of its payload, sorted by (event, channel)."""
+        bpmn:startEvent of its payload (``Process.channel_starts``), sorted
+        by (event, channel)."""
+        from .views.processes import Process
+
         iri = self.curie(process)
-        if (iri, SEAM.detailedBy, None) not in self.ds:
+        if not self.views.intern(Process, iri).bpmn_models:
             return []
-        facts = self.process_for(iri)
-        prefix = f"{facts.model}#"
-        starts = bpmn_start_event_ids(facts.bpmn_path)
-        found: set[tuple[URIRef, URIRef]] = set()
-        for el, ch in self.ds.subject_objects(SEAM.subscribesTo):
-            if (
-                str(el).startswith(prefix)
-                and (el, RDF.type, PROC.MessageCatchEvent) in self.ds
-                and (ch, RDF.type, COMM.Channel) in self.ds
-                and str(el)[len(prefix) :] in starts
-            ):
-                found.add((_iri(el), _iri(ch)))
-        return [ChannelStart(facts.iri, el, ch) for el, ch in sorted(found)]
+        p = self._process(iri)
+        return [ChannelStart(p.iri, s.event.iri, s.channel.iri) for s in p.channel_starts]
 
     def is_channel_started(self, process: object) -> bool:
         """True when the process has one channel start (``start_channel``),
@@ -459,50 +454,45 @@ class ModelGraph(Model):
         """The channel-started processes whose start event seam:subscribesTo
         ``channel``, sorted by IRI."""
         ch = self.curie(channel)
-        found: set[URIRef] = set()
-        for process in self.ds.subjects(RDF.type, PROC.Process):
-            if any(s.channel == ch for s in self._start_subscriptions(process)):
-                found.add(_iri(process))
-        return sorted(found)
+        return [p.iri for p in self.processes if any(s.channel == ch for s in self._start_subscriptions(p.iri))]
 
     def accepted_shape(self, operation: object) -> URIRef:
-        return _iri(self._one(self.curie(operation), SEAM.acceptsShape, "operation accepts no shape"))
+        op = self._operation(operation)
+        shape = op.accepts
+        if shape is None:
+            raise ResolutionError(op.iri, SEAM.acceptsShape, "operation accepts no shape")
+        return shape.iri
 
     def returned_shape(self, operation: object) -> URIRef:
-        return _iri(self._one(self.curie(operation), SEAM.returnsShape, "operation returns no shape"))
+        op = self._operation(operation)
+        shape = op.returns
+        if shape is None:
+            raise ResolutionError(op.iri, SEAM.returnsShape, "operation returns no shape")
+        return shape.iri
 
     def process_channel(self, process: object) -> ChannelBinding:
         """The comm:Channel that elements of the process's BPMN model
         seam:publishesTo (there must be exactly one)."""
         facts = self.process_for(process)
-        prefix = f"{facts.model}#"
-        channels = _iris(
-            ch
-            for el, ch in self.ds.subject_objects(SEAM.publishesTo)
-            if str(el).startswith(prefix) and (ch, RDF.type, COMM.Channel) in self.ds
-        )
+        typed = self.channels
+        found = {ch.iri: ch for el in self._process(facts.iri).elements() for ch in el.publishes_to if ch in typed}
+        channels = [found[i] for i in sorted(found)]
         if len(channels) != 1:
             raise ResolutionError(
                 facts.iri,
                 SEAM.publishesTo,
-                f"expected one channel published to by {prefix}*, found {[str(c) for c in channels]}",
+                f"expected one channel published to by {facts.model}#*, found {[str(c.iri) for c in channels]}",
             )
-        ch = channels[0]
-        event = self._one(ch, COMM.eventName, f"channel of {facts.iri}")
-        return ChannelBinding(ch, self.label(ch), str(event))
+        return self._channel(channels[0], facts.iri)
 
     def service_binding_key(self, container: object, service_of: object) -> str:
         """The deploy:key of ``container``'s deploy:binding whose
         deploy:serviceOf is ``service_of`` (e.g. LLM_GATEWAY_URL)."""
+        from .views.architecture import Container as ContainerView
+
         c, target = self.curie(container), self.curie(service_of)
-        keys = sorted(
-            {
-                str(self.ds.value(b, DEPLOY.key))
-                for cfg in self.ds.objects(c, DEPLOY.configuration)
-                for b in self.ds.objects(cfg, DEPLOY.binding)
-                if (b, DEPLOY.serviceOf, target) in self.ds and self.ds.value(b, DEPLOY.key) is not None
-            }
-        )
+        bindings = self.views.intern(ContainerView, c).service_bindings
+        keys = sorted(key for key, bound in bindings.items() if bound == target)
         if len(keys) != 1:
             raise ResolutionError(
                 c, DEPLOY.binding, f"expected one deploy:binding with deploy:serviceOf {target}, found {keys}"
@@ -511,12 +501,11 @@ class ModelGraph(Model):
 
     def lifecycle_shape(self, transition: object) -> URIRef:
         """The shape whose seam:lifecycle machine state:hasTransition ``transition``."""
+        from .views.lifecycles import Transition as TransitionView
+
         t = self.curie(transition)
-        shapes = _iris(
-            shape
-            for machine in self.ds.subjects(STATE.hasTransition, t)
-            for shape in self.ds.subjects(SEAM.lifecycle, machine)
-        )
+        view = self.views.intern(TransitionView, t)
+        shapes = sorted({s.iri for lc in view.lifecycles for s in lc.shapes})
         if len(shapes) != 1:
             raise ResolutionError(
                 t,
@@ -527,46 +516,51 @@ class ModelGraph(Model):
 
     def correlation_key_labels(self) -> set[str]:
         """rdfs:labels of every proc:correlationKey parameter in the model."""
-        return {str(self.label(p)) for p in self.ds.objects(None, PROC.correlationKey)}
+        return {self.label(param) for p in self.processes for param in p.correlation_parameters}
 
     def correlation_key(self, process: object) -> str:
+        from .views.processes import Process
+
         iri = self.curie(process)
-        param = self._one(iri, PROC.correlationKey)
-        label = self._one(param, RDFS.label, f"correlation key of {iri}")
-        return str(label)
+        params = self.views.intern(Process, iri).correlation_parameters
+        if not params:
+            raise ResolutionError(iri, PROC.correlationKey)
+        return self.label(params[0], strict=True)
+
+    def has_lifecycle(self, shape: object) -> bool:
+        """True when ``shape`` names a seam:lifecycle state machine."""
+        return self.shape(shape).lifecycle is not None
 
     def lifecycle_for(self, shape: object) -> Lifecycle:
-        iri = self.curie(shape)
-        machine = _iri(self._one(iri, SEAM.lifecycle, "shape has no lifecycle"))
-        initial = _iri(self._one(machine, STATE.initial, f"lifecycle of {iri}"))
-        states = {_iri(s): self.label(s) for s in self.ds.objects(machine, STATE.hasState)}
-        states.setdefault(initial, self.label(initial))
-        return Lifecycle(machine, self.label(initial), states)
+        """The seam:lifecycle machine of ``shape``: its IRI, initial state
+        label, state labels by IRI and its state:hasTransition transitions."""
+        view = self.shape(shape)
+        machine = view.lifecycle
+        if machine is None:
+            raise ResolutionError(view.iri, SEAM.lifecycle, "shape has no lifecycle")
+        initial = machine.initial
+        states = {s.iri: s.label for s in machine.states()}
+        return Lifecycle(machine.iri, initial.label, states, frozenset(machine.transitions().iris()))
+
+    def governing_policies(self, element: object) -> list[PolicyFacts]:
+        """The policies ``element`` (an operation, user task or event) is
+        seam:governedBy, by IRI; empty when it is ungoverned."""
+        iri = self.curie(element)
+        return [self.policy(p.iri) for p in self.policies if iri in p.governs.iris()]
 
     def policies_for(self, operation: object) -> list[PolicyFacts]:
-        op = self.curie(operation)
-        policies = _iris(self.ds.objects(op, SEAM.governedBy))
+        op = self._operation(operation)
+        policies = op.governed_by
         if not policies:
-            raise ResolutionError(op, SEAM.governedBy, "operation is not governed by a policy")
-        return [self.policy(p) for p in policies]
+            raise ResolutionError(op.iri, SEAM.governedBy, "operation is not governed by a policy")
+        return [self.policy(p.iri) for p in policies]
 
     def policy(self, policy: object) -> PolicyFacts:
         """Permissions of one odrl:Policy (target, action, assignee and its rdf:types)."""
-        p = self.curie(policy)
-        perms: list[Permission] = []
-        for node in self.ds.objects(p, ODRL.permission):
-            assignee = _opt_iri(self.ds.value(node, ODRL.assignee))
-            types = () if assignee is None else tuple(_iris(self.ds.objects(assignee, RDF.type)))
-            perms.append(
-                Permission(
-                    _opt_iri(self.ds.value(node, ODRL.target)),
-                    _opt_iri(self.ds.value(node, ODRL.action)),
-                    assignee,
-                    types,
-                )
-            )
-        perms.sort(key=lambda x: (str(x.target), str(x.action), str(x.assignee)))
-        return PolicyFacts(p, self.label(p), tuple(perms))
+        from .views.policies import Policy
+
+        p = self.views.intern(Policy, self.curie(policy))
+        return PolicyFacts(p.iri, p.label, p.permissions)
 
     # ── IFML pages ──
 
@@ -577,20 +571,23 @@ class ModelGraph(Model):
 
     def page_path(self, page: object) -> str:
         """The ifml:path a page is served at."""
-        return str(self._one(self.curie(page), IFML.path, "page has no ifml:path"))
+        view = self.page(page)
+        path = view.path
+        if path is None:
+            raise ResolutionError(view.iri, IFML.path, "page has no ifml:path")
+        return path
 
     def page_components(self, page: object) -> list[URIRef]:
         """The components a page ifml:contains, by ifml:order (then IRI)."""
-
-        def order(c: URIRef) -> tuple[int, str]:
-            value = self.ds.value(c, IFML.order)
-            return (int(cast(Literal, value)) if value is not None else 1 << 30, str(c))
-
-        return sorted(_iris(self.ds.objects(self.curie(page), IFML.contains)), key=order)
+        return list(self.page(page).components().iris())
 
     def parameter_labels(self, component: object) -> set[str]:
         """rdfs:labels of a component's ifml:hasParameter parameters."""
-        return {self.label(p) for p in self.ds.objects(self.curie(component), IFML.hasParameter)}
+        return set(self.component(component).parameters())
+
+    def rendered_components(self) -> list[URIRef]:
+        """The components an operation seam:rendersComponent (UI fragments), by IRI."""
+        return sorted({c.iri for op in self.operations for c in op.renders})
 
     def shape_graph(self) -> Graph:
         """The named graph(s) holding sh:NodeShape subjects (merged when several)."""

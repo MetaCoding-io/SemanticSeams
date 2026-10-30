@@ -19,7 +19,7 @@ class LifecycleGuard:
 
     def _transitions(self, shape):
         lifecycle = self.model.lifecycle_for(shape)
-        return lifecycle, set(self.model.ds.objects(lifecycle.iri, STATE.hasTransition))
+        return lifecycle, set(lifecycle.transitions)
 
     def check(self, shape, current_status, transition) -> Transition:
         """The transition, if it is enabled in ``current_status``; otherwise

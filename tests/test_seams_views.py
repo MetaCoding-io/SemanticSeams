@@ -799,3 +799,75 @@ def test_broken_deploy_facts_name_the_container(chat: seams.Model):
         assert (err.value.subject, err.value.predicate) == (str(subject), str(predicate))
     # an untyped arch:contains target is not a container of the system
     assert URIRef(C + "not_a_container") not in a.systems().only().containers.iris()
+
+
+# ── members ModelGraph's resolvers delegate to (M010/S05 T04) ──
+
+
+def test_lifecycle_shapes_and_transition_lifecycles(ch08: seams.Model):
+    t_schedule = ch08.lifecycles.transitions().by_iri(":t_schedule")
+    assert t_schedule.lifecycles.iris() == (URIRef(X + "payment_lifecycle"),)
+    assert t_schedule.from_states.iris() == (URIRef(X + "s_recorded"),)
+    payment = ch08.lifecycles.by_iri(":payment_lifecycle")
+    assert payment.shapes.iris() == (URIRef(X + "PaymentShape"),)
+    assert payment.shape is not None and payment.shape.iri == URIRef(X + "PaymentShape")
+
+
+def test_process_bpmn_models_and_correlation_parameters(ch08: seams.Model, chat: seams.Model):
+    approval = ch08.processes.by_iri(":approval_process")
+    assert approval.bpmn_models == (URIRef(X + "approval_bpmn"),)
+    assert approval.correlation_parameters == (URIRef(X + "expense"),)
+    send = chat.processes.by_iri(":send_message_process")
+    assert send.correlation_parameters == (URIRef(C + "conversation"),)
+
+
+def test_model_graph_facade_reads_through_views():
+    m = ModelGraph(CH08)
+    lc = m.lifecycle_for(":PaymentShape")
+    assert lc.iri == URIRef(X + "payment_lifecycle") and lc.initial == "recorded"
+    assert lc.transitions == frozenset(URIRef(X + t) for t in ("t_schedule", "t_batch", "t_send"))
+    assert m.has_lifecycle(":ExpenseShape") and not m.has_lifecycle(":ApprovalShape")
+    assert m.lifecycle_shape(":t_schedule") == URIRef(X + "PaymentShape")
+    element = m.task_element("approve_expense")
+    assert element is m.processes.element("approve_expense").only()
+    assert m.correlation_key_labels() == {"expense"}
+    rendered = m.rendered_components()
+    assert rendered and rendered == sorted({c.iri for op in m.operations for c in op.renders})
+    [policy] = m.governing_policies(element.iri)
+    assert policy.iri == URIRef(X + "manager_approval_policy")
+
+
+def test_governing_policies_of_a_governed_and_an_ungoverned_element():
+    m = ModelGraph(CHAT)
+    [policy] = m.governing_policies(":send_message_op")
+    assert policy.iri == URIRef(C + "user_send_policy")
+    assert m.governing_policies(":completion_op") == []
+
+
+def test_lifecycle_shape_owned_by_two_shapes_names_has_transition():
+    m = ModelGraph(CH08, _copy(seams.load(CH08)))
+    m.ds.add((URIRef(X + "ApprovalShape"), SEAM.lifecycle, URIRef(X + "payment_lifecycle")))
+    with pytest.raises(ResolutionError) as err:
+        m.lifecycle_shape(":t_schedule")
+    assert err.value.subject == X + "t_schedule"
+    assert err.value.predicate == str(STATE.hasTransition)
+
+
+def test_missing_correlation_key_names_the_process():
+    m = ModelGraph(CH08, _copy(seams.load(CH08)))
+    m.ds.remove((URIRef(X + "payout_process"), PROC.correlationKey, None))
+    with pytest.raises(ResolutionError) as err:
+        m.correlation_key(":payout_process")
+    assert err.value.subject == X + "payout_process"
+    assert err.value.predicate == str(PROC.correlationKey)
+
+
+def test_transitions_from_skips_a_transition_without_from_state():
+    m = ModelGraph(CH08, _copy(seams.load(CH08)))
+    assert [t.iri for t in m.transitions_from("scheduled")] == [URIRef(X + "t_batch"), URIRef(X + "t_send")]
+    m.ds.remove((URIRef(X + "t_batch"), STATE["from"], None))
+    assert [t.iri for t in m.transitions_from("scheduled")] == [URIRef(X + "t_send")]
+    with pytest.raises(ResolutionError) as err:
+        m._transition(":t_batch")  # pyright: ignore[reportPrivateUsage]
+    assert err.value.subject == X + "t_batch"
+    assert err.value.predicate == str(STATE["from"])

@@ -65,7 +65,14 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `OperationPath`, `ChannelBinding`, `ChannelStart`, `ProcessFacts`,
   `Lifecycle`, `PolicyFacts` and the rest), and `dmn_decision_ids`,
   `dmn_input_types` and `bpmn_start_event_ids` read the payload XML.
-  `ModelGraph` is **transitional**: the views below supersede it.
+  `ModelGraph` is a **transitional facade over the views**: every resolver
+  reads through `model.processes`, `operations`, `channels`, `lifecycles`,
+  `policies`, `interfaces`, `architecture`, `shapes` and `decisions` (only
+  `shape_graph()` copies triples, for SHACL). `task_element(task)`,
+  `shape(iri)`, `page(iri)` and `component(iri)` hand back the interned view
+  element, and `has_lifecycle(shape)`, `governing_policies(element)` and
+  `rendered_components()` answer the runtime's yes/no and list questions;
+  `Lifecycle.transitions` lists the machine's state:hasTransition IRIs.
   `seams_runtime` re-exports it unchanged. Three of its result types share a
   name with a view class (`Container`, `Lifecycle`, `Transition`): import
   those from `seams.graph` (or `seams_runtime.model`); the top-level names
@@ -115,11 +122,19 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   covers yet returns a plain `Element`.
 - **`model.architecture`** has `systems()`, `containers()`,
   `deployment_nodes()` and `environments()`.
-  - `System.containers`.
+  - `System.containers` (the `arch:Container`s it `arch:contains`).
   - `Container` has `technology`, `exposes` and `consumes` (a
     `Many[Operation | Channel]`), `executes`, `deployed_to`, `depends_on`
-    and `systems`. `service_bindings` is a read-only mapping from
-    `deploy:key` to `deploy:serviceOf`, sorted by key.
+    (C4 `arch:dependsOn`) and `systems`. `service_bindings` is a read-only
+    mapping from `deploy:key` to `deploy:serviceOf`, sorted by key.
+  - Its `deploy:` facts are frozen dataclasses: `artifact` (an `Artifact`
+    with `reference` and `version`, or None), `ports` (`Port`:
+    `container_port`, `published_port`), `volumes` (`Volume`: `name`,
+    `mount_path`), `healthcheck` (`Healthcheck`: `probe`, `interval`, or
+    None), `replicas`, `deploy_depends_on` (start order) and `bindings`
+    (`Binding`: `key`, `kinds`, `value`, `secret_ref`, `secret_name`,
+    `service_of`, by key). They sit on blank nodes, so a missing or
+    duplicated value raises `ResolutionError(container, predicate)`.
   - `DeploymentNode` has `hosts` and `environments`; `Environment` has
     `nodes`.
 - **`model.operations`** and **`model.channels`**:
@@ -141,10 +156,11 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   - `lifecycle`, `read_by` and `written_by`.
 - **`model.lifecycles`**: one `Lifecycle` per `state:StateMachine`.
   `model.lifecycles.transitions()` lists the transitions of all of them.
-  - `Lifecycle` has `initial`, `states()`, `finals()`, `transitions()` and
-    `shape`.
-  - `Transition` has `from_state`, `to_state` (`State` objects), `trigger`,
-    `lifecycle` and `fired_by`.
+  - `Lifecycle` has `initial`, `states()`, `finals()`, `transitions()`,
+    `shape` and `shapes` (every shape naming it, by IRI).
+  - `Transition` has `from_state`, `to_state` (`State` objects),
+    `from_states`, `trigger`, `lifecycle`, `lifecycles` (every machine that
+    `state:hasTransition` it) and `fired_by`.
 - **`model.policies`**: a `Policy` has `permissions` and `governs`.
   `permissions` holds `Permission` tuples sorted as `ModelGraph.policy`
   sorts them. `governs` lists the operations and tasks that are
@@ -186,13 +202,17 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     ifml:source)` when there is none or several.
 - **`model.processes`**: one `Process` per `proc:Process`, by IRI.
   - `Process` has `bpmn_model` (the model it is `seam:detailedBy`),
+    `bpmn_models` (all of them, by IRI),
     `bpmn_path`, `bpmn_process_ids` (read from the BPMN XML),
-    `executed_by`, `triggered_by`, `correlation_key`, `channel_starts`
+    `executed_by`, `triggered_by`, `triggering_operations` (the operations
+    its triggering events `seam:submitsTo`), `invoked_operations` (what it
+    or an element of its BPMN model `seam:invokes`), `correlation_key`,
+    `correlation_parameter`, `correlation_parameters`, `channel_starts`
     (each `MessageStart`: a message start event and the `Channel` it
     `seam:subscribesTo`), `elements()` and `element_iri(bpmn_id)`.
   - A `ProcessElement` is a task or event whose IRI is
     `<bpmn_model>#<bpmn id>`. It has `bpmn_id`, `kind` (`UserTask`,
-    `ServiceTask`, ...), `process`, `invokes`, `reads`, `writes`, `fires`,
+    `ServiceTask`, ...), `types` (its `proc:` classes), `process`, `invokes`, `reads`, `writes`, `fires`,
     `decided_by`, `completed_on` (a `Component`), `publishes_to` and
     `subscribes_to`.
   - `model.processes.for_bpmn_process(pid)` lists the processes whose BPMN

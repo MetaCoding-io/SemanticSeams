@@ -54,6 +54,12 @@ the namespaces and resolver results in `seams_runtime.model`. `RuntimeModelError
 alias of `seams.SeamsError`, so that one handler and the worker's `isinstance` checks
 also catch every `ResolutionError` a resolver raises.
 
+`ModelGraph` is a facade whose resolvers delegate to the seams views
+(`model.processes`, `operations`, `channels`, `lifecycles`, `policies`, `interfaces`,
+`architecture`, `shapes` and `decisions`, D036). The worker, runtime, fragment renderer,
+lifecycle guard and policy hook ask it, or the view elements it hands back
+(`task_element`, `shape`, `page`, `component`), and never read raw triples.
+
 ## Host
 
 `python -m seams_runtime.host --routes /app/chat_api.py --host 0.0.0.0 --port 8000`

@@ -42,9 +42,14 @@ class Lifecycle(Element):
     @property
     def shape(self) -> Shape | None:
         """The shape that names it with seam:lifecycle."""
+        return optional(self.shapes)
+
+    @property
+    def shapes(self) -> Many[Shape]:
+        """Every shape that names it with seam:lifecycle, by IRI (normally one)."""
         from .shapes import Shape
 
-        return optional(self._many(Shape, self._subjects(SEAM.lifecycle), SEAM.lifecycle))
+        return self._many(Shape, self._subjects(SEAM.lifecycle), SEAM.lifecycle)
 
 
 @element_type(STATE.State)
@@ -73,6 +78,11 @@ class Transition(Element):
         return self._state(STATE["from"])
 
     @property
+    def from_states(self) -> Many[State]:
+        """Its state:from states, by IRI (a well-formed transition has one)."""
+        return self._many(State, self._objects(STATE["from"]), STATE["from"])
+
+    @property
     def to_state(self) -> State:
         return self._state(STATE.to)
 
@@ -82,7 +92,12 @@ class Transition(Element):
 
     @property
     def lifecycle(self) -> Lifecycle | None:
-        return optional(self._many(Lifecycle, self._subjects(STATE.hasTransition), STATE.hasTransition))
+        return optional(self.lifecycles)
+
+    @property
+    def lifecycles(self) -> Many[Lifecycle]:
+        """Every state machine that state:hasTransition it, by IRI (normally one)."""
+        return self._many(Lifecycle, self._subjects(STATE.hasTransition), STATE.hasTransition)
 
     @property
     def fired_by(self) -> Many[ProcessElement]:

@@ -212,8 +212,10 @@ class Worker:
         log.info("instance %s: %s%s", instance.id, bpmn_id, "" if by is None else f" (by {by})")
 
         # 1. the fired transition must be enabled
+        element = self.model.task_element(iri)
         transition = shape = None
-        t_iri = self.model.ds.value(iri, SEAM.fires)
+        fired = element.fires
+        t_iri = None if fired is None else fired.iri
         if t_iri is not None:
             shape = self.model.lifecycle_shape(t_iri)
             transition = self.guard.check(shape, st["status"].get(str(shape)), t_iri)
@@ -234,7 +236,8 @@ class Worker:
             row["outputs"] = dict(mapped)
 
         # 3. invoke
-        op = self.model.ds.value(iri, SEAM.invokes)
+        invoked = element.invokes
+        op = None if invoked is None else invoked.iri
         if op is not None:
             await self._invoke(instance, op, row)
 
@@ -251,7 +254,7 @@ class Worker:
             task.complete()  # only now: after the handler (and the whole stream) finished
 
         # 6. message throw events publish a completion event
-        if op is None and not self.engine.is_service_task(task) and (iri, SEAM.publishesTo, None) in self.model.ds:
+        if op is None and not self.engine.is_service_task(task) and element.publishes_to:
             ch = self.model.channel_for_event(iri)
             data = {
                 "instance": instance.id,
@@ -326,7 +329,7 @@ class Worker:
         if cur["id"] is None:
             cur["id"] = str(uuid.uuid4())
         status = st["status"].get(str(shape))
-        if status is None and (shape, SEAM.lifecycle, None) in self.model.ds:
+        if status is None and self.model.has_lifecycle(shape):
             # first write of a lifecycle shape no transition has moved yet
             # (e.g. a user task's output): it is stored in state:initial
             status = self.model.lifecycle_for(shape).initial

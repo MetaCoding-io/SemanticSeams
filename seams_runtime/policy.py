@@ -38,7 +38,7 @@ from typing import Protocol, runtime_checkable
 from rdflib import URIRef
 
 from .errors import PolicyDenied, ResolutionError
-from .model import ODRL, SEAM, ModelGraph, PolicyFacts, local_name
+from .model import ODRL, ModelGraph, PolicyFacts, local_name
 
 DEV_USER_ENV = "SEAMS_DEV_USER"
 DEV_ROLES_ENV = "SEAMS_DEV_ROLES"
@@ -239,7 +239,7 @@ class PolicyHook:
         policy of ``element`` (evaluated with the element as the target).
         None is 401; an ungoverned element admits any identity."""
         iri = self.model.curie(element)
-        policies = [self.model.policy(p) for p in sorted(set(self.model.ds.objects(iri, SEAM.governedBy)))]
+        policies = self.model.governing_policies(iri)
         if identity is None:
             policy = policies[0].iri if policies else iri
             raise PolicyDenied(policy, iri, 401, f"no authenticated identity ({self.authenticator!r})")
@@ -255,7 +255,7 @@ class PolicyHook:
             self.check_element(element, identity)
         except PolicyDenied as denied:
             return False, denied.reason
-        governed = (self.model.curie(element), SEAM.governedBy, None) in self.model.ds
+        governed = bool(self.model.governing_policies(element))
         return True, (
             "every governing policy permits it" if governed else "ungoverned element: any authenticated identity"
         )

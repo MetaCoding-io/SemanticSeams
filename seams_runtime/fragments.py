@@ -67,7 +67,7 @@ class FragmentRenderer:
         )
 
     def _components(self) -> dict[str, URIRef]:
-        return {local_name(c): c for c in self.model.ds.objects(None, SEAM.rendersComponent) if isinstance(c, URIRef)}
+        return {local_name(c): c for c in self.model.rendered_components()}
 
     def resolve(self, name: str) -> Fragment:
         components = self._components()
@@ -82,12 +82,14 @@ class FragmentRenderer:
         return self._fragment(component, item)
 
     def _fragment(self, component: URIRef, item: bool = False) -> Fragment:
+        view = self.model.component(component)
+        reads, visible = view.reads, view.visible_when
         return Fragment(
             f"{local_name(component)}{ITEM_SUFFIX if item else ''}.html",
             component,
             item,
-            self.model.ds.value(component, SEAM.reads),
-            self.model.ds.value(component, SEAM.visibleWhen),
+            reads[0].iri if reads else None,
+            visible[0].iri if visible else None,
         )
 
     def component_context(self, component, data, params: Mapping | None = None) -> dict:

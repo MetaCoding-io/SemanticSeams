@@ -514,7 +514,19 @@ so Caddy passes the `X-Forwarded-User` and `X-Forwarded-Groups` headers through 
 API. Run the three `curl` requests above against port 8080, and then
 `curl http://localhost:8080/payouts` shows the payment `batched` and the expense
 `paid`. A request with no identity headers is a 401. Keep the stack on localhost,
-because anyone who can reach it can claim any role. Stop it with
+because anyone who can reach it can claim any role.
+
+To see where the data landed, ask `expense_db` for the shape of every entity stored under
+the `hotel` correlation key:
+
+```sh
+docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml exec -T expense_db psql -U postgres -d expenses -tAc "SELECT shape FROM entities WHERE correlation_key = 'hotel'"
+```
+
+It lists `https://example.org/expenses/ExpenseShape` along with the approval and
+payment rows, and `curl http://localhost:8080/healthz` reports the store as
+`"kind": "postgresql"`, `"declared": "PostgreSQL"` and `"override": false`.
+`tests/test_expense_e2e.py` runs both checks. Stop the stack with
 `docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml down -v`.
 
 ## Measure it

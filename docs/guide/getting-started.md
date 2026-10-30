@@ -61,7 +61,21 @@ SEAMS_TEST_POSTGRES_URL=postgresql://postgres:pw@localhost:5433/postgres pytest
 ```
 
 CI starts a `postgres:16` service and sets `SEAMS_REQUIRE_POSTGRES=1`, which turns that
-skip into a failure.
+skip into a failure. Each PostgreSQL test works in its own `seams_test_*` schema and drops
+it afterwards, so nothing is left in `public`.
+
+## Reset old dev data
+
+A model that declares no store runs on embedded SQLite at the file `SEAMS_DB` names. Since
+M011 a model that declares a PostgreSQL store keeps its data there instead (see
+[ADR-0011](/adr/0011-storage-resolution)), and nothing migrates the old SQLite data. To
+start clean, stop the runtime, delete the `SEAMS_DB` file and start it again. For a
+docker compose stack, including one from before M011 that kept a SQLite file on a `/data`
+volume, remove the stack with its volumes:
+
+```sh
+docker compose down -v
+```
 
 ## Lint and type-check
 

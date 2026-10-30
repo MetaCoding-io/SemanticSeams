@@ -127,6 +127,32 @@ by id. Type a message and press **Send Message**:
    (`/conversations/<id>/stream`, event `token`), which the page appends.
 3. The reply is stored as an assistant message; reload the page to see the whole thread.
 
+### See where it landed
+
+The model says `:MessageShape seam:storedIn :message_db`, and `:message_db` is a
+`deploy:PostgreSQL` store that `chat_api` `deploy:connectsTo` with key `DB_URL`. So your
+message is a row in the `message_db` container's `chat` database. Send a message with
+"hello" in it, then ask PostgreSQL for the shape of every stored entity that mentions it:
+
+```
+docker compose exec -T message_db psql -U postgres -d chat -tAc "SELECT shape FROM entities WHERE data::text LIKE '%hello%'"
+```
+
+It prints `https://example.org/chat/MessageShape`, one line per stored message that
+mentions "hello". The runtime reports its store too:
+
+```
+curl localhost:8080/healthz
+```
+
+The `store` object says `"kind": "postgresql"`, `"declared": "PostgreSQL"`, the
+`:message_db` container IRI and `"override": false`. The end-to-end test
+(`tests/test_tutorial_e2e.py`) runs both checks.
+
+Stacks started before M011 kept their data in a SQLite file on a `/data` volume. That
+volume is no longer used and nothing migrates it; `docker compose down -v` deletes it
+along with the rest of the stack's data.
+
 When you are done, stop the stack and delete its data:
 
 ```

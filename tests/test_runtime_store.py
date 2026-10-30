@@ -197,12 +197,13 @@ def test_sqlite_location_is_the_path(tmp_path):
     assert s.location == str(tmp_path / "s.db")
 
 
-def test_postgres_location_redacts_the_password(store_backend):
+def test_postgres_location_redacts_the_password(store_backend, make_store):
     if store_backend != "postgres":
         pytest.skip("postgres only")
     url = os.environ["SEAMS_TEST_POSTGRES_URL"]
-    s = PostgresStore(url)
-    assert s.location == redact(url)
+    s = make_store()  # an isolated schema, dropped at teardown: nothing lands in public
+    assert isinstance(s, PostgresStore)
+    assert s.location == f"{redact(url)} (schema {s.schema})"
     if "@" in url and ":" in url.split("://", 1)[1].split("@", 1)[0]:
         assert "***" in s.location
         password = url.split("://", 1)[1].split("@", 1)[0].split(":", 1)[1]

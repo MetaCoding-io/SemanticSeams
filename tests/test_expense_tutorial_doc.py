@@ -11,8 +11,9 @@ tests/expense_app.py names for them, and the host command with the
 environment the app tests set. Chapter 2 shows the deliberate mistake
 tests/test_expense_checkpoints.py replays, and chapters 5 and 6 show the
 edits their app tests make on a copy of the checkpoint. Chapter 8 shows the
-docker compose command tests/test_expense_e2e.py runs, the compose generator
-command, and the complexity command with the report the checkpoint produces.
+docker compose command tests/test_expense_e2e.py runs and its psql check of
+the declared store, the compose generator command, and the complexity command
+with the report the checkpoint produces.
 """
 
 import re
@@ -29,6 +30,7 @@ for p in (ROOT, ROOT / "tests"):
 from expense_app import commands, host_command  # noqa: E402
 from test_expense_chapter3_app import COMMANDS  # noqa: E402
 from test_expense_checkpoints import CHAPTER_2_MISTAKE_TEXT  # noqa: E402
+from test_expense_e2e import PSQL, landed_sql  # noqa: E402
 
 PAGES_DIR = ROOT / "docs" / "tutorials" / "expenses"
 EXPENSES = ROOT / "examples" / "expenses"
@@ -175,6 +177,10 @@ def test_chapter_8_shows_the_compose_and_complexity_commands():
     app = "examples/expenses/chapter-08"
     lines = code_lines(page)
     assert f"docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml up --build" in lines
+    psql = (
+        f'docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml {" ".join(PSQL)} "{landed_sql("hotel")}"'
+    )
+    assert psql in lines, f"08-growing-up.md lacks {psql}"
     assert f"python -m seams_gen compose {app}/expenses.trig --out {app}" in lines
     assert f"python -m seams_gen.complexity {app}/expenses.trig" in lines
     # the report shown is the one the checkpoint produces now

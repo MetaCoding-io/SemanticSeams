@@ -30,6 +30,11 @@ KEY_FILE = ROOT / ".secrets" / "llm_api_key"
 UP_TIMEOUT = 300  # seconds: image builds plus healthchecks on a cold runner
 STREAM_TIMEOUT = 30
 POLL_TIMEOUT = 30
+MESSAGE_SHAPE = "https://example.org/chat/MessageShape"
+MESSAGE_DB = "https://example.org/chat/message_db"
+# docker compose arguments for a psql query against the declared store
+# (docs/tutorial.md shows the same command; tests/test_tutorial_doc.py checks)
+PSQL = ("exec", "-T", "message_db", "psql", "-U", "postgres", "-d", "chat", "-tAc")
 
 pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1", reason="live docker compose test; set SEAMS_E2E=1")
 
@@ -39,6 +44,17 @@ def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["docker", "compose", *args], cwd=ROOT, env=env, timeout=timeout, check=check, capture_output=True, text=True
     )
+
+
+def landed_sql(marker: str) -> str:
+    """The query docs/tutorial.md's "See where it landed" step runs: the
+    shape of each stored entity whose data mentions ``marker``. ``marker`` is
+    a hex uuid fragment, so it needs no quoting."""
+    return f"SELECT shape FROM entities WHERE data::text LIKE '%{marker}%'"
+
+
+def _psql(sql: str) -> subprocess.CompletedProcess:
+    return _compose(*PSQL, sql, check=False)
 
 
 def _logs() -> str:
@@ -153,3 +169,25 @@ def test_empty_content_is_rejected(stack, messages_url):
     r = stack.post(messages_url, data={"content": ""})
     assert r.status_code == 422, r.text
     assert r.json()["detail"]["type"] == "ContractViolation"
+
+
+def test_the_sent_message_lands_in_the_message_store(stack, sent):
+    """The model says MessageShape seam:storedIn :message_db, a PostgreSQL
+    store chat_api connectsTo: the row is in message_db, not a SQLite file."""
+    marker = sent.rsplit(" ", 1)[1]
+    deadline = time.monotonic() + POLL_TIMEOUT
+    out = None
+    while time.monotonic() < deadline:
+        out = _psql(landed_sql(marker))
+        if out.returncode == 0 and MESSAGE_SHAPE in out.stdout.split():
+            return
+        time.sleep(0.5)
+    pytest.fail(f"no {MESSAGE_SHAPE} row mentioning {marker!r} in message_db: {out}")
+
+
+def test_healthz_reports_the_declared_postgres_store(stack):
+    r = stack.get("/healthz")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["store"] == {"kind": "postgresql", "declared": "PostgreSQL", "container": MESSAGE_DB, "override": False}

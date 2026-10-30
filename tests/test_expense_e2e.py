@@ -33,6 +33,11 @@ PROJECT = "seams-expenses"
 BASE = "http://localhost:8080"
 UP_TIMEOUT = 300  # seconds: image build plus healthchecks on a cold runner
 POLL_TIMEOUT = 30
+EXPENSE_SHAPE = "https://example.org/expenses/ExpenseShape"
+EXPENSE_DB = "https://example.org/expenses/expense_db"
+# docker compose arguments for a psql query against the declared store
+# (chapter 8 shows the same command; tests/test_expense_tutorial_doc.py checks)
+PSQL = ("exec", "-T", "expense_db", "psql", "-U", "postgres", "-d", "expenses", "-tAc")
 
 EXPENSE = {"description": "Train to Leeds", "date": "2026-10-01"}
 PAYMENT = {"reference": "PAY-0042", "paid_on": "2026-10-05"}
@@ -58,6 +63,28 @@ def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
     )
+
+
+def landed_sql(key: str) -> str:
+    """The query chapter 8's "See where it landed" check runs: the shape of
+    each stored entity under correlation key ``key`` (an e2e-<hex> key, so it
+    needs no quoting)."""
+    return f"SELECT shape FROM entities WHERE correlation_key = '{key}'"
+
+
+def _psql(sql: str) -> subprocess.CompletedProcess:
+    return _compose(*PSQL, sql, check=False)
+
+
+def _until_stored(key: str, shape: str) -> None:
+    deadline = time.monotonic() + POLL_TIMEOUT
+    out = None
+    while time.monotonic() < deadline:
+        out = _psql(landed_sql(key))
+        if out.returncode == 0 and shape in out.stdout.split():
+            return
+        time.sleep(0.5)
+    pytest.fail(f"no {shape} row for {key!r} in expense_db: {out}")
 
 
 def _logs() -> str:
@@ -137,6 +164,8 @@ def test_submit_approve_pay_runs_the_payout(stack):
     key = f"e2e-{uuid.uuid4().hex[:8]}"
     r = stack.post(f"/expenses/{key}", data={**EXPENSE, "amount": "250.00"}, headers=ALICE)
     assert r.status_code == 200, r.text
+    # ExpenseShape seam:storedIn :expense_db: the submitted expense is a row there.
+    _until_stored(key, EXPENSE_SHAPE)
 
     r = _post_when_open(stack, f"/expenses/{key}/approval", {"decision": "approved"}, BOB)
     assert r.status_code == 200, r.text
@@ -155,6 +184,14 @@ def test_submit_approve_pay_runs_the_payout(stack):
     )
     assert body.lstrip().startswith("<!doctype html>")
     assert '<main id="payouts_page" data-seam=":payouts_page">' in body
+
+
+def test_healthz_reports_the_declared_postgres_store(stack):
+    r = stack.get("/healthz")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["store"] == {"kind": "postgresql", "declared": "PostgreSQL", "container": EXPENSE_DB, "override": False}
 
 
 def test_invalid_submit_is_rejected(stack):

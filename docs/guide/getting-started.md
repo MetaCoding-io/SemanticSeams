@@ -100,3 +100,5 @@ and explains everything else on the page.
 - [Diagrams are views](/concepts/diagrams-are-views): the idea the project rests on.
 - [Authoring a model](/guide/authoring-a-model): the conventions a model must follow to
   be navigable and to pass the shapes.
+- [Write your own generator](/guide/write-your-own-generator): read a model through the
+  `seams` library and generate your own output from it.

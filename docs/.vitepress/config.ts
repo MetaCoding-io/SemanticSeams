@@ -80,6 +80,7 @@ export default defineConfig({
           { text: "Getting started", link: "/guide/getting-started" },
           { text: "Using the viewer", link: "/guide/the-viewer" },
           { text: "Authoring a model", link: "/guide/authoring-a-model" },
+          { text: "Write your own generator", link: "/guide/write-your-own-generator" },
         ],
       },
       {

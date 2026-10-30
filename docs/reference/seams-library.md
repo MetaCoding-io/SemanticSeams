@@ -15,7 +15,8 @@ uv sync --all-packages
 ```
 
 The generators in `seams_gen`, the viewer and `seams_runtime` all read models
-through it.
+through it. To write a generator of your own, follow
+[Write your own generator](/guide/write-your-own-generator).
 
 ## API
 

@@ -9,6 +9,8 @@ byte for byte. The generators read the model only through the typed views of the
 `model.operations` and the rest), with `model.compact` for curies, never raw triples (D036);
 none of them imports `seams_runtime`. `seams_gen/_views.py` is the one bridge: it turns a
 view's `ResolutionError` into a `GeneratorError` naming the same subject and predicate.
+A custom generator reads the model through `seams` the same way; the
+[Write your own generator](../docs/guide/write-your-own-generator.md) guide builds one.
 
 ## Usage
 

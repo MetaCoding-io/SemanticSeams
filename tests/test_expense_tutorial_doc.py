@@ -177,17 +177,16 @@ def test_chapter_6_refusal_diff_is_the_edit_ci_makes():
 
 
 def test_chapter_8_shows_the_compose_and_complexity_commands():
-    """Chapter 8 runs the stack with the two files tests/test_expense_e2e.py
-    merges, regenerates compose.yaml through the project file (which names the
+    """Chapter 8 runs the stack from the generated compose.development.yaml that
+    tests/test_expense_e2e.py brings up, regenerates the per-environment compose
+    files through the project file (which names the
     compose generator, as tests/test_seams_generate_examples.py checks), and
     measures the checkpoint tests/test_complexity.py pins."""
     page = PAGES_DIR / "08-growing-up.md"
     app = "examples/expenses/chapter-08"
     lines = code_lines(page)
-    assert f"docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml up --build" in lines
-    psql = (
-        f'docker compose -f {app}/compose.yaml -f {app}/compose.override.yaml {" ".join(PSQL)} "{landed_sql("hotel")}"'
-    )
+    assert f"docker compose -f {app}/compose.development.yaml up --build" in lines
+    psql = f'docker compose -f {app}/compose.development.yaml {" ".join(PSQL)} "{landed_sql("hotel")}"'
     assert psql in lines, f"08-growing-up.md lacks {psql}"
     assert generate_command("chapter-08") in lines
     assert 'name = "compose"' in (ROOT / app / "seams.toml").read_text(encoding="utf-8")

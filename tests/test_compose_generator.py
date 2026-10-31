@@ -217,13 +217,13 @@ def test_bind_sources_are_relative_to_base_dir():
     api = doc["services"]["chat_api"]
     sources = [v.split(":")[0] for v in api["volumes"]]
     assert sources == [
-        "./../examples/chat-app/chat-app.trig",
-        "./../examples/chat-app/chat_process.bpmn",
-        "./../examples/chat-app/routing.dmn",
+        "../examples/chat-app/chat-app.trig",
+        "../examples/chat-app/chat_process.bpmn",
+        "../examples/chat-app/routing.dmn",
     ]
-    assert api["build"]["context"] == "./.."
+    assert api["build"]["context"] == ".."
     assert api["build"]["args"]["SEAMS_APP_DIR"] == "examples/chat-app"  # relative to the context, not base_dir
-    assert doc["secrets"]["db_url"]["file"] == "${DB_URL_FILE:-./../docker/local-secrets/db_url}"
+    assert doc["secrets"]["db_url"]["file"] == "${DB_URL_FILE:-../docker/local-secrets/db_url}"
 
 
 def test_another_model_path_flows_into_env_and_binds(tmp_path):
@@ -644,7 +644,7 @@ def test_missing_fact_fails_api_and_cli(tmp_path, edit, env, subject, predicate)
 
 def _without_sources_and_hash(text: str) -> str:
     text = re.sub(r"sha256:[0-9a-f]{64}", "sha256:HASH", text)
-    return re.sub(r"(?m)^(\s+- )\./[^:]+(:/model/)", r"\1SRC\2", text)
+    return re.sub(r"(?m)^(\s+- )\.{1,2}/[^:]+(:/model/)", r"\1SRC\2", text)
 
 
 def test_unedited_copy_generates_same_services(tmp_path):

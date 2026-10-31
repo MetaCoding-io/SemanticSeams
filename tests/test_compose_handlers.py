@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from seams_gen import GeneratorError, extract_compose  # noqa: E402
+from seams_gen.compose import environments  # noqa: E402
 from seams_gen.fastapi import serving_containers  # noqa: E402
 from seams_runtime import ModelGraph  # noqa: E402
 from seams_runtime.model import COMM, HYDRA, SEAM  # noqa: E402
@@ -47,7 +48,7 @@ def _model(kind=None, *, served_in_process=True, handler="notify.notify_manager"
 
 
 def _volumes(model) -> dict[str, tuple[str, ...]]:
-    return {s.name: s.volumes for s in extract_compose(model, APP).services}
+    return {s.name: s.volumes for s in extract_compose(model, APP, environments(model)[0]).services}
 
 
 def test_a_python_handler_mounts_the_handlers_package_into_the_executing_container():
@@ -99,13 +100,15 @@ def test_without_the_handler_mount_the_volumes_are_unchanged():
 
 def test_a_bad_implementation_kind_names_the_fact():
     with pytest.raises(GeneratorError) as err:
-        extract_compose(_model(SEAM.Layer, handler=None), APP)
+        model = _model(SEAM.Layer, handler=None)
+        extract_compose(model, APP, environments(model)[0])
     assert err.value.subject == str(IMPL)
     assert err.value.predicate == str(RDF.type)
 
 
 def test_a_handler_path_outside_the_package_names_the_fact():
     with pytest.raises(GeneratorError) as err:
-        extract_compose(_model(COMM.PythonHandler, handler="../os.system"), APP)
+        model = _model(COMM.PythonHandler, handler="../os.system")
+        extract_compose(model, APP, environments(model)[0])
     assert err.value.subject == str(IMPL)
     assert err.value.predicate == str(COMM.handler)

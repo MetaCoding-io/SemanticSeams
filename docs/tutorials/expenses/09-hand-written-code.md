@@ -206,7 +206,7 @@ generated code and owned code never mix, and
 applies it to the handlers package. The stub generator writes a module once, when it is
 absent, and from then on the file is yours. It is not one of the generators in
 `seams.toml`, so `seams generate` does not run it, and `seams.lock` does not record its
-files. CI's committed-outputs check covers `generated/` and `compose.yaml` only.
+files. CI's committed-outputs check covers `generated/` and the compose files only.
 `handlers/` is not excluded from ruff, so your code is linted and tested like any other.
 
 The `model-hash` line in the module header records the model the stub was written from.
@@ -225,7 +225,8 @@ seams generate --project examples/expenses/chapter-09
 ```
 
 `expense_api.py` changes only in its model hash and its header, which lists
-`:notify_manager_op` as not routed. `compose.yaml` gains one line, a read-only bind mount
+`:notify_manager_op` as not routed. Each compose file, `compose.development.yaml` and
+`compose.production.yaml`, gains one line, a read-only bind mount
 of the handlers package into the API container, because the API runs a process whose task
 invokes a `comm:PythonHandler`:
 
@@ -420,22 +421,23 @@ status, which shows the boundary that catches it and the shape its body returns.
 
 ## Run it with docker compose
 
-The stack is chapter 8's, with the handlers package mounted into the API:
+The stack is chapter 8's development environment, with the handlers package mounted into
+the API:
 
 ```sh
-docker compose -f examples/expenses/chapter-09/compose.yaml -f examples/expenses/chapter-09/compose.override.yaml up --build
+docker compose -f examples/expenses/chapter-09/compose.development.yaml up --build
 ```
 
 Submit the hotel against port 8080, then ask the store what landed under its key:
 
 ```sh
-docker compose -f examples/expenses/chapter-09/compose.yaml -f examples/expenses/chapter-09/compose.override.yaml exec -T expense_db psql -U postgres -d expenses -tAc "SELECT shape FROM entities WHERE correlation_key = 'hotel'"
+docker compose -f examples/expenses/chapter-09/compose.development.yaml exec -T expense_db psql -U postgres -d expenses -tAc "SELECT shape FROM entities WHERE correlation_key = 'hotel'"
 ```
 
 The list now includes `https://example.org/expenses/NotificationShape` beside the
 expense. `tests/test_expense_e2e.py` runs this stack in CI's `tutorial-e2e` job and
 waits for that row. Stop the stack with
-`docker compose -f examples/expenses/chapter-09/compose.yaml -f examples/expenses/chapter-09/compose.override.yaml down -v`.
+`docker compose -f examples/expenses/chapter-09/compose.development.yaml down -v`.
 
 CI checks the rest of this chapter in `tests/test_expense_handler.py`. It runs the notify
 step in process and checks its trace row and stored notification. It checks that the

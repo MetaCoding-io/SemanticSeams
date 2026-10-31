@@ -54,7 +54,8 @@ The suite (also run in CI) parses every Turtle file, validates the example again
 ## Tutorial
 
 [`docs/tutorial.md`](docs/tutorial.md) goes from a clean checkout to a running chat app:
-regenerate the code from the chat-app model, `docker compose up --build`, open
+regenerate the code from the chat-app model, `docker compose -f compose.development.yaml up --build`
+(a compose file generated from the model's `:development` environment, ADR-0015), open
 http://localhost:8080 and chat with an LLM (OpenAI, any OpenAI-compatible server, or the
 gateway's built-in stub). CI runs the same stack end to end.
 

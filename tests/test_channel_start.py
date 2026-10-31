@@ -257,7 +257,7 @@ def test_generators_skip_the_subscribed_process():
     assert [str(c) for c in serving_containers(model).iris()] == [EX + "expense_api"]
     page = extract_page(model)
     assert render_fragments(page) and render_task_forms(page)
-    assert extract_compose(model, base_dir=FIXTURE)
+    assert extract_compose(model, base_dir=FIXTURE, environment="production")
 
 
 def test_generator_rejects_an_untriggered_unsubscribed_process():

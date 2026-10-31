@@ -25,7 +25,8 @@ seams generate --project examples/expenses/chapter-08
 ```
 
 It runs the three generators [`../seams.toml`](../seams.toml) names, writing each output
-above and the chapter's `../compose.yaml`
+above and the chapter's `../compose.development.yaml` and
+`../compose.production.yaml`, one per environment the model declares
 (reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 
 Compared with chapter 7, the route module gains two read routes for the

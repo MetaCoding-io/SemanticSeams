@@ -109,7 +109,8 @@ def test_gap_01_images(chat_model):
            }""",
     )
     assert rows == {
-        (CHAT.chat_ui, lit("ghcr.io/example/chat-ui"), lit("latest")),
+        # ADR-0015: chat_ui is a code-free reverse proxy (deploy:proxies :chat_api).
+        (CHAT.chat_ui, lit("caddy"), lit("2-alpine")),
         (CHAT.chat_api, lit("ghcr.io/example/chat-api"), lit("0.3.1")),
         (CHAT.llm_gateway, lit("ghcr.io/example/llm-gateway"), lit("latest")),
         (CHAT.message_db, lit("postgres"), lit("16")),
@@ -179,11 +180,18 @@ def test_gap_05_secret_names(chat_model):
             rdflib.URIRef("https://secrets.example.org/chat/prod/db-url"),
             lit("chat-prod-db-url"),
         ),
+        # ADR-0015: the gateway, not the runtime, reads the key.
         (
-            CHAT.chat_api,
+            CHAT.llm_gateway,
             lit("LLM_API_KEY"),
             rdflib.URIRef("https://secrets.example.org/chat/prod/llm-key"),
             lit("chat-prod-llm-key"),
+        ),
+        (
+            CHAT.message_db,
+            lit("POSTGRES_PASSWORD"),
+            rdflib.URIRef("https://secrets.example.org/chat/prod/postgres-password"),
+            lit("chat-prod-postgres-password"),
         ),
     }
     # Every secretRef binding is named, so no compose secret lacks a source.
@@ -196,8 +204,11 @@ def test_gap_05_secret_names(chat_model):
 def test_gap_06_plain_and_derived_config(chat_model):
     plain = select(
         chat_model,
+        # Shared bindings only: a deploy:Override's configuration holds the
+        # development values (ADR-0015).
         """SELECT ?c ?key ?value WHERE {
-               ?c deploy:configuration ?cfg . ?cfg a deploy:Configuration ; deploy:binding ?b .
+               ?c a arch:Container ;
+                  deploy:configuration ?cfg . ?cfg a deploy:Configuration ; deploy:binding ?b .
                ?b deploy:key ?key ; deploy:value ?value .
            }""",
     )
@@ -220,11 +231,14 @@ def test_gap_06_plain_and_derived_config(chat_model):
 
 def test_gap_07_startup_and_health(chat_model):
     order = select(chat_model, "SELECT ?c ?dep WHERE { ?c deploy:dependsOn ?dep }")
-    assert order == {(CHAT.chat_ui, CHAT.chat_api), (CHAT.chat_api, CHAT.message_db)}
-    # depends_on comes from deploy:dependsOn alone: :chat_api arch:dependsOn
-    # :llm_gateway is a design-time dependency with no startup edge.
+    # depends_on comes from deploy:dependsOn alone, never arch:dependsOn; ADR-0015
+    # added the :chat_api -> :llm_gateway start edge the C4 edge already implied.
+    assert order == {
+        (CHAT.chat_ui, CHAT.chat_api),
+        (CHAT.chat_api, CHAT.message_db),
+        (CHAT.chat_api, CHAT.llm_gateway),
+    }
     assert ask(chat_model, "ASK { :chat_api arch:dependsOn :llm_gateway }")
-    assert not ask(chat_model, "ASK { :chat_api deploy:dependsOn :llm_gateway }")
     health = select(
         chat_model,
         """SELECT ?c ?probe ?interval WHERE {
@@ -232,7 +246,17 @@ def test_gap_07_startup_and_health(chat_model):
                   deploy:probe ?probe ; deploy:interval ?interval .
            }""",
     )
-    assert health == {(CHAT.message_db, lit("pg_isready -U postgres"), lit("5s"))}
+    assert health == {
+        (CHAT.message_db, lit("pg_isready -U postgres"), lit("5s")),
+        (
+            CHAT.llm_gateway,
+            lit(
+                'python -c "import urllib.request; '
+                "urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\""
+            ),
+            lit("5s"),
+        ),
+    }
 
 
 BAD_PREFIXES = """

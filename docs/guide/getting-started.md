@@ -72,10 +72,11 @@ M011 a model that declares a PostgreSQL store keeps its data there instead (see
 [ADR-0011](/adr/0011-storage-resolution)), and nothing migrates the old SQLite data. To
 start clean, stop the runtime, delete the `SEAMS_DB` file and start it again. For a
 docker compose stack, including one from before M011 that kept a SQLite file on a `/data`
-volume, remove the stack with its volumes:
+volume, remove the stack with its volumes (the chat app's local stack runs from the
+generated `compose.development.yaml`):
 
 ```sh
-docker compose down -v
+docker compose -f compose.development.yaml down -v
 ```
 
 ## Lint and type-check

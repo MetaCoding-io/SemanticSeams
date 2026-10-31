@@ -185,14 +185,15 @@ def test_no_model_at_all_exits_2(app, capsys):
 
 
 def test_a_failing_generator_writes_nothing(app, capsys):
-    # fastapi and htmx succeed on chapter-03; compose then fails (no deploy:artifact),
-    # and the outputs of the first two must not be written either.
+    # fastapi and htmx succeed on chapter-03; compose then fails (it declares no
+    # arch:Environment, ADR-0015), and the outputs of the first two must not be
+    # written either.
     _project(app, 'model = "expenses.trig"\n' + GENERATORS + '\n[[generators]]\nname = "compose"\nout = "."\n')
     assert main(["generate", "--project", str(app)]) == 2
     err = capsys.readouterr().err
-    assert err.startswith("seams generate: ") and "deploy#artifact" in err
+    assert err.startswith("seams generate: ") and "arch:Environment" in err
     assert not (app / "generated").exists()
-    assert not (app / "compose.yaml").exists()
+    assert not list(app.glob("compose*.yaml"))
 
 
 def test_an_unwritable_output_exits_1(app, capsys):

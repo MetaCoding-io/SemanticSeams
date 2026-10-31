@@ -2,7 +2,8 @@
 
 Every file here except this README is generated from
 [`../chat-app.trig`](../chat-app.trig) by [`seams_gen`](../../../seams_gen/README.md),
-and so is the repository-root `compose.yaml`. Do not edit them: change the model
+and so are the repository-root `compose.development.yaml` and `compose.production.yaml`,
+one per `arch:Environment` the model declares (ADR-0015). Do not edit them: change the model
 and regenerate. Each file carries the model hash it was generated from.
 
 | File | Generator |
@@ -10,7 +11,7 @@ and regenerate. Each file carries the model hash it was generated from.
 | `chat_api.py` | `fastapi`: the route module of the container that executes the process |
 | `templates/chat_page.html` | `htmx`: the landmark page |
 | `templates/conversation_list.html`, `templates/message_thread.html`, `templates/message_thread_item.html` | `htmx`: the fragment partials the routes render |
-| `../../../compose.yaml` | `compose`: the docker compose file, bind mounts relative to the repository root |
+| `../../../compose.development.yaml`, `../../../compose.production.yaml` | `compose`: one docker compose file per environment, paths relative to the repository root; `docker compose -f compose.development.yaml up --build` runs the local stack |
 
 Regenerate from the repository root:
 

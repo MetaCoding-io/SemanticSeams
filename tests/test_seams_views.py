@@ -194,7 +194,9 @@ def test_chat_architecture(chat: seams.Model):
     assert api.depends_on.iris() == (URIRef(C + "llm_gateway"), URIRef(C + "message_db"))
     with pytest.raises(TypeError):
         api.service_bindings["X"] = URIRef(C + "x")  # type: ignore[index]
-    assert a.environments().only().nodes.iris() == a.deployment_nodes().iris()
+    # ADR-0015: development contains no nodes; production contains every one
+    development, production = a.environments()
+    assert development.nodes.iris() == () and production.nodes.iris() == a.deployment_nodes().iris()
     assert a.deployment_nodes().by_iri(":app01").hosts.iris() == (URIRef(C + "chat_api"), URIRef(C + "llm_gateway"))
 
 
@@ -812,18 +814,20 @@ def test_chat_deploy_facts(chat: seams.Model):
     assert api.artifact == seams.Artifact("ghcr.io/example/chat-api", "0.3.1")
     assert api.ports == (seams.Port(8000, None),) and ui.ports == (seams.Port(8000, 8080),)
     assert api.replicas == 3 and ui.replicas is None
-    assert api.deploy_depends_on.iris() == (URIRef(C + "message_db"),)
+    assert api.deploy_depends_on.iris() == (URIRef(C + "llm_gateway"), URIRef(C + "message_db"))
     assert ui.deploy_depends_on.only() is api
     # arch:dependsOn (C4) and deploy:dependsOn (start order) are different edges
     assert api.depends_on.iris() == (URIRef(C + "llm_gateway"), URIRef(C + "message_db"))
     assert db.volumes == (seams.Volume("message_db_data", "/var/lib/postgresql/data"),)
     assert db.healthcheck == seams.Healthcheck("pg_isready -U postgres", "5s") and api.healthcheck is None
-    assert [b.key for b in api.bindings] == ["DB_URL", "LLM_API_KEY", "LLM_GATEWAY_URL"]
-    db_url, _, gateway = api.bindings
+    assert [b.key for b in api.bindings] == ["DB_URL", "LLM_GATEWAY_URL"]
+    db_url, gateway = api.bindings
     assert db_url.kinds == (DEPLOY_NS.secretRef,) and db_url.secret_name == "chat-prod-db-url"
     assert db_url.secret_ref == URIRef("https://secrets.example.org/chat/prod/db-url")
     assert gateway.kinds == (DEPLOY_NS.serviceOf,) and gateway.service_of is gw
-    assert gw.bindings[0].value == "https://api.openai.com/v1" and gw.bindings[0].kinds == (DEPLOY_NS.value,)
+    assert [b.key for b in gw.bindings] == ["LLM_API_KEY", "UPSTREAM_BASE_URL"]
+    assert gw.bindings[1].value == "https://api.openai.com/v1" and gw.bindings[1].kinds == (DEPLOY_NS.value,)
+    assert ui.proxies is api and api.proxies is None
     assert dict(api.service_bindings) == {b.key: b.service_of.iri for b in api.bindings if b.service_of}
     assert all(
         dataclasses.is_dataclass(x) and type(x).__dataclass_params__.frozen for x in (api.artifact, *api.bindings)

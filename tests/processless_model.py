@@ -40,6 +40,7 @@ TRIG = (
         deploy:artifact [ a deploy:Artifact ; deploy:reference "ghcr.io/example/expense-api" ;
                           deploy:version "0.1.0" ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        seam:inModel :expense_architecture .    :production a arch:Environment ; rdfs:label "Production" ;
         seam:inModel :expense_architecture .
 }
 

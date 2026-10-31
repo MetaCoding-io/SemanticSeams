@@ -380,7 +380,7 @@ def test_chat_app_c4_l1_rollup(chat_model):
     'deployed to'. Container dependsOn edges stay inside chat_system, so they
     produce no 'depends on' self-edge."""
     assert _rollup_rows(chat_model) == {
-        (CHAT.chat_system, CHAT.prod, Literal("deployed to")),
+        (CHAT.chat_system, CHAT.production, Literal("deployed to")),
     }
 
 

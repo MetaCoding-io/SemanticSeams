@@ -101,7 +101,9 @@ def test_hash_substituted(tmp_path):
     assert golden_target(golden, HASH[len("sha256:") :]) == f"{{# model-hash: {HASH} #}}\n<p>\n"
 
 
-@pytest.mark.parametrize("name", ["chat_page.html", "chat_api.py", "compose.yaml"])
+@pytest.mark.parametrize(
+    "name", ["chat_page.html", "chat_api.py", "compose.development.yaml", "compose.production.yaml"]
+)
 def test_real_goldens_strip_clean(name):
     path = GOLDEN / name
     target = golden_target(path, HASH)

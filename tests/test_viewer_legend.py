@@ -23,7 +23,7 @@ from viewer import legend  # noqa: E402
 
 CHAT = "https://example.org/chat/"
 CHAT_ARCHITECTURE = f"{CHAT}chat_architecture"
-PROD = f"{CHAT}prod"
+PROD = f"{CHAT}production"
 APP01 = f"{CHAT}app01"
 CONVERSATION_SHAPE = f"{CHAT}ConversationShape"
 HX = {"hx-request": "true"}

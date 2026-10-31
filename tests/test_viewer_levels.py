@@ -22,7 +22,9 @@ from viewer import levels  # noqa: E402
 CHAT = "https://example.org/chat/"
 CHAT_ARCHITECTURE = f"{CHAT}chat_architecture"
 CHAT_SYSTEM = f"{CHAT}chat_system"
-PROD = f"{CHAT}prod"
+PROD = f"{CHAT}production"
+# Development contains no deployment node (ADR-0015), so no edge reaches it.
+DEV = f"{CHAT}development"
 CONTAINERS = {f"{CHAT}{c}" for c in ("chat_ui", "chat_api", "llm_gateway", "message_db")}
 DEPLOY_NODES = {f"{CHAT}{n}" for n in ("web01", "app01", "db01")}
 
@@ -65,7 +67,7 @@ def test_load_rollup_reads_fixed_query():
 
 def test_l1_system_context():
     nodes, edges, parents, triples = _graph("L1")
-    assert parents == {CHAT_SYSTEM: None, PROD: None}
+    assert parents == {CHAT_SYSTEM: None, DEV: None, PROD: None}
     assert triples == [(CHAT_SYSTEM, PROD, "deployed to")]
     assert edges[0]["kind"] == "rollup"
 
@@ -76,8 +78,8 @@ def test_l2_nests_containers_and_nodes():
         assert parents[c] == CHAT_SYSTEM
     for n in DEPLOY_NODES:
         assert parents[n] == PROD
-    assert parents[CHAT_SYSTEM] is None and parents[PROD] is None
-    assert set(parents) == CONTAINERS | DEPLOY_NODES | {CHAT_SYSTEM, PROD}
+    assert parents[CHAT_SYSTEM] is None and parents[PROD] is None and parents[DEV] is None
+    assert set(parents) == CONTAINERS | DEPLOY_NODES | {CHAT_SYSTEM, DEV, PROD}
     depends = {(f, t) for f, t, lbl in triples if lbl == "depends on"}
     assert depends == {
         (f"{CHAT}chat_ui", f"{CHAT}chat_api"),

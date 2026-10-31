@@ -62,13 +62,15 @@ examples/expenses/
                              the payouts SSE stream, but no route for the payout process) and
                              templates, including the /payouts page, generated from chapter 8
   chapter-08/seed.json       an empty seed ({})
-  chapter-08/compose.yaml    the docker compose file generated from chapter 8's deploy facts
-                             (do not edit; regenerate it)
-  chapter-08/compose.override.yaml
-                             the hand-written local override: builds the runtime image with
-                             chapter 8's generated code, puts Caddy in front as the portal,
-                             adds the /data volume, gives expense_db a dev password and points
-                             the database_url secret at docker/local-secrets/expense_database_url
+  chapter-08/compose.development.yaml
+                             the docker compose file for the :development environment, generated
+                             from chapter 8's deploy facts and overrides (do not edit; regenerate
+                             it): builds the runtime image with chapter 8's generated code, Caddy
+                             in front as the portal, a dev password for expense_db and the
+                             database_url secret from docker/local-secrets/expense_database_url
+  chapter-08/compose.production.yaml
+                             the same for :production: registry images, external secrets and
+                             placement on web01, app01 and db01
   chapter-09/expenses.trig   hand-written code: chapter 8 plus the notify_manager service task, the
                              NotificationShape and :notify_manager_op, seam:implementedBy the
                              comm:PythonHandler "notify.notify_manager" (ADR-0012), its error
@@ -80,9 +82,8 @@ examples/expenses/
   chapter-09/handlers/       owned code, never regenerated: notify.py, written once by
                              python -m seams_gen.stubs and then edited by hand
   chapter-09/generated/      chapter 8's route module and templates (notify_manager_op is not routed)
-  chapter-09/compose.yaml    chapter 8's compose file plus the read-only handlers mount on the API
-  chapter-09/compose.override.yaml
-                             chapter 8's override, pointed at chapter 9
+  chapter-09/compose.development.yaml, chapter-09/compose.production.yaml
+                             chapter 8's compose files plus the read-only handlers mount on the API
                              (approval.dmn, payout.bpmn, payout.dmn and seed.json are unchanged)
 ```
 
@@ -168,13 +169,15 @@ reached from 6 models, 115 seam edges), pinned by `tests/test_complexity.py`.
 
 ## Running chapter 8 under docker compose
 
-Chapter 8's architecture graph has deploy facts: an image, ports and start
-order for each container, and one environment (`:prod`, with a node for each
-container). It also declares the store (ADR-0011): `:expense_db` is a
-`postgres:16` container with `deploy:storeKind deploy:PostgreSQL` on `:db01`,
-and the API's `DATABASE_URL` secret binding `deploy:connectsTo` it. The compose generator writes them to `chapter-08/compose.yaml`;
-`chapter-08/seams.toml` names it alongside the code generators, so one command
-regenerates the chapter:
+Chapter 8's architecture graph has deploy facts: an image, ports, start
+order and a healthcheck for each container, and two environments (ADR-0015):
+`:production`, with a node for each container, and `:development`, with none.
+It also declares the store (ADR-0011): `:expense_db` is a `postgres:16`
+container with `deploy:storeKind deploy:PostgreSQL` on `:db01`, and the API's
+`DATABASE_URL` secret binding `deploy:connectsTo` it. The compose generator
+writes one file per environment, `chapter-08/compose.development.yaml` and
+`chapter-08/compose.production.yaml`; `chapter-08/seams.toml` names it
+alongside the code generators, so one command regenerates the chapter:
 
 ```
 seams generate --project examples/expenses/chapter-08
@@ -182,25 +185,26 @@ seams generate --project examples/expenses/chapter-08
 
 The API container gets the TriG and its four payloads (`approval.bpmn`,
 `approval.dmn`, `payout.bpmn`, `payout.dmn`) bind-mounted read-only at
-`/model`, with the model hash the generated code was built from. The
-generator places containers by `seam:deployedTo` and has no notion of a
-second environment, so the checkpoint models no staging environment.
+`/model`, with the model hash the generated code was built from. Placement
+constraints come from `seam:deployedTo` and appear only in the production
+file, the environment that `arch:contains` the nodes.
 
-`chapter-08/compose.override.yaml` is written by hand. It builds
-`docker/runtime.Dockerfile` with `SEAMS_APP_DIR=examples/expenses/chapter-08`
-and `SEAMS_ROUTES_FILE=expense_api.py`, makes the portal a Caddy reverse proxy
-to the API, adds healthchecks, and names the project `seams-expenses`. It also
-gives the generated `expense_db` service a dev-only `POSTGRES_PASSWORD`, makes
-the API wait until it is healthy, and points the generated `database_url` swarm
-secret at the committed dev URL `docker/local-secrets/expense_database_url`.
-The runtime reads that secret through `DATABASE_URL_FILE` (the binding that
-`deploy:connectsTo :expense_db`) and keeps its rows in PostgreSQL, so no SQLite
-volume is mounted. Compose only merges an override from the working directory,
-so pass both files from the repository root:
+There is no hand-written override. The development environment's facts are
+`deploy:override`s in the model: `:expense_api` builds
+`docker/runtime.Dockerfile` from this checkout (the generator adds
+`SEAMS_APP_DIR=examples/expenses/chapter-08` and
+`SEAMS_ROUTES_FILE=expense_api.py`) and reads `DATABASE_URL` from the
+`deploy:secretFile` `docker/local-secrets/expense_database_url`, and
+`:expense_db` gets a dev-only `POSTGRES_PASSWORD`. Shared facts make the
+portal a Caddy reverse proxy to the API (`deploy:proxies`) and give every
+container a healthcheck, so the API waits until the store is healthy. The
+project name, `expense_system`, comes from the `arch:System`. The runtime
+reads the secret through `DATABASE_URL_FILE` (the binding that
+`deploy:connectsTo :expense_db`) and keeps its rows in PostgreSQL, so no
+SQLite volume is mounted. Run it from the repository root:
 
 ```
-docker compose -f examples/expenses/chapter-08/compose.yaml \
-  -f examples/expenses/chapter-08/compose.override.yaml up -d --build --wait
+docker compose -f examples/expenses/chapter-08/compose.development.yaml up -d --build --wait
 ```
 
 There is no auth proxy and no static dev user, so the API's
@@ -210,11 +214,11 @@ Caddy passes through. Send them yourself (for example
 request without them is a 401. Keep the stack on localhost.
 
 CI's `acceptance` job runs `seams check` on chapter 8, so its committed
-`compose.yaml` stays current. `tests/test_expense_compose.py` and
-`tests/test_expense_e2e.py` run chapter 9's stack, which is chapter 8's plus
-the handlers mount (see below). `tests/test_expense_compose.py` checks that the
-committed `compose.yaml` equals what the generator writes now, and what the
-override builds. `tests/test_expense_e2e.py` runs only with `SEAMS_E2E=1`
+compose files stay current. `tests/test_expense_e2e.py` runs chapter 9's
+development stack, which is chapter 8's plus the handlers mount (see below). `tests/test_expense_compose.py` checks that each
+chapter's committed compose files equal what the generator writes now, that
+the development file carries what the old override did, and that the
+production file stays production-shaped. `tests/test_expense_e2e.py` runs only with `SEAMS_E2E=1`
 (CI's `tutorial-e2e` job): it brings the stack up, and over `http://localhost:8080` an employee
 submits, the manager approves through the generated form route, finance pays,
 and the test polls `/payouts` until the payout process has batched the

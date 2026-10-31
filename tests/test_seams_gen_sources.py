@@ -61,8 +61,12 @@ def test_chat_app_sources():
     # a fragment partial lists its component and the operations that render it
     thread = sources["htmx"]["message_thread.html"]
     assert str(m.curie(":message_thread")) in thread
-    compose = sources["compose"]["compose.yaml"]
-    assert len(compose) == len(m.architecture.systems()[0].containers) + 1
+    # one compose file per environment: the environment, the system and its containers
+    assert list(sources["compose"]) == ["compose.development.yaml", "compose.production.yaml"]
+    for name, env in (("compose.development.yaml", ":development"), ("compose.production.yaml", ":production")):
+        compose = sources["compose"][name]
+        assert str(m.curie(env)) in compose
+        assert len(compose) == len(m.architecture.systems()[0].containers) + 2
 
 
 def test_task_form_sources_name_task_and_shape():

@@ -1,0 +1,30 @@
+# Semantic Seams project file for expense tutorial chapter 9.
+# It names the model, the generators with their output directories, and
+# the environments the model declares.
+# `seams generate` (run here, or with --project) rewrites every output below.
+# Paths are relative to this file. Reference: docs/reference/seams-cli.md.
+
+model = "expenses.trig"
+
+# `seams check` fails if any UI event can write data with no policy governing it.
+gates = ["../../../docs/queries/gates/ungoverned-writes.rq"]
+
+[[generators]]
+name = "fastapi"
+out = "generated"
+
+[[generators]]
+name = "htmx"
+out = "generated/templates"
+
+[[generators]]
+name = "compose"
+out = "."
+
+[environments.prod]
+
+# The local `docker compose up` stack. The Caddy UI container (employee_portal) on
+# port 8080 proxies /healthz to the runtime, so `seams status --env local`
+# reads the running model hash there.
+[environments.local]
+endpoints = { expense_api = "http://localhost:8080" }

@@ -33,7 +33,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None, handlers=None, http_transport=None, http_base_url=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Resolves every invoked operation's implementation and imports the Python handlers (see [Operation implementations](#operation-implementations)); `runtime.implementations` maps each operation IRI to `(Implementation or None, callable or None)`. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
@@ -184,13 +184,18 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    that matches no rule produces no output and fails with a `ResolutionError`; an output
    no outgoing condition accepts fails the instance at the gateway. The expense
    tutorial's chapter 5 (`examples/expenses/chapter-05/`) routes this way.
-3. `seam:invokes op`: when the container that `seam:exposes` op also `seam:executes` the
-   process, the call is in-process and needs no remote call. Any other container gets an
-   OpenAI-compatible streaming POST to op's `comm:path`. Each delta is published on the
-   channel the invoking task itself `seam:publishesTo` (none if it declares none; D046),
-   with the correlation key as scope and the `comm:eventName` as event name, and the trace
-   row records `streamed: {channel, event}` beside `tokens`. The assembled reply is validated against
-   `seam:returnsShape`. The request `model` is the most recent decision's single output.
+3. `seam:invokes op`: the worker dispatches on op's `seam:implementedBy` kind, resolved
+   at load (see [Operation implementations](#operation-implementations)). An in-process
+   op (the container that `seam:exposes` it also `seam:executes` the process) that
+   declares none is served by the runtime itself and needs no call. A
+   `comm:LLMCompletion` gets an OpenAI-compatible streaming POST to op's `comm:path`.
+   Each delta is published on the channel the invoking task itself `seam:publishesTo`
+   (none if it declares none; D046), with the correlation key as scope and the
+   `comm:eventName` as event name, and the trace row records `streamed: {channel, event}`
+   beside `tokens`. The assembled reply is validated against `seam:returnsShape`. The
+   request `model` is the most recent decision's single output. A `comm:PythonHandler`
+   calls its handler, and a `comm:HTTPEndpoint` POSTs the entity as JSON; either result
+   is validated against `seam:returnsShape` and becomes the current entity of that shape.
 4. `seam:writes Shape`: persists the current entity of that shape.
 5. After dispatch: the fired transition is applied and its status is persisted.
 6. Message throw events publish a completion event named after the channel's
@@ -203,7 +208,8 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    `started: [{process, instance}]`. A subscriber that fails, or cannot start (recorded
    in that row with `instance: null` and its `error`), never fails the publisher.
 7. Exceptions: the lifecycle's `"error"` exit is applied (status becomes `failed`), the
-   error is recorded, the instance's scope is closed on every channel an element of the
+   error is recorded (with `operation` and `implementation`, the kind, when it was
+   raised while invoking), the instance's scope is closed on every channel an element of the
    process `seam:publishesTo` (D046), and the instance is marked failed.
    When Spiff wrapped a model error (a `ResolutionError` raised inside a business-rule
    task arrives as a `WorkflowTaskException`), the model error is the one recorded.
@@ -214,6 +220,81 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 9. User tasks are not run by the loop. The instance ends `waiting` on them, and the log
    names them. `complete_task` finishes one with the person's payload, applying rules
    1 and 3 to 6 to it with the completing identity as the trace row's `by`.
+
+## Operation implementations
+
+[ADR-0012](../docs/adr/0012-operation-implementation.md): an operation says what serves
+it with `seam:implementedBy`, an implementation node whose `rdf:type` is its kind. The
+worker dispatches on the kind and records it in the trace row as `implementation`:
+
+| `implementation` | When | What runs | Other row keys |
+|---|---|---|---|
+| `runtime` | an in-process operation with no `seam:implementedBy` | nothing: the runtime serves it (its `seam:acceptsShape` was validated at `start_process`) | none |
+| `LLMCompletion` | a remote operation | the streaming completion call of rule 3 | `path`, `model`, `tokens`, `streamed` |
+| `PythonHandler` | an in-process operation | the function `comm:handler` names in the handlers package | `handler` (the dotted path) |
+| `HTTPEndpoint` | a remote operation | `POST` of the entity as JSON to the bound container at op's `comm:path` | `path` |
+
+The OpenTelemetry element span carries `implementation` and `handler` as
+`seams.implementation` and `seams.handler`.
+
+**The handlers package** is a directory with an `__init__.py`: `handlers=` on
+`Runtime.load`, else `SEAMS_HANDLERS`, else `handlers/` beside the model file. The runtime
+imports it under one package name derived from its absolute path
+(`seams_handlers_<hash>`) and resolves every `comm:handler` inside it:
+`"notify.notify_manager"` is `notify_manager` in `handlers/notify.py`, and a single
+segment is an attribute of `__init__.py`. Every segment must be an identifier, and the
+first names a module of the package, so `"os.system"` looks for `handlers/os.py`, never
+the standard library. The package is imported only when some operation declares a
+`comm:PythonHandler`.
+
+**The handler signature:**
+
+```python
+def notify_manager(entity: dict) -> dict: ...        # or: async def
+```
+
+The argument is the current entity of op's `seam:acceptsShape` as a plain dict: no `id`,
+and no `status` when the shape has a `seam:lifecycle` (statuses are the runtime's). An
+`async def` is awaited on the event loop. A plain function runs in a worker thread
+(`asyncio.to_thread`), so it cannot block the loop. The returned dict is validated
+against op's `seam:returnsShape` and becomes the current entity of that shape, which the
+task's `seam:writes` then persists. An operation with no `seam:returnsShape` must return
+`None`. A handler never sees the store, the bus, statuses or secrets.
+
+**HTTP endpoints** use the base URL in the environment variable the executing
+container's `deploy:binding` with `deploy:serviceOf` the exposing container names, as the
+LLM call does; `http_base_url=` overrides it and `http_transport=` injects an httpx
+transport (tests). A 2xx JSON object is validated against `seam:returnsShape`; with no
+returnsShape the body is ignored.
+
+**Load-time errors.** `Runtime.load` (and `Runtime(...)`, through
+`resolve_implementations`) resolves every operation a process `seam:invokes` before any
+store is opened or request served. Each model fault raises `ResolutionError(subject,
+predicate)`:
+
+| Case | `subject` | `predicate` |
+|---|---|---|
+| a remote operation with no `seam:implementedBy`, or several | the operation | `seam:implementedBy` |
+| no kind, several, or one outside the three | the implementation | `rdf:type` |
+| a `comm:PythonHandler` on a remote operation; an LLM or HTTP kind on an in-process one, or with no `deploy:serviceOf` binding from the executing container | the operation | `seam:exposes` |
+| no `comm:handler`, several, or one that is not a dotted path of identifiers | the implementation | `comm:handler` |
+| no handlers package, a module (or the package) that fails to import, a missing attribute, or one that is not callable | the implementation | `comm:handler` |
+
+The shapes (`seamsh:ImplementedByShape`, `ImplementationKindShape`, `PythonHandlerShape`,
+`RemoteImplementationShape`) catch the declaration faults before the runtime does. The
+kind-versus-where agreement and everything about the handlers package (whether it
+exists, imports, and holds a callable) are runtime-only: they depend on files outside
+the model. An import that fails inside a handler module is reported with the original
+exception chained as `__cause__`, so the traceback still points at the line.
+
+**Run-time errors** are not model faults. A handler that raises, or returns `None` for
+an operation with a returnsShape, a non-dict, or anything but `None` without one, is a
+`HandlerError` (500, with `operation`, `handler`, `reason`). An HTTP call with no base
+URL, a connection error or timeout, a non-2xx status, a body that is not JSON or not an
+object is an `EndpointError` (502, with `url`, `reason`). A result that fails
+`seam:returnsShape` is a `ContractViolation` naming the operation. Each fails the
+instance as an `LLMError` does (rule 7), and the recorded error adds `operation` and
+`implementation` (the kind).
 
 ## Environment
 
@@ -228,8 +309,9 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 | `SEAMS_ALLOW_HASH_MISMATCH` | When set to `1`, `load` warns on a hash mismatch instead of refusing the model. |
 | `SEAMS_TEMPLATES` | Directory of the generated htmx partials `render_fragment` reads. The default is `./templates`. `templates_dir=` overrides it. |
 | `SEAMS_ROUTES` | Route module the host serves when `--routes` is not given. The default is `/app/chat_api.py`. |
+| `SEAMS_HANDLERS` | The handlers package directory (ADR-0012). The default is `handlers/` beside the model file. `handlers=` overrides it. |
 | `SEAMS_SEED` | Optional seed JSON the host writes into the store on startup. |
-| `LLM_GATEWAY_URL` | Base URL of `:llm_gateway`. The name comes from `:chat_api`'s `deploy:binding` with `deploy:serviceOf :llm_gateway`. `llm_base_url=` overrides it. |
+| `LLM_GATEWAY_URL` | Base URL of `:llm_gateway`. The name comes from `:chat_api`'s `deploy:binding` with `deploy:serviceOf :llm_gateway`. `llm_base_url=` overrides it (`http_base_url=` for a `comm:HTTPEndpoint`). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Turns on OpenTelemetry spans (see [Tracing](#tracing-opentelemetry)). Unset or empty, tracing is off. |
 | `OTEL_SERVICE_NAME` | The `service.name` resource of the spans. The default is `seams-runtime`. |
 

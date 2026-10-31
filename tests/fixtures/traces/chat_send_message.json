@@ -12,6 +12,7 @@
       "invokes": "https://example.org/chat/send_message_op",
       "container": "https://example.org/chat/chat_api",
       "in_process": true,
+      "implementation": "runtime",
       "writes": [
         "entity-1"
       ],
@@ -32,6 +33,7 @@
       "invokes": "https://example.org/chat/completion_op",
       "container": "https://example.org/chat/llm_gateway",
       "in_process": false,
+      "implementation": "LLMCompletion",
       "path": "/v1/chat/completions",
       "model": "default-provider",
       "tokens": 3,

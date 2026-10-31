@@ -108,12 +108,14 @@ def test_short_message_runs_to_complete(make_store):
     persist = _row(result, "persist_user_msg")
     assert persist["invokes"] == CHAT + "send_message_op"
     assert persist["container"] == CHAT + "chat_api" and persist["in_process"] is True
+    assert persist["implementation"] == "runtime" and "handler" not in persist  # ADR-0012: declares nothing
     assert persist["fires"] == CHAT + "t_send"
     assert _row(result, "route_to_provider")["decision"] == CHAT + "routing_decision"
     invoke = _row(result, "invoke_llm")
     assert invoke["invokes"] == CHAT + "completion_op"
     assert invoke["container"] == CHAT + "llm_gateway" and invoke["in_process"] is False
     assert invoke["path"] == "/v1/chat/completions"
+    assert invoke["implementation"] == "LLMCompletion" and "handler" not in invoke
     assert _row(result, "persist_response")["fires"] == CHAT + "t_finish"
 
     url, body = llm.requests[0]

@@ -37,6 +37,15 @@ validates the payload against its output shape and completes it on the
 waiting instance (then the worker continues), and ``task_policy`` is the
 FastAPI dependency for a completion route.
 
+Implementations (ADR-0012): every operation a service task seam:invokes is
+resolved when the runtime is built, before any request is served
+(``resolve_implementations``): its seam:implementedBy kind must agree with
+where it is served, and a comm:PythonHandler is imported from the handlers
+package (``handlers=``, ``SEAMS_HANDLERS`` or ``handlers/`` beside the model).
+A fault raises ``ResolutionError`` naming the operation or implementation.
+``http_transport=`` / ``http_base_url=`` configure the comm:HTTPEndpoint
+client as ``llm_transport=`` / ``llm_base_url=`` do the LLM one.
+
 Tracing (D049): ``telemetry=`` injects a ``Telemetry`` (tests); otherwise
 ``tracer_from_env()`` builds one, a no-op unless ``OTEL_EXPORTER_OTLP_ENDPOINT``
 is set and the otel extra is installed (``seams_runtime.telemetry``).
@@ -59,9 +68,10 @@ from .contracts import validate as _validate
 from .engine import Engine
 from .errors import ModelHashMismatch, PolicyDenied, ResolutionError, TaskNotOpen
 from .fragments import FragmentRenderer, flatten
+from .handlers import EndpointClient, HandlersPackage, handlers_dir
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient
-from .model import DEPLOY, ModelGraph, local_name
+from .model import COMM, DEPLOY, SEAM, ModelGraph, local_name
 from .policy import Identity, PolicyHook, authenticator_from_env
 from .store import PostgresStore, SQLiteStore, Store
 from .telemetry import Telemetry, tracer_from_env
@@ -104,6 +114,76 @@ def _connection_url(plan) -> str:
     )
 
 
+def _check_where(model: ModelGraph, process, op, impl, container) -> None:
+    """ADR-0012's where-rule: the kind must agree with where ``op`` is served
+    for ``process`` (GAP-27)."""
+    if impl is None:
+        if not container.in_process:
+            raise ResolutionError(
+                op,
+                SEAM.implementedBy,
+                f"invoked by {process} across containers ({container.iri} serves it) and declares no implementation",
+            )
+        return
+    kind = local_name(impl.kind)
+    if impl.kind == COMM.PythonHandler:
+        if not container.in_process:
+            raise ResolutionError(
+                op,
+                SEAM.exposes,
+                f"{impl.iri} is a comm:{kind}, which runs in the runtime, "
+                f"but {container.iri} does not seam:executes {process}",
+            )
+        return
+    if container.in_process:
+        raise ResolutionError(
+            op,
+            SEAM.exposes,
+            f"{impl.iri} is a comm:{kind}, which reaches another container, "
+            f"but {container.iri} also seam:executes {process}",
+        )
+    executor = model.executing_container(process)
+    try:
+        model.service_binding_key(executor.iri, container.iri)
+    except ResolutionError as exc:
+        raise ResolutionError(
+            op,
+            SEAM.exposes,
+            f"{impl.iri} is a comm:{kind}, but {executor.iri} has no deploy:binding "
+            f"with deploy:serviceOf {container.iri}",
+        ) from exc
+
+
+def resolve_implementations(model: ModelGraph, handlers=None) -> dict:
+    """``{operation IRI: (Implementation | None, callable | None)}`` for every
+    operation a process seam:invokes (ADR-0012). The kind is checked against
+    where the operation is served, and each comm:PythonHandler is imported
+    from the handlers package now, not on first use. ``None`` as the
+    implementation means the runtime itself serves the in-process operation.
+    Any fault raises ``ResolutionError``."""
+    resolved: dict = {}
+    package = None
+    for process in sorted(model.processes, key=lambda p: str(p.iri)):
+        for op in process.invoked_operations:
+            impl = model.operation_implementation(op.iri)
+            _check_where(model, process.iri, op.iri, impl, model.implementing_container(op.iri, process.iri))
+            if op.iri in resolved:
+                continue
+            target = None
+            if impl is not None and impl.kind == COMM.PythonHandler:
+                if package is None:
+                    package = HandlersPackage(handlers_dir(model.path, handlers))
+                target = package.resolve(impl.iri, impl.handler)
+            resolved[op.iri] = (impl, target)
+            log.info(
+                "operation %s implemented by %s%s",
+                op.iri,
+                "the runtime" if impl is None else f"{impl.iri} ({local_name(impl.kind)})",
+                "" if impl is None or impl.handler is None else f", handler {impl.handler}",
+            )
+    return resolved
+
+
 class Runtime:
     def __init__(
         self,
@@ -118,6 +198,9 @@ class Runtime:
         store_plan=None,
         store_override: bool = False,
         telemetry: Telemetry | None = None,
+        handlers=None,
+        http: EndpointClient | None = None,
+        implementations: dict | None = None,
     ):
         self.model = model
         self.store = store
@@ -130,9 +213,24 @@ class Runtime:
             model, authenticator if authenticator is not None else authenticator_from_env(), evaluator
         )
         self.llm = llm if llm is not None else LLMClient()
+        self.http = http if http is not None else EndpointClient()
+        # ADR-0012: resolved before any request is served; ResolutionError on a model fault
+        self.implementations = (
+            implementations if implementations is not None else resolve_implementations(model, handlers)
+        )
         # OpenTelemetry spans (D049): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set
         self.telemetry = telemetry if telemetry is not None else tracer_from_env()
-        self.worker = Worker(model, self.engine, store, self.bus, self.guard, self.llm, self.telemetry)
+        self.worker = Worker(
+            model,
+            self.engine,
+            store,
+            self.bus,
+            self.guard,
+            self.llm,
+            self.telemetry,
+            implementations=self.implementations,
+            http=self.http,
+        )
         self.worker.on_published = self._on_published
         self.instances: dict[str, Instance] = {}
         self._task_locks: dict[str, asyncio.Lock] = {}
@@ -156,6 +254,9 @@ class Runtime:
         templates_dir=None,
         store: Store | None = None,
         telemetry: Telemetry | None = None,
+        handlers=None,
+        http_transport=None,
+        http_base_url: str | None = None,
     ) -> Runtime:
         override = os.environ.get(MODEL_ENV)
         if override:
@@ -175,6 +276,8 @@ class Runtime:
             else:
                 raise ModelHashMismatch(model_hash, model.hash, model.path)
         plan = model.store_plan()  # ResolutionError on a bad model, whatever store is used
+        # ADR-0012: implementations resolve before a store is opened, so a model fault opens nothing
+        implementations = resolve_implementations(model, handlers)
         declared = STORE_KINDS[plan.kind]
         override = False
         if store is not None:
@@ -213,6 +316,8 @@ class Runtime:
             store_plan=plan,
             store_override=override,
             telemetry=telemetry,
+            http=EndpointClient(http_base_url, transport=http_transport),
+            implementations=implementations,
         )
         log.info(
             "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",

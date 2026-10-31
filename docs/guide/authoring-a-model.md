@@ -240,6 +240,15 @@ the chat app's `:send_message_op` is. The shapes in `seam-shapes.ttl` check each
 these rules, and `ModelGraph.operation_implementation(op)` reads the implementation,
 raising `ResolutionError` naming the fact when one is broken.
 
+`Runtime.load` checks the rest before it serves a request: that the kind agrees with
+where the operation is served, and that each handler imports and is callable. A handler
+takes the accepted entity as a dict and returns a dict of the operation's
+`seam:returnsShape` (or `None` when it has none); `async def` handlers are awaited. The
+trace row of the invoking task records the kind as `implementation` (`"runtime"` when
+the runtime serves the operation itself). The
+[`seams_runtime` README](../../seams_runtime/README.md#operation-implementations)
+lists every load and run-time error.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

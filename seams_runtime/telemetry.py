@@ -19,7 +19,9 @@ set when the span ends, from the instance state and the finished trace row:
   the instance failed;
 - element: those three plus ``seams.element.iri``, ``bpmn.id`` and, when the
   row has them, ``seams.fires``, ``seams.decision``, ``seams.invokes``,
-  ``seams.container``, ``seams.channel`` (from ``streamed`` or
+  ``seams.container``, ``seams.implementation`` (the ADR-0012 kind, or
+  "runtime"), ``seams.handler`` (a Python handler's dotted path),
+  ``seams.channel`` (from ``streamed`` or
   ``published``), ``seams.status`` and ``seams.by``. An element that raises
   records the exception and ends with status ERROR.
 
@@ -46,6 +48,8 @@ _ROW_ATTRIBUTES = {
     "decision": "seams.decision",
     "invokes": "seams.invokes",
     "container": "seams.container",
+    "implementation": "seams.implementation",
+    "handler": "seams.handler",
     "status": "seams.status",
     "by": "seams.by",
 }

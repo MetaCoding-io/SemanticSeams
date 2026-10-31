@@ -12,19 +12,37 @@ is completed) and applies these rules to each BPMN element, in this order:
    dec:input variables from the current entity of the shape the task
    ``seam:reads``; after the run, ``Engine.after_task`` returns the
    dec:output process variables.
-3. ``seam:invokes op``: when op's implementing container (the one that
-   ``seam:exposes`` it) also ``seam:executes`` the process, the call is
-   in-process and needs no remote call (its ``seam:acceptsShape`` was
-   validated when the process started). Any other container gets a streaming
-   OpenAI-compatible call to op's ``comm:path``. Each delta is published on
-   the channel the invoking task itself ``seam:publishesTo`` (none if it
-   declares none; D046), scoped by the correlation key and named by its
-   ``comm:eventName``; the trace row then records ``streamed`` as
-   ``{channel, event}`` beside ``tokens``. The assembled reply
-   ``{role: "assistant", content}`` is validated against op's
-   ``seam:returnsShape`` and becomes the current entity of that shape.
-   The request's ``model`` is the value of the most recent decision when it
-   produced exactly one output (the routed provider), else omitted.
+3. ``seam:invokes op``: dispatch on op's ``seam:implementedBy`` kind,
+   resolved at load (ADR-0012, ``Runtime.implementations``). The trace row
+   records ``implementation``: the kind's local name, or "runtime" for an
+   in-process operation (its implementing container, the one that
+   ``seam:exposes`` it, also ``seam:executes`` the process) that declares
+   none, which needs no call (its ``seam:acceptsShape`` was validated when
+   the process started).
+
+   - ``comm:LLMCompletion``: a streaming OpenAI-compatible call to op's
+     ``comm:path`` on the container the executing container's deploy:binding
+     ``deploy:serviceOf``. Each delta is published on the channel the
+     invoking task itself ``seam:publishesTo`` (none if it declares none;
+     D046), scoped by the correlation key and named by its
+     ``comm:eventName``; the trace row then records ``streamed`` as
+     ``{channel, event}`` beside ``tokens``. The assembled reply
+     ``{role: "assistant", content}`` is validated against op's
+     ``seam:returnsShape`` and becomes the current entity of that shape.
+     The request's ``model`` is the value of the most recent decision when
+     it produced exactly one output (the routed provider), else omitted.
+   - ``comm:PythonHandler``: the handler (row ``handler``, its dotted path)
+     is called with the current entity of op's ``seam:acceptsShape`` as a
+     plain dict (no id, and no status for a lifecycle shape). An ``async
+     def`` is awaited; a plain function runs in a worker thread. Its dict is
+     validated against ``seam:returnsShape`` and becomes the current entity
+     of that shape; with no returnsShape it must return None.
+   - ``comm:HTTPEndpoint``: that entity is POSTed as JSON to op's
+     ``comm:path`` on the bound container; a non-2xx or non-JSON answer
+     fails, and the JSON is validated against ``seam:returnsShape`` as above.
+
+   LLM and HTTP rows record the resolved ``path``. A failure while invoking
+   adds ``operation`` and ``implementation`` (the kind) to the instance error.
 4. ``seam:writes Shape``: persist the current entity of that shape (the
    first write persists the user message; after an invoke, the reply). A
    shape with a ``seam:lifecycle`` and no status yet (a user task's output,
@@ -71,6 +89,7 @@ marks the instance span ERROR. The default ``Telemetry()`` is a no-op.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import uuid
 from urllib.parse import quote
@@ -80,12 +99,14 @@ from SpiffWorkflow.util.task import TaskState
 
 from .contracts import validate
 from .errors import ResolutionError, RuntimeModelError
-from .model import SEAM, ModelGraph
+from .handlers import EndpointClient, EndpointError, HandlerError
+from .model import COMM, SEAM, ModelGraph, local_name
 from .telemetry import Telemetry
 
 log = logging.getLogger(__name__)
 
 RUNNING, STOPPED, COMPLETE, FAILED, WAITING = "running", "stopped", "complete", "failed", "waiting"
+RUNTIME = "runtime"  # row["implementation"] of an in-process operation that declares no implementation
 
 
 def new_state(process, correlation_key: str) -> dict:
@@ -116,6 +137,8 @@ class Instance:
         self.stop_after = stop_after
         self.task: asyncio.Task | None = None
         self.result: dict | None = None
+        # {operation, implementation} while an invoke runs, so a failure can name them
+        self.invoking: dict | None = None
 
     async def wait(self) -> dict:
         return await asyncio.shield(self.task)
@@ -130,7 +153,19 @@ class Instance:
 
 
 class Worker:
-    def __init__(self, model: ModelGraph, engine, store, bus, guard, llm, telemetry: Telemetry | None = None):
+    def __init__(
+        self,
+        model: ModelGraph,
+        engine,
+        store,
+        bus,
+        guard,
+        llm,
+        telemetry: Telemetry | None = None,
+        *,
+        implementations: dict | None = None,
+        http: EndpointClient | None = None,
+    ):
         self.model = model
         self.engine = engine
         self.store = store
@@ -138,6 +173,9 @@ class Worker:
         self.guard = guard
         self.llm = llm
         self.telemetry = telemetry if telemetry is not None else Telemetry()
+        # {operation IRI: (Implementation | None, callable | None)}, from resolve_implementations
+        self.implementations = implementations if implementations is not None else {}
+        self.http = http if http is not None else EndpointClient()
         # Set by Runtime: called as on_published(instance, channel IRI) after
         # rule 6 publishes; returns [{process, instance}] for the trace row.
         self.on_published = None
@@ -301,32 +339,72 @@ class Worker:
         return None
 
     async def _invoke(self, instance: Instance, iri, op, row: dict) -> None:
-        st = instance.state
         container = self.model.implementing_container(op, instance.process)
         row.update(invokes=str(op), container=str(container.iri), in_process=container.in_process)
-        if container.in_process:
-            return  # its acceptsShape was validated at start_process
-        op_path = self.model.operation_path(op)
+        if op not in self.implementations:
+            raise ResolutionError(op, SEAM.implementedBy, "operation was not resolved when the runtime loaded")
+        impl, target = self.implementations[op]
+        if impl is None:
+            row["implementation"] = RUNTIME
+            return  # served by the runtime: its acceptsShape was validated at start_process
+        kind = local_name(impl.kind)
+        row["implementation"] = kind
+        instance.invoking = {"operation": str(op), "implementation": kind}
+        if impl.kind == COMM.PythonHandler:
+            row["handler"] = impl.handler
+            await self._invoke_python(instance, op, impl.handler, target)
+        elif impl.kind == COMM.HTTPEndpoint:
+            await self._invoke_http(instance, op, container, row)
+        else:
+            await self._invoke_llm(instance, iri, op, container, row)
+        instance.invoking = None
+
+    def _accepted(self, st, op) -> dict:
+        """The current entity of op's seam:acceptsShape."""
         accepts = self.model.accepted_shape(op)
         cur = st["current"].get(str(accepts))
         if cur is None:
             raise ResolutionError(op, SEAM.acceptsShape, f"no current {accepts} entity to send")
+        return cur
+
+    def _entity(self, op, cur: dict) -> dict:
+        """The payload a handler or endpoint gets: no id, no lifecycle status."""
+        data = dict(cur["data"])
+        if self.model.has_lifecycle(self.model.accepted_shape(op)):
+            data.pop("status", None)
+        return data
+
+    def _path(self, op, cur: dict) -> str:
+        """op's comm:path with its variables filled from the entity."""
+        op_path = self.model.operation_path(op)
         path = op_path.template
         for m in op_path.mappings:
             if m.property not in cur["data"]:
                 raise ResolutionError(op, m.property_iri, f"entity has no {m.property!r} for {{{m.variable}}}")
             path = path.replace("{" + m.variable + "}", quote(str(cur["data"][m.property]), safe=""))
+        return path
+
+    def _returns(self, op) -> URIRef | None:
+        shape = self.model.operations.by_iri(op).returns
+        return None if shape is None else shape.iri
+
+    def _base_url(self, client, instance: Instance, container) -> str:
+        if client.base_url:
+            return client.base_url
+        executor = self.model.executing_container(instance.process)
+        return client.resolve_base_url(self.model.service_binding_key(executor.iri, container.iri))
+
+    async def _invoke_llm(self, instance: Instance, iri, op, container, row: dict) -> None:
+        st = instance.state
+        cur = self._accepted(st, op)
+        path = self._path(op, cur)
         row["path"] = path
         messages = [{"role": cur["data"].get("role") or "user", "content": cur["data"]["content"]}]
         decided = list(st["decision"].values())
         model_name = decided[0] if len(decided) == 1 else None
         row["model"] = model_name
 
-        if self.llm.base_url:
-            base = self.llm.base_url
-        else:
-            executor = self.model.executing_container(instance.process)
-            base = self.llm.resolve_base_url(self.model.service_binding_key(executor.iri, container.iri))
+        base = self._base_url(self.llm, instance, container)
         # only the channel this task itself seam:publishesTo carries its deltas (D046)
         channel = self.model.published_channel(iri)
         parts: list[str] = []
@@ -345,6 +423,45 @@ class Worker:
         row["tokens"] = len(parts)
         if channel is not None:
             row["streamed"] = {"channel": str(channel.iri), "event": channel.event_name}
+
+    async def _invoke_python(self, instance: Instance, op, handler: str, target) -> None:
+        st = instance.state
+        entity = self._entity(op, self._accepted(st, op))
+        log.info("instance %s: calling handler %s for %s", instance.id, handler, op)
+        try:
+            if inspect.iscoroutinefunction(target):
+                result = await target(entity)
+            else:
+                result = await asyncio.to_thread(target, entity)
+                if inspect.isawaitable(result):  # an async callable object
+                    result = await result
+        except Exception as exc:  # noqa: BLE001 - any handler fault fails the instance, chained
+            raise HandlerError(op, handler, f"{type(exc).__name__}: {exc}") from exc
+        returns = self._returns(op)
+        if returns is None:
+            if result is not None:
+                raise HandlerError(
+                    op, handler, f"returned a {type(result).__name__}, but the operation has no seam:returnsShape"
+                )
+            return
+        if not isinstance(result, dict):
+            raise HandlerError(op, handler, f"returned a {type(result).__name__}, expected a dict of {returns}")
+        st["current"][str(returns)] = {"id": None, "data": validate(self.model, returns, result, operation=op)}
+
+    async def _invoke_http(self, instance: Instance, op, container, row: dict) -> None:
+        st = instance.state
+        cur = self._accepted(st, op)
+        path = self._path(op, cur)
+        row["path"] = path
+        base = self._base_url(self.http, instance, container)
+        body = await self.http.post(base, path, self._entity(op, cur))
+        returns = self._returns(op)
+        if returns is None:
+            return
+        if not isinstance(body, dict):
+            url = base.rstrip("/") + "/" + path.lstrip("/")
+            raise EndpointError(url, f"response is a JSON {type(body).__name__}, expected an object of {returns}")
+        st["current"][str(returns)] = {"id": None, "data": validate(self.model, returns, body, operation=op)}
 
     # ── entities and statuses ──
 
@@ -415,6 +532,8 @@ class Worker:
             if isinstance(exc, RuntimeModelError)
             else {"type": type(exc).__name__, "message": str(exc), "http_status": 500}
         )
+        if instance.invoking is not None:  # ADR-0012: name the operation and implementation kind
+            st["error"] = {**st["error"], **instance.invoking}
         if span is not None:
             span.error(st["error"].get("type") or type(exc).__name__, st["error"].get("message") or str(exc))
         for shape, current in list(st["status"].items()):

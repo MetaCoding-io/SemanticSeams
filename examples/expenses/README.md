@@ -190,10 +190,9 @@ constraints come from `seam:deployedTo` and appear only in the production
 file, the environment that `arch:contains` the nodes.
 
 There is no hand-written override. The development environment's facts are
-`deploy:override`s in the model: `:expense_api` builds
-`docker/runtime.Dockerfile` from this checkout (the generator adds
-`SEAMS_APP_DIR=examples/expenses/chapter-08` and
-`SEAMS_ROUTES_FILE=expense_api.py`) and reads `DATABASE_URL` from the
+`deploy:override`s in the model: `:expense_api` builds the generated
+`generated/expense_api.Dockerfile` from this checkout (the `dockerfile`
+generator writes the chapter's paths into it literally) and reads `DATABASE_URL` from the
 `deploy:secretFile` `docker/local-secrets/expense_database_url`, and
 `:expense_db` gets a dev-only `POSTGRES_PASSWORD`. Shared facts make the
 portal a Caddy reverse proxy to the API (`deploy:proxies`) and give every

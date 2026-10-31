@@ -122,9 +122,9 @@ def test_development_builds_the_chapter_into_the_runtime_image(chapter):
     assert api["pull_policy"] == "build"
     build = api["build"]
     assert (app(chapter) / build["context"]).resolve() == ROOT
-    assert build["dockerfile"] == "docker/runtime.Dockerfile"
-    assert build["args"] == {"SEAMS_APP_DIR": f"examples/expenses/{chapter}", "SEAMS_ROUTES_FILE": "expense_api.py"}
-    assert (ROOT / build["args"]["SEAMS_APP_DIR"] / "generated" / build["args"]["SEAMS_ROUTES_FILE"]).is_file()
+    assert build["dockerfile"] == f"examples/expenses/{chapter}/generated/expense_api.Dockerfile"
+    assert "args" not in build
+    assert (ROOT / build["dockerfile"]).is_file()
     # no static dev user: identities (and so roles) come from the request headers
     assert "SEAMS_DEV_USER" not in api["environment"]
     # placement is swarm-only; development contains no nodes, and one replica is the default

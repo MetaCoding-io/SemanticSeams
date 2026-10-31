@@ -4,8 +4,8 @@ The generator writes one Dockerfile per serving container
 (``seams_gen.fastapi.serving_containers``, at most one, D026) whose
 deploy:artifact in the ``development`` arch:Environment has a deploy:build:
 ``<route module stem>.Dockerfile``, beside the route module in the app's
-``generated/`` directory. It replaces the hand-written docker/runtime.Dockerfile
-and its chat-app build-argument defaults.
+``generated/`` directory. The build's deploy:dockerfile names that file
+relative to the deploy:context, so the compose file builds the image from it.
 
 ``extract_dockerfile`` reads, through the seams views:
 
@@ -84,6 +84,7 @@ def extract_dockerfile(model: Model) -> DockerfileModel:
             f"the build context {artifact.build.context!r} does not hold the model's directory",
         )
     name = dockerfile_name(container.iri)
+    dockerfile = f"{app_dir}/generated/{name}"
     return DockerfileModel(
         model_stem=model.path.stem,
         model_hash=model_hash,
@@ -91,7 +92,7 @@ def extract_dockerfile(model: Model) -> DockerfileModel:
         context=artifact.build.context,
         app_dir=app_dir,
         routes_file=route_file_name(container.iri),
-        dockerfile=f"{app_dir}/generated/{name}",
+        dockerfile=dockerfile,
     )
 
 

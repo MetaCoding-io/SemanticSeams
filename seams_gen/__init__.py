@@ -30,6 +30,7 @@ from .compose import (  # noqa: E402
     generate_compose_environments,
     render_compose,
 )
+from .dockerfile import extract_dockerfile, generate_dockerfiles, render_dockerfile  # noqa: E402
 from .fastapi import extract_routes, generate_routes, render_routes  # noqa: E402
 from .fragments import fragment_for  # noqa: E402  (needs GeneratorError)
 from .htmx import (  # noqa: E402
@@ -45,17 +46,20 @@ __all__ = [
     "GeneratorError",
     "__version__",
     "extract_compose",
+    "extract_dockerfile",
     "extract_page",
     "extract_routes",
     "fragment_for",
     "generate_compose",
     "generate_compose_environments",
+    "generate_dockerfiles",
     "generate_fragments",
     "generate_page",
     "generate_routes",
     "generate_task_forms",
     "golden_target",
     "render_compose",
+    "render_dockerfile",
     "render_fragments",
     "render_routes",
     "render_task_forms",

@@ -11,7 +11,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
-DOCKERFILES = [ROOT / "docker" / "runtime.Dockerfile", ROOT / "docker" / "gateway.Dockerfile"]
+RUNTIME_DOCKERFILE = ROOT / "examples" / "chat-app" / "generated" / "chat_api.Dockerfile"
+DOCKERFILES = [RUNTIME_DOCKERFILE, ROOT / "docker" / "gateway.Dockerfile"]
 
 
 def _jobs(path: Path) -> dict:
@@ -123,6 +124,6 @@ def test_dockerignore_keeps_the_local_venv_out_of_the_images():
 
 def test_runtime_image_installs_the_seams_library():
     # seams_runtime imports ModelGraph and the errors from seams (D034).
-    lines = (ROOT / "docker" / "runtime.Dockerfile").read_text(encoding="utf-8").splitlines()
+    lines = RUNTIME_DOCKERFILE.read_text(encoding="utf-8").splitlines()
     assert "COPY packages/seams /app/packages/seams" in lines
     assert any(line.startswith("RUN uv sync --locked --no-dev") and "--no-editable" in line for line in lines)

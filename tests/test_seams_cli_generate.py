@@ -135,7 +135,7 @@ def test_a_malformed_project_exits_2_naming_the_file_and_key(app, capsys, text, 
 def test_an_unknown_generator_lists_the_known_ones(app, capsys):
     _project(app, '[[generators]]\nname = "react"\nout = "x"\n')
     assert main(["generate", "--project", str(app)]) == 2
-    assert "compose, fastapi, htmx" in capsys.readouterr().err
+    assert "compose, dockerfile, fastapi, htmx" in capsys.readouterr().err
 
 
 def test_a_missing_project_file_exits_2(tmp_path, capsys):

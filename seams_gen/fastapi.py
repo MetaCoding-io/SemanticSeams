@@ -222,7 +222,8 @@ class RoutesModel:
 
 def route_file_name(container_iri) -> str:
     """The file name of a serving container's route module: <local name>.py.
-    The compose generator names it in the SEAMS_ROUTES_FILE build argument."""
+    The dockerfile generator copies it into the runtime image and names its
+    own file after it."""
     return f"{local_name(container_iri)}.py"
 
 

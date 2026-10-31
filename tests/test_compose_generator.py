@@ -160,10 +160,8 @@ def test_development_builds_reads_secret_files_and_has_no_placement():
     assert api["image"] == "seams/chat-api:local" and api["pull_policy"] == "build"
     assert api["build"] == {
         "context": ".",
-        "dockerfile": "docker/runtime.Dockerfile",
-        "args": {"SEAMS_APP_DIR": "examples/chat-app", "SEAMS_ROUTES_FILE": "chat_api.py"},
+        "dockerfile": "examples/chat-app/generated/chat_api.Dockerfile",
     }
-    # only the serving container gets the app build arguments
     assert gateway["build"] == {"context": ".", "dockerfile": "docker/gateway.Dockerfile"}
     assert doc["secrets"] == {
         "db_url": {"file": "${DB_URL_FILE:-./docker/local-secrets/db_url}"},
@@ -222,7 +220,7 @@ def test_bind_sources_are_relative_to_base_dir():
         "../examples/chat-app/routing.dmn",
     ]
     assert api["build"]["context"] == ".."
-    assert api["build"]["args"]["SEAMS_APP_DIR"] == "examples/chat-app"  # relative to the context, not base_dir
+    assert api["build"]["dockerfile"] == "examples/chat-app/generated/chat_api.Dockerfile"  # relative to the context
     assert doc["secrets"]["db_url"]["file"] == "${DB_URL_FILE:-../docker/local-secrets/db_url}"
 
 

@@ -9,8 +9,15 @@ flows that breaks ties by document order and, on a cycle, releases the
 remaining node that comes first in the document. Nodes nothing flows into
 are ready at the start, so unreachable nodes still appear.
 
-A sequence flow or lane that names a node the process does not have raises
-``ResolutionError`` naming the flow or lane and the BPMN attribute that failed.
+A boundary event's node carries ``attached_to`` (its ``attachedToRef``) and,
+for an ``errorEventDefinition``, ``error_ref`` (its ``errorRef``, None for a
+catch-all). Each process lists the file's ``bpmn:error``s (``errors``), which
+sit outside the processes, so an ``errorRef`` resolves with
+``BpmnProcess.error``.
+
+A sequence flow, lane or ``attachedToRef`` that names a node the process does
+not have raises ``ResolutionError`` naming the flow, lane or boundary and the
+BPMN attribute that failed.
 """
 
 from __future__ import annotations
@@ -48,8 +55,22 @@ class Lane:
 
 
 @dataclass(frozen=True)
+class BpmnError:
+    """A ``bpmn:error``: what an error event's ``errorRef`` names. ``code`` is its ``errorCode``."""
+
+    id: str
+    name: str | None
+    code: str | None
+
+
+@dataclass(frozen=True)
 class BpmnNode:
-    """A flow node with its sequence flows in and out (in document order)."""
+    """A flow node with its sequence flows in and out (in document order).
+
+    ``attached_to`` is a boundary event's ``attachedToRef`` (else None) and
+    ``error_ref`` the ``errorRef`` of its ``errorEventDefinition`` (None when it
+    has none, or for a catch-all one).
+    """
 
     id: str
     tag: str
@@ -59,6 +80,8 @@ class BpmnNode:
     event_definitions: tuple[str, ...]
     incoming: tuple[SequenceFlow, ...]
     outgoing: tuple[SequenceFlow, ...]
+    attached_to: str | None = None
+    error_ref: str | None = None
 
     @property
     def is_task(self) -> bool:
@@ -77,16 +100,23 @@ class BpmnNode:
         """The outgoing flows (the paths out of a gateway)."""
         return self.outgoing
 
+    @property
+    def is_error_boundary(self) -> bool:
+        """A ``bpmn:boundaryEvent`` with an ``errorEventDefinition``."""
+        return self.tag == "boundaryEvent" and "errorEventDefinition" in self.event_definitions
+
 
 @dataclass(frozen=True)
 class BpmnProcess:
-    """A bpmn:process: nodes in flow order, flows in document order, lanes."""
+    """A bpmn:process: nodes in flow order, flows in document order, lanes,
+    and the ``bpmn:error``s of its file in document order."""
 
     id: str
     name: str | None
     nodes: tuple[BpmnNode, ...]
     flows: tuple[SequenceFlow, ...]
     lanes: tuple[Lane, ...]
+    errors: tuple[BpmnError, ...] = ()
 
     def node(self, bpmn_id: str) -> BpmnNode:
         """The node with id ``bpmn_id`` (KeyError when there is none)."""
@@ -94,6 +124,10 @@ class BpmnProcess:
             if n.id == bpmn_id:
                 return n
         raise KeyError(bpmn_id)
+
+    def error(self, error_id: str) -> BpmnError | None:
+        """The ``bpmn:error`` with id ``error_id``, or None."""
+        return next((e for e in self.errors if e.id == error_id), None)
 
 
 def _is_flow_node(name: str) -> bool:
@@ -193,7 +227,24 @@ def _flow_order(ids: list[str], flows: list[SequenceFlow]) -> list[int]:
     return order
 
 
-def _process(el: Any, path: Path) -> BpmnProcess:
+def _attached_to(el: Any, path: Path, node_ids: set[str]) -> str | None:
+    ref = el.get("attachedToRef")
+    if ref is None:
+        return None
+    if ref not in node_ids:
+        raise ResolutionError(
+            f"{path.name}#{el.get('id') or ''}", "bpmn:attachedToRef", f"{ref!r} is not a flow node of the process"
+        )
+    return str(ref)
+
+
+def _error_ref(el: Any) -> str | None:
+    definition = next((c for c in el if localname(c.tag) == "errorEventDefinition"), None)
+    ref = None if definition is None else definition.get("errorRef")
+    return None if ref is None else str(ref)
+
+
+def _process(el: Any, path: Path, errors: tuple[BpmnError, ...]) -> BpmnProcess:
     process_id = str(el.get("id") or "")
     node_els: list[Any] = []
     flow_els: list[Any] = []
@@ -219,6 +270,8 @@ def _process(el: Any, path: Path) -> BpmnProcess:
             ),
             incoming=tuple(f for f in flows if f.target == node_id),
             outgoing=tuple(f for f in flows if f.source == node_id),
+            attached_to=_attached_to(n, path, known),
+            error_ref=_error_ref(n),
         )
         for node_id, n in zip(ids, node_els, strict=True)
     ]
@@ -228,6 +281,7 @@ def _process(el: Any, path: Path) -> BpmnProcess:
         nodes=tuple(nodes[i] for i in _flow_order(ids, flows)),
         flows=tuple(flows),
         lanes=tuple(lanes),
+        errors=errors,
     )
 
 
@@ -235,4 +289,9 @@ def parse_bpmn(path: str | os.PathLike[str]) -> tuple[BpmnProcess, ...]:
     """Every bpmn:process of the BPMN file, in document order."""
     p = Path(path)
     root = etree.parse(str(p)).getroot()
-    return tuple(_process(el, p) for el in root.iter() if localname(el.tag) == "process")
+    errors = tuple(
+        BpmnError(id=str(el.get("id") or ""), name=el.get("name"), code=el.get("errorCode"))
+        for el in root.iter()
+        if localname(el.tag) == "error"
+    )
+    return tuple(_process(el, p, errors) for el in root.iter() if localname(el.tag) == "process")

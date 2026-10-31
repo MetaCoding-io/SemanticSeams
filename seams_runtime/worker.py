@@ -43,6 +43,23 @@ is completed) and applies these rules to each BPMN element, in this order:
 
    LLM and HTTP rows record the resolved ``path``. A failure while invoking
    adds ``operation`` and ``implementation`` (the kind) to the instance error.
+
+   3a. A declared error (ADR-0013): a Python handler raised
+   ``OperationError(code, ...)``, or an endpoint answered non-2xx
+   ``application/problem+json`` with the ``hydra:statusCode`` of exactly one
+   of op's errors. The problem body is built and validated against that
+   status's error shape (``contracts.problem_body``; a code op does not
+   declare or a body that does not conform fails the instance), and the row
+   records ``error`` as ``{code, status, operation}`` (the status IRI). When
+   a boundary lifted at load (``Runtime.boundaries``) is attached to this task
+   and catches the code, the body becomes the current entity of the error
+   shape, the row records ``boundary`` (its IRI), the engine throws the code
+   from the STARTED task, and rules 4 and 5 are skipped: no writes, no
+   transition, and the task is not completed. The loop then runs the READY
+   boundary before any STARTED task; its row records ``caught`` (the code),
+   running it cancels the task, and the process goes on down the error path.
+   With no such boundary the HandlerError or EndpointError fails the
+   instance as rule 7 says, its error also naming ``code`` and ``status``.
 4. ``seam:writes Shape``: persist the current entity of that shape (the
    first write persists the user message; after an invoke, the reply). A
    shape with a ``seam:lifecycle`` and no status yet (a user task's output,
@@ -97,8 +114,9 @@ from urllib.parse import quote
 from rdflib import URIRef
 from SpiffWorkflow.util.task import TaskState
 
-from .contracts import validate
-from .errors import ResolutionError, RuntimeModelError
+from .contracts import problem_body, validate
+from .engine import Engine
+from .errors import MODEL_MEMBERS, OperationError, ResolutionError, RuntimeModelError
 from .handlers import EndpointClient, EndpointError, HandlerError
 from .model import COMM, SEAM, ModelGraph, local_name
 from .telemetry import Telemetry
@@ -137,7 +155,7 @@ class Instance:
         self.stop_after = stop_after
         self.task: asyncio.Task | None = None
         self.result: dict | None = None
-        # {operation, implementation} while an invoke runs, so a failure can name them
+        # {operation, implementation[, code, status]} while an invoke runs, so a failure can name them
         self.invoking: dict | None = None
 
     async def wait(self) -> dict:
@@ -165,6 +183,7 @@ class Worker:
         *,
         implementations: dict | None = None,
         http: EndpointClient | None = None,
+        boundaries: dict | None = None,
     ):
         self.model = model
         self.engine = engine
@@ -176,6 +195,8 @@ class Worker:
         # {operation IRI: (Implementation | None, callable | None)}, from resolve_implementations
         self.implementations = implementations if implementations is not None else {}
         self.http = http if http is not None else EndpointClient()
+        # {(task IRI, errorCode): seams.ErrorBoundary}, from resolve_boundaries (ADR-0013)
+        self.boundaries = boundaries if boundaries is not None else {}
         # Set by Runtime: called as on_published(instance, channel IRI) after
         # rule 6 publishes; returns [{process, instance}] for the trace row.
         self.on_published = None
@@ -215,10 +236,15 @@ class Worker:
 
     @staticmethod
     def _next(wf):
+        """A READY error boundary (a caught throw, rule 3a: its task is still
+        STARTED until it runs), else a STARTED task, else a READY non-manual one."""
+        ready = [t for t in wf.get_tasks(state=TaskState.READY) if not t.task_spec.manual]
+        caught = [t for t in ready if Engine.is_error_boundary(t)]
+        if caught:
+            return caught[0]
         started = [t for t in wf.get_tasks(state=TaskState.STARTED)]
         if started:
             return started[0]
-        ready = [t for t in wf.get_tasks(state=TaskState.READY) if not t.task_spec.manual]
         return ready[0] if ready else None
 
     @staticmethod
@@ -289,6 +315,9 @@ class Worker:
             binding = self.engine.binding(task)
             row["decision"] = str(binding.decision)
             self.engine.before_task(task, self._read_entity(iri, st))
+        caught = self.engine.caught_code(task)
+        if caught is not None:
+            row["caught"] = caught  # 3a: running the boundary cancels the task it is attached to
         if task.state == TaskState.READY:
             task.run()
         if brt:
@@ -300,8 +329,8 @@ class Worker:
         # 3. invoke
         invoked = element.invokes
         op = None if invoked is None else invoked.iri
-        if op is not None:
-            await self._invoke(instance, iri, op, row)
+        if op is not None and await self._invoke(instance, task, iri, op, row):
+            return  # 3a: routed to an error boundary; no writes, no transition, not completed
 
         # 4. writes
         for written in self.model.written_shapes(iri):
@@ -338,7 +367,8 @@ class Worker:
                 return cur["data"]
         return None
 
-    async def _invoke(self, instance: Instance, iri, op, row: dict) -> None:
+    async def _invoke(self, instance: Instance, task, iri, op, row: dict) -> bool:
+        """Rule 3; True when a declared error was routed to a boundary (3a)."""
         container = self.model.implementing_container(op, instance.process)
         row.update(invokes=str(op), container=str(container.iri), in_process=container.in_process)
         if op not in self.implementations:
@@ -346,18 +376,61 @@ class Worker:
         impl, target = self.implementations[op]
         if impl is None:
             row["implementation"] = RUNTIME
-            return  # served by the runtime: its acceptsShape was validated at start_process
+            return False  # served by the runtime: its acceptsShape was validated at start_process
         kind = local_name(impl.kind)
         row["implementation"] = kind
         instance.invoking = {"operation": str(op), "implementation": kind}
-        if impl.kind == COMM.PythonHandler:
-            row["handler"] = impl.handler
-            await self._invoke_python(instance, op, impl.handler, target)
-        elif impl.kind == COMM.HTTPEndpoint:
-            await self._invoke_http(instance, op, container, row)
-        else:
-            await self._invoke_llm(instance, iri, op, container, row)
+        try:
+            if impl.kind == COMM.PythonHandler:
+                row["handler"] = impl.handler
+                await self._invoke_python(instance, op, impl.handler, target)
+            elif impl.kind == COMM.HTTPEndpoint:
+                await self._invoke_http(instance, op, container, row)
+            else:
+                await self._invoke_llm(instance, iri, op, container, row)
+        except (HandlerError, EndpointError) as exc:
+            error = self._declared(op, exc)
+            if error is None:
+                raise
+            self._route(instance, task, iri, op, error, row, exc)
+            instance.invoking = None
+            return True
         instance.invoking = None
+        return False
+
+    def _declared(self, op, exc: HandlerError | EndpointError) -> OperationError | None:
+        """The declared error ``exc`` carries (rule 3a), else None: the
+        handler's ``OperationError``, or the problem+json answer whose HTTP
+        status is the hydra:statusCode of exactly one of op's errors."""
+        if isinstance(exc, HandlerError):
+            return exc.__cause__ if isinstance(exc.__cause__, OperationError) else None
+        if exc.status is None or exc.problem is None:
+            return None
+        matches = self.model.operations.by_iri(op).errors.where(lambda s: s.status_code == exc.status)
+        if len(matches) != 1 or matches[0].error_code is None:
+            return None
+        members = {k: v for k, v in exc.problem.items() if k not in MODEL_MEMBERS}
+        detail = members.pop("detail", None)
+        return OperationError(matches[0].error_code, detail, **members)
+
+    def _route(self, instance: Instance, task, iri, op, error: OperationError, row: dict, exc: Exception) -> None:
+        """Rule 3a for ``error``: route it to the boundary that catches it, else re-raise ``exc``."""
+        st = instance.state
+        instance.invoking = {**(instance.invoking or {}), "code": error.code}
+        status = self.model.operations.by_iri(op).error(error.code)  # ResolutionError(op, comm:errorCode)
+        instance.invoking["status"] = str(status.iri)
+        row["error"] = {"code": error.code, "status": str(status.iri), "operation": str(op)}
+        _, body = problem_body(self.model, op, error.code, error.detail, error.extensions)
+        boundary = self.boundaries.get((iri, error.code))
+        if boundary is None:
+            log.info("instance %s: %s raised %s; no error boundary on %s catches it", instance.id, op, error.code, iri)
+            raise exc
+        shape = status.returns
+        assert shape is not None  # problem_body raised otherwise
+        st["current"][str(shape.iri)] = {"id": None, "data": body}
+        row["boundary"] = str(boundary.iri)
+        self.engine.throw_error(task, self.model.label(status.iri), error.code, boundary.node.bpmn_id)
+        log.info("instance %s: %s raised %s; caught by %s", instance.id, op, error.code, boundary.iri)
 
     def _accepted(self, st, op) -> dict:
         """The current entity of op's seam:acceptsShape."""
@@ -532,8 +605,8 @@ class Worker:
             if isinstance(exc, RuntimeModelError)
             else {"type": type(exc).__name__, "message": str(exc), "http_status": 500}
         )
-        if instance.invoking is not None:  # ADR-0012: name the operation and implementation kind
-            st["error"] = {**st["error"], **instance.invoking}
+        if instance.invoking is not None:  # ADR-0012/0013: name the operation, kind, and any error code and status
+            st["error"] = {**instance.invoking, **st["error"]}
         if span is not None:
             span.error(st["error"].get("type") or type(exc).__name__, st["error"].get("message") or str(exc))
         for shape, current in list(st["status"].items()):

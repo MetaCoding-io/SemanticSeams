@@ -46,6 +46,13 @@ A fault raises ``ResolutionError`` naming the operation or implementation.
 ``http_transport=`` / ``http_base_url=`` configure the comm:HTTPEndpoint
 client as ``llm_transport=`` / ``llm_base_url=`` do the LLM one.
 
+Error boundaries (ADR-0013): every lifted proc:ErrorBoundaryEvent is joined
+to its BPMN boundary, the task it is attached to and the error it catches
+when the runtime is built (``resolve_boundaries``, through
+``Process.error_boundaries``); a graph that disagrees with the XML raises
+``ResolutionError`` naming the boundary. The worker routes a declared error
+its task's operation raises down the boundary that catches it.
+
 Tracing (D049): ``telemetry=`` injects a ``Telemetry`` (tests); otherwise
 ``tracer_from_env()`` builds one, a no-op unless ``OTEL_EXPORTER_OTLP_ENDPOINT``
 is set and the otel extra is installed (``seams_runtime.telemetry``).
@@ -185,6 +192,25 @@ def resolve_implementations(model: ModelGraph, handlers=None) -> dict:
     return resolved
 
 
+def resolve_boundaries(model: ModelGraph) -> dict:
+    """``{(task IRI, errorCode): seams.ErrorBoundary}`` for every lifted error
+    boundary of every process (ADR-0013). Any disagreement between the graph
+    and the BPMN XML raises ``ResolutionError`` naming the boundary."""
+    resolved: dict = {}
+    for process in sorted(model.processes, key=lambda p: str(p.iri)):
+        for boundary in process.error_boundaries():
+            resolved[(boundary.task.iri, boundary.code)] = boundary
+            log.info(
+                "error boundary %s on %s catches %s (%s of %s)",
+                boundary.iri,
+                boundary.task.iri,
+                boundary.code,
+                boundary.status.iri,
+                boundary.operation.iri,
+            )
+    return resolved
+
+
 class Runtime:
     def __init__(
         self,
@@ -202,6 +228,7 @@ class Runtime:
         handlers=None,
         http: EndpointClient | None = None,
         implementations: dict | None = None,
+        boundaries: dict | None = None,
     ):
         self.model = model
         self.store = store
@@ -219,6 +246,8 @@ class Runtime:
         self.implementations = (
             implementations if implementations is not None else resolve_implementations(model, handlers)
         )
+        # ADR-0013: lifted error boundaries, checked against the BPMN XML
+        self.boundaries = boundaries if boundaries is not None else resolve_boundaries(model)
         # OpenTelemetry spans (D049): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set
         self.telemetry = telemetry if telemetry is not None else tracer_from_env()
         self.worker = Worker(
@@ -231,6 +260,7 @@ class Runtime:
             self.telemetry,
             implementations=self.implementations,
             http=self.http,
+            boundaries=self.boundaries,
         )
         self.worker.on_published = self._on_published
         self.instances: dict[str, Instance] = {}
@@ -279,6 +309,7 @@ class Runtime:
         plan = model.store_plan()  # ResolutionError on a bad model, whatever store is used
         # ADR-0012: implementations resolve before a store is opened, so a model fault opens nothing
         implementations = resolve_implementations(model, handlers)
+        boundaries = resolve_boundaries(model)  # ADR-0013, also before the store
         declared = STORE_KINDS[plan.kind]
         override = False
         if store is not None:
@@ -319,6 +350,7 @@ class Runtime:
             telemetry=telemetry,
             http=EndpointClient(http_base_url, transport=http_transport),
             implementations=implementations,
+            boundaries=boundaries,
         )
         log.info(
             "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",

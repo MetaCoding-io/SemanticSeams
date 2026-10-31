@@ -33,7 +33,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None, handlers=None, http_transport=None, http_base_url=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Resolves every invoked operation's implementation and imports the Python handlers (see [Operation implementations](#operation-implementations)); `runtime.implementations` maps each operation IRI to `(Implementation or None, callable or None)`. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None, handlers=None, http_transport=None, http_base_url=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Resolves every invoked operation's implementation and imports the Python handlers (see [Operation implementations](#operation-implementations)); `runtime.implementations` maps each operation IRI to `(Implementation or None, callable or None)`. Resolves every lifted error boundary against the BPMN XML (see [Error boundaries](#error-boundaries)); `runtime.boundaries` maps `(task IRI, errorCode)` to its `seams.ErrorBoundary`. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
@@ -59,7 +59,8 @@ with one exception handler.
 operation raises it for one of the operation's declared `comm:errorCode`s (ADR-0013).
 `title` and `status` come from the model and cannot be passed (`ValueError`). Raised
 while a generated route runs, the module's `problem_handler` answers it with
-`runtime.problem`.
+`runtime.problem`. Raised by a Python handler while the worker runs a process, it is
+routed to an error boundary (see [Error boundaries](#error-boundaries)).
 
 `ModelGraph`, `model_hash` and `ResolutionError` come from the `seams` library
 ([packages/seams](../packages/seams/README.md), D034) and are re-exported here, as are
@@ -205,6 +206,8 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    request `model` is the most recent decision's single output. A `comm:PythonHandler`
    calls its handler, and a `comm:HTTPEndpoint` POSTs the entity as JSON; either result
    is validated against `seam:returnsShape` and becomes the current entity of that shape.
+   3a. A declared error the invoke raised goes down the error boundary that catches it,
+   see [Error boundaries](#error-boundaries); then rules 4 and 5 are skipped.
 4. `seam:writes Shape`: persists the current entity of that shape.
 5. After dispatch: the fired transition is applied and its status is persisted.
 6. Message throw events publish a completion event named after the channel's
@@ -311,6 +314,57 @@ object is an `EndpointError` (502, with `url`, `reason`). A result that fails
 instance as an `LLMError` does (rule 7), and the recorded error adds `operation` and
 `implementation` (the kind).
 
+## Error boundaries
+
+[ADR-0013](../docs/adr/0013-error-shapes-and-boundaries.md): a `bpmn:boundaryEvent`
+with an `errorEventDefinition`, attached to a service task that `seam:invokes` an
+operation, is lifted as a `proc:ErrorBoundaryEvent` that `seam:catches` one of the
+operation's error statuses (`hydra:possibleStatus` with a `comm:errorCode`).
+
+**At load** (`resolve_boundaries`, before the store opens) every process's
+`Process.error_boundaries()` joins each lifted boundary to the XML. `runtime.boundaries`
+maps `(task IRI, errorCode)` to the `seams.ErrorBoundary`. Each disagreement raises
+`ResolutionError` naming the boundary:
+
+| Fault | Predicate |
+|---|---|
+| an error boundary on an invoking task that is not lifted (the message says whether the operation declares its code) | `seam:catches` |
+| a lifted boundary that catches no status, or several | `seam:catches` |
+| it catches a status that is not an error of the operation its task invokes | `seam:catches` |
+| its `bpmn:error`'s `errorCode` differs from the status's `comm:errorCode` | `seam:catches` |
+| it is lifted but attached to a task that invokes nothing, or no error boundary in the XML has its id | `seam:catches` |
+| two boundaries on one task catch the same code | `seam:catches` |
+| a catch-all (no `errorRef`) on an invoking task | `bpmn:errorEventDefinition` |
+| an `errorRef` that names no `bpmn:error`, or a `bpmn:error` without an `errorCode` | `bpmn:errorRef` / `bpmn:errorCode` |
+| an `attachedToRef` that names no flow node (subject `<file>#<boundary id>`) | `bpmn:attachedToRef` |
+
+A boundary on a task that invokes nothing is ordinary BPMN and is not checked.
+
+**At run time** a declared error is a Python handler's
+`OperationError(code, detail=None, **extensions)` (the `HandlerError`'s cause), or a
+non-2xx `application/problem+json` object answer from a `comm:HTTPEndpoint` whose HTTP
+status is the `hydra:statusCode` of exactly one of the operation's errors (its `detail`
+and members other than `title` and `status` carry over). The worker builds the body with
+`contracts.problem_body` and records `error: {code, status, operation}` (`status` is the
+`hydra:Status` IRI) in the task's trace row. When a boundary on that task catches the
+code:
+
+- the body becomes the current entity of the error shape, so a task on the error path
+  can `seam:reads` or `seam:writes` it;
+- the row records `boundary` (its IRI); the task's `seam:writes` and `seam:fires` are
+  not applied and the task is not completed;
+- the engine throws the code from the STARTED task (Spiff never routes an exception
+  itself), and the loop runs the READY boundary before any STARTED task. Its row
+  records `caught` (the code); running it cancels the task, and the process goes on
+  down the boundary's flow. A checkpoint between the throw and the boundary resumes
+  at the boundary.
+
+With no boundary, the `HandlerError` or `EndpointError` fails the instance as before,
+and the recorded error adds `code` and `status`. A code the operation does not declare
+fails it with `ResolutionError(operation, comm:errorCode)` (and `code`), and a body that
+violates the error shape with a `ContractViolation` whose `operation` is the status.
+Any other exception, or any other non-2xx answer, fails the instance unchanged.
+
 ## Environment
 
 | Variable | Meaning |
@@ -355,7 +409,7 @@ never sets the global one.
 | Span | Name | Attributes |
 |---|---|---|
 | Instance: one per worker run. A resumed instance or a user-task completion is another instance span with the same instance id. | the process's local name, for example `send_message_process` | `seams.process.iri`, `seams.instance.id`, `seams.correlation_key`. A failed instance has status ERROR described by the error type, plus `seams.error.type` and `seams.error.message`. |
-| Element: a child of the instance span for each BPMN element, one per trace row | the bpmn id, for example `invoke_llm` | The instance attributes, `seams.element.iri` and `bpmn.id`, and, when the trace row has them, `seams.fires`, `seams.decision`, `seams.invokes`, `seams.container`, `seams.channel` (from `streamed` or `published`), `seams.status` and `seams.by`. An element that raises records the exception and has status ERROR. |
+| Element: a child of the instance span for each BPMN element, one per trace row | the bpmn id, for example `invoke_llm` | The instance attributes, `seams.element.iri` and `bpmn.id`, and, when the trace row has them, `seams.fires`, `seams.decision`, `seams.invokes`, `seams.container`, `seams.channel` (from `streamed` or `published`), `seams.status` and `seams.by`; for a declared error, `seams.error.code`, `seams.error.status` and `seams.boundary` on the raising task and `seams.caught` on the boundary. An element that raises records the exception and has status ERROR. |
 
 The attributes are read from the finished trace row when the span ends. The trace rows
 in the checkpointed workflow stay the record of a run: `seams sequence :event --trace

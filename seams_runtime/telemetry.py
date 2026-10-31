@@ -22,8 +22,11 @@ set when the span ends, from the instance state and the finished trace row:
   ``seams.container``, ``seams.implementation`` (the ADR-0012 kind, or
   "runtime"), ``seams.handler`` (a Python handler's dotted path),
   ``seams.channel`` (from ``streamed`` or
-  ``published``), ``seams.status`` and ``seams.by``. An element that raises
-  records the exception and ends with status ERROR.
+  ``published``), ``seams.status`` and ``seams.by``; for a declared error
+  (ADR-0013) ``seams.error.code``, ``seams.error.status`` and
+  ``seams.boundary`` on the raising task, ``seams.caught`` on the boundary
+  that caught it. An element that raises records the exception and ends with
+  status ERROR.
 
 Spans mirror the trace rows; the rows stay the record ``seams sequence
 --trace`` renders. Nothing here imports opentelemetry until tracing is on.
@@ -52,6 +55,8 @@ _ROW_ATTRIBUTES = {
     "handler": "seams.handler",
     "status": "seams.status",
     "by": "seams.by",
+    "boundary": "seams.boundary",
+    "caught": "seams.caught",
 }
 
 
@@ -140,6 +145,10 @@ def element_attributes(row: dict) -> dict:
     channel = (row.get("streamed") or row.get("published") or {}).get("channel")
     if channel:
         attrs["seams.channel"] = channel
+    error = row.get("error")
+    if isinstance(error, dict):  # a declared error the element raised (ADR-0013)
+        attrs["seams.error.code"] = str(error["code"])
+        attrs["seams.error.status"] = str(error["status"])
     return attrs
 
 

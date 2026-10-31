@@ -12,6 +12,10 @@ not. Each ``FlowNode`` carries its sequence flows and lane and is joined to
 its ``ProcessElement`` when the graph types ``<bpmn_model>#<bpmn id>`` as
 one, so its graph edges (``invokes``, ``completed_on``, ...) pass through.
 ``tasks()``, ``gateways()`` and ``lanes()`` filter that walk.
+
+``Process.error_boundaries()`` joins each lifted proc:ErrorBoundaryEvent to
+its BPMN boundary event, the task it is attached to and the error that task's
+operation declares (ADR-0013), checking that the graph and the XML agree.
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ if TYPE_CHECKING:
     from .decisions import Decision
     from .interfaces import Component, Event
     from .lifecycles import Transition
-    from .operations import Channel, Operation
+    from .operations import Channel, Operation, Status
     from .shapes import Shape
 
 #: The proc: classes a process element is typed with; ``ProcessElement.kind`` is one of their local names.
@@ -45,6 +49,7 @@ ELEMENT_TYPES = (
     PROC.BusinessRuleTask,
     PROC.MessageCatchEvent,
     PROC.MessageThrowEvent,
+    PROC.ErrorBoundaryEvent,
 )
 
 
@@ -199,6 +204,96 @@ class Process(Element):
             lambda: tuple(lane for bp in bpmn_processes(self.views, self.bpmn_path) for lane in bp.lanes),
         )
 
+    def error_boundaries(self) -> Many[ErrorBoundary]:
+        """Each error boundary event of ``bpmn_path`` attached to a task that
+        seam:invokes an operation, joined to the error it catches (ADR-0013),
+        in flow order. Built once.
+
+        The graph and the XML must agree, else ``ResolutionError`` naming the
+        boundary's IRI: ``bpmn:errorEventDefinition`` for a catch-all (no
+        ``errorRef``) on an invoking task; ``bpmn:errorRef`` /
+        ``bpmn:errorCode`` when the ref names no ``bpmn:error`` or it has no
+        code; ``seam:catches`` when the boundary is not lifted, catches no
+        status or several, catches a status that is not an error of the
+        invoked operation or whose ``comm:errorCode`` differs from the XML's,
+        is lifted on a task that invokes nothing, or repeats another
+        boundary's code on the same task. A lifted proc:ErrorBoundaryEvent
+        with no error boundary event in the XML is ``seam:catches`` too."""
+        return self.views.view(f"process-error-boundaries:{self.iri}", self._error_boundaries)
+
+    def _error_boundaries(self) -> Many[ErrorBoundary]:
+        views = self.views
+        nodes = self.nodes()
+        parsed = {bp.id: bp for bp in bpmn_processes(views, self.bpmn_path)}
+        found: list[ErrorBoundary] = []
+        for fn in nodes:
+            node = fn.node
+            if not node.is_error_boundary or node.attached_to is None:
+                continue
+            task = next(n for n in nodes if n.node.process_id == node.process_id and n.bpmn_id == node.attached_to)
+            lifted = fn.element is not None and PROC.ErrorBoundaryEvent in fn.element.types
+            op = task.invokes
+            if op is None:
+                if lifted:
+                    raise ResolutionError(
+                        fn.iri, SEAM.catches, f"attached to {task.iri}, which seam:invokes no operation"
+                    )
+                continue  # a plain BPMN boundary: no seam, not lifted
+            if node.error_ref is None:
+                raise ResolutionError(
+                    fn.iri,
+                    "bpmn:errorEventDefinition",
+                    f"a catch-all error boundary on {task.iri}, which seam:invokes {op.iri}, "
+                    "would catch codes the operation never declared; give it an errorRef",
+                )
+            error = parsed[node.process_id].error(node.error_ref)
+            if error is None:
+                raise ResolutionError(
+                    fn.iri, "bpmn:errorRef", f"{node.error_ref!r} names no bpmn:error in {self.bpmn_path.name}"
+                )
+            if not error.code:
+                raise ResolutionError(fn.iri, "bpmn:errorCode", f"bpmn:error {error.id!r} has no errorCode")
+            declared = op.errors.where(lambda s, code=error.code: s.error_code == code)
+            if not lifted:
+                said = f"declares it as {declared[0].iri}" if declared else "declares no hydra:possibleStatus with it"
+                raise ResolutionError(
+                    fn.iri,
+                    SEAM.catches,
+                    f"catches errorCode {error.code!r} of {op.iri}, which {said}, but is not a "
+                    "proc:ErrorBoundaryEvent that seam:catches it",
+                )
+            status = fn.catches  # ResolutionError(boundary, seam:catches) when it catches several
+            if status is None:
+                raise ResolutionError(fn.iri, SEAM.catches, "a proc:ErrorBoundaryEvent catches exactly one error")
+            if status.iri not in op.errors.iris():
+                raise ResolutionError(
+                    fn.iri,
+                    SEAM.catches,
+                    f"{status.iri} is not an error (a hydra:possibleStatus with a comm:errorCode) of {op.iri}, "
+                    f"which {task.iri} seam:invokes",
+                )
+            if status.error_code != error.code:
+                raise ResolutionError(
+                    fn.iri,
+                    SEAM.catches,
+                    f"bpmn:error {error.id!r} has errorCode {error.code!r}, "
+                    f"but {status.iri} has comm:errorCode {status.error_code!r}",
+                )
+            twin = next((b for b in found if b.task.iri == task.iri and b.code == error.code), None)
+            if twin is not None:
+                raise ResolutionError(fn.iri, SEAM.catches, f"{twin.iri} already catches {error.code!r} on {task.iri}")
+            found.append(ErrorBoundary(fn.iri, fn, task, op, status, error.code))
+        boundary_iris = {b.iri for b in found}
+        for el in self.elements():
+            if PROC.ErrorBoundaryEvent in el.types and el.iri not in boundary_iris:
+                raise ResolutionError(
+                    el.iri,
+                    SEAM.catches,
+                    f"no bpmn:boundaryEvent with an errorEventDefinition has id {el.bpmn_id!r} "
+                    f"in {self.bpmn_path.name}",
+                )
+        return Many(found, self.iri, SEAM.catches, views.model.curie)
+
     @property
     def channel_starts(self) -> Many[MessageStart]:
         """Each proc:MessageCatchEvent of its BPMN model that seam:subscribesTo a
@@ -227,6 +322,24 @@ class MessageStart:
     iri: URIRef
     event: ProcessElement
     channel: Channel
+
+
+@dataclass(frozen=True)
+class ErrorBoundary:
+    """A lifted error boundary event (ADR-0013); ``iri`` is the boundary's.
+
+    ``node`` is its flow node, ``task`` the flow node it is attached to,
+    ``operation`` what that task seam:invokes, ``status`` the error it
+    seam:catches and ``code`` the errorCode of its ``bpmn:error`` (equal to
+    the status's comm:errorCode).
+    """
+
+    iri: URIRef
+    node: FlowNode
+    task: FlowNode
+    operation: Operation
+    status: Status
+    code: str
 
 
 @dataclass(frozen=True, eq=False)
@@ -315,6 +428,10 @@ class FlowNode:
         return self._empty(SEAM.subscribesTo) if self.element is None else self.element.subscribes_to
 
     @property
+    def catches(self) -> Status | None:
+        return None if self.element is None else self.element.catches
+
+    @property
     def starts_from(self) -> Channel | None:
         """The channel of ``Process.channel_starts`` whose event is this node, or None."""
         starts = [s.channel for s in self.process.channel_starts if s.event.iri == self.iri]
@@ -400,6 +517,13 @@ class ProcessElement(Element):
         from .interfaces import Component
 
         return optional(self._many(Component, self._objects(SEAM.completedOn), SEAM.completedOn))
+
+    @property
+    def catches(self) -> Status | None:
+        """The error it seam:catches (a proc:ErrorBoundaryEvent, ADR-0013)."""
+        from .operations import Status
+
+        return optional(self._many(Status, self._objects(SEAM.catches), SEAM.catches))
 
     @property
     def publishes_to(self) -> Many[Channel]:

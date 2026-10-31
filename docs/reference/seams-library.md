@@ -257,12 +257,26 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     or an element of its BPMN model `seam:invokes`), `correlation_key`,
     `correlation_parameter`, `correlation_parameters`, `channel_starts`
     (each `MessageStart`: a message start event and the `Channel` it
-    `seam:subscribesTo`), `elements()` and `element_iri(bpmn_id)`.
+    `seam:subscribesTo`), `elements()`, `element_iri(bpmn_id)` and
+    `error_boundaries()`.
   - A `ProcessElement` is a task or event whose IRI is
     `<bpmn_model>#<bpmn id>`. It has `bpmn_id`, `kind` (`UserTask`,
-    `ServiceTask`, ...), `types` (its `proc:` classes), `process`, `invokes`, `reads`, `writes`, `fires`,
-    `decided_by`, `completed_on` (a `Component`), `publishes_to` and
-    `subscribes_to`.
+    `ServiceTask`, `ErrorBoundaryEvent`, ...), `types` (its `proc:` classes), `process`, `invokes`, `reads`, `writes`, `fires`,
+    `decided_by`, `completed_on` (a `Component`), `publishes_to`,
+    `subscribes_to` and `catches` (the `Status` a `proc:ErrorBoundaryEvent`
+    `seam:catches`, ADR-0013).
+  - `error_boundaries()` joins each lifted `proc:ErrorBoundaryEvent` to the
+    XML: one `ErrorBoundary` (`iri`, `node` and `task`, the `FlowNode`s of the
+    boundary and the task it is attached to, `operation` that task
+    `seam:invokes`, `status` it `seam:catches`, and `code`, the errorCode of
+    its `bpmn:error`) per error boundary on an invoking task, in flow order.
+    Where the graph and the XML disagree it raises `ResolutionError` naming
+    the boundary: `seam:catches` for a boundary that is not lifted, catches
+    no status or several, catches a status that is not an error of the
+    invoked operation or whose `comm:errorCode` differs from the XML's, or is
+    lifted with no matching boundary in the XML; `bpmn:errorEventDefinition`
+    for a catch-all; `bpmn:errorRef` / `bpmn:errorCode` for a ref that names
+    no `bpmn:error` or one without a code.
   - `model.processes.for_bpmn_process(pid)` lists the processes whose BPMN
     file declares `bpmn:process` `pid`. `model.processes.element(bpmn_id)`
     lists the elements with that id across every BPMN model. Call
@@ -281,7 +295,7 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     with `id`, `name`, `source`, `target` and `condition`), `kind`, the
     element's edges (`invokes`, `decided_by`, `completed_on`, `fires`;
     `reads`, `writes`, `publishes_to`, `subscribes_to`), which are None or
-    empty when unlifted, and `starts_from` (the `Channel` of
+    empty when unlifted, `catches`, and `starts_from` (the `Channel` of
     `channel_starts` whose event it is).
 
   ```python
@@ -290,6 +304,11 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
       print(gw.bpmn_id, [(f.name, f.target, f.condition) for f in gw.paths])
   # route_gateway [("auto", "record_approval", 'route == "auto"'), …]
   ```
+
+  A `BpmnNode` also has `attached_to` (a boundary event's `attachedToRef`),
+  `error_ref` (its `errorEventDefinition`'s `errorRef`) and
+  `is_error_boundary`; a `BpmnProcess` has `errors` (the file's
+  `bpmn:error`s as `BpmnError`: `id`, `name`, `code`) and `error(id)`.
 
   `seams.bpmn` (`parse_bpmn`) and `seams.dmn` (`parse_dmn`,
   `decision_table`) are the lxml-only parsers behind these joins; they

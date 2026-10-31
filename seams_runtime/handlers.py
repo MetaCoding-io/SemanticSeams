@@ -17,7 +17,11 @@ at the line), a missing attribute or one that is not callable.
 
 Faults while running are not model faults: ``HandlerError`` (a handler raised,
 or returned something its operation cannot accept) and ``EndpointError`` (an
-HTTP endpoint call failed) fail the instance as ``LLMError`` does.
+HTTP endpoint call failed) fail the instance as ``LLMError`` does, unless
+they carry an error the operation declares and an error boundary catches it
+(ADR-0013): a handler's ``OperationError`` is the HandlerError's cause, and a
+non-2xx ``application/problem+json`` answer is kept as ``EndpointError.status``
+and ``.problem``.
 """
 
 from __future__ import annotations
@@ -137,15 +141,22 @@ class HandlerError(RuntimeModelError):
         return {"operation": self.operation, "handler": self.handler, "reason": self.reason}
 
 
+PROBLEM_JSON = "application/problem+json"  # RFC 9457
+
+
 class EndpointError(RuntimeModelError):
     """The HTTP endpoint call failed (502): no base URL, a connection error or
-    timeout, a non-2xx status, or a body that is not JSON."""
+    timeout, a non-2xx status, or a body that is not JSON. For a non-2xx
+    answer ``status`` is its HTTP status, and ``problem`` its decoded body when
+    it is an ``application/problem+json`` object (ADR-0013), else None."""
 
     http_status = 502
 
-    def __init__(self, url: str, reason: str):
+    def __init__(self, url: str, reason: str, status: int | None = None, problem: dict | None = None):
         self.url = str(url)
         self.reason = reason
+        self.status = status
+        self.problem = problem
         super().__init__(f"endpoint call to {self.url} failed: {reason}")
 
     def _fields(self) -> dict:
@@ -182,12 +193,25 @@ class EndpointClient:
         log.info("posting entity to %s", url)
         try:
             async with httpx.AsyncClient(transport=self.transport, timeout=self.timeout) as client:
-                resp = await client.post(url, json=entity, headers={"Accept": "application/json"})
+                resp = await client.post(url, json=entity, headers={"Accept": f"application/json, {PROBLEM_JSON}"})
         except httpx.HTTPError as exc:
             raise EndpointError(url, f"{type(exc).__name__}: {exc}") from exc
         if not 200 <= resp.status_code < 300:
-            raise EndpointError(url, f"HTTP {resp.status_code}: {resp.text[:200]}")
+            raise EndpointError(
+                url, f"HTTP {resp.status_code}: {resp.text[:200]}", status=resp.status_code, problem=_problem(resp)
+            )
         try:
             return resp.json()
         except ValueError as exc:
             raise EndpointError(url, f"response is not JSON: {resp.text[:80]!r}") from exc
+
+
+def _problem(resp: httpx.Response) -> dict | None:
+    """The body of an ``application/problem+json`` answer when it is a JSON object, else None."""
+    if resp.headers.get("content-type", "").split(";")[0].strip().lower() != PROBLEM_JSON:
+        return None
+    try:
+        body = resp.json()
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None

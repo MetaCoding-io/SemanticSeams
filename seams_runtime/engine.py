@@ -23,6 +23,12 @@ here, and neither file carries a vendor extension:
 
 Plain bpmn:serviceTask specs stay STARTED after ``task.run()``. The caller
 completes them once its handler has finished.
+
+Error boundaries (ADR-0013 spike): Spiff never routes an exception to a
+boundary, so ``throw_error`` throws an ``ErrorEventDefinition`` with the code
+from the STARTED task, which readies the boundary that catches that code and
+leaves the task STARTED; running the boundary (``is_error_boundary``,
+``caught_code``) cancels the task.
 """
 
 from __future__ import annotations
@@ -38,7 +44,8 @@ from SpiffWorkflow.bpmn.parser.util import full_tag
 from SpiffWorkflow.bpmn.serializer import BpmnWorkflowSerializer
 from SpiffWorkflow.bpmn.serializer.config import DEFAULT_CONFIG
 from SpiffWorkflow.bpmn.serializer.default.task_spec import BpmnTaskSpecConverter
-from SpiffWorkflow.bpmn.specs.defaults import ServiceTask
+from SpiffWorkflow.bpmn.specs.defaults import BoundaryEvent, ServiceTask
+from SpiffWorkflow.bpmn.specs.event_definitions import ErrorEventDefinition
 from SpiffWorkflow.bpmn.specs.event_definitions.message import MessageEventDefinition
 from SpiffWorkflow.bpmn.specs.mixins import BpmnSpecMixin
 from SpiffWorkflow.bpmn.util.event import BpmnEvent
@@ -369,3 +376,35 @@ class Engine:
     @staticmethod
     def is_business_rule(task) -> bool:
         return _is_business_rule(task)
+
+    # ── error boundaries (ADR-0013) ──
+
+    @staticmethod
+    def is_error_boundary(task) -> bool:
+        spec = task.task_spec
+        return isinstance(spec, BoundaryEvent) and isinstance(spec.event_definition, ErrorEventDefinition)
+
+    @classmethod
+    def caught_code(cls, task) -> str | None:
+        """The errorCode an error boundary task catches, else None."""
+        return task.task_spec.event_definition.code if cls.is_error_boundary(task) else None
+
+    @classmethod
+    def throw_error(cls, task, name: str, code: str, boundary_id: str):
+        """Throw error ``code`` from the STARTED ``task`` and return the
+        boundary task (bpmn id ``boundary_id``) it readied. The task stays
+        STARTED until the boundary runs. A throw that readies no such boundary
+        raises ``ResolutionError`` on the boundary and ``bpmn:errorCode``."""
+        ErrorEventDefinition(name, code).throw(task)
+        ready = [
+            t
+            for t in task.workflow.get_tasks(state=TaskState.READY)
+            if cls.is_error_boundary(t) and t.task_spec.bpmn_id == boundary_id
+        ]
+        if len(ready) != 1:
+            raise ResolutionError(
+                boundary_id,
+                "bpmn:errorCode",
+                f"throwing {code!r} from {task.task_spec.bpmn_id!r} readied {len(ready)} such boundary task(s)",
+            )
+        return ready[0]

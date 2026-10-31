@@ -47,9 +47,7 @@ def test_bpmn_element_seams_keys_are_native_ids():
 
 def test_route_to_provider_has_decision_and_data_badges():
     seams = viewer_app.payload_element_seams(CHAT_BPMN)["route_to_provider"]
-    assert any(
-        s["targetLayer"] == "decision" and s["target"] == f"{CHAT}routing_decision" for s in seams
-    )
+    assert any(s["targetLayer"] == "decision" and s["target"] == f"{CHAT}routing_decision" for s in seams)
     assert any(s["targetLayer"] == "data" and s["target"] == f"{CHAT}MessageShape" for s in seams)
 
 
@@ -75,7 +73,7 @@ def test_bpmn_fragment_draws_tint_and_badges(client):
         assert needle in html, needle
     # MEM009: the badge CSS and the shared helper live in the shell, not the
     # swapped fragment.
-    assert '.seam-badge[data-layer=' not in html
+    assert ".seam-badge[data-layer=" not in html
     assert "window.seamsDecorateDiagram = function" not in html
 
 
@@ -128,7 +126,7 @@ def test_dmn_fragment_wires_tint_and_badges(client):
     html = resp.text
     for needle in ("elementSeams", 'data-layer="decision"', "seamsDecorateDiagram(activeViewer"):
         assert needle in html, needle
-    assert '.seam-badge[data-layer=' not in html
+    assert ".seam-badge[data-layer=" not in html
     assert "window.seamsDecorateDiagram = function" not in html
 
 

@@ -17,8 +17,8 @@ expense while it waits for a decision and renders nothing once it is decided
 """
 
 import pytest
-
 from expense_app import chapter_dir, copy_checkpoint, serve, serve_directory, status, trace, until
+
 from seams_runtime.errors import LifecycleViolation, ResolutionError
 
 CHAPTER = "chapter-06"
@@ -63,14 +63,17 @@ def test_guard_allows_the_lifecycle_transitions(app):
     assert guard.apply(":ExpenseShape", "approved", ":t_pay") == "paid"
 
 
-@pytest.mark.parametrize("current, transition, required", [
-    ("approved", "t_approve", "submitted"),
-    ("rejected", "t_approve", "submitted"),
-    ("approved", "t_reject", "submitted"),
-    ("submitted", "t_pay", "approved"),
-    ("submitted", "t_submit", "draft"),
-    (None, "t_approve", "submitted"),
-])
+@pytest.mark.parametrize(
+    "current, transition, required",
+    [
+        ("approved", "t_approve", "submitted"),
+        ("rejected", "t_approve", "submitted"),
+        ("approved", "t_reject", "submitted"),
+        ("submitted", "t_pay", "approved"),
+        ("submitted", "t_submit", "draft"),
+        (None, "t_approve", "submitted"),
+    ],
+)
 def test_guard_refuses_an_illegal_transition(app, current, transition, required):
     _c, runtime = app
     with pytest.raises(LifecycleViolation) as refused:
@@ -120,7 +123,11 @@ def test_an_illegal_transition_fails_the_instance_and_writes_nothing(pay_too_ear
     assert expense["status"] == expense["data"]["status"] == "submitted"
     assert st["history"][EX + "ExpenseShape"] == ["draft", "submitted"]
     assert [row["task"] for row in trace(runtime, "small")] == [
-        "start", "persist_expense", "route_expense", "route_gateway"]
+        "start",
+        "persist_expense",
+        "route_expense",
+        "route_gateway",
+    ]
     assert runtime.store.list_user_tasks() == []
 
 
@@ -166,10 +173,13 @@ def test_awaiting_approval_shows_only_while_submitted(app):
     assert '<span class="status">approved</span>' in c.get("/expenses/mid").text
 
 
-@pytest.mark.parametrize("key, amount, decision", [
-    ("small", SMALL, None),
-    ("rejected", MID, "rejected"),
-])
+@pytest.mark.parametrize(
+    "key, amount, decision",
+    [
+        ("small", SMALL, None),
+        ("rejected", MID, "rejected"),
+    ],
+)
 def test_awaiting_approval_is_absent_once_decided(app, key, amount, decision):
     c, runtime = app
     _submit(c, runtime, key, amount)
@@ -185,9 +195,16 @@ def test_awaiting_approval_is_absent_for_an_unknown_expense(app):
     assert SECTION not in _awaiting(c, "nobody")
 
 
-@pytest.mark.parametrize("state, shown", [
-    ("draft", False), ("submitted", True), ("approved", False), ("rejected", False), ("paid", False),
-])
+@pytest.mark.parametrize(
+    "state, shown",
+    [
+        ("draft", False),
+        ("submitted", True),
+        ("approved", False),
+        ("rejected", False),
+        ("paid", False),
+    ],
+)
 def test_the_guard_compares_the_state_label(app, state, shown):
     _c, runtime = app
     expense = {"description": "Train to Leeds", "amount": MID, "date": "2026-10-01", "status": state}

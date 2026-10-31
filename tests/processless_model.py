@@ -11,7 +11,8 @@ EXPENSES = "https://example.org/expenses/"
 
 SUBMITS = "    :submit_expense seam:submitsTo :submit_expense_op .\n"
 
-TRIG = """\
+TRIG = (
+    """\
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
@@ -88,7 +89,9 @@ TRIG = """\
     :expense_portal seam:presents :expense_ifml ;
         seam:consumes :submit_expense_op , :list_expenses_op .
     :expense_api seam:exposes :submit_expense_op , :list_expenses_op .
-""" + SUBMITS + """\
+"""
+    + SUBMITS
+    + """\
     :submit_expense_op seam:rendersComponent :expense_list .
     :list_expenses_op seam:rendersComponent :expense_list .
     :expense_list seam:reads :ExpenseShape .
@@ -109,6 +112,7 @@ TRIG = """\
         comm:path [ a hydra:IriTemplate ; hydra:template "/expenses" ] .
 }
 """
+)
 
 
 def write_model(directory, *, submits: bool = True) -> Path:

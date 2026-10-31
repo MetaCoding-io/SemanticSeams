@@ -8,51 +8,23 @@ response body.
 
 from __future__ import annotations
 
-from typing import Any
+from seams import ResolutionError, SeamsError
+
+__all__ = [
+    "ContractViolation",
+    "LifecycleViolation",
+    "ModelHashMismatch",
+    "PolicyDenied",
+    "ResolutionError",
+    "RuntimeModelError",
+    "TaskNotOpen",
+]
 
 
-def _jsonable(value: Any) -> Any:
-    """IRIs, literals, paths and other terms become strings; containers recurse."""
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, dict):
-        return {str(k): _jsonable(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return [_jsonable(v) for v in value]
-    return str(value)
-
-
-class RuntimeModelError(Exception):
-    """Base class for every seams_runtime error."""
-
-    http_status = 500
-
-    def _fields(self) -> dict:
-        return {}
-
-    def to_dict(self) -> dict:
-        return {
-            "type": type(self).__name__,
-            "message": str(self),
-            "http_status": self.http_status,
-            **_jsonable(self._fields()),
-        }
-
-
-class ResolutionError(RuntimeModelError, LookupError):
-    """A graph hop the runtime needs is missing (or points nowhere)."""
-
-    http_status = 500
-
-    def __init__(self, subject, predicate, detail: str = ""):
-        self.subject = str(subject)
-        self.predicate = str(predicate)
-        self.detail = detail
-        msg = f"cannot resolve {self.subject}: missing {self.predicate}"
-        super().__init__(f"{msg} ({detail})" if detail else msg)
-
-    def _fields(self) -> dict:
-        return {"subject": self.subject, "predicate": self.predicate, "detail": self.detail}
+# One base for every error: the seams library's SeamsError. The host's
+# exception_handler(RuntimeModelError) and the worker's isinstance checks
+# therefore also catch the ResolutionError that seams resolvers raise.
+RuntimeModelError = SeamsError
 
 
 class ModelHashMismatch(RuntimeModelError):
@@ -64,9 +36,7 @@ class ModelHashMismatch(RuntimeModelError):
         self.expected = str(expected)
         self.actual = str(actual)
         self.path = str(path)
-        super().__init__(
-            f"model hash mismatch for {self.path}: expected {self.expected}, got {self.actual}"
-        )
+        super().__init__(f"model hash mismatch for {self.path}: expected {self.expected}, got {self.actual}")
 
     def _fields(self) -> dict:
         return {"expected": self.expected, "actual": self.actual, "path": self.path}
@@ -95,13 +65,10 @@ class ContractViolation(RuntimeModelError):
                 part += f" ({r['message']})"
             parts.append(part)
         via = f" via {self.operation}" if self.operation else ""
-        super().__init__(
-            f"payload violates {self.shape}{via}: {len(self.results)} result(s): " + "; ".join(parts)
-        )
+        super().__init__(f"payload violates {self.shape}{via}: {len(self.results)} result(s): " + "; ".join(parts))
 
     def _fields(self) -> dict:
-        return {"shape": self.shape, "focus": self.focus, "operation": self.operation,
-                "results": self.results}
+        return {"shape": self.shape, "focus": self.focus, "operation": self.operation, "results": self.results}
 
 
 class LifecycleViolation(RuntimeModelError):
@@ -120,8 +87,12 @@ class LifecycleViolation(RuntimeModelError):
         )
 
     def _fields(self) -> dict:
-        return {"entity": self.entity, "transition": self.transition,
-                "current_state": self.current_state, "expected_from": self.expected_from}
+        return {
+            "entity": self.entity,
+            "transition": self.transition,
+            "current_state": self.current_state,
+            "expected_from": self.expected_from,
+        }
 
 
 class PolicyDenied(RuntimeModelError):

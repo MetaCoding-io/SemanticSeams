@@ -40,9 +40,15 @@ PAYLOADS = ("chat_process.bpmn", "routing.dmn")
 
 
 def _diff(expected: str, actual: str) -> str:
-    return "".join(difflib.unified_diff(
-        expected.splitlines(keepends=True), actual.splitlines(keepends=True),
-        fromfile="golden target", tofile="generated", n=2))
+    return "".join(
+        difflib.unified_diff(
+            expected.splitlines(keepends=True),
+            actual.splitlines(keepends=True),
+            fromfile="golden target",
+            tofile="generated",
+            n=2,
+        )
+    )
 
 
 def test_generated_compose_matches_golden():
@@ -86,7 +92,10 @@ def test_structure_parses_as_compose():
     api = doc["services"]["chat_api"]
     assert api["volumes"] and all(v.startswith("./") and v.endswith(":ro") for v in api["volumes"])
     assert [v.split(":")[1] for v in api["volumes"]] == [
-        "/model/chat-app.trig", "/model/chat_process.bpmn", "/model/routing.dmn"]
+        "/model/chat-app.trig",
+        "/model/chat_process.bpmn",
+        "/model/routing.dmn",
+    ]
     assert api["secrets"] == ["db_url", "llm_api_key"]
     assert api["deploy"] == {"replicas": 3, "placement": {"constraints": ["node.labels.seams.node == app01"]}}
     assert all(s["external"] is True for s in doc["secrets"].values())
@@ -102,8 +111,11 @@ def test_structure_parses_as_compose():
 def test_bind_sources_are_relative_to_base_dir():
     doc = yaml.safe_load(generate_compose(TRIG, base_dir=ROOT / "build"))
     sources = [v.split(":")[0] for v in doc["services"]["chat_api"]["volumes"]]
-    assert sources == ["./../examples/chat-app/chat-app.trig", "./../examples/chat-app/chat_process.bpmn",
-                       "./../examples/chat-app/routing.dmn"]
+    assert sources == [
+        "./../examples/chat-app/chat-app.trig",
+        "./../examples/chat-app/chat_process.bpmn",
+        "./../examples/chat-app/routing.dmn",
+    ]
 
 
 def test_another_model_path_flows_into_env_and_binds(tmp_path):
@@ -122,7 +134,10 @@ def test_another_model_path_flows_into_env_and_binds(tmp_path):
     assert api["environment"]["SEAMS_MODEL_HASH"] == model_hash(trig)
     assert [v.split(":")[0] for v in api["volumes"]] == ["./other.trig", "./chat_process.bpmn", "./routing.dmn"]
     assert [v.split(":")[1] for v in api["volumes"]] == [
-        "/model/other.trig", "/model/chat_process.bpmn", "/model/routing.dmn"]
+        "/model/other.trig",
+        "/model/chat_process.bpmn",
+        "/model/routing.dmn",
+    ]
 
 
 # ── mutation: graph edits flow through to the output ──────────────────────
@@ -184,8 +199,7 @@ def test_placement_follows_deployed_to():
     db = URIRef(CHAT + "message_db")
     g.remove((db, SEAM.deployedTo, None))
     g.add((db, SEAM.deployedTo, URIRef(CHAT + "app01")))
-    assert _services(ds)["message_db"]["deploy"]["placement"]["constraints"] == [
-        "node.labels.seams.node == app01"]
+    assert _services(ds)["message_db"]["deploy"]["placement"]["constraints"] == ["node.labels.seams.node == app01"]
     g.remove((db, SEAM.deployedTo, None))
     assert "deploy" not in _services(ds)["message_db"]
 
@@ -297,24 +311,33 @@ def _copy_model(tmp_path, *edits) -> Path:
 
 
 def _cli(*args):
-    return subprocess.run([sys.executable, "-m", "seams_gen", *map(str, args)],
-                          cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, "-m", "seams_gen", *map(str, args)], cwd=ROOT, capture_output=True, text=True
+    )
 
 
-NO_DB_ARTIFACT = ('        deploy:artifact [ a deploy:Artifact ;\n'
-                  '                          deploy:reference "postgres" ;\n'
-                  '                          deploy:version "16" ] ;\n', "")
-NO_SECRET_NAME = ('llm-key> ;\n'
-                  '                                                deploy:secretName "chat-prod-llm-key" ]',
-                  'llm-key> ]')
-NO_NODE_LABEL = (':db01  a arch:DeploymentNode ; rdfs:label "db01" ;', ':db01  a arch:DeploymentNode ;')
+NO_DB_ARTIFACT = (
+    "        deploy:artifact [ a deploy:Artifact ;\n"
+    '                          deploy:reference "postgres" ;\n'
+    '                          deploy:version "16" ] ;\n',
+    "",
+)
+NO_SECRET_NAME = (
+    'llm-key> ;\n                                                deploy:secretName "chat-prod-llm-key" ]',
+    "llm-key> ]",
+)
+NO_NODE_LABEL = (':db01  a arch:DeploymentNode ; rdfs:label "db01" ;', ":db01  a arch:DeploymentNode ;")
 
 
-@pytest.mark.parametrize("edit, subject, predicate", [
-    (NO_DB_ARTIFACT, CHAT + "message_db", str(DEPLOY.artifact)),
-    (NO_SECRET_NAME, CHAT + "chat_api", str(DEPLOY.secretName)),
-    (NO_NODE_LABEL, CHAT + "db01", str(RDFS.label)),
-], ids=["no-artifact", "no-secret-name", "unlabelled-node"])
+@pytest.mark.parametrize(
+    "edit, subject, predicate",
+    [
+        (NO_DB_ARTIFACT, CHAT + "message_db", str(DEPLOY.artifact)),
+        (NO_SECRET_NAME, CHAT + "chat_api", str(DEPLOY.secretName)),
+        (NO_NODE_LABEL, CHAT + "db01", str(RDFS.label)),
+    ],
+    ids=["no-artifact", "no-secret-name", "unlabelled-node"],
+)
 def test_missing_fact_fails_api_and_cli(tmp_path, edit, subject, predicate):
     trig = _copy_model(tmp_path, edit)
     with pytest.raises(GeneratorError) as err:
@@ -364,12 +387,18 @@ def _docker_compose_available() -> bool:
 def test_docker_compose_config_accepts_output():
     if not _docker_compose_available():
         pytest.skip("docker compose is not installed")
-    with tempfile.NamedTemporaryFile("w", suffix=".compose.yaml", dir=ROOT, delete=False,
-                                     encoding="utf-8", newline="\n") as fh:
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".compose.yaml", dir=ROOT, delete=False, encoding="utf-8", newline="\n"
+    ) as fh:
         fh.write(generate_compose(TRIG, base_dir=ROOT))
     try:
-        run = subprocess.run(["docker", "compose", "-f", fh.name, "--project-directory", str(ROOT), "config", "-q"],
-                             cwd=ROOT, capture_output=True, text=True, timeout=60)
+        run = subprocess.run(
+            ["docker", "compose", "-f", fh.name, "--project-directory", str(ROOT), "config", "-q"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
         assert run.returncode == 0, run.stderr
     finally:
         Path(fh.name).unlink()

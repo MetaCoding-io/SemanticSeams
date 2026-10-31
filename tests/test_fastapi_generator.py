@@ -34,9 +34,15 @@ CHAT = "https://example.org/chat/"
 
 
 def _diff(expected: str, actual: str) -> str:
-    return "".join(difflib.unified_diff(
-        expected.splitlines(keepends=True), actual.splitlines(keepends=True),
-        fromfile="golden target", tofile="generated", n=2))
+    return "".join(
+        difflib.unified_diff(
+            expected.splitlines(keepends=True),
+            actual.splitlines(keepends=True),
+            fromfile="golden target",
+            tofile="generated",
+            n=2,
+        )
+    )
 
 
 def test_generated_routes_match_golden():
@@ -70,7 +76,11 @@ def test_endpoints_are_sorted_by_iri():
     module = extract_routes(ModelGraph.load(TRIG)).modules[0]
     assert module.file_name == "chat_api.py"
     assert [e.name for e in module.endpoints] == [
-        "list_conversations", "message_thread", "send_message", "stream_events"]
+        "list_conversations",
+        "message_thread",
+        "send_message",
+        "stream_events",
+    ]
     assert [n.operation for n in module.not_routed] == [":completion_op"]
 
 
@@ -86,9 +96,14 @@ def _functions(tree):
 
 
 def _runtime_calls(node) -> list[str]:
-    calls = [n for n in ast.walk(node) if isinstance(n, ast.Call)
-             and isinstance(n.func, ast.Attribute)
-             and isinstance(n.func.value, ast.Name) and n.func.value.id == "runtime"]
+    calls = [
+        n
+        for n in ast.walk(node)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "runtime"
+    ]
     return [c.func.attr for c in sorted(calls, key=lambda c: (c.lineno, c.col_offset))]
 
 
@@ -96,29 +111,44 @@ def test_generated_handlers_hold_no_branches_or_loops():
     functions = _functions(_tree())
     assert len(functions) == 4
     banned = (ast.If, ast.IfExp, ast.Match, ast.For, ast.AsyncFor, ast.While)
-    found = [f"{func.name}:{n.lineno}: {type(n).__name__}"
-             for func in functions for n in ast.walk(func) if isinstance(n, banned)]
+    found = [
+        f"{func.name}:{n.lineno}: {type(n).__name__}"
+        for func in functions
+        for n in ast.walk(func)
+        if isinstance(n, banned)
+    ]
     assert not found, found
 
 
 def test_send_handler_validates_starts_and_renders_only():
-    posts = [f for f in _functions(_tree())
-             if any(isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and d.func.attr == "post"
-                    for d in f.decorator_list)]
+    posts = [
+        f
+        for f in _functions(_tree())
+        if any(
+            isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and d.func.attr == "post"
+            for d in f.decorator_list
+        )
+    ]
     assert [f.name for f in posts] == ["send_message"]
     # the decorator's runtime.policy dependency is outside the body
     body_calls = [c for stmt in posts[0].body for c in _runtime_calls(stmt)]
     assert body_calls == ["validate", "start_process", "render_fragment"]
-    start = next(n for n in ast.walk(posts[0]) if isinstance(n, ast.Call)
-                 and isinstance(n.func, ast.Attribute) and n.func.attr == "start_process")
+    start = next(
+        n
+        for n in ast.walk(posts[0])
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "start_process"
+    )
     assert start.args[0].value == ":send_message_process"
     assert [k.arg for k in start.keywords] == ["correlation_key"]
 
 
 def test_every_runtime_attribute_is_callable_on_runtime():
     tree = _tree()
-    used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)
-            and isinstance(n.value, ast.Name) and n.value.id == "runtime"}
+    used = {
+        n.attr
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "runtime"
+    }
     assert used == {"policy", "validate", "start_process", "query", "subscribe", "render_fragment"}
     for attr in sorted(used | {"load"}):
         assert callable(getattr(Runtime, attr, None)), f"Runtime.{attr} is not callable"
@@ -205,26 +235,32 @@ def _copy_model(tmp_path, *edits) -> Path:
 
 
 def _cli(*args):
-    return subprocess.run([sys.executable, "-m", "seams_gen", *map(str, args)],
-                          cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, "-m", "seams_gen", *map(str, args)], cwd=ROOT, capture_output=True, text=True
+    )
 
 
-NO_PATH = ('        seam:mediaKind seam:UIFragment ;\n'
-           '        comm:path [ a hydra:IriTemplate ;\n'
-           '                    hydra:template "/conversations" ] .',
-           '        seam:mediaKind seam:UIFragment .')
-BAD_MEDIA = ('comm:requestMediaType "application/x-www-form-urlencoded"',
-             'comm:requestMediaType "text/plain"')
+NO_PATH = (
+    "        seam:mediaKind seam:UIFragment ;\n"
+    "        comm:path [ a hydra:IriTemplate ;\n"
+    '                    hydra:template "/conversations" ] .',
+    "        seam:mediaKind seam:UIFragment .",
+)
+BAD_MEDIA = ('comm:requestMediaType "application/x-www-form-urlencoded"', 'comm:requestMediaType "text/plain"')
 NO_EXECUTES = ("        seam:executes :send_message_process ;\n", "")
 # Without seam:executes and without the event's seam:submitsTo, no container serves (D026).
 NO_SUBMITS = ("        seam:submitsTo :send_message_op ;\n", "")
 
 
-@pytest.mark.parametrize("edits, subject, predicate", [
-    ((NO_PATH,), CHAT + "list_conversations_op", str(COMM.path)),
-    ((BAD_MEDIA,), CHAT + "send_message_op", str(COMM.requestMediaType)),
-    ((NO_EXECUTES, NO_SUBMITS), None, str(SEAM.executes)),
-], ids=["no-comm-path", "unknown-request-media-type", "no-serving-container"])
+@pytest.mark.parametrize(
+    "edits, subject, predicate",
+    [
+        ((NO_PATH,), CHAT + "list_conversations_op", str(COMM.path)),
+        ((BAD_MEDIA,), CHAT + "send_message_op", str(COMM.requestMediaType)),
+        ((NO_EXECUTES, NO_SUBMITS), None, str(SEAM.executes)),
+    ],
+    ids=["no-comm-path", "unknown-request-media-type", "no-serving-container"],
+)
 def test_missing_fact_fails_api_and_cli(tmp_path, edits, subject, predicate):
     trig = _copy_model(tmp_path, *edits)
     subject = subject or trig.as_uri()  # model-level errors name the model file
@@ -289,8 +325,7 @@ def test_untriggered_operation_without_a_writing_form_does_not_write(tmp_path):
     from processless_model import TRIG as EXPENSE_TRIG
 
     trig = tmp_path / "expenses.trig"
-    trig.write_text(EXPENSE_TRIG.replace("    :expense_form seam:writes :ExpenseShape .\n", ""),
-                    encoding="utf-8")
+    trig.write_text(EXPENSE_TRIG.replace("    :expense_form seam:writes :ExpenseShape .\n", ""), encoding="utf-8")
     text = generate_routes(trig)
     assert "runtime.write(" not in text and "start_process" not in text
     assert 'expense = runtime.validate(":ExpenseShape", form)' in text

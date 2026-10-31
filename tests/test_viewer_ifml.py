@@ -4,6 +4,7 @@ invariants, and the additive "ifml" field on the /view JSON contract (MEM016).
 """
 
 import sys
+from itertools import pairwise
 from pathlib import Path
 from urllib.parse import quote
 
@@ -85,7 +86,9 @@ def test_form_fields_come_only_from_message_shape(diagram):
         ("timestamp", "datetime"),
     ]
     assert [f["label"] for f in fields] == [f"«SimpleField» {n}" for n in ("content", "role", "status", "timestamp")]
-    assert [f["path"] for f in fields] == [viewer_app.qname(f"{CHAT}{n}") for n in ("content", "role", "status", "timestamp")]
+    assert [f["path"] for f in fields] == [
+        viewer_app.qname(f"{CHAT}{n}") for n in ("content", "role", "status", "timestamp")
+    ]
     # Only forms get fields.
     assert comps[THREAD]["fields"] == [] and comps[CONVERSATIONS]["fields"] == []
 
@@ -194,7 +197,7 @@ def test_components_inside_container_and_ordered(diagram):
     assert comps[CONVERSATIONS]["x"] + comps[CONVERSATIONS]["w"] <= comps[THREAD]["x"]
     # Left-to-right, no overlap.
     xs = sorted((c["x"], c["x"] + c["w"]) for c in comps.values())
-    assert all(a[1] <= b[0] for a, b in zip(xs, xs[1:]))
+    assert all(a[1] <= b[0] for a, b in pairwise(xs))
 
 
 def test_form_grows_with_field_rows(diagram):
@@ -360,7 +363,13 @@ def test_canvas_json_kinds_and_layers(ifml_html):
     elements = _canvas_json(ifml_html)["elements"]
     assert {e["kind"] for e in elements.values()} == {"container", "component", "event", "action", "note", "flow"}
     assert {e["layer"] for e in elements.values()} <= {
-        "architecture", "interaction", "process", "decision", "data", "lifecycle", "other"
+        "architecture",
+        "interaction",
+        "process",
+        "decision",
+        "data",
+        "lifecycle",
+        "other",
     }
     assert elements[CHAT_PAGE]["kind"] == "container"
     assert elements[SEND_PROCESS]["kind"] == "action" and elements[SEND_PROCESS]["layer"] == "process"
@@ -472,7 +481,7 @@ def test_action_flow_bottom_run_stays_inside_container(diagram):
     lowest = max(c["y"] + c["h"] for c in diagram["components"])
     flow = max((f for f in diagram["flows"] if f.get("points")), key=lambda f: max(y for _, y in f["points"]))
     pts = flow["points"]
-    runs = [a[1] for a, b in zip(pts, pts[1:]) if a[1] == b[1] and a[1] > lowest]
+    runs = [a[1] for a, b in pairwise(pts) if a[1] == b[1] and a[1] > lowest]
     assert runs, flow
     for y in runs:
         assert y < page["y"] + page["h"]
@@ -519,7 +528,12 @@ def test_elements_cover_exactly_nodes_ports_and_edges(elk_graph):
     ids = set(nodes) | set(ports) | {e["id"] for e in elk_graph["elk"]["edges"]}
     assert set(elk_graph["elements"]) == ids
     assert {e["kind"] for e in elk_graph["elements"].values()} == {
-        "container", "component", "event", "action", "flow", "note"
+        "container",
+        "component",
+        "event",
+        "action",
+        "flow",
+        "note",
     }
     for el in elk_graph["elements"].values():
         assert all(k in el for k in ("kind", "iri", "label", "layer", "seams"))
@@ -531,7 +545,10 @@ def test_elements_carry_draw_data(diagram, elk_graph):
     assert els[COMPOSE]["stereotype"] == "«Form»"
     assert els[COMPOSE]["fields"] == by_iri(diagram["components"])[COMPOSE]["fields"]
     (action,) = diagram["actions"]
-    assert els[SEND_PROCESS]["points"][0] == [action["points"][0][0] - action["x"], action["points"][0][1] - action["y"]]
+    assert els[SEND_PROCESS]["points"][0] == [
+        action["points"][0][0] - action["x"],
+        action["points"][0][1] - action["y"],
+    ]
     assert all(0 <= x <= action["w"] and 0 <= y <= action["h"] for x, y in els[SEND_PROCESS]["points"])
     notes = [e for e in els.values() if e["kind"] == "note"]
     assert {n["noteKind"] for n in notes} == {"activation", "bindings"}
@@ -579,15 +596,48 @@ def test_non_ifml_model_yields_empty_elk_root():
 def test_undrawn_owner_event_and_pointless_flow_are_skipped(diagram):
     # Boundary: an event owned by an action (cx = cy = 0) gets no port, and a
     # flow without points (or touching it) gets no edge.
-    d = {**diagram, "events": diagram["events"] + [
-        {"iri": "urn:sys", "label": "sys", "layer": "interaction", "seams": [], "owner": SEND_PROCESS,
-         "kind": "system", "cx": 0, "cy": 0, "r": 8}
-    ], "flows": diagram["flows"] + [
-        {"iri": "urn:f1", "label": "f1", "layer": "interaction", "seams": [], "kind": "navigation",
-         "from": "urn:sys", "to": COMPOSE, "bindings": [], "points": [[0, 0], [5, 5]]},
-        {"iri": "urn:f2", "label": "f2", "layer": "interaction", "seams": [], "kind": "navigation",
-         "from": SEND_MESSAGE, "to": THREAD, "bindings": [], "points": []},
-    ]}
+    d = {
+        **diagram,
+        "events": diagram["events"]
+        + [
+            {
+                "iri": "urn:sys",
+                "label": "sys",
+                "layer": "interaction",
+                "seams": [],
+                "owner": SEND_PROCESS,
+                "kind": "system",
+                "cx": 0,
+                "cy": 0,
+                "r": 8,
+            }
+        ],
+        "flows": diagram["flows"]
+        + [
+            {
+                "iri": "urn:f1",
+                "label": "f1",
+                "layer": "interaction",
+                "seams": [],
+                "kind": "navigation",
+                "from": "urn:sys",
+                "to": COMPOSE,
+                "bindings": [],
+                "points": [[0, 0], [5, 5]],
+            },
+            {
+                "iri": "urn:f2",
+                "label": "f2",
+                "layer": "interaction",
+                "seams": [],
+                "kind": "navigation",
+                "from": SEND_MESSAGE,
+                "to": THREAD,
+                "bindings": [],
+                "points": [],
+            },
+        ],
+    }
     g = ifml.ifml_elk_graph(d)
     assert "urn:sys" not in g["elements"] and "urn:f1" not in g["elements"] and "urn:f2" not in g["elements"]
     _, ports = _abs_nodes(g["elk"])
@@ -612,6 +662,15 @@ def test_view_json_ifml_unchanged_by_elk_graph(client):
     assert "elk" not in keys and "elements" not in keys
     assert "ifml_canvas" not in body
     assert set(body["ifml"]) == {
-        "model", "label", "layer", "width", "height",
-        "containers", "components", "events", "actions", "flows", "notes",
+        "model",
+        "label",
+        "layer",
+        "width",
+        "height",
+        "containers",
+        "components",
+        "events",
+        "actions",
+        "flows",
+        "notes",
     }

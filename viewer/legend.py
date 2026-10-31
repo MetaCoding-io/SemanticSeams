@@ -60,9 +60,7 @@ def _path_label(labels: set[str]) -> str:
     return next(iter(labels)) if len(labels) == 1 else " / ".join(sorted(labels))
 
 
-def contract_hidden(
-    nodes: list[dict], edges: list[dict], hidden_types
-) -> tuple[list[dict], list[dict]]:
+def contract_hidden(nodes: list[dict], edges: list[dict], hidden_types) -> tuple[list[dict], list[dict]]:
     hidden_types = set(hidden_types or ())
     hidden = {n["id"] for n in nodes if n["type"] in hidden_types}
     if not hidden:

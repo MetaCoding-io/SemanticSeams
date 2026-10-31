@@ -113,9 +113,7 @@ def test_href_for_only_carries_known_levels():
 
 def test_c4_fragment_carries_level_on_every_link(client):
     html = _fragment(client, CHAT_ARCHITECTURE, "level=L1")
-    toggle = [
-        (html_lib.unescape(h), lv) for h, lv in re.findall(r'<a href="([^"]*)"[^>]*data-level="(L\d)"', html)
-    ]
+    toggle = [(html_lib.unescape(h), lv) for h, lv in re.findall(r'<a href="([^"]*)"[^>]*data-level="(L\d)"', html)]
     assert [lv for _, lv in toggle] == ["L1", "L2", "L3", "L4"]
     for href, lv in toggle:
         assert href.endswith(f"&level={lv}")
@@ -164,7 +162,7 @@ def test_new_tab_landing_keeps_level(client):
 
 def _level_cards(html):
     start = html.index('<section id="level-cards"')
-    return html[start:html.index("</section>", start)]
+    return html[start : html.index("</section>", start)]
 
 
 def _card_tags(section):
@@ -182,7 +180,7 @@ def test_level_cards_render_questions_in_order(client):
         assert html_lib.escape(levels.C4_LEVELS[lv].question) in section
     assert all('data-empty="false"' in t for t in tags)
     assert [t for t in tags if 'aria-current="true"' in t] == [tags[0]]
-    for tag, lv in zip(tags, ("L1", "L2", "L3", "L4")):
+    for tag, lv in zip(tags, ("L1", "L2", "L3", "L4"), strict=False):
         href = html_lib.unescape(re.search(r'href="([^"]*)"', tag).group(1))
         hx = html_lib.unescape(re.search(r'hx-get="([^"]*)"', tag).group(1))
         assert href == hx and href.endswith(f"&level={lv}")
@@ -240,7 +238,7 @@ def test_empty_level_card_is_greyed_and_inert(client, monkeypatch):
     assert 'data-empty="true"' in card
     assert "hx-get" not in card and "href=" not in card
     # The toggle link for the last level gets the same inert treatment.
-    nav = html[html.index('class="level-toggle"'):html.index("</nav>", html.index('class="level-toggle"'))]
+    nav = html[html.index('class="level-toggle"') : html.index("</nav>", html.index('class="level-toggle"'))]
     toggle_l3 = re.search(rf'<a [^>]*data-level="{last}"[^>]*>', nav).group(0)
     assert "level-empty" in toggle_l3 and 'aria-disabled="true"' in toggle_l3
     assert "hx-get" not in toggle_l3 and "href=" not in toggle_l3

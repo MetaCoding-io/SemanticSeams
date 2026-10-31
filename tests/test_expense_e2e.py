@@ -37,8 +37,7 @@ POLL_TIMEOUT = 30
 EXPENSE = {"description": "Train to Leeds", "date": "2026-10-01"}
 PAYMENT = {"reference": "PAY-0042", "paid_on": "2026-10-05"}
 
-pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1",
-                                reason="live docker compose test; set SEAMS_E2E=1")
+pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1", reason="live docker compose test; set SEAMS_E2E=1")
 
 
 def person(name: str, *roles: str) -> dict[str, str]:
@@ -51,8 +50,14 @@ CAROL = person("carol", "finance")
 
 
 def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
-    return subprocess.run(["docker", "compose", "-p", PROJECT, *FILES, *args], cwd=ROOT,
-                          timeout=timeout, check=check, capture_output=True, text=True)
+    return subprocess.run(
+        ["docker", "compose", "-p", PROJECT, *FILES, *args],
+        cwd=ROOT,
+        timeout=timeout,
+        check=check,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _logs() -> str:
@@ -78,11 +83,14 @@ def stack(request):
         try:
             _compose("up", "-d", "--build", "--wait", timeout=UP_TIMEOUT)
         except subprocess.CalledProcessError as exc:
-            pytest.fail(f"docker compose up failed ({exc.returncode}):\n{exc.stdout}\n{exc.stderr}\n"
-                        f"--- docker compose logs ---\n{_logs()}")
+            pytest.fail(
+                f"docker compose up failed ({exc.returncode}):\n{exc.stdout}\n{exc.stderr}\n"
+                f"--- docker compose logs ---\n{_logs()}"
+            )
         except subprocess.TimeoutExpired:
-            pytest.fail(f"docker compose up did not finish within {UP_TIMEOUT}s\n"
-                        f"--- docker compose logs ---\n{_logs()}")
+            pytest.fail(
+                f"docker compose up did not finish within {UP_TIMEOUT}s\n--- docker compose logs ---\n{_logs()}"
+            )
         with httpx.Client(base_url=BASE, timeout=10) as client:
             yield client
         if request.session.testsfailed > failed_before:
@@ -137,17 +145,20 @@ def test_submit_approve_pay_runs_the_payout(stack):
 
     # Nobody drives the payout: the paid end event publishes on :payouts and
     # the runtime starts the payout process, which batches an amount up to 500.
-    body = _until_page_shows(stack, "/payouts", '<span class="reference">PAY-0042</span>',
-                             '<span class="status">batched</span>',
-                             '<span class="description">Train to Leeds</span>',
-                             '<span class="status">paid</span>')
+    body = _until_page_shows(
+        stack,
+        "/payouts",
+        '<span class="reference">PAY-0042</span>',
+        '<span class="status">batched</span>',
+        '<span class="description">Train to Leeds</span>',
+        '<span class="status">paid</span>',
+    )
     assert body.lstrip().startswith("<!doctype html>")
     assert '<main id="payouts_page" data-seam=":payouts_page">' in body
 
 
 def test_invalid_submit_is_rejected(stack):
-    r = stack.post(f"/expenses/bad-{uuid.uuid4().hex[:8]}",
-                   data={**EXPENSE, "amount": "not a number"}, headers=ALICE)
+    r = stack.post(f"/expenses/bad-{uuid.uuid4().hex[:8]}", data={**EXPENSE, "amount": "not a number"}, headers=ALICE)
     assert r.status_code == 422, r.text
     assert r.json()["detail"]["type"] == "ContractViolation"
 

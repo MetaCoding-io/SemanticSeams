@@ -9,10 +9,10 @@ app needs but no generated handler holds:
 - a ``RuntimeModelError`` handler answering ``{"detail": exc.to_dict()}``
   with ``exc.http_status``;
 - ``GET /healthz``;
-- the landmark page at its ifml:path, rendered by ``Runtime.render_page``
-  with the page's correlation-key query parameters, and each of
-  ``ModelGraph.secondary_pages`` (a pathed page holding no task form) the
-  same way at its own path;
+- every page of ``model.interfaces.served_pages()`` at its ifml:path,
+  rendered by ``Runtime.render_page`` with the page's correlation-key query
+  parameters: the landmark first, then each other pathed page holding no
+  task form;
 - ``GET /tasks``, the task inbox (ADR-0009): the open user tasks
   ``Runtime.user_tasks`` lists for the request's identity, each rendered with
   its generated form partial (the row's ``partial``, given ``task=row``).
@@ -89,15 +89,16 @@ def seed_store(runtime, seed_path) -> int:
         for index, item in enumerate(items):
             where = f"{seed_path.name}#{curie}[{index}]"
             if not isinstance(item, dict) or not item.get("id"):
-                raise ValueError(f"seed {where}: an item must be an object with an \"id\"")
+                raise ValueError(f'seed {where}: an item must be an object with an "id"')
             item = dict(item)
             entity_id = str(item["id"] if "id" in fields else item.pop("id"))
             scope = {k: item.pop(k) for k in sorted(keys - set(fields)) if k in item}
             try:
                 data = runtime.validate(shape, item)
             except ContractViolation as exc:
-                err = ContractViolation(exc.shape, exc.results, focus=f"{where} id {entity_id!r}",
-                                        operation=exc.operation)
+                err = ContractViolation(
+                    exc.shape, exc.results, focus=f"{where} id {entity_id!r}", operation=exc.operation
+                )
                 err.add_note(f"seed item {where} (id {entity_id!r}) violates {curie}")
                 log.error("seed %s rejected: %s", where, exc)
                 raise err from exc
@@ -107,8 +108,7 @@ def seed_store(runtime, seed_path) -> int:
     for entity_id, shape, data, correlation_key in rows:
         if runtime.store.get_entity(entity_id) is not None:
             continue
-        runtime.store.put_entity(entity_id, shape, data, correlation_key=correlation_key,
-                                 status=data.get("status"))
+        runtime.store.put_entity(entity_id, shape, data, correlation_key=correlation_key, status=data.get("status"))
         written += 1
     log.info("seeded %d of %d entities from %s", written, len(rows), seed_path)
     return written
@@ -123,7 +123,7 @@ def render_inbox(runtime, identity, tasks) -> str:
         '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n'
         f'  <title>Tasks</title>\n  <script src="{HTMX_SRC}"></script>\n</head>\n<body>\n'
         f'<main id="tasks" data-identity="{html.escape(identity.id)}">\n'
-        f'<h1>Tasks for {html.escape(identity.id)}</h1>\n{body}\n</main>\n</body>\n</html>\n'
+        f"<h1>Tasks for {html.escape(identity.id)}</h1>\n{body}\n</main>\n</body>\n</html>\n"
     )
 
 
@@ -134,7 +134,8 @@ def wants_json(request: Request) -> bool:
 def build_app(routes_path) -> FastAPI:
     module = load_routes(routes_path)
     runtime = module.runtime
-    page = runtime.model.landmark_page()
+    landmark, *others = runtime.model.interfaces.served_pages()
+    page = landmark.iri
     page_path = runtime.model.page_path(page)
     keys = sorted(runtime.model.correlation_key_labels())
 
@@ -163,6 +164,7 @@ def build_app(routes_path) -> FastAPI:
             # only correlation-key parameters reach the template context
             params = {k: request.query_params[k] for k in keys if request.query_params.get(k)}
             return runtime.render_page(served, **params)
+
         return render
 
     async def tasks(request: Request):
@@ -174,22 +176,26 @@ def build_app(routes_path) -> FastAPI:
         return HTMLResponse(render_inbox(runtime, identity, rows))
 
     app.add_api_route(page_path, page_route(page), methods=["GET"], response_class=HTMLResponse)
-    for other in runtime.model.secondary_pages():
-        app.add_api_route(runtime.model.page_path(other), page_route(other), methods=["GET"],
-                          response_class=HTMLResponse)
+    for other in (p.iri for p in others):
+        app.add_api_route(
+            runtime.model.page_path(other), page_route(other), methods=["GET"], response_class=HTMLResponse
+        )
         log.info("host: %s at GET %s", other, runtime.model.page_path(other))
     app.add_api_route(TASKS_PATH, tasks, methods=["GET"])
     app.include_router(module.router)
-    log.info("host: %s at GET %s, task inbox at GET %s, routes from %s", page, page_path, TASKS_PATH,
-             module.__file__)
+    log.info("host: %s at GET %s, task inbox at GET %s, routes from %s", page, page_path, TASKS_PATH, module.__file__)
     return app
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m seams_runtime.host",
-                                     description="Serve a generated seams route module.")
-    parser.add_argument("--routes", default=os.environ.get(ROUTES_ENV) or DEFAULT_ROUTES,
-                        help=f"route module path (default: ${ROUTES_ENV} or {DEFAULT_ROUTES})")
+    parser = argparse.ArgumentParser(
+        prog="python -m seams_runtime.host", description="Serve a generated seams route module."
+    )
+    parser.add_argument(
+        "--routes",
+        default=os.environ.get(ROUTES_ENV) or DEFAULT_ROUTES,
+        help=f"route module path (default: ${ROUTES_ENV} or {DEFAULT_ROUTES})",
+    )
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)

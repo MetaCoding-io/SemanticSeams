@@ -2,7 +2,7 @@
 
 *A zoomable, multi-notation application graph. One RDF graph is the source of truth; diagrams are views.*
 
-A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [tutorial](docs/tutorial.md) · [expense tutorial](docs/tutorials/expenses/index.md) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
+A [MetaCoding](https://metacoding.io) project · [project page](https://metacoding-io.github.io/SemanticSeams/) · [docs](https://metacoding-io.github.io/SemanticSeams/docs/) · [tutorial](docs/tutorial.md) · [expense tutorial](docs/tutorials/expenses/index.md) · [seams library](docs/reference/seams-library.md) · [write your own generator](docs/guide/write-your-own-generator.md) · [project outline](docs/project-outline.md) · [decisions](docs/adr/) · [backlog](docs/backlog.md)
 
 **The pitch, in one paragraph.** Every tool that draws software draws one layer: C4 tools stop at the repository link, BPMN modelers never see the UI that fires a process, IFML never wired up its hooks to data, and SHACL lives in its own silo. SemanticSeams puts every element of every layer in one RDF graph, as a resource with an IRI, and treats each diagram as a view over it. Click a C4 container and land on its IFML interaction model; click a UI event and land on the BPMN process it triggers; click a business-rule task and land on the DMN table; click a data object and land on the SHACL shape. The cross-layer edges are the *seams*, a small bridging ontology of 28 predicates, and because the whole system is one graph, the questions no single-notation tool can answer become SPARQL.
 
@@ -30,6 +30,7 @@ ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             deploy.ttl      — deployment stub: artifact/config/placement; desired-state half of a GitOps loop
   shapes/   seam-shapes.ttl — SHACL constraints on the seams themselves (the project's own methodology, applied to itself)
 examples/   checkout.ttl    — worked example exercising every non-reserved seam edge; the ontology smoke test
+packages/   seams/          — the read-only `seams` model library (rdflib + lxml only): loader, typed views per layer, BPMN flow walks and DMN tables (lxml), SPARQL helpers, model hash, payloads, and ModelGraph (the resolver facade over the views)
 tests/      executable acceptance test: parse everything, validate against the shapes, assert the canned queries' rows
 site/       the public project page (GitHub Pages, no build step)
 viewer/     the read-only multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js)
@@ -39,8 +40,12 @@ Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML se
 
 ## Tests
 
+Install [uv](https://docs.astral.sh/uv/), then sync the workspace from the committed
+`uv.lock` and run the suite:
+
 ```
-pip install -r requirements-dev.txt
+uv sync --all-packages
+source .venv/bin/activate
 pytest
 ```
 

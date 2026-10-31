@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 import pytest
 import rdflib
-from rdflib import Literal, Namespace, URIRef
+from rdflib import Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 for p in (ROOT, ROOT / "tests"):
@@ -22,13 +22,13 @@ for p in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(p))
 
 from fastapi.testclient import TestClient  # noqa: E402
-
 from validate_chat_app import (  # noqa: E402
     ONTOLOGY_FILES,
     check_isolation,
     check_shacl,
     union_graph,
 )
+
 from viewer import app as viewer_app  # noqa: E402
 from viewer import validation  # noqa: E402
 
@@ -62,11 +62,7 @@ def load_checkpoint(chapter: Path) -> rdflib.Dataset:
 
 
 def named_graphs(ds: rdflib.Dataset) -> set[URIRef]:
-    return {
-        g.identifier
-        for g in ds.graphs()
-        if g.identifier != DEFAULT_GRAPH and len(g) > 0
-    }
+    return {g.identifier for g in ds.graphs() if g.identifier != DEFAULT_GRAPH and len(g) > 0}
 
 
 @pytest.fixture

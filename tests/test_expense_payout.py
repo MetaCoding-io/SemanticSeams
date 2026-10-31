@@ -12,14 +12,13 @@ part, and no generated route starts it. A rejected expense ends on a plain
 end event and starts nothing.
 
 The finance console is a second IFML model. Its /payouts page holds no task
-form, so the host serves it as a page (ModelGraph.secondary_pages), and it
+form, so the host serves it as a page (model.interfaces.served_pages()), and it
 lists the stored payments with their payment lifecycle state.
 """
 
 from urllib.parse import quote
 
 import pytest
-
 from expense_app import (
     PAYOUT_PROCESS,
     assert_generated_current,
@@ -30,6 +29,7 @@ from expense_app import (
     trace,
     until,
 )
+
 from viewer import app as viewer_app
 from viewer import queries, validation
 
@@ -69,8 +69,11 @@ def _approve(c, runtime, key, decision="approved"):
 
 
 def _pay(c, runtime, key):
-    until(lambda: any(t["bpmn_id"] == "pay_expense" and t["correlation_key"] == key
-                      for t in runtime.store.list_user_tasks()))
+    until(
+        lambda: any(
+            t["bpmn_id"] == "pay_expense" and t["correlation_key"] == key for t in runtime.store.list_user_tasks()
+        )
+    )
     r = c.post(f"/expenses/{key}/payment", data=PAYMENT, headers=CAROL)
     assert r.status_code == 200, r.text
     until(lambda: status(runtime, key) == "complete")
@@ -104,7 +107,7 @@ def test_no_route_starts_the_payout_process():
     """The route module only starts the approval process: the payout process
     is channel-started (ADR-0010), so no handler names it."""
     module = (chapter_dir(CHAPTER) / "generated" / "expense_api.py").read_text()
-    assert "start_process(\n        \":approval_process\"" in module
+    assert 'start_process(\n        ":approval_process"' in module
     assert module.count("start_process(") == 1
     assert "payout_process" not in module
 
@@ -113,8 +116,11 @@ def test_no_http_route_starts_the_payout_process(app):
     c, runtime = app
     paths = c.get("/openapi.json").json()["paths"]
     assert {"/payouts", "/payments", "/payouts/expenses", "/expenses/{expense}/payouts"} <= set(paths)
-    assert {method for path in ("/payouts", "/payments", "/payouts/expenses", "/expenses/{expense}/payouts")
-            for method in paths[path]} == {"get"}
+    assert {
+        method
+        for path in ("/payouts", "/payments", "/payouts/expenses", "/expenses/{expense}/payouts")
+        for method in paths[path]
+    } == {"get"}
     for path in ("/payouts", "/payments", "/payouts/expenses"):
         c.post(path, data={**EXPENSE, "amount": "250.00"}, headers=CAROL)
     assert runtime.store.list_instances() == []
@@ -136,8 +142,14 @@ def test_paying_an_expense_starts_the_payout_process(app):
 
     # the payout ran on its own: schedule, decide, batch
     rows = trace(runtime, "e1", PAYOUT_PROCESS)
-    assert [r["task"] for r in rows] == ["payout_requested", "schedule_payout", "choose_payout",
-                                         "method_gateway", "add_to_batch", "paid_out"]
+    assert [r["task"] for r in rows] == [
+        "payout_requested",
+        "schedule_payout",
+        "choose_payout",
+        "method_gateway",
+        "add_to_batch",
+        "paid_out",
+    ]
     by_task = {r["task"]: r for r in rows}
     assert not any("by" in r for r in rows)  # nobody completed a task
     assert by_task["choose_payout"]["decision"] == EX + "payout_method"
@@ -235,15 +247,19 @@ def test_the_finance_console_lists_the_payment(app):
     assert '<main id="expenses_page"' in c.get("/").text
 
 
-def test_secondary_pages_skip_task_form_screens():
-    """ModelGraph.secondary_pages: a pathed page with no task form. The
-    approvals page holds the task forms (the inbox reaches it, ADR-0009), so
-    chapter 7 has none and its host serves no /approvals page."""
+def test_served_pages_skip_task_form_screens():
+    """model.interfaces.served_pages(): the landmark, then each pathed page
+    with no task form. The approvals page holds the task forms (the inbox
+    reaches it, ADR-0009), so chapter 7 serves only its landmark and its host
+    serves no /approvals page."""
     from seams_runtime import ModelGraph
 
-    assert ModelGraph.load(chapter_dir("chapter-07") / "expenses.trig").secondary_pages() == []
-    assert list(map(str, ModelGraph.load(chapter_dir(CHAPTER) / "expenses.trig").secondary_pages())) == [
-        EX + "payouts_page"]
+    def others(chapter):
+        model = ModelGraph.load(chapter_dir(chapter) / "expenses.trig")
+        return [str(p.iri) for p in model.interfaces.served_pages()][1:]
+
+    assert others("chapter-07") == []
+    assert others(CHAPTER) == [EX + "payouts_page"]
 
 
 def test_the_approvals_screen_is_not_a_page(app):
@@ -268,12 +284,15 @@ def viewer(monkeypatch):
         validation._clear_cache()
 
 
-@pytest.mark.parametrize("model, payload", [
-    ("payout_bpmn", "payout.bpmn"),
-    ("payout_dmn", "payout.dmn"),
-    ("payment_lifecycle", None),
-    ("finance_console", None),
-])
+@pytest.mark.parametrize(
+    "model, payload",
+    [
+        ("payout_bpmn", "payout.bpmn"),
+        ("payout_dmn", "payout.dmn"),
+        ("payment_lifecycle", None),
+        ("finance_console", None),
+    ],
+)
 def test_the_viewer_opens_the_new_models(viewer, model, payload):
     from fastapi.testclient import TestClient
 
@@ -285,12 +304,11 @@ def test_the_viewer_opens_the_new_models(viewer, model, payload):
 
 
 def test_screens_by_role_writing_a_payment_reach_the_payout(viewer):
-    result = queries.execute_query(viewer.get_graph(), "screens-by-role-writing-shape",
-                                   EX + "PaymentShape")
+    result = queries.execute_query(viewer.get_graph(), "screens-by-role-writing-shape", EX + "PaymentShape")
     writers = {row["writer"] for row in result["rows"]}
     assert PAY_TASK in writers
     # the async hop: submit -> approval -> approved_end publishes -> payout subscribes
-    assert {EX + "payout_bpmn#schedule_payout", EX + "payout_bpmn#add_to_batch",
-            EX + "payout_bpmn#send_now"} <= writers
+    assert {EX + "payout_bpmn#schedule_payout", EX + "payout_bpmn#add_to_batch", EX + "payout_bpmn#send_now"} <= writers
     assert {(row["role"], row["screen"], row["event"]) for row in result["rows"]} == {
-        (EX + "employee", EX + "expenses_page", EX + "submit_expense")}
+        (EX + "employee", EX + "expenses_page", EX + "submit_expense")
+    }

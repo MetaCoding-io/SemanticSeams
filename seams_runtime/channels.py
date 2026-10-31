@@ -39,7 +39,7 @@ def sse_frame(event_name: str, data) -> str:
 class Subscription:
     """Async iterator of SSE frames for one (channel, scope)."""
 
-    def __init__(self, bus: "ChannelBus", key: tuple, maxsize: int):
+    def __init__(self, bus: ChannelBus, key: tuple, maxsize: int):
         self._bus = bus
         self._key = key
         self._loop = asyncio.get_running_loop()

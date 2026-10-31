@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from rdflib import Literal, URIRef
+from rdflib import URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -28,6 +28,7 @@ def graph():
 
 
 # (a) routing outcomes ---------------------------------------------------------
+
 
 def test_short_message_routes_to_default_provider(tmp_path):
     assert spike.run(SHORT, tmp_path / "s.db").provider == "default-provider"
@@ -50,6 +51,7 @@ def test_long_non_user_message_stays_on_default(tmp_path):
 
 
 # (b) binding comes from the graph --------------------------------------------
+
 
 def test_resolver_binds_route_to_provider_to_routing_decision(graph):
     b = spike.decision_for(ROUTE, graph)
@@ -111,6 +113,7 @@ def test_bpmn_process_is_executable():
 
 # (d) streaming ----------------------------------------------------------------
 
+
 def test_stream_events_in_token_order_before_completion(tmp_path):
     result = spike.run(SHORT, tmp_path / "s.db")
     tokens = [e for e in result.events if "token" in e]
@@ -134,6 +137,7 @@ def test_channel_resolved_from_graph(graph):
 
 # (e) SQLite round trip --------------------------------------------------------
 
+
 def test_checkpoint_row_then_resume_matches_uninterrupted(tmp_path):
     db = tmp_path / "s.db"
     partial = spike.run(LONG, db, stop_after="route_to_provider")
@@ -148,8 +152,7 @@ def test_checkpoint_row_then_resume_matches_uninterrupted(tmp_path):
 
     resumed = spike.resume(partial.instance_id, db)
     assert resumed.completed
-    assert [r["task"] for r in resumed.trace] == [
-        "invoke_llm", "persist_response", "stream_complete_event", "end"]
+    assert [r["task"] for r in resumed.trace] == ["invoke_llm", "persist_response", "stream_complete_event", "end"]
 
     baseline = spike.run(LONG, tmp_path / "b.db", restore=False)
     assert baseline.checkpoint is None
@@ -163,6 +166,7 @@ def test_resume_unknown_instance_fails(tmp_path):
 
 
 # (f) negative resolution ------------------------------------------------------
+
 
 def test_missing_decided_by_names_task_iri(graph):
     graph.remove((ROUTE, spike.SEAM.decidedBy, None))

@@ -79,9 +79,18 @@ RUNNING, STOPPED, COMPLETE, FAILED, WAITING = "running", "stopped", "complete", 
 
 def new_state(process, correlation_key: str) -> dict:
     """The initial ``workflow.data["seams"]`` record."""
-    return {"process": str(process), "correlation_key": correlation_key, "current": {},
-            "status": {}, "history": {}, "written": {}, "variables": {}, "decision": {},
-            "trace": [], "error": None}
+    return {
+        "process": str(process),
+        "correlation_key": correlation_key,
+        "current": {},
+        "status": {},
+        "history": {},
+        "written": {},
+        "variables": {},
+        "decision": {},
+        "trace": [],
+        "error": None,
+    }
 
 
 class Instance:
@@ -143,8 +152,11 @@ class Worker:
         status = COMPLETE if wf.is_completed() else WAITING
         self._checkpoint(instance, status)
         if status == WAITING:
-            log.info("instance %s waiting on user task(s) %s", instance.id,
-                     [t.task_spec.bpmn_id for t in self.open_user_tasks(wf)] or "(none)")
+            log.info(
+                "instance %s waiting on user task(s) %s",
+                instance.id,
+                [t.task_spec.bpmn_id for t in self.open_user_tasks(wf)] or "(none)",
+            )
         return self._finish(instance, status)
 
     @staticmethod
@@ -158,17 +170,16 @@ class Worker:
     @staticmethod
     def open_user_tasks(wf) -> list:
         """READY manual tasks with a BPMN element (the open user tasks)."""
-        return [t for t in wf.get_tasks(state=TaskState.READY)
-                if t.task_spec.manual and t.task_spec.bpmn_id is not None]
+        return [
+            t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.manual and t.task_spec.bpmn_id is not None
+        ]
 
-    async def complete_user_task(self, instance: Instance, task_iri, shape, payload: dict,
-                                 by: str) -> None:
+    async def complete_user_task(self, instance: Instance, task_iri, shape, payload: dict, by: str) -> None:
         """Complete the open user task ``task_iri`` with an already validated
         ``payload`` of ``shape``, then checkpoint. The caller resumes the loop.
         LookupError when the instance has no such READY task."""
         task_iri = str(task_iri)
-        tasks = [t for t in self.open_user_tasks(instance.workflow)
-                 if str(self.engine.task_iri(t)) == task_iri]
+        tasks = [t for t in self.open_user_tasks(instance.workflow) if str(self.engine.task_iri(t)) == task_iri]
         if not tasks:
             raise LookupError(f"instance {instance.id} has no open user task {task_iri}")
         task = tasks[0]
@@ -201,8 +212,10 @@ class Worker:
         log.info("instance %s: %s%s", instance.id, bpmn_id, "" if by is None else f" (by {by})")
 
         # 1. the fired transition must be enabled
+        element = self.model.task_element(iri)
         transition = shape = None
-        t_iri = self.model.ds.value(iri, SEAM.fires)
+        fired = element.fires
+        t_iri = None if fired is None else fired.iri
         if t_iri is not None:
             shape = self.model.lifecycle_shape(t_iri)
             transition = self.guard.check(shape, st["status"].get(str(shape)), t_iri)
@@ -223,7 +236,8 @@ class Worker:
             row["outputs"] = dict(mapped)
 
         # 3. invoke
-        op = self.model.ds.value(iri, SEAM.invokes)
+        invoked = element.invokes
+        op = None if invoked is None else invoked.iri
         if op is not None:
             await self._invoke(instance, op, row)
 
@@ -240,11 +254,13 @@ class Worker:
             task.complete()  # only now: after the handler (and the whole stream) finished
 
         # 6. message throw events publish a completion event
-        if op is None and not self.engine.is_service_task(task) \
-                and (iri, SEAM.publishesTo, None) in self.model.ds:
+        if op is None and not self.engine.is_service_task(task) and element.publishes_to:
             ch = self.model.channel_for_event(iri)
-            data = {"instance": instance.id, "event": self.model.label(iri),
-                    "status": {self.model.label(URIRef(s)): v for s, v in st["status"].items()}}
+            data = {
+                "instance": instance.id,
+                "event": self.model.label(iri),
+                "status": {self.model.label(URIRef(s)): v for s, v in st["status"].items()},
+            }
             self.bus.publish(ch.iri, instance.correlation_key, ch.label, data)
             row["published"] = {"channel": str(ch.iri), "event": ch.label}
             # 6a. start the channel-started processes subscribed to it (ADR-0010)
@@ -291,12 +307,15 @@ class Worker:
         channel = self.model.process_channel(instance.process)
         parts: list[str] = []
         async for delta in self.llm.stream_completion(path, messages, model_name, base_url=base):
-            self.bus.publish(channel.iri, instance.correlation_key, channel.event_name,
-                             {"instance": instance.id, "seq": len(parts), "content": delta})
+            self.bus.publish(
+                channel.iri,
+                instance.correlation_key,
+                channel.event_name,
+                {"instance": instance.id, "seq": len(parts), "content": delta},
+            )
             parts.append(delta)
         returns = self.model.returned_shape(op)
-        reply = validate(self.model, returns, {"role": "assistant", "content": "".join(parts)},
-                         operation=op)
+        reply = validate(self.model, returns, {"role": "assistant", "content": "".join(parts)}, operation=op)
         st["current"][str(returns)] = {"id": None, "data": reply}
         row["tokens"] = len(parts)
 
@@ -310,7 +329,7 @@ class Worker:
         if cur["id"] is None:
             cur["id"] = str(uuid.uuid4())
         status = st["status"].get(str(shape))
-        if status is None and (shape, SEAM.lifecycle, None) in self.model.ds:
+        if status is None and self.model.has_lifecycle(shape):
             # first write of a lifecycle shape no transition has moved yet
             # (e.g. a user task's output): it is stored in state:initial
             status = self.model.lifecycle_for(shape).initial
@@ -319,8 +338,9 @@ class Worker:
         data = dict(cur["data"])
         if status is not None:
             data["status"] = status
-        self.store.put_entity(cur["id"], shape, data, correlation_key=instance.correlation_key,
-                              instance_id=instance.id, status=status)
+        self.store.put_entity(
+            cur["id"], shape, data, correlation_key=instance.correlation_key, instance_id=instance.id, status=status
+        )
         written = st["written"].setdefault(str(shape), [])
         if cur["id"] not in written:
             written.append(cur["id"])
@@ -334,8 +354,14 @@ class Worker:
             entity = self.store.get_entity(entity_id)
             if entity is not None:
                 data = dict(entity["data"], status=status)
-                self.store.put_entity(entity_id, shape, data, correlation_key=entity["correlation_key"],
-                                      instance_id=entity["instance_id"], status=status)
+                self.store.put_entity(
+                    entity_id,
+                    shape,
+                    data,
+                    correlation_key=entity["correlation_key"],
+                    instance_id=entity["instance_id"],
+                    status=status,
+                )
         cur = st["current"].get(str(shape))
         if cur is not None and cur["id"] is None:
             cur["data"]["status"] = status
@@ -357,15 +383,19 @@ class Worker:
         st = instance.state
         exc = self._model_error(exc)
         log.error("instance %s failed: %s", instance.id, exc, exc_info=not isinstance(exc, RuntimeModelError))
-        st["error"] = exc.to_dict() if isinstance(exc, RuntimeModelError) else {
-            "type": type(exc).__name__, "message": str(exc), "http_status": 500}
+        st["error"] = (
+            exc.to_dict()
+            if isinstance(exc, RuntimeModelError)
+            else {"type": type(exc).__name__, "message": str(exc), "http_status": 500}
+        )
         for shape, current in list(st["status"].items()):
             try:
                 tr = self.guard.on_error(shape, current)
                 if tr is not None:
                     self._set_status(instance, shape, tr.to_state)
-                    st["trace"].append({"task": None, "fires": str(tr.iri), "status": tr.to_state,
-                                        "error": st["error"]["type"]})
+                    st["trace"].append(
+                        {"task": None, "fires": str(tr.iri), "status": tr.to_state, "error": st["error"]["type"]}
+                    )
             except Exception:  # noqa: BLE001 - keep failing closed; the original error is recorded
                 log.exception("instance %s: on_error for %s failed", instance.id, shape)
         try:
@@ -377,18 +407,32 @@ class Worker:
             self._checkpoint(instance, FAILED)
         except Exception:  # noqa: BLE001 - the state may be unserializable mid-task
             log.exception("instance %s: checkpoint after failure failed", instance.id)
-            self.store.save_state(instance.id, instance.process, "{}",
-                                  correlation_key=instance.correlation_key, status=FAILED)
+            self.store.save_state(
+                instance.id, instance.process, "{}", correlation_key=instance.correlation_key, status=FAILED
+            )
             self.store.replace_user_tasks(instance.id, [])
 
     def _checkpoint(self, instance: Instance, status: str) -> None:
-        self.store.save_state(instance.id, instance.process, self.engine.serialize(instance.workflow),
-                              correlation_key=instance.correlation_key, status=status)
+        self.store.save_state(
+            instance.id,
+            instance.process,
+            self.engine.serialize(instance.workflow),
+            correlation_key=instance.correlation_key,
+            status=status,
+        )
         tasks = [] if status in (COMPLETE, FAILED) else self.open_user_tasks(instance.workflow)
-        self.store.replace_user_tasks(instance.id, [
-            {"task": str(self.engine.task_iri(t)), "bpmn_id": t.task_spec.bpmn_id,
-             "process": str(instance.process), "correlation_key": instance.correlation_key}
-            for t in tasks])
+        self.store.replace_user_tasks(
+            instance.id,
+            [
+                {
+                    "task": str(self.engine.task_iri(t)),
+                    "bpmn_id": t.task_spec.bpmn_id,
+                    "process": str(instance.process),
+                    "correlation_key": instance.correlation_key,
+                }
+                for t in tasks
+            ],
+        )
 
     def _finish(self, instance: Instance, status: str) -> dict:
         st = instance.state

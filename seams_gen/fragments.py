@@ -7,18 +7,17 @@ A ``seam:UIFragment`` operation names the partial it renders through its one
 item of C and the partial is ``<C local name>_item.html``; otherwise it is the
 whole component, ``<C local name>.html``. The htmx generator emits exactly the
 partials this rule names and the route generator calls them by the same rule,
-so a route can never name a partial that was not generated.
+so a route can never name a partial that was not generated. The rule reads
+the model through ``model.operations`` and ``model.interfaces`` (D036).
 """
 
 from __future__ import annotations
 
-from rdflib import RDF
-
-from seams_runtime import ModelGraph
-from seams_runtime.model import SEAM, local_name
+from rdflib import RDF, URIRef
+from seams import IFML, Flow, Model, Operation, ResolutionError, local_name
 
 from . import GeneratorError
-from .facts import IFML, Facts
+from ._views import only, view_errors
 
 ITEM_SWAPS = (IFML.Append, IFML.Prepend)
 
@@ -26,8 +25,9 @@ COMPONENT = "component"
 ITEM = "item"
 
 
-def fragment_for(facts_or_model, operation) -> tuple[str, object, str]:
-    """(file name, component IRI, kind) of the partial ``operation`` renders.
+def fragment_for(model, operation) -> tuple[str, object, str]:
+    """(file name, component IRI, kind) of the partial ``operation`` (an IRI or
+    an ``Operation`` view) renders.
 
     kind is ``"component"`` (the component's block body) or ``"item"`` (one
     ``<li>`` of an ``ifml:Details`` item list). No or several
@@ -35,25 +35,29 @@ def fragment_for(facts_or_model, operation) -> tuple[str, object, str]:
     seam:rendersComponent)``; an item partial of anything but an
     ``ifml:Details`` raises on the component's ``rdf:type``.
     """
-    f = facts_or_model if isinstance(facts_or_model, Facts) else Facts(_model(facts_or_model))
-    component = f.one(operation, SEAM.rendersComponent)
-    item = any(
-        (flow, RDF.type, IFML.NavigationFlow) in f.ds
-        and (flow, IFML.target, component) in f.ds
-        and any((flow, IFML.swap, swap) in f.ds for swap in ITEM_SWAPS)
-        for event in f.subjects(SEAM.submitsTo, operation)
-        if (event, RDF.type, IFML.Event) in f.ds
-        for flow in f.subjects(IFML.source, event)
-    )
-    if item and (component, RDF.type, IFML.Details) not in f.ds:
-        raise GeneratorError(component, RDF.type,
-                             f"{operation} appends an item to it, which needs an ifml:Details item list")
+    if not isinstance(model, Model):
+        raise TypeError(f"fragment_for needs a seams.Model, got {type(model).__name__}")
+    with view_errors():
+        op = operation if isinstance(operation, Operation) else model.views.intern(Operation, URIRef(str(operation)))
+        component = only(op.renders)
+        item = any(
+            flow.kind == IFML.NavigationFlow and component.iri in flow.targets.iris() and _swap(flow) in ITEM_SWAPS
+            for event in op.submitted_by
+            for flow in event.flows
+        )
+        if item and IFML.Details not in component.types:
+            raise GeneratorError(
+                component.iri, RDF.type, f"{op.iri} appends an item to it, which needs an ifml:Details item list"
+            )
     if item:
-        return f"{local_name(component)}_item.html", component, ITEM
-    return f"{local_name(component)}.html", component, COMPONENT
+        return f"{local_name(component.iri)}_item.html", component.iri, ITEM
+    return f"{local_name(component.iri)}.html", component.iri, COMPONENT
 
 
-def _model(model) -> ModelGraph:
-    if not isinstance(model, ModelGraph):
-        raise TypeError(f"fragment_for needs a ModelGraph or Facts, got {type(model).__name__}")
-    return model
+def _swap(flow: Flow):
+    """The flow's ifml:swap, or None when it has none (or several): such a
+    flow appends nothing; ``extract_page`` reports it when it renders the flow."""
+    try:
+        return flow.swap
+    except ResolutionError:
+        return None

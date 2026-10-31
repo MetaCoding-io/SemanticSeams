@@ -1,0 +1,36 @@
+# uv workspace root (backlog L1, decisions D031 and D033).
+# Sync everything with `uv sync --all-packages`: a plain `uv sync` at this
+# root installs nothing from the members.
+
+[tool.uv.workspace]
+members = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer"]
+
+[dependency-groups]
+# pyyaml and httpx are imported only by the tests; types-lxml types the seams
+# library for pyright; the members supply the rest.
+dev = ["pytest>=8.0", "pyyaml>=6.0", "httpx>=0.27", "ruff", "pyright", "types-lxml"]
+
+[tool.pytest.ini_options]
+# The four existing members are virtual (not installed); their packages
+# resolve from the repository root.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["packages/seams"]
+strict = ["packages/seams"]
+pythonVersion = "3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# Committed generated route modules come from seams_gen templates and are
+# checked byte-for-byte by the golden and drift tests: never reformat them.
+# The same holds for the golden generator output under docs/generation/golden.
+# Markdown is excluded because ruff would otherwise reformat Python code blocks in
+# prose docs, including historical records under docs/research and docs/adr.
+extend-exclude = ["examples/**/generated", "docs/generation/golden", "*.md", "spikes", "orig_convo", "tmp", "site"]
+
+[tool.ruff.lint]
+# Explicit families so the gate stays stable across ruff releases.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]

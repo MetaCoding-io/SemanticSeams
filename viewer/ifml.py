@@ -1,7 +1,8 @@
 """IFML diagram projection (M006/S05, D011), drawn on diagram-js (M007/S04, D023).
 
-ifml_diagram() reads an IFML model out of the graph and returns a dict that
-already has the IFML derivations and the geometry worked out, so the client
+ifml_diagram() reads an IFML model through the seams library's
+model.interfaces view (M010/S06), the view the htmx generator reads, so IFML
+has one interpretation; it returns a dict that already has the IFML derivations and the geometry worked out, so the client
 only draws and pytest can check everything (ifml_elk_graph() carries it to the
 diagram-js canvas as a fixed ELK graph):
 
@@ -10,29 +11,33 @@ diagram-js canvas as a fixed ELK graph):
 - components (ifml:List/Details/Form) with a «DataBinding» strip per
   seam:reads/seam:writes shape, and, for forms, «SimpleField» rows taken only
   from the sh:property paths of the shape the form writes;
-- events (ifml:hasEvent) as circles on their owner's right border;
+- events (ifml:Event, owned through ifml:hasEvent) as circles on their
+  owner's right border;
 - actions: one hexagon per distinct seam:triggers target of an event;
 - navigation flows (solid), data flows (dashed, with a «ParamBindingGroup»
   note) and event → action flows;
-- activation notes "[state = …]" from seam:visibleWhen, one per component
-  ("[state in (…)]" when it has several guard states).
+- activation notes "[state = …]" from seam:visibleWhen, one per container
+  or component ("[state in (…)]" when it has several guard states).
+
+A flow without exactly one ifml:source and ifml:target, a parameter binding
+without both parameters, or a form shape property without an IRI sh:path
+raises seams.ResolutionError naming the subject and predicate, as in the
+generators.
 
 Geometry is deterministic and Python-only (no ELK): every box carries integer
-x, y, w, h and the root carries the overall width and height. The graph
-helpers come from viewer.app through a late import, because viewer.app
+x, y, w, h and the root carries the overall width and height. The loaded
+model and the label/layer/seam helpers come from viewer.app through a late import, because viewer.app
 imports this module.
 """
 
 from __future__ import annotations
 
-from rdflib import RDF, XSD, Namespace, URIRef
-from rdflib.namespace import SH
-
-IFML = Namespace("https://w3id.org/seams/ifml#")
-SEAM = Namespace("https://w3id.org/seams/seam#")
+from rdflib import XSD, URIRef
+from seams import IFML
 
 STEREOTYPES = {IFML.List: "«List»", IFML.Details: "«Details»", IFML.Form: "«Form»"}
-MARKERS = [(IFML.isLandmark, "[L]"), (IFML.isXOR, "[XOR]"), (IFML.isDefault, "[D]")]
+# seams Page flags (ifml:isLandmark, ifml:isXOR, ifml:isDefault) and their markers.
+MARKERS = [("is_landmark", "[L]"), ("is_xor", "[XOR]"), ("is_default", "[D]")]
 FIELD_KINDS = {
     XSD.string: "text",
     XSD.dateTime: "datetime",
@@ -70,11 +75,6 @@ def _app():
     return app
 
 
-def _true(graph, s, p) -> bool:
-    val = graph.value(s, p)
-    return val is not None and bool(val.toPython()) is True
-
-
 def _base(iri: str) -> dict:
     app = _app()
     return {"iri": iri, "label": app.label(iri), "layer": app.layer_of(iri), "seams": app.card_seams(iri)}
@@ -86,112 +86,100 @@ def _note_w(text: str) -> int:
 
 def _derive(model_iri: str) -> dict:
     app = _app()
-    graph = app.get_graph()
-    members = sorted(app.model_members(model_iri))
+    ui = app.get_model().interfaces
+    scope = URIRef(model_iri)
 
-    def typed(cls) -> list[str]:
-        return [m for m in members if (URIRef(m), RDF.type, cls) in graph]
+    def in_scope(e) -> bool:
+        return e.in_model(scope)
 
-    containers = {m: _base(m) for m in typed(IFML.ViewContainer)}
-    components = {}
-    for m in members:
-        stereo = next((s for cls, s in STEREOTYPES.items() if (URIRef(m), RDF.type, cls) in graph), None)
-        if stereo is not None:
-            components[m] = {**_base(m), "stereotype": stereo}
-    boxes = set(containers) | set(components)
+    pages = ui.pages().where(in_scope)
+    # Only the concrete List/Details/Form classes have a stereotype to draw
+    # (seams RENDERED_TYPES, what the generators render); a bare
+    # ifml:ViewComponent is left out, as before.
+    parts = ui.components().where(lambda c: in_scope(c) and bool(c.types))
+    containers = {str(p.iri): _base(str(p.iri)) for p in pages}
+    components = {str(c.iri): {**_base(str(c.iri)), "stereotype": STEREOTYPES[c.types[0]]} for c in parts}
 
-    parents: dict[str, str] = {}
-    for s, o in graph.subject_objects(IFML.contains):
-        if str(s) in containers and str(o) in boxes:
-            parents[str(o)] = min(parents.get(str(o), str(s)), str(s))
+    def parent(screens) -> str | None:
+        # The first (minimum IRI) container of this model that contains it.
+        return next((str(p.iri) for p in screens if str(p.iri) in containers), None)
 
-    for iri, c in containers.items():
-        markers = [m for p, m in MARKERS if _true(graph, URIRef(iri), p)]
-        c.update(parent=parents.get(iri), markers=markers, title=" ".join(markers + [c["label"]]))
+    for p in pages:
+        markers = [m for attr, m in MARKERS if getattr(p, attr)]
+        c = containers[str(p.iri)]
+        c.update(parent=parent(p.parents), markers=markers, title=" ".join(markers + [c["label"]]))
 
-    for iri, c in components.items():
-        subj = URIRef(iri)
+    for comp in parts:
         bindings = [
-            {"shape": str(o), "label": f"«DataBinding» {app.label(str(o))}", "predicate": pred}
-            for p, pred in ((SEAM.reads, "seam:reads"), (SEAM.writes, "seam:writes"))
-            for o in graph.objects(subj, p)
+            {"shape": str(s.iri), "label": f"«DataBinding» {app.label(str(s.iri))}", "predicate": pred}
+            for shapes, pred in ((comp.reads, "seam:reads"), (comp.writes, "seam:writes"))
+            for s in shapes
         ]
         bindings.sort(key=lambda b: (b["shape"], b["predicate"]))
         fields = []
-        if c["stereotype"] == "«Form»":
-            for shape in sorted(str(o) for o in graph.objects(subj, SEAM.writes)):
-                for prop in graph.objects(URIRef(shape), SH.property):
-                    path = graph.value(prop, SH.path)
-                    if path is None:
-                        continue
-                    name = app.short_name(str(path))
-                    kind = FIELD_KINDS.get(graph.value(prop, SH.datatype), "field")
+        if comp.types[0] == IFML.Form:
+            for shape in comp.writes:
+                for f in shape.fields():
                     fields.append(
                         {
-                            "iri": str(path),
-                            "path": app.qname(path),
-                            "name": name,
-                            "kind": kind,
-                            "label": f"«SimpleField» {name}",
+                            "iri": str(f.iri),
+                            "path": app.qname(f.iri),
+                            "name": f.name,
+                            "kind": FIELD_KINDS.get(f.datatype, "field"),
+                            "label": f"«SimpleField» {f.name}",
                         }
                     )
             fields.sort(key=lambda f: f["iri"])
-        c.update(parent=parents.get(iri), bindings=bindings, fields=fields)
+        components[str(comp.iri)].update(parent=parent(comp.screens), bindings=bindings, fields=fields)
 
     triggers: dict[str, list[str]] = {}
     owners: dict[str, str] = {}
-    for s, o in graph.subject_objects(IFML.hasEvent):
-        if str(o) in members:
-            owners[str(o)] = min(owners.get(str(o), str(s)), str(s))
-    for ev in owners:
-        triggers[ev] = sorted(str(t) for t in graph.objects(URIRef(ev), SEAM.triggers))
+    for ev in ui.events().where(in_scope):
+        if ev.owners:
+            owners[str(ev.iri)] = str(ev.owners[0].iri)
+            triggers[str(ev.iri)] = [str(t) for t in ev.triggers_all.iris()]
     action_iris = sorted({t for ts in triggers.values() for t in ts})
 
-    def flows_of(cls) -> list[tuple[str, str, str]]:
-        out = []
-        for f in typed(cls):
-            src = graph.value(URIRef(f), IFML.source)
-            tgt = graph.value(URIRef(f), IFML.target)
-            if src is not None and tgt is not None:
-                out.append((f, str(src), str(tgt)))
-        return out
-
-    nav = flows_of(IFML.NavigationFlow)
-    data = flows_of(IFML.DataFlow)
+    # Flow.source/target and Flow.binds raise ResolutionError on a flow or
+    # binding without exactly one end: the htmx generator's rule.
+    flows_in = ui.flows().where(in_scope)
+    nav = [f for f in flows_in if f.kind == IFML.NavigationFlow]
+    data = [f for f in flows_in if f.kind == IFML.DataFlow]
 
     # An event is "system" when a navigation flow leaves it and it belongs to
     # an action (it signals the action's completion); otherwise it is "user".
-    nav_sources = {src for _, src, _ in nav}
+    nav_sources = {str(f.source.iri) for f in nav}
     events = {}
     for ev, owner in owners.items():
         system = ev in nav_sources and owner in action_iris
         events[ev] = {**_base(ev), "owner": owner, "kind": "system" if system else "user", "triggers": triggers[ev]}
 
     flows = []
-    for f, src, tgt in nav:
-        flows.append({**_base(f), "kind": "navigation", "from": src, "to": tgt, "bindings": []})
-    for f, src, tgt in data:
-        bindings = []
-        for b in graph.objects(URIRef(f), IFML.binds):
-            sp = graph.value(b, IFML.sourceParameter)
-            tp = graph.value(b, IFML.targetParameter)
-            if sp is not None and tp is not None:
-                bindings.append(f"{app.label(str(sp))} → {app.label(str(tp))}")
-        flows.append({**_base(f), "kind": "data", "from": src, "to": tgt, "bindings": sorted(bindings)})
+    for f in nav:
+        ends = {"from": str(f.source.iri), "to": str(f.target.iri)}
+        flows.append({**_base(str(f.iri)), "kind": "navigation", **ends, "bindings": []})
+    for f in data:
+        ends = {"from": str(f.source.iri), "to": str(f.target.iri)}
+        bindings = sorted(f"{app.label(str(b.source))} → {app.label(str(b.target))}" for b in f.binds)
+        flows.append({**_base(str(f.iri)), "kind": "data", **ends, "bindings": bindings})
     for ev in sorted(triggers):
         for proc in triggers[ev]:
             flows.append(
-                {"iri": None, "label": app.label(proc), "layer": app.layer_of(proc), "seams": [],
-                 "kind": "action", "from": ev, "to": proc, "bindings": []}
+                {
+                    "iri": None,
+                    "label": app.label(proc),
+                    "layer": app.layer_of(proc),
+                    "seams": [],
+                    "kind": "action",
+                    "from": ev,
+                    "to": proc,
+                    "bindings": [],
+                }
             )
 
     notes = []
-    guards: dict[str, list[str]] = {}
-    for s, o in graph.subject_objects(SEAM.visibleWhen):
-        if str(s) in boxes:
-            guards.setdefault(str(s), []).append(str(o))
+    guards = {str(b.iri): [str(s) for s in b.visible_when.iris()] for b in (*pages, *parts) if b.visible_when}
     for s, states in sorted(guards.items()):
-        states.sort()
         labels = sorted(app.label(o) for o in states)
         text = f"[state = {labels[0]}]" if len(labels) == 1 else f"[state in ({', '.join(labels)})]"
         notes.append({"iri": states[0], "kind": "activation", "for": s, "state": states[0], "text": text})
@@ -322,11 +310,10 @@ def _layout(d: dict) -> tuple[int, int]:
     _route_action_flows(d)
 
     width = max([right] + [a["x"] + a["w"] for a in d["actions"].values()]) + MARGIN
-    height = max(
-        [MARGIN]
-        + [b["y"] + b["h"] for b in boxes.values()]
-        + [a["y"] + a["h"] for a in d["actions"].values()]
-    ) + MARGIN
+    height = (
+        max([MARGIN] + [b["y"] + b["h"] for b in boxes.values()] + [a["y"] + a["h"] for a in d["actions"].values()])
+        + MARGIN
+    )
     return width, height
 
 
@@ -380,7 +367,8 @@ def _route_action_flows(d: dict) -> None:
         ay = a["y"] + a["h"] // 2
         mid = a["x"] - ACTION_GAP // 2
         blockers = [
-            b for iri, b in d["components"].items()
+            b
+            for iri, b in d["components"].items()
             if iri != e["owner"] and b["x"] + b["w"] > sx and b["x"] < a["x"] and b["y"] <= sy <= b["y"] + b["h"]
         ]
         if blockers:
@@ -492,8 +480,11 @@ def ifml_diagram(model_iri: str) -> dict:
 
 # --- ELK port graph (M007/S04, D023) ----------------------------------------
 
-_FIXED = {"elk.algorithm": "fixed", "elk.padding": "[top=0,left=0,bottom=0,right=0]",
-          "elk.nodeSize.fixedGraphSize": True}
+_FIXED = {
+    "elk.algorithm": "fixed",
+    "elk.padding": "[top=0,left=0,bottom=0,right=0]",
+    "elk.nodeSize.fixedGraphSize": True,
+}
 
 
 def _note_layer(n: dict, owners: dict) -> str:
@@ -529,8 +520,14 @@ def ifml_elk_graph(diagram: dict) -> dict:
     elements: dict[str, dict] = {}
 
     def base(kind: str, el: dict, **extra) -> dict:
-        return {"kind": kind, "iri": el["iri"], "label": el["label"], "layer": el["layer"],
-                "seams": el["seams"], **extra}
+        return {
+            "kind": kind,
+            "iri": el["iri"],
+            "label": el["label"],
+            "layer": el["layer"],
+            "seams": el["seams"],
+            **extra,
+        }
 
     ports_of: dict[str, list[dict]] = {}
     for e in diagram["events"]:
@@ -538,22 +535,34 @@ def ifml_elk_graph(diagram: dict) -> dict:
         if owner is None:
             continue
         ports_of.setdefault(e["owner"], []).append(
-            {"id": e["iri"], "x": e["cx"] - e["r"] - owner["x"], "y": e["cy"] - e["r"] - owner["y"],
-             "width": 2 * e["r"], "height": 2 * e["r"], "layoutOptions": {"elk.port.side": "EAST"}}
+            {
+                "id": e["iri"],
+                "x": e["cx"] - e["r"] - owner["x"],
+                "y": e["cy"] - e["r"] - owner["y"],
+                "width": 2 * e["r"],
+                "height": 2 * e["r"],
+                "layoutOptions": {"elk.port.side": "EAST"},
+            }
         )
         elements[e["iri"]] = base("event", e, eventKind=e["kind"], owner=e["owner"], r=e["r"])
 
     def node(b: dict, parent: dict | None) -> dict:
-        n = {"id": b["iri"], "x": b["x"] - (parent["x"] if parent else 0),
-             "y": b["y"] - (parent["y"] if parent else 0), "width": b["w"], "height": b["h"],
-             "layoutOptions": dict(_FIXED)}
+        n = {
+            "id": b["iri"],
+            "x": b["x"] - (parent["x"] if parent else 0),
+            "y": b["y"] - (parent["y"] if parent else 0),
+            "width": b["w"],
+            "height": b["h"],
+            "layoutOptions": dict(_FIXED),
+        }
         if b["iri"] in containers:
             kids = sorted(i for i, k in boxes.items() if k.get("parent") == b["iri"])
             n["children"] = [node(boxes[k], b) for k in kids]
             elements[b["iri"]] = base("container", b, title=b["title"], markers=b["markers"])
         else:
-            elements[b["iri"]] = base("component", b, stereotype=b["stereotype"],
-                                      bindings=b["bindings"], fields=b["fields"])
+            elements[b["iri"]] = base(
+                "component", b, stereotype=b["stereotype"], bindings=b["bindings"], fields=b["fields"]
+            )
         if b["iri"] in ports_of:
             n["ports"] = sorted(ports_of[b["iri"]], key=lambda p: p["id"])
             n["layoutOptions"]["elk.portConstraints"] = "FIXED_POS"
@@ -569,9 +578,17 @@ def ifml_elk_graph(diagram: dict) -> dict:
     for n in diagram["notes"]:
         nid = f"note::{n['kind']}::{n['for']}"
         children.append({"id": nid, "x": n["x"], "y": n["y"], "width": n["w"], "height": n["h"]})
-        elements[nid] = {"kind": "note", "iri": n["iri"], "label": n["text"], "layer": _note_layer(n, owners),
-                         "seams": [], "noteKind": n["kind"], "text": n["text"], "for": n["for"],
-                         "connector": n["connector"]}
+        elements[nid] = {
+            "kind": "note",
+            "iri": n["iri"],
+            "label": n["text"],
+            "layer": _note_layer(n, owners),
+            "seams": [],
+            "noteKind": n["kind"],
+            "text": n["text"],
+            "for": n["for"],
+            "connector": n["connector"],
+        }
 
     drawn = set(elements)
     edges = []
@@ -580,20 +597,42 @@ def ifml_elk_graph(diagram: dict) -> dict:
         if not pts or f["from"] not in drawn or f["to"] not in drawn:
             continue
         fid = f["iri"] or f"flow::action::{f['from']}::{f['to']}"
-        edges.append({
-            "id": fid, "sources": [f["from"]], "targets": [f["to"]],
-            "sections": [{"id": f"{fid}::s0",
-                          "startPoint": {"x": pts[0][0], "y": pts[0][1]},
-                          "bendPoints": [{"x": x, "y": y} for x, y in pts[1:-1]],
-                          "endPoint": {"x": pts[-1][0], "y": pts[-1][1]}}],
-        })
-        elements[fid] = {"kind": "flow", "iri": f["iri"] or f["to"], "label": f["label"], "layer": f["layer"],
-                         "seams": f["seams"], "flowKind": f["kind"], "bindings": f["bindings"], "points": pts}
+        edges.append(
+            {
+                "id": fid,
+                "sources": [f["from"]],
+                "targets": [f["to"]],
+                "sections": [
+                    {
+                        "id": f"{fid}::s0",
+                        "startPoint": {"x": pts[0][0], "y": pts[0][1]},
+                        "bendPoints": [{"x": x, "y": y} for x, y in pts[1:-1]],
+                        "endPoint": {"x": pts[-1][0], "y": pts[-1][1]},
+                    }
+                ],
+            }
+        )
+        elements[fid] = {
+            "kind": "flow",
+            "iri": f["iri"] or f["to"],
+            "label": f["label"],
+            "layer": f["layer"],
+            "seams": f["seams"],
+            "flowKind": f["kind"],
+            "bindings": f["bindings"],
+            "points": pts,
+        }
 
     return {
-        "elk": {"id": "root", "x": 0, "y": 0, "width": diagram["width"], "height": diagram["height"],
-                "layoutOptions": dict(_FIXED),
-                "children": sorted(children, key=lambda c: c["id"]),
-                "edges": sorted(edges, key=lambda e: e["id"])},
+        "elk": {
+            "id": "root",
+            "x": 0,
+            "y": 0,
+            "width": diagram["width"],
+            "height": diagram["height"],
+            "layoutOptions": dict(_FIXED),
+            "children": sorted(children, key=lambda c: c["id"]),
+            "edges": sorted(edges, key=lambda e: e["id"]),
+        },
         "elements": elements,
     }

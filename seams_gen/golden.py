@@ -41,7 +41,7 @@ def _strip_line(line: str, opener: str, closer: str) -> str:
     if end < marker.end():
         raise ValueError(f"marker outside a trailing {opener} comment: {line!r}")
     before, comment = line[:start], line[start:end]
-    body = _MARKER_WITH_SPACE.sub("", comment[len(opener):], count=1)
+    body = _MARKER_WITH_SPACE.sub("", comment[len(opener) :], count=1)
     if not body.strip():
         return before.rstrip()
     return (before + opener + body + line[end:]).rstrip()
@@ -65,7 +65,7 @@ def golden_target(path, model_hash: str) -> str:
     """The exact text a generator must emit for the golden at ``path``.
 
     Markers are stripped and every ``sha256:<model-hash>`` placeholder becomes
-    ``model_hash`` (``sha256:<hex>``, as returned by seams_runtime.model_hash).
+    ``model_hash`` (``sha256:<hex>``, as returned by seams.model_hash).
     """
     path = Path(path)
     if not model_hash.startswith("sha256:"):

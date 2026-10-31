@@ -7,22 +7,37 @@ example.
 
 ## What you need
 
-- Python 3.12 or later. CI runs on 3.12.
+- [uv](https://docs.astral.sh/uv/). It installs Python 3.12 from `.python-version` if
+  you do not have it. CI runs on 3.12.
 - A browser with internet access. The viewer loads htmx, vis-network, elkjs, bpmn-js,
   dmn-js and diagram-js (via esm.sh) from a CDN.
 - Nothing else: there is no database to start. The viewer reads the example model into
-  memory with rdflib.
+  memory through the `seams` library.
 
 ## Install
 
 ```sh
 git clone https://github.com/MetaCoding-io/SemanticSeams.git
 cd SemanticSeams
-pip install -r requirements-dev.txt -r viewer/requirements.txt
+uv sync --all-packages
+source .venv/bin/activate
 ```
 
-`requirements-dev.txt` brings rdflib, pySHACL and pytest for the model and its tests.
-`viewer/requirements.txt` adds FastAPI, uvicorn and Jinja2 for the viewer.
+The repository is a uv workspace. `uv sync --all-packages` creates `.venv` with the exact
+versions pinned in `uv.lock`; without `--all-packages` it installs nothing from the
+members. Each member declares its own dependencies in its `pyproject.toml`:
+
+| Member | Distribution | Dependencies |
+|---|---|---|
+| `packages/seams` | `semanticseams` | rdflib, lxml |
+| `seams_runtime` | `semanticseams-runtime` | semanticseams, rdflib, pySHACL, SpiffWorkflow, lxml, httpx, FastAPI, python-multipart, Jinja2, uvicorn |
+| `seams_gen` | `semanticseams-gen` | semanticseams, rdflib, Jinja2, PyYAML |
+| `seams_gateway` | `semanticseams-gateway` | FastAPI, uvicorn, httpx |
+| `viewer` | `semanticseams-viewer` | semanticseams, FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
+
+The root `pyproject.toml` adds a `dev` group with pytest, PyYAML, httpx, ruff and pyright.
+If you prefer not to activate the environment, prefix any command with `uv run`, for
+example `uv run pytest`.
 
 ## Run the tests
 
@@ -37,14 +52,27 @@ used somewhere, asserts the exact rows of every [canned query](/reference/querie
 exercises the viewer's endpoints. CI runs the same command on every push and pull
 request.
 
+## Lint and type-check
+
+CI runs these as their own jobs:
+
+```sh
+uv run ruff check
+uv run ruff format --check
+uv run pyright
+```
+
+Ruff covers the whole tree except committed generated code. Pyright checks
+`packages/seams` in strict mode.
+
 ## Open the viewer
 
 ```sh
 python3 -m uvicorn viewer.app:app --port 8000
 ```
 
-The viewer loads the chat app unless `SEAMS_MODEL` names another TriG file
-(see [Authoring a model](/guide/authoring-a-model#view-it)).
+The viewer loads the chat app unless `SEAMS_MODEL` names another TriG file or a
+directory of TriG files (see [Authoring a model](/guide/authoring-a-model#view-it)).
 
 Open <http://localhost:8000>. The root redirects to the chat app's architecture view,
 the top of the descent. From there:
@@ -72,3 +100,5 @@ and explains everything else on the page.
 - [Diagrams are views](/concepts/diagrams-are-views): the idea the project rests on.
 - [Authoring a model](/guide/authoring-a-model): the conventions a model must follow to
   be navigable and to pass the shapes.
+- [Write your own generator](/guide/write-your-own-generator): read a model through the
+  `seams` library and generate your own output from it.

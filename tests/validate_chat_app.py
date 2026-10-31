@@ -4,8 +4,8 @@ Mirrors the acceptance checks in test_acceptance.py but targeted at the chat-app
 model. Run standalone (python3 tests/validate_chat_app.py) or via pytest.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pyshacl
 import rdflib
@@ -52,11 +52,7 @@ def union_graph(ds: rdflib.Dataset) -> rdflib.Graph:
 def check_parse_and_graph_count() -> tuple[rdflib.Dataset, list[str]]:
     errors = []
     ds = load_chat_app_dataset()
-    graph_ids = {
-        g.identifier
-        for g in ds.graphs()
-        if str(g.identifier) != "urn:x-rdflib:default"
-    }
+    graph_ids = {g.identifier for g in ds.graphs() if str(g.identifier) != "urn:x-rdflib:default"}
     if graph_ids != EXPECTED_GRAPHS:
         missing = EXPECTED_GRAPHS - graph_ids
         extra = graph_ids - EXPECTED_GRAPHS
@@ -70,9 +66,7 @@ def check_parse_and_graph_count() -> tuple[rdflib.Dataset, list[str]]:
 
 
 def check_shacl(model: rdflib.Graph) -> list[str]:
-    conforms, _, report = pyshacl.validate(
-        model, shacl_graph=str(SHAPES_FILE), inference="none"
-    )
+    conforms, _, report = pyshacl.validate(model, shacl_graph=str(SHAPES_FILE), inference="none")
     if not conforms:
         return [f"SHACL validation failed:\n{report}"]
     return []

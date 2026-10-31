@@ -100,8 +100,7 @@ def test_short_message_runs_to_complete(tmp_path):
     assert result["history"]["Message"] == ["composing", "sending", "streaming", "complete"]
 
     order = [r["task"] for r in result["trace"]]
-    expected = ["persist_user_msg", "route_to_provider", "invoke_llm", "persist_response",
-                "stream_complete_event"]
+    expected = ["persist_user_msg", "route_to_provider", "invoke_llm", "persist_response", "stream_complete_event"]
     assert [t for t in order if t in expected] == expected
 
     persist = _row(result, "persist_user_msg")
@@ -128,7 +127,9 @@ def test_short_message_runs_to_complete(tmp_path):
 
     msgs = rt.query(":MessageShape", conversation="c1")
     assert [(m["data"]["role"], m["data"]["content"]) for m in msgs] == [
-        ("user", SHORT["content"]), ("assistant", "".join(TOKENS))]
+        ("user", SHORT["content"]),
+        ("assistant", "".join(TOKENS)),
+    ]
     assert {m["status"] for m in msgs} == {"complete"}
     assert rt.query(":MessageShape", conversation="c2") == []
     assert rt.store.get_instance(result["instance"])["status"] == "complete"
@@ -169,8 +170,7 @@ def test_malformed_payload_is_rejected_before_any_instance(tmp_path):
     with pytest.raises(ContractViolation) as v:
         rt.validate(":MessageShape", bad)
     assert v.value.http_status == 422
-    assert any(r["path"] == "content" and r["constraint"] == "MinCountConstraintComponent"
-               for r in v.value.results)
+    assert any(r["path"] == "content" and r["constraint"] == "MinCountConstraintComponent" for r in v.value.results)
 
     async def main():
         await rt.start_process(PROCESS, bad, correlation_key="c1")
@@ -193,10 +193,14 @@ def test_unknown_field_is_rejected_at_start(tmp_path):
     assert v.value.results[0]["constraint"] == "unknown-field"
 
 
-@pytest.mark.parametrize("llm", [
-    FakeLLM(fail=httpx.ConnectError("connection refused")),
-    FakeLLM(fail=httpx.ReadTimeout("timed out")),
-], ids=["connect-error", "timeout"])
+@pytest.mark.parametrize(
+    "llm",
+    [
+        FakeLLM(fail=httpx.ConnectError("connection refused")),
+        FakeLLM(fail=httpx.ReadTimeout("timed out")),
+    ],
+    ids=["connect-error", "timeout"],
+)
 def test_llm_transport_error_fails_via_t_fail_send(tmp_path, llm):
     rt = make_runtime(tmp_path, llm)
 
@@ -222,14 +226,19 @@ def _http_response(status, body, headers=None):
     return lambda request: httpx.Response(status, text=body, headers=headers or {})
 
 
-@pytest.mark.parametrize("handler,reason", [
-    (_http_response(500, "upstream exploded"), "HTTP 500"),
-    (_http_response(200, "data: {not json}\n\n"), "malformed stream chunk"),
-    (_http_response(200, 'data: {"choices": [{"delta": {"content": "a"}}]}\n\n'), "before data: [DONE]"),
-], ids=["http-500", "bad-chunk", "no-done"])
+@pytest.mark.parametrize(
+    "handler,reason",
+    [
+        (_http_response(500, "upstream exploded"), "HTTP 500"),
+        (_http_response(200, "data: {not json}\n\n"), "malformed stream chunk"),
+        (_http_response(200, 'data: {"choices": [{"delta": {"content": "a"}}]}\n\n'), "before data: [DONE]"),
+    ],
+    ids=["http-500", "bad-chunk", "no-done"],
+)
 def test_llm_bad_responses_fail_the_instance(tmp_path, handler, reason):
-    rt = Runtime.load(TRIG, db_path=tmp_path / "s.sqlite", llm_transport=httpx.MockTransport(handler),
-                      llm_base_url="http://llm.test")
+    rt = Runtime.load(
+        TRIG, db_path=tmp_path / "s.sqlite", llm_transport=httpx.MockTransport(handler), llm_base_url="http://llm.test"
+    )
 
     async def main():
         return await (await rt.start_process(PROCESS, SHORT, correlation_key="c1")).wait()
@@ -258,6 +267,7 @@ def test_decision_without_output_fails_with_the_model_error(tmp_path):
     from rdflib import Literal, URIRef
 
     from seams_runtime.model import DEC
+
     rt = make_runtime(tmp_path)
     node = rt.model.ds.value(URIRef(CHAT + "routing_decision"), DEC.output)
     [(_s, _p, _o, ctx)] = list(rt.model.ds.quads((node, DEC.variable, None, None)))
@@ -277,6 +287,7 @@ def test_decision_without_output_fails_with_the_model_error(tmp_path):
 def test_model_error_is_found_through_the_exception_chain():
     from seams_runtime import ResolutionError
     from seams_runtime.worker import Worker
+
     inner = ResolutionError(CHAT + "d", "dec:output", "no output")
     try:
         try:
@@ -313,12 +324,11 @@ def test_restart_resumes_from_the_checkpoint(tmp_path):
     first_llm, second_llm = FakeLLM(), FakeLLM()
     first = make_runtime(tmp_path, first_llm)
 
-    async def run_first():
-        inst = await first.start_process(PROCESS, LONG, correlation_key="c1",
-                                         stop_after="route_to_provider")
+    async def run_first(rt):
+        inst = await rt.start_process(PROCESS, LONG, correlation_key="c1", stop_after="route_to_provider")
         return await inst.wait()
 
-    stopped = asyncio.run(run_first())
+    stopped = asyncio.run(run_first(first))
     assert stopped["status"] == "stopped"
     assert stopped["trace"][-1]["task"] == "route_to_provider"
     assert first_llm.requests == []
@@ -353,9 +363,11 @@ def test_resume_unknown_instance(tmp_path):
 
 def test_golden_chat_api_calls_only_runtime_methods():
     tree = ast.parse(GOLDEN_API.read_text())
-    used = {node.attr for node in ast.walk(tree)
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
-            and node.value.id == "runtime"}
+    used = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "runtime"
+    }
     assert used >= {"policy", "validate", "start_process", "query", "subscribe", "render_fragment"}
     for name in sorted(used):
         assert callable(getattr(Runtime, name, None)), name
@@ -376,8 +388,7 @@ def test_fastapi_route_smoke(tmp_path):
     async def _model_error(_request, exc: RuntimeModelError):
         return JSONResponse(status_code=exc.http_status, content={"detail": exc.to_dict()})
 
-    @app.post("/conversations/{conversation}/messages",
-              dependencies=[Depends(rt.policy(":user_send_policy"))])
+    @app.post("/conversations/{conversation}/messages", dependencies=[Depends(rt.policy(":user_send_policy"))])
     async def send_message(conversation: str, request: Request):
         message = rt.validate(":MessageShape", await request.form())
         result = await (await rt.start_process(PROCESS, message, correlation_key=conversation)).wait()

@@ -126,8 +126,7 @@ def test_inbox_is_per_identity(client):
     _submit(c, runtime, "e1")
     _submit(c, runtime, "e2")
 
-    assert [t["correlation_key"] for t in c.get("/tasks", headers={**MANAGER, **JSON}).json()["tasks"]] \
-        == ["e1", "e2"]
+    assert [t["correlation_key"] for t in c.get("/tasks", headers={**MANAGER, **JSON}).json()["tasks"]] == ["e1", "e2"]
     assert c.get("/tasks", headers=MANAGER).text.count('<article class="task"') == 2
 
     r = c.get("/tasks", headers=EMPLOYEE)

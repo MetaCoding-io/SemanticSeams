@@ -23,7 +23,7 @@ from SpiffWorkflow.util.task import TaskState  # noqa: E402
 from seams_runtime import ModelGraph, ResolutionError  # noqa: E402
 from seams_runtime.channels import ChannelBus, sse_frame  # noqa: E402
 from seams_runtime.engine import Engine  # noqa: E402
-from seams_runtime.model import DEC  # noqa: E402
+from seams_runtime.model import DEC, SEAM  # noqa: E402
 from seams_runtime.store import Store  # noqa: E402
 
 CHAT_DIR = ROOT / "examples" / "chat-app"
@@ -137,7 +137,8 @@ def test_process_id_falls_back_to_single_executable_process(fresh):
 def test_evaluate_inputs_measures_content_length(engine):
     b = engine.binding("route_to_provider")
     assert engine.evaluate_inputs(b, {"role": "user", "content": "x" * 4001}) == {
-        "message_role": "user", "message_length": 4001,
+        "message_role": "user",
+        "message_length": 4001,
     }
 
 
@@ -157,8 +158,7 @@ def test_evaluate_inputs_length_of_non_sized_value(engine):
 
 
 def test_unknown_measure_raises(fresh):
-    node = next(n for n in fresh.ds.objects(DECISION, DEC.input)
-                if fresh.ds.value(n, DEC.measure) is not None)
+    node = next(n for n in fresh.ds.objects(DECISION, DEC.input) if fresh.ds.value(n, DEC.measure) is not None)
     ctx = next(c for _s, _p, _o, c in fresh.ds.quads((node, DEC.measure, None)))
     fresh.ds.remove((node, DEC.measure, None))
     fresh.ds.graph(ctx).add((node, DEC.measure, DEC.WordCount))
@@ -183,15 +183,23 @@ def _expense(amount) -> dict:
 
 def test_input_type_ref_comes_from_the_dmn_input_expression(engine, expense_engine):
     assert {b.variable: b.type_ref for b in engine.binding("route_to_provider").inputs} == {
-        "message_role": "string", "message_length": "number"}
+        "message_role": "string",
+        "message_length": "number",
+    }
     [amount] = expense_engine.binding("route_expense").inputs
     assert (amount.variable, amount.from_path, amount.type_ref) == ("amount", "amount", "number")
 
 
-@pytest.mark.parametrize("value, expected", [
-    ("42.50", Decimal("42.50")), (" 1000 ", Decimal("1000")), ("1e3", Decimal("1000")),
-    (7, 7), (Decimal("2.5"), Decimal("2.5")),
-])
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("42.50", Decimal("42.50")),
+        (" 1000 ", Decimal("1000")),
+        ("1e3", Decimal("1000")),
+        (7, 7),
+        (Decimal("2.5"), Decimal("2.5")),
+    ],
+)
 def test_number_input_is_coerced_from_a_form_string(expense_engine, value, expected):
     b = expense_engine.binding("route_expense")
     [got] = expense_engine.evaluate_inputs(b, _expense(value)).values()
@@ -213,13 +221,16 @@ def test_string_input_is_not_coerced(engine):
     assert engine.evaluate_inputs(b, {"role": "42", "content": "x"})["message_role"] == "42"
 
 
-@pytest.mark.parametrize("amount, route, waits_on", [
-    ("42.50", "auto", None),
-    ("100", "auto", None),
-    ("100.01", "manager", "approve_expense"),
-    ("1000", "manager", "approve_expense"),
-    ("1000.01", "finance", "finance_approve_expense"),
-])
+@pytest.mark.parametrize(
+    "amount, route, waits_on",
+    [
+        ("42.50", "auto", None),
+        ("100", "auto", None),
+        ("100.01", "manager", "approve_expense"),
+        ("1000", "manager", "approve_expense"),
+        ("1000.01", "finance", "finance_approve_expense"),
+    ],
+)
 def test_gateway_routes_on_the_decision_output(expense_engine, amount, route, waits_on):
     wf = expense_engine.new_workflow(EXPENSE_PROCESS)
     trace = _drive(expense_engine, wf, _expense(amount))
@@ -232,6 +243,55 @@ def test_gateway_routes_on_the_decision_output(expense_engine, amount, route, wa
         assert not wf.is_completed() and manual == [waits_on]
         [task] = [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.manual]
         assert task.data["route"] == route and task.data["amount"] == Decimal(amount)
+
+
+# ── task IRIs across several BPMN models (M010/S03) ──────────────────────────
+
+CH08_TRIG = ROOT / "examples" / "expenses" / "chapter-08" / "expenses.trig"
+EX = "https://example.org/expenses/"
+
+
+@pytest.fixture(scope="module")
+def ch08():
+    return ModelGraph(CH08_TRIG)
+
+
+def test_task_iri_resolves_under_each_bpmn_model(ch08):
+    """Chapter 8 renders approval.bpmn and payout.bpmn; each id resolves under its own model."""
+    assert ch08.task_iri("route_expense") == URIRef(EX + "approval_bpmn#route_expense")
+    assert ch08.task_iri("schedule_payout") == URIRef(EX + "payout_bpmn#schedule_payout")
+    # an element only the BPMN XML holds resolves through the file that declares it
+    assert ch08.task_iri("payout_requested_msg") == URIRef(EX + "payout_bpmn#payout_requested_msg")
+
+
+@pytest.mark.parametrize("bpmn_id", ["no_such_element", "flow_to_gateway"])
+def test_task_iri_in_no_or_several_bpmn_models_raises(ch08, bpmn_id):
+    """An id no BPMN file holds, or one both files hold (flow_to_gateway), is a
+    ResolutionError naming the model and seam:detailedBy, never a guess."""
+    with pytest.raises(ResolutionError) as err:
+        ch08.task_iri(bpmn_id)
+    assert err.value.predicate == str(SEAM.detailedBy)
+
+
+def _first_task(wf):
+    return next(t for t in wf.get_tasks() if t.task_spec.bpmn_id is not None)
+
+
+@pytest.mark.parametrize(
+    ("process", "bpmn_model"), [(":approval_process", "approval_bpmn"), (":payout_process", "payout_bpmn")]
+)
+def test_engine_task_iri_follows_the_workflow_bpmn_model(ch08, tmp_path, process, bpmn_model):
+    """A Spiff task's IRI sits under its own workflow's BPMN model, and a fresh
+    engine that never parsed the process resolves the same IRI after a resume."""
+    engine = Engine(ch08)
+    wf = engine.new_workflow(process)
+    task = _first_task(wf)
+    iri = engine.task_iri(task)
+    assert iri == URIRef(f"{EX}{bpmn_model}#{task.task_spec.bpmn_id}")
+
+    resumed = Engine(ModelGraph(CH08_TRIG)).deserialize(engine.serialize(wf))
+    [again] = [t for t in resumed.get_tasks() if t.id == task.id]
+    assert Engine(ModelGraph(CH08_TRIG)).task_iri(again) == iri
 
 
 def test_decimal_input_survives_serialization(expense_engine):
@@ -268,18 +328,28 @@ def test_business_rule_task_without_entity_raises(engine):
 # ── driving workflows ────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("entity, provider", [
-    (SHORT, "default-provider"),
-    (LONG, "long-context-provider"),
-    ({"role": "user", "content": "x" * 4000}, "default-provider"),
-    ({"role": "system", "content": "x" * 5000}, "default-provider"),
-])
+@pytest.mark.parametrize(
+    "entity, provider",
+    [
+        (SHORT, "default-provider"),
+        (LONG, "long-context-provider"),
+        ({"role": "user", "content": "x" * 4000}, "default-provider"),
+        ({"role": "system", "content": "x" * 5000}, "default-provider"),
+    ],
+)
 def test_drive_to_end_routes_by_graph_bindings(engine, entity, provider):
     wf = engine.new_workflow(PROCESS)
     trace = _drive(engine, wf, entity)
     assert wf.is_completed()
-    assert trace == ["start", "persist_user_msg", "route_to_provider", "invoke_llm",
-                     "persist_response", "stream_complete_event", "end"]
+    assert trace == [
+        "start",
+        "persist_user_msg",
+        "route_to_provider",
+        "invoke_llm",
+        "persist_response",
+        "stream_complete_event",
+        "end",
+    ]
     data = _final(wf)
     assert data["provider"] == provider
     assert data["message_length"] == len(entity["content"])
@@ -352,10 +422,9 @@ def test_store_is_safe_across_threads(tmp_path):
     s = Store(tmp_path / "s.db")
 
     async def main():
-        await asyncio.gather(*(
-            asyncio.to_thread(s.put_entity, f"m{i}", SHAPE, {"n": i}, correlation_key="c")
-            for i in range(20)
-        ))
+        await asyncio.gather(
+            *(asyncio.to_thread(s.put_entity, f"m{i}", SHAPE, {"n": i}, correlation_key="c") for i in range(20))
+        )
 
     asyncio.run(main())
     assert sorted(e["data"]["n"] for e in s.query(SHAPE, correlation_key="c")) == list(range(20))

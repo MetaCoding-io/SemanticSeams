@@ -66,11 +66,16 @@ def test_completion_handler_completes_the_task():
     text = _routes_text()
     fn = _handler(text, "approve_expense")
     source = ast.get_source_segment(text, fn)
-    assert '@router.post("/expenses/{expense}/approval", response_class=HTMLResponse)\nasync def approve_expense(' in text
+    assert (
+        '@router.post("/expenses/{expense}/approval", response_class=HTMLResponse)\nasync def approve_expense(' in text
+    )
     assert f'identity: Identity = Depends(runtime.task_policy("{TASK_CURIE}"))' in source
     assert [a.arg for a in fn.args.args] == ["expense", "request", "identity"]
-    assert re.search(r'await runtime\.complete_task\(\s*"' + re.escape(TASK_CURIE) + r'",\s*form,\s*'
-                     r'correlation_key=expense,\s*identity=identity,\s*\)', source), source
+    assert re.search(
+        r'await runtime\.complete_task\(\s*"' + re.escape(TASK_CURIE) + r'",\s*form,\s*'
+        r"correlation_key=expense,\s*identity=identity,\s*\)",
+        source,
+    ), source
     assert "runtime.validate(" not in source  # complete_task validates the payload
     assert "start_process" not in source and "runtime.write(" not in source
     assert 'runtime.query(":ExpenseShape", expense=expense)' in source
@@ -110,18 +115,22 @@ def test_route_module_compiles_and_serves(tmp_path, monkeypatch):
         # the route is mounted (not 404) and its task_policy dependency
         # answers before the handler runs
         assert client.post("/expenses/e1/approval", data={"decision": "approved"}).status_code == 401
-        denied = client.post("/expenses/e1/approval", data={"decision": "approved"},
-                             headers={"X-Forwarded-User": "employee"})
+        denied = client.post(
+            "/expenses/e1/approval", data={"decision": "approved"}, headers={"X-Forwarded-User": "employee"}
+        )
         assert denied.status_code == 403
 
 
 def test_key_that_is_not_a_path_variable_raises(tmp_path):
-    trig = _mutated(tmp_path, 'hydra:template "/expenses/{expense}/approval" ;\n'
-                    '                    hydra:mapping [ a hydra:IriTemplateMapping ;\n'
-                    '                                    hydra:variable "expense" ;',
-                    'hydra:template "/expenses/{claim}/approval" ;\n'
-                    '                    hydra:mapping [ a hydra:IriTemplateMapping ;\n'
-                    '                                    hydra:variable "claim" ;')
+    trig = _mutated(
+        tmp_path,
+        'hydra:template "/expenses/{expense}/approval" ;\n'
+        "                    hydra:mapping [ a hydra:IriTemplateMapping ;\n"
+        '                                    hydra:variable "expense" ;',
+        'hydra:template "/expenses/{claim}/approval" ;\n'
+        "                    hydra:mapping [ a hydra:IriTemplateMapping ;\n"
+        '                                    hydra:variable "claim" ;',
+    )
     with pytest.raises(GeneratorError) as err:
         extract_routes(ModelGraph.load(trig))
     assert err.value.subject == str(ModelGraph.load(trig).curie(":approval_process"))
@@ -133,8 +142,11 @@ def test_key_that_is_not_a_path_variable_raises(tmp_path):
 
 
 def test_task_outside_any_process_model_raises(tmp_path):
-    trig = _mutated(tmp_path, ":approval_process seam:detailedBy :approval_bpmn ;",
-                    ":approval_process seam:detailedBy :expense_data ;")
+    trig = _mutated(
+        tmp_path,
+        ":approval_process seam:detailedBy :approval_bpmn ;",
+        ":approval_process seam:detailedBy :expense_data ;",
+    )
     with pytest.raises(GeneratorError) as err:
         extract_routes(ModelGraph.load(trig))
     assert err.value.subject == str(ModelGraph.load(trig).curie(TASK_CURIE))
@@ -148,7 +160,7 @@ def test_completion_without_a_request_body_raises(tmp_path):
     at = text.index(old, start)
     trig = tmp_path / "approval.trig"
     (tmp_path / "approval.bpmn").write_bytes((FIXTURE / "approval.bpmn").read_bytes())
-    trig.write_text(text[:at] + text[at + len(old):], encoding="utf-8")
+    trig.write_text(text[:at] + text[at + len(old) :], encoding="utf-8")
     with pytest.raises(GeneratorError) as err:
         extract_routes(ModelGraph.load(trig))
     assert err.value.subject == EX + "approve_expense_op"
@@ -178,15 +190,22 @@ def _rendered(row) -> list:
     return parser.found
 
 
-ROW = {"correlation_key": "e1", "label": "Approve Expense",
-       "entity": {"id": "x1", "description": "Train", "amount": "42.50", "status": "submitted"}}
+ROW = {
+    "correlation_key": "e1",
+    "label": "Approve Expense",
+    "entity": {"id": "x1", "description": "Train", "amount": "42.50", "status": "submitted"},
+}
 
 
 def test_htmx_cli_writes_the_task_form_and_completion_partials(tmp_path):
     assert main(["htmx", str(TRIG), "--out", str(tmp_path)]) == 0
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "approve_form.html", "expense_details.html", "expense_list.html", "expense_list_item.html",
-        "submit_page.html"]
+        "approve_form.html",
+        "expense_details.html",
+        "expense_list.html",
+        "expense_list_item.html",
+        "submit_page.html",
+    ]
 
 
 def test_task_form_posts_to_the_completion_path_with_the_key():
@@ -213,14 +232,16 @@ def test_task_form_shows_the_task_label_and_read_entity():
     text = jinja2.Environment(autoescape=True).from_string(_task_form()).render(task=ROW)
     assert "<h2>Approve Expense</h2>" in text
     assert '<dd class="description">Train</dd>' in text and '<dd class="amount">42.50</dd>' in text
-    without = jinja2.Environment(autoescape=True).from_string(_task_form()).render(
-        task={**ROW, "entity": None})
+    without = jinja2.Environment(autoescape=True).from_string(_task_form()).render(task={**ROW, "entity": None})
     assert "<dl" not in without
 
 
 def test_task_form_escapes_the_key():
-    text = jinja2.Environment(autoescape=True).from_string(_task_form()).render(
-        task={**ROW, "correlation_key": '"><script>'})
+    text = (
+        jinja2.Environment(autoescape=True)
+        .from_string(_task_form())
+        .render(task={**ROW, "correlation_key": '"><script>'})
+    )
     assert "<script>" not in text
 
 
@@ -238,11 +259,15 @@ def test_generation_is_deterministic():
 
 
 def test_a_form_completing_two_tasks_raises(tmp_path):
-    trig = _mutated(tmp_path, "        seam:invokes :submit_expense_op ;",
-                    "        seam:completedOn :approve_form ;\n        seam:invokes :submit_expense_op ;")
+    trig = _mutated(
+        tmp_path,
+        "        seam:invokes :submit_expense_op ;",
+        "        seam:completedOn :approve_form ;\n        seam:invokes :submit_expense_op ;",
+    )
     text = trig.read_text(encoding="utf-8").replace(
         "<https://example.org/expenses/approval_bpmn#persist_expense> a proc:ServiceTask",
-        "<https://example.org/expenses/approval_bpmn#persist_expense> a proc:UserTask")
+        "<https://example.org/expenses/approval_bpmn#persist_expense> a proc:UserTask",
+    )
     trig.write_text(text, encoding="utf-8")
     with pytest.raises(GeneratorError) as err:
         extract_page(ModelGraph.load(trig))

@@ -67,8 +67,7 @@ class FragmentRenderer:
         )
 
     def _components(self) -> dict[str, URIRef]:
-        return {local_name(c): c for c in self.model.ds.objects(None, SEAM.rendersComponent)
-                if isinstance(c, URIRef)}
+        return {local_name(c): c for c in self.model.rendered_components()}
 
     def resolve(self, name: str) -> Fragment:
         components = self._components()
@@ -77,14 +76,21 @@ class FragmentRenderer:
         local = stem[: -len(ITEM_SUFFIX)] if item else stem
         component = components.get(local)
         if component is None:
-            raise ResolutionError(self.model.subject, SEAM.rendersComponent,
-                                  f"no rendered component for template {name!r}")
+            raise ResolutionError(
+                self.model.subject, SEAM.rendersComponent, f"no rendered component for template {name!r}"
+            )
         return self._fragment(component, item)
 
     def _fragment(self, component: URIRef, item: bool = False) -> Fragment:
-        return Fragment(f"{local_name(component)}{ITEM_SUFFIX if item else ''}.html", component, item,
-                        self.model.ds.value(component, SEAM.reads),
-                        self.model.ds.value(component, SEAM.visibleWhen))
+        view = self.model.component(component)
+        reads, visible = view.reads, view.visible_when
+        return Fragment(
+            f"{local_name(component)}{ITEM_SUFFIX if item else ''}.html",
+            component,
+            item,
+            reads[0].iri if reads else None,
+            visible[0].iri if visible else None,
+        )
 
     def component_context(self, component, data, params: Mapping | None = None) -> dict:
         """The variables a page block for ``component`` needs: the same
@@ -98,8 +104,7 @@ class FragmentRenderer:
 
     def _context(self, frag: Fragment, data, params: Mapping) -> dict:
         if frag.shape is None:
-            raise ResolutionError(frag.component, SEAM.reads,
-                                  f"component of template {frag.template!r} reads no shape")
+            raise ResolutionError(frag.component, SEAM.reads, f"component of template {frag.template!r} reads no shape")
         var = shape_name(frag.shape)
         if frag.item:
             items = [flatten(data)]
@@ -117,8 +122,7 @@ class FragmentRenderer:
     def render(self, name: str, data, params: Mapping | None = None) -> str:
         frag = self.resolve(name)
         ctx = self._context(frag, data, params or {})
-        log.debug("render_fragment %s: component %s, variables %s",
-                  frag.template, frag.component, sorted(ctx))
+        log.debug("render_fragment %s: component %s, variables %s", frag.template, frag.component, sorted(ctx))
         return self.env.get_template(frag.template).render(ctx)
 
     def render_template(self, template: str, ctx: Mapping) -> str:

@@ -20,8 +20,8 @@ starts.
 """
 
 import pytest
-
 from expense_app import chapter_dir, serve, status, trace, until
+
 from viewer import app as viewer_app
 from viewer import queries, validation
 
@@ -172,11 +172,15 @@ def test_manager_approves_then_finance_pays(app):
     assert _open(runtime) == {}
 
 
-@pytest.mark.parametrize("data, paths", [
-    ({"paid_on": "2026-10-05"}, ["reference"]),
-    ({"reference": "PAY-1", "paid_on": "yesterday"}, ["paid_on"]),
-    ({"reference": "x" * 101, "paid_on": "2026-10-05"}, ["reference"]),
-], ids=["missing-reference", "bad-date", "reference-too-long"])
+@pytest.mark.parametrize(
+    "data, paths",
+    [
+        ({"paid_on": "2026-10-05"}, ["reference"]),
+        ({"reference": "PAY-1", "paid_on": "yesterday"}, ["paid_on"]),
+        ({"reference": "x" * 101, "paid_on": "2026-10-05"}, ["reference"]),
+    ],
+    ids=["missing-reference", "bad-date", "reference-too-long"],
+)
 def test_an_invalid_payment_is_422_and_changes_nothing(app, data, paths):
     c, runtime = app
     _submit(c, runtime, "e1", MID)
@@ -246,14 +250,15 @@ def test_the_viewer_answers_which_screens_write_a_payment(monkeypatch):
     validation._clear_cache()
     try:
         viewer_app.configure(chapter_dir(CHAPTER) / "expenses.trig")
-        result = queries.execute_query(viewer_app.get_graph(), "screens-by-role-writing-shape",
-                                       EX + "PaymentShape")
+        result = queries.execute_query(viewer_app.get_graph(), "screens-by-role-writing-shape", EX + "PaymentShape")
     finally:
         viewer_app.configure(original)
         validation._clear_cache()
-    assert result["rows"] == [{
-        "role": EX + "employee",
-        "screen": EX + "expenses_page",
-        "event": EX + "submit_expense",
-        "writer": PAY_TASK,
-    }]
+    assert result["rows"] == [
+        {
+            "role": EX + "employee",
+            "screen": EX + "expenses_page",
+            "event": EX + "submit_expense",
+            "writer": PAY_TASK,
+        }
+    ]

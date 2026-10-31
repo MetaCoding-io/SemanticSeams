@@ -20,8 +20,7 @@ MESSAGES = [{"role": "system", "content": "be brief"}, {"role": "user", "content
 
 
 def upstream_sse(*tokens: str) -> bytes:
-    out = b"".join(b"data: " + json.dumps({"choices": [{"delta": {"content": t}}]}).encode() + b"\n\n"
-                   for t in tokens)
+    out = b"".join(b"data: " + json.dumps({"choices": [{"delta": {"content": t}}]}).encode() + b"\n\n" for t in tokens)
     return out + b"data: [DONE]\n\n"
 
 
@@ -48,11 +47,11 @@ def upstream_app(handler, **cfg):
 
 async def collect(app, messages, model):
     llm = LLMClient(transport=httpx.ASGITransport(app=app))
-    return [d async for d in llm.stream_completion("/v1/chat/completions", messages, model,
-                                                   base_url="http://gateway")]
+    return [d async for d in llm.stream_completion("/v1/chat/completions", messages, model, base_url="http://gateway")]
 
 
 # ── stub mode ──
+
 
 def test_stub_stream_parses_with_runtime_llm_client():
     app = build_app(GatewayConfig())
@@ -68,7 +67,7 @@ def test_stub_raw_format_ends_with_done():
     assert resp.headers["content-type"].startswith("text/event-stream")
     lines = [ln for ln in resp.text.splitlines() if ln]
     assert lines[-1] == "data: [DONE]"
-    first = json.loads(lines[0][len("data: "):])
+    first = json.loads(lines[0][len("data: ") :])
     assert first["choices"][0]["delta"]["content"] == "Stub "
 
 
@@ -99,6 +98,7 @@ def test_healthz_reports_mode():
 
 
 # ── upstream mode ──
+
 
 def test_upstream_carries_bearer_key_and_default_model():
     handler = Recorder()
@@ -162,6 +162,7 @@ def test_env_key_wins_over_file(tmp_path):
 
 # ── errors ──
 
+
 def test_upstream_401_passes_through():
     handler = Recorder(status=401, body=b'{"error":{"message":"bad key"}}', content_type="application/json")
     with TestClient(upstream_app(handler)) as client:
@@ -189,13 +190,13 @@ def test_connection_error_gives_502():
 def test_malformed_request_is_400(payload):
     handler = Recorder()
     with TestClient(upstream_app(handler)) as client:
-        resp = client.post("/v1/chat/completions", content=payload,
-                           headers={"content-type": "application/json"})
+        resp = client.post("/v1/chat/completions", content=payload, headers={"content-type": "application/json"})
     assert resp.status_code == 400
     assert handler.requests == []
 
 
 # ── logging ──
+
 
 def test_key_never_logged(caplog, tmp_path):
     caplog.set_level(logging.DEBUG)

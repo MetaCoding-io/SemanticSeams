@@ -1,0 +1,42 @@
+# Which screens can each role use to eventually write ?shape?
+#
+# The access-review question: every UI event reachable by a role that
+# eventually writes this data, and the screen it sits on.
+#
+# The walk from ?event to ?writer is exactly the behavioral path of
+# what-writes-shape.rq (triggers/detailedBy/^inModel, decidedBy, invokes and
+# the async publishesTo/^subscribesTo/inModel/^inModel hop). The screen is the
+# ifml:ViewContainer that ifml:contains the component the event sits on, the
+# same screen rule as screens-to-finish-process.rq (ADR-0009).
+#
+# Role rule: ?role is an odrl:assignee (an odrl:Party, or an
+# odrl:PartyCollection such as "authenticated users") of a permission in a
+# policy that governs the event, either directly (seam:governedBy) or through
+# the operation it submits to (seam:submitsTo/seam:governedBy). An unbound
+# ?role means neither the event nor its operation is governed: the write is
+# open to any authenticated identity.
+#
+# Bind ?shape to a sh:NodeShape. The viewer binds only the focus, so to answer
+# "which screens can an employee use" read the rows whose ?role is the
+# employee party (or unbound); leave ?shape unbound to list every shape.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX ifml: <https://w3id.org/seams/ifml#>
+PREFIX odrl: <http://www.w3.org/ns/odrl/2/>
+
+SELECT DISTINCT ?role ?screen ?event ?writer WHERE {
+  ?event a ifml:Event .
+  ?event ( (seam:triggers/seam:detailedBy/^seam:inModel)
+         | seam:decidedBy
+         | seam:invokes
+         | (seam:publishesTo/^seam:subscribesTo/seam:inModel/^seam:inModel)
+         )+ ?writer .
+  ?writer seam:writes ?shape .
+  ?screen a ifml:ViewContainer ;
+          ifml:contains/ifml:hasEvent ?event .
+  OPTIONAL {
+    ?event (seam:governedBy | seam:submitsTo/seam:governedBy) ?policy .
+    ?policy odrl:permission ?perm .
+    ?perm odrl:assignee ?role .
+  }
+}

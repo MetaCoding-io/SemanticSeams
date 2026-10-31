@@ -26,8 +26,6 @@ for p in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(p))
 
 from fastapi.testclient import TestClient  # noqa: E402
-
-from seams_runtime.host import build_app  # noqa: E402
 from test_generated_outputs_current import (  # noqa: E402
     HAND_WRITTEN,
     assert_current,
@@ -35,11 +33,14 @@ from test_generated_outputs_current import (  # noqa: E402
     regenerate,
 )
 
+from seams_runtime.host import build_app  # noqa: E402
+
 EXPENSES = ROOT / "examples" / "expenses"
 # The first chapter whose checkpoint runs a BPMN process.
 FIRST_PROCESS_CHAPTER = 4
 PROCESS_CHAPTERS = sorted(
-    p.name for p in EXPENSES.glob("chapter-*")
+    p.name
+    for p in EXPENSES.glob("chapter-*")
     if (p / "generated").is_dir() and int(p.name.split("-")[1]) >= FIRST_PROCESS_CHAPTER
 )
 # The first chapter whose checkpoint governs the submit operation and the
@@ -100,12 +101,12 @@ def assert_generated_current(chapter: str, tmp_path: Path, generator: str) -> No
     else:
         committed_dir = generated / "templates"
         committed = committed_files(committed_dir)
-    assert_current(regenerate(generator, trig, tmp_path / generator), committed, committed_dir,
-                   commands(chapter)[generator])
+    assert_current(
+        regenerate(generator, trig, tmp_path / generator), committed, committed_dir, commands(chapter)[generator]
+    )
 
 
-def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str
-                    ) -> tuple[Path, dict[str, str]]:
+def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str) -> tuple[Path, dict[str, str]]:
     """The chapter's checkpoint copied to tmp_path with ``old`` replaced by
     ``new`` (exactly once) in ``file``, and both generators rerun into the
     copy's generated/. Returns the copy and its regenerated files by path
@@ -120,8 +121,11 @@ def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str
     for name in committed_files(generated, HAND_WRITTEN):
         (generated / name).unlink()
     shutil.rmtree(generated / "templates")
-    routes = {name: text for name, text in regenerate("fastapi", copy / "expenses.trig", generated).items()
-              if name not in HAND_WRITTEN}
+    routes = {
+        name: text
+        for name, text in regenerate("fastapi", copy / "expenses.trig", generated).items()
+        if name not in HAND_WRITTEN
+    }
     templates = regenerate("htmx", copy / "expenses.trig", generated / "templates")
     return copy, {**routes, **{f"templates/{n}": t for n, t in templates.items()}}
 

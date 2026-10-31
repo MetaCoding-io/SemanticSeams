@@ -159,7 +159,7 @@ def test_graph_markers_cite_resolvable_model_terms(path, model_terms):
             continue
         where = f"{path.name}:{number}"
         cited = 0
-        for token in marker[len("graph: "):].split():
+        for token in marker[len("graph: ") :].split():
             result = resolve(token, model_terms)
             if result is None:
                 continue
@@ -176,9 +176,9 @@ def test_graph_markers_cite_resolvable_model_terms(path, model_terms):
 def test_gap_markers_name_existing_gap_rows(path):
     known = set(gap_ids())
     problems = [
-        f"{path.name}:{number}: {marker[len('gap: '):]} has no row in gaps.md"
+        f"{path.name}:{number}: {marker[len('gap: ') :]} has no row in gaps.md"
         for number, marker in markers(path)
-        if marker.startswith("gap: ") and marker[len("gap: "):] not in known
+        if marker.startswith("gap: ") and marker[len("gap: ") :] not in known
     ]
     assert not problems, "\n".join(problems)
 
@@ -202,7 +202,7 @@ def test_gap_ids_unique_and_sequential():
     duplicates = sorted({i for i in ids if ids.count(i) > 1})
     assert not duplicates, f"gaps.md: duplicate gap IDs {duplicates}"
     expected = [f"GAP-{n:02d}" for n in range(1, len(ids) + 1)]
-    for position, (got, want) in enumerate(zip(ids, expected), start=1):
+    for position, (got, want) in enumerate(zip(ids, expected, strict=True), start=1):
         assert got == want, f"gaps.md: row {position} is {got}, expected {want}"
 
 
@@ -220,12 +220,7 @@ def test_resolver_rejects_invented_terms(model_terms):
 
 
 def _cited_gaps():
-    return {
-        marker[len("gap: "):]
-        for path in ARTIFACTS
-        for _, marker in markers(path)
-        if marker.startswith("gap: ")
-    }
+    return {marker[len("gap: ") :] for path in ARTIFACTS for _, marker in markers(path) if marker.startswith("gap: ")}
 
 
 def test_gap_statuses_are_well_formed():
@@ -233,7 +228,7 @@ def test_gap_statuses_are_well_formed():
     for gap, (_, status) in gap_rows().items():
         if not STATUS.match(status):
             problems.append(f"{gap}: status {status!r} is not one of {STATUS_FORMS}")
-        elif status.startswith("deferred") and not status[len("deferred:"):].strip():
+        elif status.startswith("deferred") and not status[len("deferred:") :].strip():
             problems.append(f"{gap}: deferred status has no reason")
     assert not problems, "gaps.md:\n" + "\n".join(problems)
 
@@ -254,9 +249,7 @@ def test_open_gap_rows_for_golden_files_are_cited():
     orphans = [
         gap
         for gap, (artifact, status) in gap_rows().items()
-        if not artifact.startswith("runtime")
-        and not status.startswith("closed")
-        and gap not in cited
+        if not artifact.startswith("runtime") and not status.startswith("closed") and gap not in cited
     ]
     assert not orphans, f"gaps.md: open/deferred rows not referenced by any golden artifact line: {orphans}"
 
@@ -287,7 +280,7 @@ def test_status_parser_rejects_malformed_statuses():
     assert not STATUS.match("done")
     assert not STATUS.match("")
     # "deferred:" with no reason matches the form; the reason check catches it.
-    assert not "deferred:   "[len("deferred:"):].strip()
+    assert not "deferred:   "[len("deferred:") :].strip()
 
 
 def test_gap_table_covers_backlog_g2_list():

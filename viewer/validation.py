@@ -64,9 +64,7 @@ def get_model_conformance(ds: rdflib.Dataset) -> dict:
         return _cache[key]
 
     union = _build_union(ds)
-    conforms, results_graph, _text = pyshacl.validate(
-        union, shacl_graph=str(SHAPES_FILE), inference="none"
-    )
+    conforms, results_graph, _text = pyshacl.validate(union, shacl_graph=str(SHAPES_FILE), inference="none")
 
     violations: list[dict] = []
     for result in results_graph.subjects(rdflib.RDF.type, SH.ValidationResult):

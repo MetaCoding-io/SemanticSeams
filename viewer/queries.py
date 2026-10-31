@@ -1,6 +1,7 @@
 """Canned cross-layer query catalog + execution engine (S03 T01).
 
-Exposes four docs/queries/ SPARQL queries as a browsable catalog and
+Exposes four canned SPARQL questions (read from the seams question bundle,
+byte-identical to docs/queries/) as a browsable catalog and
 runs them against the viewer's loaded model with a focus element bound via
 initBindings. The focus IRI never reaches the query text by string
 interpolation — initBindings with a URIRef is the SPARQL-injection guard.
@@ -10,13 +11,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
+import seams
 from rdflib import RDF, Namespace, URIRef
 from rdflib.namespace import SH
-
-BASE_DIR = Path(__file__).resolve().parent
-QUERIES_DIR = BASE_DIR.parent / "docs" / "queries"
 
 ARCH = Namespace("https://w3id.org/seams/arch#")
 STATE = Namespace("https://w3id.org/seams/state#")
@@ -39,20 +37,14 @@ QUERIES: dict[str, CannedQuery] = {
     "what-writes-shape": CannedQuery(
         name="what-writes-shape",
         label="What writes this shape?",
-        question=(
-            "Which UI events can eventually write this data shape, "
-            "and through which task?"
-        ),
+        question=("Which UI events can eventually write this data shape, and through which task?"),
         focusVariable="shape",
         focusType=SH.NodeShape,
     ),
     "impact-of-node": CannedQuery(
         name="impact-of-node",
         label="What breaks if this node goes away?",
-        question=(
-            "What breaks — containers *and processes* — if this "
-            "deployment node goes away?"
-        ),
+        question=("What breaks — containers *and processes* — if this deployment node goes away?"),
         focusVariable="node",
         focusType=ARCH.DeploymentNode,
     ),
@@ -67,8 +59,7 @@ QUERIES: dict[str, CannedQuery] = {
         name="screens-by-role-writing-shape",
         label="Which screens can each role use to write this shape?",
         question=(
-            "Which screens can each role use whose events eventually write "
-            "this data shape, and through which task?"
+            "Which screens can each role use whose events eventually write this data shape, and through which task?"
         ),
         focusVariable="shape",
         focusType=SH.NodeShape,
@@ -79,12 +70,13 @@ QUERIES: dict[str, CannedQuery] = {
 def load_query(name: str) -> str:
     """Return the SPARQL text for a catalog query.
 
-    Raises KeyError for names not in QUERIES before touching the filesystem,
-    so a hostile name can never become a path component (no path traversal).
+    Raises KeyError for names not in QUERIES before touching the seams
+    bundle, so a hostile name can never become a path component (no path
+    traversal; seams.load_question checks the name again).
     """
     if name not in QUERIES:
         raise KeyError(f"unknown canned query: {name!r}")
-    return (QUERIES_DIR / f"{name}.rq").read_text(encoding="utf-8")
+    return seams.load_question(name)
 
 
 def is_applicable(graph, focus_iri: str, query: CannedQuery) -> bool:
@@ -115,10 +107,7 @@ def execute_query(graph, query_name: str, focus_iri: str) -> dict:
             truncated = True
             break
         rows.append(
-            {
-                col: (str(val) if val is not None else "")
-                for col, val in zip(columns, binding_row)
-            }
+            {col: (str(val) if val is not None else "") for col, val in zip(columns, binding_row, strict=False)}
         )
     duration_ms = (time.perf_counter() - start) * 1000
     payload = {

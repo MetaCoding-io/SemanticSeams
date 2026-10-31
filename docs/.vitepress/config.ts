@@ -80,6 +80,7 @@ export default defineConfig({
           { text: "Getting started", link: "/guide/getting-started" },
           { text: "Using the viewer", link: "/guide/the-viewer" },
           { text: "Authoring a model", link: "/guide/authoring-a-model" },
+          { text: "Write your own generator", link: "/guide/write-your-own-generator" },
         ],
       },
       {
@@ -117,6 +118,7 @@ export default defineConfig({
         text: "Reference",
         collapsed: false,
         items: [
+          { text: "seams library (Python API)", link: "/reference/seams-library" },
           { text: "Seam predicates", link: "/reference/seam-predicates" },
           { text: "Layer vocabularies", link: "/reference/vocabularies" },
           { text: "SHACL shapes", link: "/reference/shapes" },

@@ -6,7 +6,9 @@ SpiffWorkflow. It also validates payloads against SHACL shapes, guards lifecycle
 transitions and enforces `seam:governedBy` policies. Every dispatch decision comes from
 graph facts. No handler is keyed on a bpmn id.
 
-Install: `pip install -r seams_runtime/requirements.txt`.
+Install: `uv sync --all-packages` at the repository root (a uv workspace; this member's
+dependencies are in `seams_runtime/pyproject.toml`). The runtime image installs the same
+locked versions from `uv.lock`.
 
 ## API
 
@@ -46,6 +48,18 @@ means no open user task matches: it was already completed, never reached, or the
 correlation key is unknown. A generated app maps `RuntimeModelError` to a JSON response
 with one exception handler.
 
+`ModelGraph`, `model_hash` and `ResolutionError` come from the `seams` library
+([packages/seams](../packages/seams/README.md), D034) and are re-exported here, as are
+the namespaces and resolver results in `seams_runtime.model`. `RuntimeModelError` is an
+alias of `seams.SeamsError`, so that one handler and the worker's `isinstance` checks
+also catch every `ResolutionError` a resolver raises.
+
+`ModelGraph` is a facade whose resolvers delegate to the seams views
+(`model.processes`, `operations`, `channels`, `lifecycles`, `policies`, `interfaces`,
+`architecture`, `shapes` and `decisions`, D036). The worker, runtime, fragment renderer,
+lifecycle guard and policy hook ask it, or the view elements it hands back
+(`task_element`, `shape`, `page`, `component`), and never read raw triples.
+
 ## Host
 
 `python -m seams_runtime.host --routes /app/chat_api.py --host 0.0.0.0 --port 8000`
@@ -55,12 +69,11 @@ It includes `module.router` and adds:
 
 - a `RuntimeModelError` handler that answers `{"detail": exc.to_dict()}` with `exc.http_status`;
 - `GET /healthz`, which returns `{"status": "ok", "model_hash": ...}`;
-- the landmark page at its `ifml:path`, rendered by `render_page`. Only correlation-key
-  query parameters such as `?conversation=` reach the template;
-- each of `ModelGraph.secondary_pages()` at its own `ifml:path`, rendered the same way.
-  A secondary page is an `ifml:ViewContainer` with an `ifml:path` that is not the
-  landmark and holds no form a user task is `seam:completedOn`. Task-form screens are
-  reached through `GET /tasks` instead;
+- every page of `model.interfaces.served_pages()` at its own `ifml:path`, rendered by
+  `render_page`. Only correlation-key query parameters such as `?conversation=` reach
+  the template. The landmark comes first, then by IRI each other `ifml:ViewContainer`
+  with an `ifml:path` that holds no form a user task is `seam:completedOn`. Task-form
+  screens are reached through `GET /tasks` instead;
 - a startup seed from the JSON file named by `SEAMS_SEED`, in the form
   `{"<shape curie>": [{"id": ..., ...payload}]}`. Every item passes `runtime.validate`
   before any is written. A field named after a correlation-key label that is not a

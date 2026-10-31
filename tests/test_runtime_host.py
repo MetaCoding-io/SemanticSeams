@@ -37,9 +37,15 @@ def app_dir(tmp_path, monkeypatch):
 
     def load(cls, trig_path, model_hash=None, **kw):
         assert str(trig_path) == MOUNTED, trig_path
-        return original(TRIG, model_hash=model_hash, db_path=tmp_path / "seams.sqlite",
-                        templates_dir=out / "templates", authenticator=HeaderAuthenticator(),
-                        llm_transport=FakeLLM().transport, llm_base_url="http://llm-gateway.test")
+        return original(
+            TRIG,
+            model_hash=model_hash,
+            db_path=tmp_path / "seams.sqlite",
+            templates_dir=out / "templates",
+            authenticator=HeaderAuthenticator(),
+            llm_transport=FakeLLM().transport,
+            llm_base_url="http://llm-gateway.test",
+        )
 
     monkeypatch.setattr(Runtime, "load", classmethod(load))
     monkeypatch.setenv("SEAMS_SEED", str(SEED))
@@ -101,8 +107,7 @@ def test_send_then_page_shows_user_message_and_reply(client):
     c, runtime = client
     cid = _seed_ids()[0]
     # role is sent explicitly, as in tests/test_generated_app.py; see the xfail below
-    r = c.post(f"/conversations/{cid}/messages", data={"role": "user", "content": "hello host"},
-               headers=USER)
+    r = c.post(f"/conversations/{cid}/messages", data={"role": "user", "content": "hello host"}, headers=USER)
     assert r.status_code == 200, r.text
     (instance,) = _wait_complete(runtime)
     assert instance.task.exception() is None
@@ -164,8 +169,11 @@ def test_second_startup_does_not_duplicate_seed(app_dir):
 
 def test_invalid_seed_item_fails_startup(app_dir, tmp_path, monkeypatch):
     bad = tmp_path / "bad-seed.json"
-    bad.write_text(json.dumps({":ConversationShape": [
-        {"id": "ok", "title": "fine"}, {"id": "broken", "title": "x", "colour": "red"}]}))
+    bad.write_text(
+        json.dumps(
+            {":ConversationShape": [{"id": "ok", "title": "fine"}, {"id": "broken", "title": "x", "colour": "red"}]}
+        )
+    )
     monkeypatch.setenv("SEAMS_SEED", str(bad))
     app = build_app(app_dir / "chat_api.py")
     with pytest.raises(ContractViolation) as info:
@@ -180,6 +188,7 @@ def test_page_without_ifml_path_is_a_resolution_error(app_dir):
     app = build_app(app_dir / "chat_api.py")
     model = app.state.runtime.model
     from seams_runtime.model import IFML
+
     model.ds.remove((model.landmark_page(), IFML.path, None))
     with pytest.raises(ResolutionError, match="ifml#path"):
         model.page_path(model.landmark_page())
@@ -195,7 +204,6 @@ def test_host_names_no_model_terms():
 
 
 def test_host_help_exits_zero():
-    r = subprocess.run([sys.executable, "-m", "seams_runtime.host", "--help"],
-                       capture_output=True, text=True, cwd=ROOT)
+    r = subprocess.run([sys.executable, "-m", "seams_runtime.host", "--help"], capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0, r.stderr
     assert "--routes" in r.stdout and "SEAMS_ROUTES" in r.stdout

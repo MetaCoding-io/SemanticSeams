@@ -1,12 +1,13 @@
 """SemanticSeams viewer — Phase A POC.
 
 FastAPI server implementing the /view/{iri} contract (ADR-0004) over an
-in-process rdflib graph loaded from one TriG model. SEAMS_MODEL chooses the
-model (default examples/chat-app/chat-app.trig); its payload files must sit
-beside it. The root view is the model's single C4 seam:Model, or
-SEAMS_VIEWER_ROOT when set. The graph load is behind get_graph() so a
-Fuseki-backed store can drop in later without touching routes or resolution
-logic.
+in-process rdflib Dataset loaded through the seams library (seams.load).
+SEAMS_MODEL chooses the model, a TriG file or a directory of TriG files loaded
+together (default examples/chat-app/chat-app.trig); its payload files must sit
+in the model's base directory. The root view is the model's single C4
+seam:Model, or SEAMS_VIEWER_ROOT when set. The load is behind get_model() and
+get_graph() so a Fuseki-backed store can drop in later without touching routes
+or resolution logic.
 """
 
 from __future__ import annotations
@@ -16,16 +17,17 @@ import os
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
+import seams
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
 
-from viewer import ifml, legend
-from viewer.shapegraph import shapegraph_graph_data
+from viewer import ifml, legend, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
+from viewer.shapegraph import shapegraph_graph_data
 from viewer.validation import get_model_conformance
 
 # uvicorn configures handlers for its own loggers only, so log through
@@ -44,8 +46,14 @@ def model_path_from_env() -> Path:
     return Path(value).resolve() if value else DEFAULT_MODEL_PATH
 
 
+def model_base_dir(path: Path) -> Path:
+    """The directory payloads resolve against: a directory model is its own
+    base, a file model's base is its parent (as seams.Model.base_dir)."""
+    return path if path.is_dir() else path.parent
+
+
 MODEL_PATH = model_path_from_env()
-MODEL_DIR = MODEL_PATH.parent
+MODEL_DIR = model_base_dir(MODEL_PATH)
 
 # ADR-0003 specifies manifest-graph resolution (path/checksum/mediaType via a
 # dedicated <urn:seams:graph:manifest> graph). Phase B takes a simplified path:
@@ -100,40 +108,36 @@ app = FastAPI(title="SemanticSeams Viewer")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-class ModelStore:
-    """Wraps graph access so the backing store (rdflib now, Fuseki later) is swappable."""
-
-    def __init__(self, path: Path):
-        self._path = path
-        self._graph = Dataset(default_union=True)
-        self._graph.parse(str(path), format="trig")
-
-    @property
-    def graph(self) -> Dataset:
-        return self._graph
-
-
-_store: ModelStore | None = None
+_model: seams.Model | None = None
 _root_iri: str | None = None
 
 
 def configure(path: Path) -> None:
-    """Point the viewer at another model and drop the loaded graph and root."""
-    global MODEL_PATH, MODEL_DIR, _store, _root_iri
+    """Point the viewer at another model and drop the loaded model, root and
+    cached conformance (validation keys it by id(ds), which a fresh Dataset
+    can reuse, MEM010)."""
+    global MODEL_PATH, MODEL_DIR, _model, _root_iri
     MODEL_PATH = Path(path).resolve()
-    MODEL_DIR = MODEL_PATH.parent
-    _store = None
+    MODEL_DIR = model_base_dir(MODEL_PATH)
+    _model = None
     _root_iri = None
+    validation._clear_cache()
+
+
+def get_model() -> seams.Model:
+    """The loaded model (seams.load on MODEL_PATH, on first use)."""
+    global _model
+    if _model is None:
+        if not (MODEL_PATH.is_file() or MODEL_PATH.is_dir()):
+            source = f" (from {MODEL_ENV})" if os.environ.get(MODEL_ENV) else ""
+            raise FileNotFoundError(f"viewer model not found: {MODEL_PATH}{source}")
+        _model = seams.load(MODEL_PATH)
+    return _model
 
 
 def get_graph() -> Dataset:
-    global _store
-    if _store is None:
-        if not MODEL_PATH.is_file():
-            source = f" (from {MODEL_ENV})" if os.environ.get(MODEL_ENV) else ""
-            raise FileNotFoundError(f"viewer model not found: {MODEL_PATH}{source}")
-        _store = ModelStore(MODEL_PATH)
-    return _store.graph
+    """The loaded model's merged Dataset (default_union)."""
+    return get_model().ds
 
 
 def root_iri() -> str:
@@ -147,9 +151,7 @@ def root_iri() -> str:
         else:
             graph = get_graph()
             candidates = sorted(
-                str(s)
-                for s in set(graph.subjects(RDF.type, SEAM.Model))
-                if (s, SEAM.notation, SEAM.C4) in graph
+                str(s) for s in set(graph.subjects(RDF.type, SEAM.Model)) if (s, SEAM.notation, SEAM.C4) in graph
             )
             if len(candidates) != 1:
                 found = ", ".join(candidates) if candidates else "none"
@@ -180,7 +182,7 @@ def label(iri: str) -> str:
     return str(val) if val is not None else short_name(iri)
 
 
-# D004 keeps the ModelStore Dataset model-only (ontology triples would pollute
+# D004 keeps the seams-loaded Dataset model-only (ontology triples would pollute
 # canned SPARQL queries and seam_edges), so predicate labels come from a
 # side lookup parsed straight from ontology/*.ttl on first use.
 _ontology_labels: dict[str, str] | None = None
@@ -199,7 +201,7 @@ def ontology_labels() -> dict[str, str]:
 
 
 # Reveal modes come from the same ontology side lookup as labels (D004, D006):
-# the annotations never enter the ModelStore.
+# the annotations never enter the seams-loaded Dataset.
 _ontology_reveal: dict[str, str] | None = None
 
 
@@ -212,9 +214,7 @@ def ontology_reveal() -> dict[str, str]:
         g = Graph()
         for p in sorted((BASE_DIR.parent / "ontology").glob("*.ttl")):
             g.parse(p, format="turtle")
-        _ontology_reveal = {
-            str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES
-        }
+        _ontology_reveal = {str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES}
     return _ontology_reveal
 
 
@@ -442,11 +442,7 @@ def payload_element_seams(model_iri: str) -> dict[str, list[dict]]:
 
 def card_seams(iri: str) -> list[dict]:
     """Outgoing seam edges of iri as card dots, sorted by predicate then target."""
-    edges = [
-        (p, str(o))
-        for p, o in get_graph().predicate_objects(URIRef(iri))
-        if is_seam_predicate(p)
-    ]
+    edges = [(p, str(o)) for p, o in get_graph().predicate_objects(URIRef(iri)) if is_seam_predicate(p)]
     return [
         {
             "predicate": qname(p),
@@ -496,9 +492,7 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
     graph = get_graph()
     spec = C4_LEVELS[level]
     visible = {
-        m
-        for m in model_members(model_iri)
-        if any(t in spec.classes for t in graph.objects(URIRef(m), RDF.type))
+        m for m in model_members(model_iri) if any(t in spec.classes for t in graph.objects(URIRef(m), RDF.type))
     }
 
     parents: dict[str, str] = {}
@@ -517,10 +511,7 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         nested_via, nested_layers = _nest_targets(visible, parents)
         visible |= set(nested_via) | {o for o, p in parents.items() if p in nested_via}
 
-    nodes = [
-        {**n, "parent": parents.get(n["id"]), "nestedVia": nested_via.get(n["id"])}
-        for n in nodes_for(visible)
-    ]
+    nodes = [{**n, "parent": parents.get(n["id"]), "nestedVia": nested_via.get(n["id"])} for n in nodes_for(visible)]
     if spec.nest:
         for n in nodes:
             if n["id"] in nested_layers and n["layer"] == "other":
@@ -566,9 +557,7 @@ def top_level_members(model_iri: str) -> list[str]:
         for s, o in graph.subject_objects(pred)
         if str(s) in members and str(s) != str(o)
     }
-    return sorted(
-        m for m in members - held if (URIRef(m), RDFS.label, None) in graph
-    )
+    return sorted(m for m in members - held if (URIRef(m), RDFS.label, None) in graph)
 
 
 def _nest_targets(visible: set[str], parents: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
@@ -749,8 +738,12 @@ def toggled(hidden: list[str], type_qname: str) -> list[str]:
 @app.on_event("startup")
 def startup() -> None:
     get_graph()
-    logger.info("viewer model %s (%s), root %s", MODEL_PATH,
-                f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default", root_iri())
+    logger.info(
+        "viewer model %s (%s), root %s",
+        MODEL_PATH,
+        f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default",
+        root_iri(),
+    )
 
 
 @app.get("/")
@@ -804,10 +797,7 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
     # Non-applicable or unknown focus IRIs are not errors: an empty result set
     # (resultCount 0) is meaningful feedback, so execute unconditionally.
     result = canned_queries.execute_query(get_graph(), query_name, focus)
-    wants_html = (
-        request.headers.get("hx-request") == "true"
-        or request.query_params.get("format") == "html"
-    )
+    wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
     if not wants_html:
         return JSONResponse(result)
     query = canned_queries.QUERIES[query_name]
@@ -816,10 +806,7 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
         "query_label": query.label,
         "query_question": query.question,
         "result": result,
-        "cell_rows": [
-            [result_cell(row[col]) for col in result["columns"]]
-            for row in result["rows"]
-        ],
+        "cell_rows": [[result_cell(row[col]) for col in result["columns"]] for row in result["rows"]],
     }
     return templates.TemplateResponse(request, "query-results.html", ctx)
 
@@ -912,9 +899,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "legend": [
             {
                 **entry,
-                "href": href_for(
-                    focus, incoming_trail, view["level"], toggled(view["hiddenTypes"], entry["type"])
-                ),
+                "href": href_for(focus, incoming_trail, view["level"], toggled(view["hiddenTypes"], entry["type"])),
             }
             for entry in view["legend"]
         ],
@@ -972,9 +957,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
     for e in ctx["incoming"]:
         e["href"] = link(e["source"])
 
-    ctx["detailed_by_candidates"] = [
-        {**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]
-    ]
+    ctx["detailed_by_candidates"] = [{**c, "href": link(c["iri"])} for c in view["detailedByCandidates"]]
     ctx["relations"] = relation_groups(ctx["outgoing"], ctx["incoming"])
 
     template = "fragment.html" if request.headers.get("hx-request") == "true" else "page.html"

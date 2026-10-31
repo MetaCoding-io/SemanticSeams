@@ -1,0 +1,22 @@
+# Virtual workspace member (D033): declares dependencies only; the package
+# itself resolves from the repository root and is never built or installed.
+[project]
+name = "semanticseams-viewer"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    # the model is loaded through the seams library
+    "semanticseams",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    # backs fastapi.templating.Jinja2Templates
+    "jinja2>=3.1",
+    "rdflib>=7.0",
+    "pyshacl>=0.30",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+semanticseams = { workspace = true }

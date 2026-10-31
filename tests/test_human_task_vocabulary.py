@@ -74,8 +74,7 @@ def test_fixture_has_one_graph_per_notation_plus_seams(dataset):
     names = {g.identifier for g in dataset.graphs() if str(g.identifier) != "urn:x-rdflib:default"}
     assert names == {
         URIRef(f"urn:seams:graph:model:{m}")
-        for m in ("expense_architecture", "expense_ifml", "approval_bpmn", "expense_data",
-                  "expense_lifecycle")
+        for m in ("expense_architecture", "expense_ifml", "approval_bpmn", "expense_data", "expense_lifecycle")
     } | {SEAMS_GRAPH}
 
 
@@ -85,8 +84,10 @@ def test_fixture_conforms_to_seam_shapes(model):
 
 def test_fixture_keeps_seam_predicates_in_seams_graph(dataset):
     leaked = [
-        (ctx, s, p, o) for s, p, o, ctx in dataset.quads((None, None, None, None))
-        if str(p).startswith(str(SEAM)) and p != SEAM.inModel
+        (ctx, s, p, o)
+        for s, p, o, ctx in dataset.quads((None, None, None, None))
+        if str(p).startswith(str(SEAM))
+        and p != SEAM.inModel
         and not (p == SEAM.reveal and str(ctx) == "urn:x-rdflib:default")
         and ctx != SEAMS_GRAPH
     ]
@@ -151,16 +152,23 @@ PREFIXES = """
 @pytest.mark.parametrize(
     "facts, message",
     [
-        (":c a arch:Container ; seam:completedOn :f . :f a ifml:Form .",
-         "Only a proc:UserTask seam:completedOn a form."),
-        (":t a proc:ServiceTask ; seam:completedOn :f . :f a ifml:Form .",
-         "Only a proc:UserTask seam:completedOn a form."),
-        (":t a proc:UserTask ; seam:completedOn :e . :e a ifml:Event .",
-         "seam:completedOn points at one ifml:Form."),
-        (":t a proc:UserTask ; seam:completedOn :p . :p a ifml:ViewContainer .",
-         "seam:completedOn points at one ifml:Form."),
-        (":t a proc:UserTask ; seam:completedOn :f , :g . :f a ifml:Form . :g a ifml:Form .",
-         "seam:completedOn points at one ifml:Form."),
+        (
+            ":c a arch:Container ; seam:completedOn :f . :f a ifml:Form .",
+            "Only a proc:UserTask seam:completedOn a form.",
+        ),
+        (
+            ":t a proc:ServiceTask ; seam:completedOn :f . :f a ifml:Form .",
+            "Only a proc:UserTask seam:completedOn a form.",
+        ),
+        (":t a proc:UserTask ; seam:completedOn :e . :e a ifml:Event .", "seam:completedOn points at one ifml:Form."),
+        (
+            ":t a proc:UserTask ; seam:completedOn :p . :p a ifml:ViewContainer .",
+            "seam:completedOn points at one ifml:Form.",
+        ),
+        (
+            ":t a proc:UserTask ; seam:completedOn :f , :g . :f a ifml:Form . :g a ifml:Form .",
+            "seam:completedOn points at one ifml:Form.",
+        ),
     ],
     ids=["from-container", "from-service-task", "to-event", "to-page", "two-forms"],
 )
@@ -176,6 +184,5 @@ def test_a_user_task_on_one_form_conforms():
     data = rdflib.Graph()
     for path in ONTOLOGY_FILES:
         data.parse(path, format="turtle")
-    data.parse(data=f"{PREFIXES}\n:t a proc:UserTask ; seam:completedOn :f . :f a ifml:Form .",
-               format="turtle")
+    data.parse(data=f"{PREFIXES}\n:t a proc:UserTask ; seam:completedOn :f . :f a ifml:Form .", format="turtle")
     assert shacl_messages(data) == set()

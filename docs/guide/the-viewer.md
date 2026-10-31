@@ -156,7 +156,9 @@ the diagram comes back drawn and clickable.
 
 The viewer is the v1 proof of concept. It is read-only and loads one model, chosen by
 the `SEAMS_MODEL` environment variable (default the chat-app example in
-`examples/chat-app/chat-app.trig`), with its payload files beside it. The root view is
+`examples/chat-app/chat-app.trig`). `SEAMS_MODEL` may name a TriG file or a directory
+of TriG files loaded together, as the seams library's `seams.load` reads them; payload
+files sit beside the file, or in the directory. The root view is
 the model's single C4 `seam:Model`, or `SEAMS_VIEWER_ROOT` when set; with no C4 model,
 or more than one, the viewer refuses to start and names the candidates. The statechart
 renderer does not yet draw containment as nesting. The [backlog](/backlog) lists what comes next for the viewer.

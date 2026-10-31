@@ -5,7 +5,8 @@ decide which model members are drawn and which edges connect them. Each level
 is cumulative — L2 shows everything L1 shows plus its own classes and edges.
 
 L1 edges are not derived in Python: they come from the canned projection
-query docs/queries/c4-l1-rollup.rq, which has its own acceptance tests.
+query c4-l1-rollup (docs/queries/c4-l1-rollup.rq, read through the seams
+question bundle), which has its own acceptance tests.
 
 L4 (M007/S02) is L3 plus the targets of nest-mode seams (seam:reveal
 seam:Nest — today seam:presents and seam:executes) drawn as compound nodes
@@ -17,12 +18,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import seams
 from rdflib import Namespace, URIRef
 
 BASE_DIR = Path(__file__).resolve().parent
 QUERIES_DIR = BASE_DIR.parent / "docs" / "queries"
-# Fixed path — the rollup is never selected by a user-supplied name.
-ROLLUP_QUERY_PATH = QUERIES_DIR / "c4-l1-rollup.rq"
+# Fixed name — the rollup is never selected by a user-supplied name. The text
+# is read from the seams bundle; ROLLUP_QUERY_PATH names its docs/queries
+# source (tests/test_seams_query.py pins that the two are byte-identical).
+ROLLUP_QUERY_NAME = "c4-l1-rollup"
+ROLLUP_QUERY_PATH = QUERIES_DIR / f"{ROLLUP_QUERY_NAME}.rq"
 
 SEAM = Namespace("https://w3id.org/seams/seam#")
 ARCH = Namespace("https://w3id.org/seams/arch#")
@@ -91,6 +96,6 @@ DEFAULT_LEVEL = "L2"
 
 def load_rollup(graph) -> list[tuple[str, str, str]]:
     """Run the C4 L1 rollup query on graph; returns sorted (from, to, kind) rows."""
-    sparql = ROLLUP_QUERY_PATH.read_text(encoding="utf-8")
+    sparql = seams.load_question(ROLLUP_QUERY_NAME)
     rows = {(str(r[0]), str(r[1]), str(r[2])) for r in graph.query(sparql)}
     return sorted(rows)

@@ -89,9 +89,7 @@ def canned(name: str) -> str:
     return (QUERIES_DIR / name).read_text()
 
 
-@pytest.mark.parametrize(
-    "path", [*ONTOLOGY_FILES, SHAPES_FILE, EXAMPLE_TTL], ids=lambda p: p.name
-)
+@pytest.mark.parametrize("path", [*ONTOLOGY_FILES, SHAPES_FILE, EXAMPLE_TTL], ids=lambda p: p.name)
 def test_turtle_parses(path):
     load(path)
 
@@ -105,9 +103,7 @@ def test_trig_parses():
 
 
 def test_model_conforms_to_seam_shapes(model):
-    conforms, _, report = pyshacl.validate(
-        model, shacl_graph=str(SHAPES_FILE), inference="none"
-    )
+    conforms, _, report = pyshacl.validate(model, shacl_graph=str(SHAPES_FILE), inference="none")
     assert conforms, report
 
 
@@ -125,18 +121,14 @@ def test_seam_shapes_have_teeth():
         """,
         format="turtle",
     )
-    conforms, _, _ = pyshacl.validate(
-        bad, shacl_graph=str(SHAPES_FILE), inference="none"
-    )
+    conforms, _, _ = pyshacl.validate(bad, shacl_graph=str(SHAPES_FILE), inference="none")
     assert not conforms, "shapes accepted a Model without notation and a ServiceTask with seam:decidedBy"
 
 
 def test_every_nonreserved_seam_predicate_is_exercised(dataset):
     """Verify all declared seam predicates appear in the TriG dataset."""
     declared = {
-        p
-        for p in load(ROOT / "ontology" / "seam.ttl").subjects(RDF.type, RDF.Property)
-        if str(p).startswith(str(SEAM))
+        p for p in load(ROOT / "ontology" / "seam.ttl").subjects(RDF.type, RDF.Property) if str(p).startswith(str(SEAM))
     }
     used = set()
     for _s, p, _o, _g in dataset.quads((None, None, None, None)):
@@ -148,17 +140,13 @@ def test_every_nonreserved_seam_predicate_is_exercised(dataset):
         if str(p).startswith(str(SEAM)):
             used.add(p)
     missing = declared - RESERVED_PREDICATES - used
-    assert not missing, (
-        f"seam predicates never exercised by checkout.trig or the human-task fixture: {sorted(missing)}"
-    )
+    assert not missing, f"seam predicates never exercised by checkout.trig or the human-task fixture: {sorted(missing)}"
 
 
 def test_what_writes_shape(model):
     """The flagship traversal: UI event -> process -> tasks -> shape, including
     the async hop through the order.events channel into fulfillment."""
-    rows = model.query(
-        canned("what-writes-shape.rq"), initBindings={"shape": SHOP.OrderShape}
-    )
+    rows = model.query(canned("what-writes-shape.rq"), initBindings={"shape": SHOP.OrderShape})
     assert {(r.event, r.writer) for r in rows} == {
         (SHOP.submit_order, PERSIST_TASK),
         (SHOP.submit_order, FULFILL_TASK),
@@ -168,9 +156,7 @@ def test_what_writes_shape(model):
 def test_impact_of_node(model):
     """'What breaks if db01 goes away' — must reach containers AND processes,
     and must NOT depend on deploy:dependsOn (startup ordering)."""
-    rows = model.query(
-        canned("impact-of-node.rq"), initBindings={"node": SHOP.db01}
-    )
+    rows = model.query(canned("impact-of-node.rq"), initBindings={"node": SHOP.db01})
     assert {r.impacted for r in rows} == {
         SHOP.order_db,
         SHOP.order_api,
@@ -183,9 +169,7 @@ def test_impact_of_node(model):
 def test_what_moves_state(model):
     """Which tasks may move an Order out of 'submitted'? t_cancel has no firing
     task on purpose — that absence is an M2 model-health warning, not an error."""
-    rows = model.query(
-        canned("what-moves-state.rq"), initBindings={"state": SHOP.s_submitted}
-    )
+    rows = model.query(canned("what-moves-state.rq"), initBindings={"state": SHOP.s_submitted})
     assert {(r.task, r.transition, r.toState) for r in rows} == {
         (FULFILL_TASK, SHOP.t_fulfill, SHOP.s_fulfilled),
     }
@@ -223,9 +207,8 @@ def test_seam_predicates_isolated_to_seams_graph(dataset):
     the dedicated seams graph per ADR-0001.
     """
     leaked = _leaked_seam_quads(dataset)
-    assert not leaked, (
-        f"seam predicates leaked into model graphs:\n"
-        + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
+    assert not leaked, "seam predicates leaked into model graphs:\n" + "\n".join(
+        f"  {g}: {s} {p} {o}" for g, s, p, o in leaked
     )
 
 
@@ -257,22 +240,17 @@ def test_no_triple_loss_trig_vs_turtle():
 
     ds = rdflib.Dataset()
     ds.parse(EXAMPLE_TRIG, format="trig")
-    trig_ground, trig_bnode_count = _ground_triples(
-        ds.quads((None, None, None, None))
-    )
+    trig_ground, trig_bnode_count = _ground_triples(ds.quads((None, None, None, None)))
 
     missing = flat_ground - trig_ground
-    assert not missing, (
-        f"{len(missing)} ground triples in checkout.ttl missing from checkout.trig:\n"
-        + "\n".join(f"  {s} {p} {o}" for s, p, o in sorted(missing, key=str))
+    assert not missing, f"{len(missing)} ground triples in checkout.ttl missing from checkout.trig:\n" + "\n".join(
+        f"  {s} {p} {o}" for s, p, o in sorted(missing, key=str)
     )
     assert len(trig_ground) >= len(flat_ground), (
-        f"TriG ground triples ({len(trig_ground)}) fewer than "
-        f"flat Turtle ({len(flat_ground)})"
+        f"TriG ground triples ({len(trig_ground)}) fewer than flat Turtle ({len(flat_ground)})"
     )
     assert trig_bnode_count >= flat_bnode_count, (
-        f"TriG bnode triples ({trig_bnode_count}) fewer than "
-        f"flat Turtle ({flat_bnode_count})"
+        f"TriG bnode triples ({trig_bnode_count}) fewer than flat Turtle ({flat_bnode_count})"
     )
 
 
@@ -298,27 +276,20 @@ def test_chat_app_trig_parses():
     """Chat-app TriG parses into a Dataset with exactly 6 named graphs."""
     ds = rdflib.Dataset()
     ds.parse(CHAT_APP_TRIG, format="trig")
-    graph_ids = {
-        g.identifier
-        for g in ds.graphs()
-        if str(g.identifier) != "urn:x-rdflib:default"
-    }
+    graph_ids = {g.identifier for g in ds.graphs() if str(g.identifier) != "urn:x-rdflib:default"}
     assert len(graph_ids) == 6, f"Expected 6 named graphs, got {len(graph_ids)}: {graph_ids}"
 
 
 def test_chat_app_conforms_to_seam_shapes(chat_model):
-    conforms, _, report = pyshacl.validate(
-        chat_model, shacl_graph=str(SHAPES_FILE), inference="none"
-    )
+    conforms, _, report = pyshacl.validate(chat_model, shacl_graph=str(SHAPES_FILE), inference="none")
     assert conforms, report
 
 
 def test_chat_app_seam_predicates_isolated(chat_dataset):
     """Cross-layer seam predicates in chat-app must only appear in the seams graph."""
     leaked = _leaked_seam_quads(chat_dataset)
-    assert not leaked, (
-        f"seam predicates leaked into model graphs:\n"
-        + "\n".join(f"  {g}: {s} {p} {o}" for g, s, p, o in leaked)
+    assert not leaked, "seam predicates leaked into model graphs:\n" + "\n".join(
+        f"  {g}: {s} {p} {o}" for g, s, p, o in leaked
     )
 
 
@@ -350,9 +321,7 @@ def test_chat_app_screens_by_role_writing_shape(chat_model):
 def test_chat_app_impact_of_node(chat_model):
     """'What breaks if db01 goes away' — must reach message_db, chat_api, chat_ui,
     and the send_message_process."""
-    rows = chat_model.query(
-        canned("impact-of-node.rq"), initBindings={"node": CHAT.db01}
-    )
+    rows = chat_model.query(canned("impact-of-node.rq"), initBindings={"node": CHAT.db01})
     assert {r.impacted for r in rows} == {
         CHAT.message_db,
         CHAT.chat_api,
@@ -433,8 +402,12 @@ def test_human_task_screens_to_finish_process():
         initBindings={"process": EXPENSES.approval_process},
     )
     assert {(r.task, r.form, r.screen, r.policy) for r in rows} == {
-        (URIRef("https://example.org/expenses/approval_bpmn#approve_expense"),
-         EXPENSES.approve_form, EXPENSES.approvals_page, EXPENSES.manager_approval_policy),
+        (
+            URIRef("https://example.org/expenses/approval_bpmn#approve_expense"),
+            EXPENSES.approve_form,
+            EXPENSES.approvals_page,
+            EXPENSES.manager_approval_policy,
+        ),
     }
 
 
@@ -445,9 +418,7 @@ def test_chat_app_has_no_screens_to_finish(chat_model):
 
 APPROVAL_PERSIST_EXPENSE = URIRef("https://example.org/expenses/approval_bpmn#persist_expense")
 APPROVAL_APPROVE_EXPENSE = URIRef("https://example.org/expenses/approval_bpmn#approve_expense")
-SCREENS_BY_ROLE_SUBMIT_POLICY = (
-    EXPENSES.submit_expense, SEAM.governedBy, EXPENSES.employee_submit_policy
-)
+SCREENS_BY_ROLE_SUBMIT_POLICY = (EXPENSES.submit_expense, SEAM.governedBy, EXPENSES.employee_submit_policy)
 
 
 def _human_task_model() -> rdflib.Graph:
@@ -460,9 +431,7 @@ def _human_task_model() -> rdflib.Graph:
 
 
 def _screens_by_role(g: rdflib.Graph, shape: URIRef) -> set:
-    rows = g.query(
-        canned("screens-by-role-writing-shape.rq"), initBindings={"shape": shape}
-    )
+    rows = g.query(canned("screens-by-role-writing-shape.rq"), initBindings={"shape": shape})
     return {(r.role, r.screen, r.event, r.writer) for r in rows}
 
 
@@ -472,12 +441,10 @@ def test_human_task_screens_by_role_writing_shape():
     manager's Submit Approval triggers nothing, so it reaches no writer."""
     g = _human_task_model()
     assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
-        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
-         APPROVAL_PERSIST_EXPENSE),
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense, APPROVAL_PERSIST_EXPENSE),
     }
     assert _screens_by_role(g, EXPENSES.ApprovalShape) == {
-        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
-         APPROVAL_APPROVE_EXPENSE),
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense, APPROVAL_APPROVE_EXPENSE),
     }
 
 
@@ -492,8 +459,12 @@ def test_expenses_chapter_7_screens_by_role_writing_payment():
     for s, p, o, _ctx in ds.quads((None, None, None, None)):
         g.add((s, p, o))
     assert _screens_by_role(g, EXPENSES.PaymentShape) == {
-        (EXPENSES.employee, EXPENSES.expenses_page, EXPENSES.submit_expense,
-         URIRef("https://example.org/expenses/approval_bpmn#pay_expense")),
+        (
+            EXPENSES.employee,
+            EXPENSES.expenses_page,
+            EXPENSES.submit_expense,
+            URIRef("https://example.org/expenses/approval_bpmn#pay_expense"),
+        ),
     }
 
 
@@ -503,8 +474,7 @@ def test_screens_by_role_via_operation_policy_only():
     g = _human_task_model()
     g.remove(SCREENS_BY_ROLE_SUBMIT_POLICY)
     assert _screens_by_role(g, EXPENSES.ExpenseShape) == {
-        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense,
-         APPROVAL_PERSIST_EXPENSE),
+        (EXPENSES.employee, EXPENSES.submit_page, EXPENSES.submit_expense, APPROVAL_PERSIST_EXPENSE),
     }
 
 

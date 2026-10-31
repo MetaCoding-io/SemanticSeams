@@ -57,19 +57,13 @@ def test_execute_what_writes_shape_chat_app():
 
 
 def test_execute_screens_by_role_writing_shape_chat_app():
-    result = queries.execute_query(
-        get_graph(), "screens-by-role-writing-shape", MESSAGE_SHAPE
-    )
+    result = queries.execute_query(get_graph(), "screens-by-role-writing-shape", MESSAGE_SHAPE)
     assert result["bindings"] == {"shape": MESSAGE_SHAPE}
     assert result["columns"] == ["role", "screen", "event", "writer"]
     assert result["resultCount"] == 2
-    assert {
-        (r["role"], r["screen"], r["event"], r["writer"]) for r in result["rows"]
-    } == {
-        (CHAT + "authenticated_user", CHAT + "chat_page", CHAT + "send_message",
-         CHAT + "chat_bpmn#persist_user_msg"),
-        (CHAT + "authenticated_user", CHAT + "chat_page", CHAT + "send_message",
-         CHAT + "chat_bpmn#persist_response"),
+    assert {(r["role"], r["screen"], r["event"], r["writer"]) for r in result["rows"]} == {
+        (CHAT + "authenticated_user", CHAT + "chat_page", CHAT + "send_message", CHAT + "chat_bpmn#persist_user_msg"),
+        (CHAT + "authenticated_user", CHAT + "chat_page", CHAT + "send_message", CHAT + "chat_bpmn#persist_response"),
     }
 
 
@@ -114,11 +108,7 @@ def test_non_applicable_focus_returns_empty():
 def test_is_applicable_type_rules():
     graph = get_graph()
     applicability = {
-        focus: [
-            name
-            for name, q in queries.QUERIES.items()
-            if queries.is_applicable(graph, focus, q)
-        ]
+        focus: [name for name, q in queries.QUERIES.items() if queries.is_applicable(graph, focus, q)]
         for focus in (MESSAGE_SHAPE, DB01, S_COMPOSING)
     }
     assert applicability == {
@@ -225,9 +215,7 @@ ROOT_MODEL = CHAT + "chat_architecture"
 
 
 def _view_fragment(iri: str):
-    return _client().get(
-        f"/view/{quote(iri, safe='')}", headers={"hx-request": "true"}
-    )
+    return _client().get(f"/view/{quote(iri, safe='')}", headers={"hx-request": "true"})
 
 
 def test_fragment_shows_query_buttons_for_shape():
@@ -271,9 +259,7 @@ def test_query_results_fragment_renders_table():
     assert ">" + iri_label(CHAT + "chat_bpmn#persist_user_msg") + "<" in html
     assert ">" + CHAT + "send_message<" not in html
     # ?format=html must reach the same HTML branch as the hx-request header.
-    html_via_param = _client().get(
-        _query_url("what-writes-shape", MESSAGE_SHAPE) + "?format=html"
-    ).text
+    html_via_param = _client().get(_query_url("what-writes-shape", MESSAGE_SHAPE) + "?format=html").text
     assert 'id="query-results-table"' in html_via_param
 
 

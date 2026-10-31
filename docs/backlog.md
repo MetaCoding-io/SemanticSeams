@@ -97,12 +97,12 @@ lockfile, `pyproject.toml` packaging, ruff and a type checker.
 
 | # | Item | Size | Depends on | Status |
 |---|---|---|---|---|
-| L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | planned (M010/S01) |
-| L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | planned (M010/S02) |
-| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | planned (M010/S03) |
-| L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | planned (M010/S04) |
-| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | planned (M010/S05, S06) |
-| L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | planned (M010/S07) |
+| L1 | **uv workspace and modern tooling**: a `pyproject.toml` per package, a committed `uv.lock`, `.python-version`, ruff; CI, the docs workflow and the Dockerfiles install with uv; the four requirements files removed. No code changes. | S | none | done (M010/S01) |
+| L2 | **Extract the core into `seams`**: the loader (file or directory, honouring `SEAMS_MODEL` as E2 made the runtime and viewer do), hash, payload resolution, namespaces and errors, depending only on rdflib and lxml. The runtime re-exports `ModelGraph` on top of it; the generators import only the public API. | M | L1 | done (M010/S02) |
+| L3 | **Typed views over the graph** per layer, with collections and `.only()` instead of one-of-each accessors, replacing the per-caller workarounds M009 added for multiple models. | M | L2 | done (M010/S03) |
+| L4 | **Native joins**: BPMN walked in flow order, including unlifted elements; DMN tables with inputs, outputs and rules. | M | L3 | done (M010/S04) |
+| L5 | **Port the consumers**: the generators, then the viewer (one IFML interpretation), then the docs reference generator, with golden outputs unchanged. | M | L3, L4 | done (M010/S05: generators and the runtime's ModelGraph read through seams views, goldens byte-identical; M010/S06: viewer loads with seams.load, viewer/ifml.py reads model.interfaces so IFML has one interpretation, docs generator uses seams) |
+| L6 | **Docs**: an API reference page and a "Write your own generator" guide. | S | L3 | done (M010/S07: docs/reference/seams-library.md, docs/guide/write-your-own-generator.md, guide generator executed by tests/test_generator_guide.py on chat-app and expenses chapter-08) |
 
 ## Derived views and model gaps
 
@@ -271,7 +271,33 @@ UI work must not eat M3.*
    when it starts.
    - **M010, Modern Tooling and the seams Library** (L1 to L6): uv workspace, the
      read-only `seams` library, typed views, native BPMN and DMN joins, and every consumer
-     ported with golden outputs unchanged.
+     ported with golden outputs unchanged. *L1 done, M010/S01: the repository is a uv
+     workspace with a committed `uv.lock`; CI, the docs workflow and both Dockerfiles
+     install with `uv sync --locked`, ruff and pyright run in CI, and the four
+     requirements files are gone. L2 done, M010/S02: `seams` holds the loader (file or
+     directory, honouring `SEAMS_MODEL`), the hash, payload resolution, namespaces, errors
+     and the transitional `ModelGraph`; `seams_runtime` re-exports them, and `seams_gen` no
+     longer imports the runtime. L3 done, M010/S03: typed, read-only views per layer
+     (`model.architecture`, `interfaces`, `processes`, `decisions`, `shapes`,
+     `operations`, `channels`, `lifecycles`, `policies`) with `.only()`, plus
+     `model.sparql` and `model.question`; the engine's task IRIs and the served pages
+     come from the views, so several BPMN models need no workaround. L4 done, M010/S04:
+     `seams.bpmn` and `seams.dmn` read the payload XML with lxml; `Process.nodes()`,
+     `tasks()`, `gateways()` and `lanes()` walk each BPMN file in flow order, including
+     unlifted events and gateways with their paths, joined to the graph elements (user tasks
+     carry their `completedOn` form, message start events their channel), and
+     `Decision.table` gives hit policy, inputs, outputs and rules. M010/S05: the htmx,
+     routes and compose generators, `seams_gen.fragments` and the runtime's `ModelGraph`
+     read the model only through seams views (D036); `seams_gen/facts.py` is gone,
+     `extract_page` is built on `model.interfaces`, and every committed generated output
+     for chat-app and the expenses chapters 3 to 8 is byte-identical. M010/S06: the viewer
+     loads its model with `seams.load` (a TriG file or a directory), `viewer/ifml.py`
+     derives the IFML diagram from `model.interfaces`, the view the htmx generator reads,
+     so IFML has one interpretation, and `docs/scripts/generate.py` reads namespaces and
+     the question catalog through seams; L5 is done. M010/S07: the seams API reference
+     moved onto the docs site (docs/reference/seams-library.md) and a "Write your own
+     generator" guide whose generator CI runs on chat-app and expenses chapter-08; L6 is
+     done, and M010 is complete pending validation.*
    - **M011, Data Where the Model Says** (U2, U9): an ADR on storage resolution, the
      shape-to-store seam, SQLite and PostgreSQL backends chosen from the graph, and
      model-health checks. Depends on M010.

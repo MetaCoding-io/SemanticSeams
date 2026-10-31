@@ -23,11 +23,11 @@ TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 
 TEMPLATES = {
     "message_thread_item.html": "<li>{{ message.content }}|{{ message.status }}|{{ message.id }}"
-                                "|{{ message_state }}|{{ extra }}</li>",
+    "|{{ message_state }}|{{ extra }}</li>",
     "message_thread.html": "{{ message_state }}:{% for m in messages %}[{{ m.content }}/{{ m.status }}]"
-                           "{% endfor %}:{{ conversation }}",
+    "{% endfor %}:{{ conversation }}",
     "conversation_list.html": "{% for c in conversations %}<a>{{ c.id }}={{ c.title }}</a>{% endfor %}"
-                              "{{ conversation_state is defined }}",
+    "{{ conversation_state is defined }}",
 }
 
 
@@ -65,38 +65,46 @@ def test_component_partial_binds_list_and_initial_state(runtime):
 
 
 def test_component_state_is_last_item_status(runtime):
-    rows = [{"content": "a", "status": "complete"}, {"content": "b", "status": "streaming"},
-            {"content": "c"}]
+    rows = [{"content": "a", "status": "complete"}, {"content": "b", "status": "streaming"}, {"content": "c"}]
     ctx = runtime.fragments.context("message_thread.html", rows)
     assert ctx["message_state"] == "streaming"
-    assert _html(runtime.render_fragment("message_thread.html", rows, conversation="c1")) == \
-        "streaming:[a/complete][b/streaming][c/]:c1"
+    assert (
+        _html(runtime.render_fragment("message_thread.html", rows, conversation="c1"))
+        == "streaming:[a/complete][b/streaming][c/]:c1"
+    )
 
 
 def test_conversation_list_has_no_state(runtime):
     ctx = runtime.fragments.context("conversation_list.html", [{"id": "c1", "title": "T"}])
     assert ctx == {"conversations": [{"id": "c1", "title": "T"}]}
-    assert _html(runtime.render_fragment("conversation_list.html", [{"id": "c1", "title": "T"}])) == \
-        "<a>c1=T</a>False"
+    assert _html(runtime.render_fragment("conversation_list.html", [{"id": "c1", "title": "T"}])) == "<a>c1=T</a>False"
 
 
 def test_store_rows_are_flattened(runtime):
-    runtime.store.put_entity("m1", runtime.model.curie(":MessageShape"), {"content": "x"},
-                             correlation_key="c1", status="complete")
-    runtime.store.put_entity("m2", runtime.model.curie(":MessageShape"),
-                             {"content": "y", "status": "streaming"}, correlation_key="c1",
-                             status="complete")
+    runtime.store.put_entity(
+        "m1", runtime.model.curie(":MessageShape"), {"content": "x"}, correlation_key="c1", status="complete"
+    )
+    runtime.store.put_entity(
+        "m2",
+        runtime.model.curie(":MessageShape"),
+        {"content": "y", "status": "streaming"},
+        correlation_key="c1",
+        status="complete",
+    )
     rows = runtime.query(":MessageShape", conversation="c1")
     ctx = runtime.fragments.context("message_thread.html", rows)
-    assert [(m["id"], m["content"], m["status"]) for m in ctx["messages"]] == \
-        [("m1", "x", "complete"), ("m2", "y", "streaming")]  # payload status wins
+    assert [(m["id"], m["content"], m["status"]) for m in ctx["messages"]] == [
+        ("m1", "x", "complete"),
+        ("m2", "y", "streaming"),
+    ]  # payload status wins
     assert ctx["message_state"] == "streaming"
     assert flatten({"content": "plain"}) == {"content": "plain"}
 
 
 def test_extra_params_reach_template_and_win(runtime):
-    out = _html(runtime.render_fragment("message_thread_item.html", {"content": "hi"},
-                                        extra="E", message_state="override"))
+    out = _html(
+        runtime.render_fragment("message_thread_item.html", {"content": "hi"}, extra="E", message_state="override")
+    )
     assert out == "<li>hi|||override|E</li>"
 
 
@@ -106,8 +114,9 @@ def test_html_is_escaped(runtime):
     assert "&lt;script&gt;x&lt;/script&gt;" in out
 
 
-@pytest.mark.parametrize("name", ["../etc/passwd.html", "nope.html", "nope_item.html",
-                                  "/etc/passwd", "message_thread/../../x.html", ""])
+@pytest.mark.parametrize(
+    "name", ["../etc/passwd.html", "nope.html", "nope_item.html", "/etc/passwd", "message_thread/../../x.html", ""]
+)
 def test_unknown_name_raises_without_reading_files(runtime, monkeypatch, name):
     opened = []
     real_open = builtins.open
@@ -124,6 +133,7 @@ def test_unknown_name_raises_without_reading_files(runtime, monkeypatch, name):
 def test_component_without_template_file_raises_template_not_found(runtime, templates):
     (templates / "conversation_list.html").unlink()
     import jinja2
+
     with pytest.raises(jinja2.TemplateNotFound):
         runtime.render_fragment("conversation_list.html", [])
 

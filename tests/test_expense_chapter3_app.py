@@ -21,13 +21,14 @@ if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
 from expense_app import commands  # noqa: E402
-from seams_runtime.host import build_app  # noqa: E402
 from test_generated_outputs_current import (  # noqa: E402
     HAND_WRITTEN,
     assert_current,
     committed_files,
     regenerate,
 )
+
+from seams_runtime.host import build_app  # noqa: E402
 
 CHAPTER = ROOT / "examples" / "expenses" / "chapter-03"
 TRIG = CHAPTER / "expenses.trig"
@@ -44,13 +45,13 @@ VALID = {"description": "Train to Leeds", "amount": "42.50", "date": "2026-10-01
 
 
 def test_route_module_is_current(tmp_path):
-    assert_current(regenerate("fastapi", TRIG, tmp_path), committed_files(GENERATED, HAND_WRITTEN),
-                   GENERATED, COMMANDS["fastapi"])
+    assert_current(
+        regenerate("fastapi", TRIG, tmp_path), committed_files(GENERATED, HAND_WRITTEN), GENERATED, COMMANDS["fastapi"]
+    )
 
 
 def test_templates_are_current(tmp_path):
-    assert_current(regenerate("htmx", TRIG, tmp_path), committed_files(TEMPLATES),
-                   TEMPLATES, COMMANDS["htmx"])
+    assert_current(regenerate("htmx", TRIG, tmp_path), committed_files(TEMPLATES), TEMPLATES, COMMANDS["htmx"])
 
 
 def test_generated_readme_names_the_regenerate_commands():
@@ -90,16 +91,19 @@ def test_landmark_page_has_the_form(client):
     assert '<li class="expense">' not in r.text
 
 
-@pytest.mark.parametrize("data, paths", [
-    ({**VALID, "description": ""}, ["description"]),
-    ({**VALID, "amount": "-5"}, ["amount"]),
-    ({**VALID, "description": "", "amount": "-5"}, ["amount", "description"]),
-    ({**VALID, "amount": "0"}, ["amount"]),
-    ({**VALID, "date": "yesterday"}, ["date"]),
-    ({**VALID, "amount": "lots"}, ["amount"]),
-    ({**VALID, "approved": "yes"}, ["approved"]),
-], ids=["empty-description", "negative-amount", "both", "zero-amount", "bad-date", "bad-amount",
-        "unknown-field"])
+@pytest.mark.parametrize(
+    "data, paths",
+    [
+        ({**VALID, "description": ""}, ["description"]),
+        ({**VALID, "amount": "-5"}, ["amount"]),
+        ({**VALID, "description": "", "amount": "-5"}, ["amount", "description"]),
+        ({**VALID, "amount": "0"}, ["amount"]),
+        ({**VALID, "date": "yesterday"}, ["date"]),
+        ({**VALID, "amount": "lots"}, ["amount"]),
+        ({**VALID, "approved": "yes"}, ["approved"]),
+    ],
+    ids=["empty-description", "negative-amount", "both", "zero-amount", "bad-date", "bad-amount", "unknown-field"],
+)
 def test_invalid_input_is_rejected_naming_the_path(client, data, paths):
     c, runtime = client
     r = c.post("/expenses", data=data)

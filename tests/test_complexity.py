@@ -27,8 +27,9 @@ NOTATIONS = ["BPMN", "C4", "DMN", "IFML", "ShapeGraph", "Statechart"]
 
 
 def _cli(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, "-m", "seams_gen.complexity", *args],
-                          cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, "-m", "seams_gen.complexity", *args], cwd=ROOT, capture_output=True, text=True
+    )
 
 
 def test_thresholds():
@@ -75,8 +76,12 @@ def test_expense_chapter_8_scores_4_6_111_and_passes():
     both processes, both decisions and the finance console)."""
     r = measure(load_model(EXPENSES))
     assert r.models_per_notation == [
-        (SEAM + "BPMN", 2), (SEAM + "DMN", 2), (SEAM + "IFML", 2), (SEAM + "Statechart", 2),
-        (SEAM + "C4", 1), (SEAM + "ShapeGraph", 1),
+        (SEAM + "BPMN", 2),
+        (SEAM + "DMN", 2),
+        (SEAM + "IFML", 2),
+        (SEAM + "Statechart", 2),
+        (SEAM + "C4", 1),
+        (SEAM + "ShapeGraph", 1),
     ]
     assert r.multi_model_notations == 4
     ex = "https://example.org/expenses/"
@@ -110,15 +115,17 @@ def test_ontology_is_not_loaded():
     assert not any(str(p) == SEAM + "reveal" for p in g.predicates())
 
 
-PASSING = """\
+PASSING = (
+    """\
 @prefix seam: <https://w3id.org/seams/seam#> .
 @prefix : <https://example.org/t/> .
 
 :seams {
-""" + "".join(
-    f"  :{n.lower()}{i} a seam:Model ; seam:notation seam:{n} .\n"
-    for n in ("BPMN", "IFML", "C4") for i in (1, 2)
-) + """}
+"""
+    + "".join(
+        f"  :{n.lower()}{i} a seam:Model ; seam:notation seam:{n} .\n" for n in ("BPMN", "IFML", "C4") for i in (1, 2)
+    )
+    + """}
 
 :bpmn1 { :a1 seam:inModel :bpmn1 ; seam:writes :Target . }
 :bpmn2 { :a2 seam:inModel :bpmn2 ; seam:writes :Target . }
@@ -126,6 +133,7 @@ PASSING = """\
 :ifml2 { :a4 seam:inModel :ifml2 ; seam:writes :Target . }
 :c41   { :a5 seam:inModel :c41 ; seam:writes :Target . }
 """
+)
 
 
 @pytest.fixture

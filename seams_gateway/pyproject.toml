@@ -1,0 +1,14 @@
+# Virtual workspace member (D033): declares dependencies only; the package
+# itself resolves from the repository root and is never built or installed.
+[project]
+name = "semanticseams-gateway"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+package = false

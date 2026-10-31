@@ -133,7 +133,7 @@
                               deploy:version "local" ;
                               deploy:build [ a deploy:Build ;
                                              deploy:context "../../.." ;
-                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+                                             deploy:dockerfile "examples/expenses/chapter-09/generated/expense_api.Dockerfile" ] ] ;
             deploy:configuration [ a deploy:Configuration ;
                 deploy:binding [ deploy:key "DATABASE_URL" ;
                                  deploy:secretFile "../../../docker/local-secrets/expense_database_url" ;

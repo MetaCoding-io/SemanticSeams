@@ -38,9 +38,10 @@ runtime at them (D018). When an operation that container exposes is
 ``seam:implementedBy`` a ``comm:PythonHandler`` (ADR-0012), the handlers
 package beside the TriG is bind-mounted read-only at /model/handlers too,
 where the runtime's default looks for it. It gets the runtime's /healthz
-probe unless the model states a healthcheck, the SEAMS_APP_DIR and
-SEAMS_ROUTES_FILE build arguments when it is built, and at most one replica
-until backlog A10, with a comment naming the declared count.
+probe unless the model states a healthcheck, and at most one replica until
+backlog A10, with a comment naming the declared count. Its build takes no
+arguments: the Dockerfile the model names is the one ``seams_gen.dockerfile``
+generates, with the app's paths written literally.
 
 Bind sources, build contexts and secret files are relative to ``base_dir``,
 the directory the compose file is written to; the model states them relative
@@ -76,7 +77,7 @@ from seams import (
 
 from . import GeneratorError
 from ._views import optional, required, view_errors
-from .fastapi import route_file_name, serving_containers
+from .fastapi import serving_containers
 from .htmx import _environment
 from .stubs import DEFAULT_HANDLERS
 
@@ -116,7 +117,6 @@ class Healthcheck:
 class Build:
     context: str  # YAML scalar, relative to base_dir
     dockerfile: str | None  # YAML scalar, relative to the context
-    args: tuple[tuple[str, str], ...]  # (name, YAML scalar)
 
 
 @dataclass(frozen=True)
@@ -368,7 +368,7 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
 
     build = None
     if artifact.build is not None:
-        build = _build(ctx, c, artifact.build, serving)
+        build = _build(ctx, artifact.build)
 
     command = None
     if proxied is not None:
@@ -414,19 +414,12 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
     )
 
 
-def _build(ctx: _Context, c: Container, build, serving: bool) -> Build:
-    """The build section: the context relative to ``base_dir`` and, for the
-    serving container, the app directory (the model file's directory,
-    relative to the context) and its route module as build arguments."""
-    args: list[tuple[str, str]] = []
-    if serving:
-        context_dir = ctx.model.path.parent / build.context
-        app_dir = Path(os.path.relpath(ctx.model.path.parent.resolve(), context_dir.resolve())).as_posix()
-        args = [("SEAMS_APP_DIR", _scalar(app_dir)), ("SEAMS_ROUTES_FILE", _scalar(route_file_name(c.iri)))]
+def _build(ctx: _Context, build) -> Build:
+    """The build section: the context relative to ``base_dir`` and the
+    Dockerfile relative to the context, as the model states it."""
     return Build(
         context=_scalar(_model_path(ctx.model, build.context, ctx.base_dir)),
         dockerfile=None if build.dockerfile is None else _scalar(build.dockerfile),
-        args=tuple(args),
     )
 
 

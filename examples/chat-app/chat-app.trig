@@ -80,7 +80,7 @@
                               deploy:version "local" ;
                               deploy:build [ a deploy:Build ;
                                              deploy:context "../.." ;
-                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+                                             deploy:dockerfile "examples/chat-app/generated/chat_api.Dockerfile" ] ] ;
             deploy:configuration [ a deploy:Configuration ;
                 deploy:binding [ deploy:key "DB_URL" ;
                                  deploy:secretFile "../../docker/local-secrets/db_url" ;

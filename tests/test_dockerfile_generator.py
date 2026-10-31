@@ -27,7 +27,7 @@ DEPLOY = "https://w3id.org/seams/deploy#"
 RUNTIME_BUILD = """
                               deploy:build [ a deploy:Build ;
                                              deploy:context "../.." ;
-                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;"""
+                                             deploy:dockerfile "examples/chat-app/generated/chat_api.Dockerfile" ] ] ;"""
 
 
 @pytest.mark.parametrize(
@@ -110,10 +110,19 @@ def test_a_model_without_a_serving_container_names_seam_executes(tmp_path):
 def test_a_build_context_outside_the_model_directory_names_deploy_context(tmp_path):
     trig = _chat_copy(
         tmp_path,
-        'deploy:context "../.." ;\n                                             deploy:dockerfile "docker/runtime',
-        'deploy:context "../../elsewhere" ;\n                                             deploy:dockerfile "docker/runtime',
+        'deploy:context "../.." ;\n                                             deploy:dockerfile "examples/chat-app/',
+        'deploy:context "../../elsewhere" ;\n                                             deploy:dockerfile "examples/chat-app/',
     )
     with pytest.raises(GeneratorError) as err:
         extract_dockerfile(load(trig))
     assert err.value.subject == "https://example.org/chat/chat_api"
     assert err.value.predicate == DEPLOY + "context"
+
+
+@pytest.mark.parametrize("trig", [CHAT, CHAPTER_09], ids=["chat", "ch09"])
+def test_the_model_builds_the_committed_generated_dockerfile(trig):
+    d = extract_dockerfile(load(trig))
+    context = trig.parent / d.context
+    committed = context / d.dockerfile
+    assert committed.is_file()
+    assert committed.read_text(encoding="utf-8") == generate_dockerfiles(trig)[committed.name]

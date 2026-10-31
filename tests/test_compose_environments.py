@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 DEVELOPMENT = "compose.development.yaml"
 PRODUCTION = "compose.production.yaml"
-DOCKERFILE = ROOT / "docker" / "runtime.Dockerfile"
+DOCKERFILE = ROOT / "examples" / "chat-app" / "generated" / "chat_api.Dockerfile"
 
 
 def _compose_available() -> bool:
@@ -97,7 +97,7 @@ def test_root_holds_one_generated_file_per_environment():
 
 def test_chat_api_is_built_locally_with_one_replica(dev):
     api = dev["services"]["chat_api"]
-    assert api["build"]["dockerfile"] == "docker/runtime.Dockerfile"
+    assert api["build"]["dockerfile"] == "examples/chat-app/generated/chat_api.Dockerfile"
     assert Path(api["build"]["context"]) == ROOT
     assert api["pull_policy"] == "build"
     assert api["deploy"]["replicas"] == 1
@@ -109,31 +109,17 @@ def test_chat_api_is_built_locally_with_one_replica(dev):
     assert "chat_api_data" not in dev.get("volumes", {})
 
 
-def test_runtime_build_args_name_the_chat_app(dev):
-    # The generator derives these from the model's directory and route module,
-    # so another app's generated file names its own (no host knob needed).
-    args = dev["services"]["chat_api"]["build"]["args"]
-    assert args == {"SEAMS_APP_DIR": "examples/chat-app", "SEAMS_ROUTES_FILE": "chat_api.py"}
+def test_runtime_build_has_no_args(dev):
+    # The generated Dockerfile writes the app's paths literally (M016/S03).
+    assert "args" not in dev["services"]["chat_api"]["build"]
 
 
-def test_runtime_dockerfile_names_the_chat_app_only_as_the_arg_default():
+def test_runtime_dockerfile_copies_the_chat_app_literally():
     lines = DOCKERFILE.read_text(encoding="utf-8").splitlines()
-    assert "ARG SEAMS_APP_DIR=examples/chat-app" in lines
-    assert "ARG SEAMS_ROUTES_FILE=chat_api.py" in lines
-    hard_coded = [line for line in lines if "examples/chat-app/" in line]
-    assert hard_coded == [], hard_coded
-    # chat_api.py may appear only as the ARG default, never in a COPY or ENV line
-    assert [line for line in lines if "chat_api.py" in line] == ["ARG SEAMS_ROUTES_FILE=chat_api.py"]
-
-
-def test_runtime_dockerfile_declares_args_before_use():
-    lines = DOCKERFILE.read_text(encoding="utf-8").splitlines()
-    arg_at = max(i for i, line in enumerate(lines) if line.startswith("ARG SEAMS_"))
-    copies = [i for i, line in enumerate(lines) if line.startswith("COPY ${SEAMS_APP_DIR}")]
-    assert len(copies) == 3
-    assert all(arg_at < i for i in copies)
-    routes_env = next(i for i, line in enumerate(lines) if "SEAMS_ROUTES=/app/${SEAMS_ROUTES_FILE}" in line)
-    assert arg_at < routes_env
+    assert not any(line.startswith("ARG ") for line in lines)
+    assert "COPY examples/chat-app/generated/chat_api.py /app/chat_api.py" in lines
+    assert "COPY examples/chat-app/generated/templates /app/templates" in lines
+    assert "COPY examples/chat-app/seed.json /app/seed.json" in lines
 
 
 def test_runtime_dockerfile_no_longer_mentions_the_override():

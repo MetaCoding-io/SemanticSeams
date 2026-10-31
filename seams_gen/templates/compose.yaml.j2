@@ -15,12 +15,6 @@ services:
 [% if s.build.dockerfile %]
       dockerfile: [[ s.build.dockerfile ]]
 [% endif %]
-[% if s.build.args %]
-      args:
-[% for key, value in s.build.args %]
-        [[ key ]]: [[ value ]]
-[% endfor %]
-[% endif %]
     pull_policy: build
 [% endif %]
 [% if s.command %]

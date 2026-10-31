@@ -1,4 +1,5 @@
 """The docs embed the derived sequence goldens by snippet import, never by copy (M013/S03, D048)."""
+
 from __future__ import annotations
 
 import re

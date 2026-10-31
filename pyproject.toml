@@ -7,8 +7,9 @@ members = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "vie
 
 [dependency-groups]
 # pyyaml and httpx are imported only by the tests; types-lxml types the seams
-# library for pyright; the members supply the rest.
-dev = ["pytest>=8.0", "pyyaml>=6.0", "httpx>=0.27", "ruff", "pyright", "types-lxml"]
+# library for pyright; opentelemetry-sdk lets the telemetry tests record real
+# spans; the members supply the rest.
+dev = ["pytest>=8.0", "pyyaml>=6.0", "httpx>=0.27", "ruff", "pyright", "types-lxml", "opentelemetry-sdk>=1.27"]
 
 [tool.pytest.ini_options]
 # The four existing members are virtual (not installed); their packages

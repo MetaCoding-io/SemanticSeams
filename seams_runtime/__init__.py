@@ -28,6 +28,7 @@ from .policy import (
 )
 from .runtime import Runtime
 from .store import PostgresStore, SQLiteStore, Store
+from .telemetry import Telemetry, tracer_from_env
 from .worker import Instance, Worker
 
 __version__ = "0.1.0"  # must equal [project].version in seams_runtime/pyproject.toml
@@ -59,9 +60,11 @@ __all__ = [
     "StaticUserAuthenticator",
     "Store",
     "TaskNotOpen",
+    "Telemetry",
     "Worker",
     "__version__",
     "authenticator_from_env",
     "model_hash",
+    "tracer_from_env",
     "validate",
 ]

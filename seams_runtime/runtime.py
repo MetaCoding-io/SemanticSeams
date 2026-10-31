@@ -36,6 +36,10 @@ identity may complete, ``complete_task`` checks the task's policies,
 validates the payload against its output shape and completes it on the
 waiting instance (then the worker continues), and ``task_policy`` is the
 FastAPI dependency for a completion route.
+
+Tracing (D049): ``telemetry=`` injects a ``Telemetry`` (tests); otherwise
+``tracer_from_env()`` builds one, a no-op unless ``OTEL_EXPORTER_OTLP_ENDPOINT``
+is set and the otel extra is installed (``seams_runtime.telemetry``).
 """
 
 from __future__ import annotations
@@ -60,6 +64,7 @@ from .llm import LLMClient
 from .model import DEPLOY, ModelGraph, local_name
 from .policy import Identity, PolicyHook, authenticator_from_env
 from .store import PostgresStore, SQLiteStore, Store
+from .telemetry import Telemetry, tracer_from_env
 from .worker import RUNNING, Instance, Worker, new_state
 
 log = logging.getLogger(__name__)
@@ -112,6 +117,7 @@ class Runtime:
         templates_dir=None,
         store_plan=None,
         store_override: bool = False,
+        telemetry: Telemetry | None = None,
     ):
         self.model = model
         self.store = store
@@ -124,7 +130,9 @@ class Runtime:
             model, authenticator if authenticator is not None else authenticator_from_env(), evaluator
         )
         self.llm = llm if llm is not None else LLMClient()
-        self.worker = Worker(model, self.engine, store, self.bus, self.guard, self.llm)
+        # OpenTelemetry spans (D049): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set
+        self.telemetry = telemetry if telemetry is not None else tracer_from_env()
+        self.worker = Worker(model, self.engine, store, self.bus, self.guard, self.llm, self.telemetry)
         self.worker.on_published = self._on_published
         self.instances: dict[str, Instance] = {}
         self._task_locks: dict[str, asyncio.Lock] = {}
@@ -147,6 +155,7 @@ class Runtime:
         llm_base_url: str | None = None,
         templates_dir=None,
         store: Store | None = None,
+        telemetry: Telemetry | None = None,
     ) -> Runtime:
         override = os.environ.get(MODEL_ENV)
         if override:
@@ -203,6 +212,7 @@ class Runtime:
             templates_dir=templates_dir,
             store_plan=plan,
             store_override=override,
+            telemetry=telemetry,
         )
         log.info(
             "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",

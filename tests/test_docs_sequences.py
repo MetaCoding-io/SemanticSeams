@@ -11,7 +11,10 @@ DOCS = ROOT / "docs"
 SNIPPET = re.compile(r"^<<< @/(generation/sequences/\S+\.mmd)\{mermaid\}$", re.MULTILINE)
 
 PAGES = {
-    "concepts/diagrams-are-views.md": ["generation/sequences/chat-app/send_message.mmd"],
+    "concepts/diagrams-are-views.md": [
+        "generation/sequences/chat-app/send_message.mmd",
+        "generation/sequences/chat-app/send_message.executed.mmd",
+    ],
     "tutorial.md": ["generation/sequences/chat-app/send_message.mmd"],
     "tutorials/expenses/08-growing-up.md": [
         "generation/sequences/expenses/submit_expense--auto.mmd",

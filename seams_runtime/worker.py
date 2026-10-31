@@ -61,6 +61,11 @@ is completed) and applies these rules to each BPMN element, in this order:
 The worker's own state (current entities, statuses, decision outputs and a
 trace row per element) lives in ``workflow.data["seams"]``, which Spiff
 serializes with the workflow.
+
+Telemetry (D049, ``seams_runtime.telemetry``): each ``run`` (and each
+``complete_user_task``) is one instance span, and each BPMN element one
+child span whose attributes are read from its finished trace row; rule 7
+marks the instance span ERROR. The default ``Telemetry()`` is a no-op.
 """
 
 from __future__ import annotations
@@ -76,6 +81,7 @@ from SpiffWorkflow.util.task import TaskState
 from .contracts import validate
 from .errors import ResolutionError, RuntimeModelError
 from .model import SEAM, ModelGraph
+from .telemetry import Telemetry
 
 log = logging.getLogger(__name__)
 
@@ -124,13 +130,14 @@ class Instance:
 
 
 class Worker:
-    def __init__(self, model: ModelGraph, engine, store, bus, guard, llm):
+    def __init__(self, model: ModelGraph, engine, store, bus, guard, llm, telemetry: Telemetry | None = None):
         self.model = model
         self.engine = engine
         self.store = store
         self.bus = bus
         self.guard = guard
         self.llm = llm
+        self.telemetry = telemetry if telemetry is not None else Telemetry()
         # Set by Runtime: called as on_published(instance, channel IRI) after
         # rule 6 publishes; returns [{process, instance}] for the trace row.
         self.on_published = None
@@ -138,6 +145,10 @@ class Worker:
     # ── the loop ──
 
     async def run(self, instance: Instance) -> dict:
+        with self.telemetry.instance_span(instance) as span:
+            return await self._run(instance, span)
+
+    async def _run(self, instance: Instance, span) -> dict:
         wf = instance.workflow
         try:
             while True:
@@ -152,7 +163,7 @@ class Worker:
                     self._checkpoint(instance, STOPPED)
                     return self._finish(instance, STOPPED)
         except Exception as exc:  # noqa: BLE001 - every failure ends the instance as failed
-            self._fail(instance, exc)
+            self._fail(instance, exc, span)
             return self._finish(instance, FAILED)
         status = COMPLETE if wf.is_completed() else WAITING
         self._checkpoint(instance, status)
@@ -190,7 +201,8 @@ class Worker:
         task = tasks[0]
         instance.state["current"][str(shape)] = {"id": None, "data": dict(payload)}
         task.data.update(payload)
-        await self._element(instance, task, by=by)
+        with self.telemetry.instance_span(instance):
+            await self._element(instance, task, by=by)
         self._checkpoint(instance, RUNNING)
 
     def _is_stop(self, instance: Instance, task) -> bool:
@@ -215,6 +227,13 @@ class Worker:
         if by is not None:
             row["by"] = by
         log.info("instance %s: %s%s", instance.id, bpmn_id, "" if by is None else f" (by {by})")
+        with self.telemetry.element_span(instance, row):
+            await self._dispatch(instance, task, iri, row)
+        st["trace"].append(row)
+
+    async def _dispatch(self, instance: Instance, task, iri, row: dict) -> None:
+        """Rules 1-6 for one graph element, filling its trace ``row``."""
+        st = instance.state
 
         # 1. the fired transition must be enabled
         element = self.model.task_element(iri)
@@ -273,7 +292,6 @@ class Worker:
                 started = self.on_published(instance, ch.iri)
                 if started:
                     row["started"] = started
-        st["trace"].append(row)
 
     def _read_entity(self, iri, st) -> dict | None:
         for shape in self.model.read_shapes(iri):
@@ -388,7 +406,7 @@ class Worker:
             cur = cur.__cause__ or cur.__context__
         return exc
 
-    def _fail(self, instance: Instance, exc: Exception) -> None:
+    def _fail(self, instance: Instance, exc: Exception, span=None) -> None:
         st = instance.state
         exc = self._model_error(exc)
         log.error("instance %s failed: %s", instance.id, exc, exc_info=not isinstance(exc, RuntimeModelError))
@@ -397,6 +415,8 @@ class Worker:
             if isinstance(exc, RuntimeModelError)
             else {"type": type(exc).__name__, "message": str(exc), "http_status": 500}
         )
+        if span is not None:
+            span.error(st["error"].get("type") or type(exc).__name__, st["error"].get("message") or str(exc))
         for shape, current in list(st["status"].items()):
             try:
                 tr = self.guard.on_error(shape, current)

@@ -33,7 +33,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
@@ -230,6 +230,39 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 | `SEAMS_ROUTES` | Route module the host serves when `--routes` is not given. The default is `/app/chat_api.py`. |
 | `SEAMS_SEED` | Optional seed JSON the host writes into the store on startup. |
 | `LLM_GATEWAY_URL` | Base URL of `:llm_gateway`. The name comes from `:chat_api`'s `deploy:binding` with `deploy:serviceOf :llm_gateway`. `llm_base_url=` overrides it. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Turns on OpenTelemetry spans (see [Tracing](#tracing-opentelemetry)). Unset or empty, tracing is off. |
+| `OTEL_SERVICE_NAME` | The `service.name` resource of the spans. The default is `seams-runtime`. |
+
+## Tracing (OpenTelemetry)
+
+The runtime can emit OpenTelemetry spans whose attributes are graph element IRIs
+(`seams_runtime/telemetry.py`, decision D049). It is off by default: with
+`OTEL_EXPORTER_OTLP_ENDPOINT` unset or empty, `tracer_from_env()` returns a no-op
+`Telemetry` and nothing imports opentelemetry.
+
+With the endpoint set, the `otel` extra must be installed. In this workspace that is
+
+```sh
+uv sync --all-packages --extra otel
+```
+
+(the extra pulls in `opentelemetry-sdk` and `opentelemetry-exporter-otlp-proto-http`; a
+plain `uv sync --all-packages` removes them again). When the extra is missing, `load`
+logs one WARNING (`OTEL_EXPORTER_OTLP_ENDPOINT is set but opentelemetry-sdk is not
+installed; install the seams_runtime otel extra`) and runs without tracing. Otherwise it
+logs an INFO line naming the endpoint and exports in batches over OTLP/HTTP. The exporter
+reads the standard `OTEL_EXPORTER_OTLP_*` variables (headers, timeout, a separate
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`). The runtime uses its own `TracerProvider` and
+never sets the global one.
+
+| Span | Name | Attributes |
+|---|---|---|
+| Instance: one per worker run. A resumed instance or a user-task completion is another instance span with the same instance id. | the process's local name, for example `send_message_process` | `seams.process.iri`, `seams.instance.id`, `seams.correlation_key`. A failed instance has status ERROR described by the error type, plus `seams.error.type` and `seams.error.message`. |
+| Element: a child of the instance span for each BPMN element, one per trace row | the bpmn id, for example `invoke_llm` | The instance attributes, `seams.element.iri` and `bpmn.id`, and, when the trace row has them, `seams.fires`, `seams.decision`, `seams.invokes`, `seams.container`, `seams.channel` (from `streamed` or `published`), `seams.status` and `seams.by`. An element that raises records the exception and has status ERROR. |
+
+The attributes are read from the finished trace row when the span ends. The trace rows
+in the checkpointed workflow stay the record of a run: `seams sequence :event --trace
+<instance>` renders them, not the spans.
 
 ## Deferred
 

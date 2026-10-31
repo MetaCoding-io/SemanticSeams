@@ -22,6 +22,11 @@ dependencies = [
     "psycopg[binary]>=3.2",
 ]
 
+[project.optional-dependencies]
+# OpenTelemetry spans with element IRIs, emitted only when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set (D049; seams_runtime/telemetry.py)
+otel = ["opentelemetry-sdk>=1.27", "opentelemetry-exporter-otlp-proto-http>=1.27"]
+
 [tool.uv]
 package = false
 

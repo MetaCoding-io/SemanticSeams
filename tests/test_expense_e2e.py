@@ -4,12 +4,13 @@ Runs only with SEAMS_E2E=1 (CI's tutorial-e2e job); the normal suite stays
 docker-free. With SEAMS_E2E=1 nothing skips: a missing docker CLI or a stack
 that does not come up healthy is a failure.
 
-The stack is examples/expenses/chapter-08's generated compose.yaml merged with
+The stack is examples/expenses/chapter-09's generated compose.yaml merged with
 its hand-written compose.override.yaml (project seams-expenses, so it never
 collides with the chat app's stack). Caddy passes X-Forwarded-User and
 X-Forwarded-Groups through to the runtime's HeaderAuthenticator, so each
 request says who makes it. The flow is the tutorial's: the employee submits,
-the manager approves through the generated form route, finance pays, and the
+the hand-written notify handler (chapter 9, ADR-0012) stores a notification
+for the manager, the manager approves through the generated form route, finance pays, and the
 channel-started payout process (ADR-0010) runs on its own until the finance
 console's /payouts page shows the payment in its final state and the expense
 paid. On any failure the module prints ``docker compose logs``; teardown
@@ -28,13 +29,14 @@ import pytest
 from seams_cli.__main__ import main as seams_main
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / "examples" / "expenses" / "chapter-08"
+APP = ROOT / "examples" / "expenses" / "chapter-09"
 FILES = ["-f", str(APP / "compose.yaml"), "-f", str(APP / "compose.override.yaml")]
 PROJECT = "seams-expenses"
 BASE = "http://localhost:8080"
 UP_TIMEOUT = 300  # seconds: image build plus healthchecks on a cold runner
 POLL_TIMEOUT = 30
 EXPENSE_SHAPE = "https://example.org/expenses/ExpenseShape"
+NOTIFICATION_SHAPE = "https://example.org/expenses/NotificationShape"
 EXPENSE_DB = "https://example.org/expenses/expense_db"
 # docker compose arguments for a psql query against the declared store
 # (chapter 8 shows the same command; tests/test_expense_tutorial_doc.py checks)
@@ -167,6 +169,9 @@ def test_submit_approve_pay_runs_the_payout(stack):
     assert r.status_code == 200, r.text
     # ExpenseShape seam:storedIn :expense_db: the submitted expense is a row there.
     _until_stored(key, EXPENSE_SHAPE)
+    # 250 routes to the manager, so the notify task ran the hand-written handler
+    # from the bind-mounted handlers/ package and stored its NotificationShape.
+    _until_stored(key, NOTIFICATION_SHAPE)
 
     r = _post_when_open(stack, f"/expenses/{key}/approval", {"decision": "approved"}, BOB)
     assert r.status_code == 200, r.text

@@ -1,12 +1,13 @@
-"""The expense tutorial's chapter-08 compose file is current (M009/S07/T03).
+"""The expense tutorial's chapter-09 compose file is current (M009/S07/T03).
 
-examples/expenses/chapter-08/compose.yaml is generated from the checkpoint's
-deploy facts by ``seams generate --project examples/expenses/chapter-08``
+examples/expenses/chapter-09/compose.yaml is generated from the checkpoint's
+deploy facts by ``seams generate --project examples/expenses/chapter-09``
 (its seams.toml names the compose generator) and committed; tests/test_expense_e2e.py brings it up with the hand-written
 compose.override.yaml. This checks the committed file equals a fresh run, so
 a model edit that changes the model hash (or a deploy fact) cannot leave a
 stale compose file behind, and that the bind mounts are the TriG plus its
-four payloads, relative to the chapter directory.
+four payloads and the handlers package (a comm:PythonHandler implements
+:notify_manager_op, ADR-0012), relative to the chapter directory.
 """
 
 import difflib
@@ -22,9 +23,9 @@ if str(ROOT) not in sys.path:
 from seams_gen import generate_compose  # noqa: E402
 from seams_runtime import ModelGraph  # noqa: E402
 
-APP = ROOT / "examples" / "expenses" / "chapter-08"
+APP = ROOT / "examples" / "expenses" / "chapter-09"
 TRIG = APP / "expenses.trig"
-COMMAND = "seams generate --project examples/expenses/chapter-08"
+COMMAND = "seams generate --project examples/expenses/chapter-09"
 
 
 def test_committed_compose_file_is_current():
@@ -42,8 +43,9 @@ def test_compose_file_mounts_the_model_and_its_payloads():
     api = services["expense_api"]
     assert api["volumes"] == [
         f"./{name}:/model/{name}:ro"
-        for name in ("expenses.trig", "approval.bpmn", "approval.dmn", "payout.bpmn", "payout.dmn")
+        for name in ("expenses.trig", "approval.bpmn", "approval.dmn", "handlers", "payout.bpmn", "payout.dmn")
     ]
+    assert (APP / "handlers" / "__init__.py").is_file()
     assert api["environment"]["SEAMS_MODEL"] == "/model/expenses.trig"
     assert api["environment"]["SEAMS_MODEL_HASH"] == ModelGraph.load(TRIG).hash
     assert services["employee_portal"]["ports"] == ["8080:8000"]
@@ -83,12 +85,12 @@ for _tag in ("!override", "!reset"):
     )
 
 
-def test_override_builds_chapter_8_into_the_runtime_image():
+def test_override_builds_chapter_9_into_the_runtime_image():
     override = yaml.load((APP / "compose.override.yaml").read_text(encoding="utf-8"), Loader=_OverrideLoader)
     assert override["name"] == "seams-expenses"
     build = override["services"]["expense_api"]["build"]
     assert (APP / build["context"]).resolve() == ROOT
-    assert build["args"] == {"SEAMS_APP_DIR": "examples/expenses/chapter-08", "SEAMS_ROUTES_FILE": "expense_api.py"}
+    assert build["args"] == {"SEAMS_APP_DIR": "examples/expenses/chapter-09", "SEAMS_ROUTES_FILE": "expense_api.py"}
     assert (ROOT / build["args"]["SEAMS_APP_DIR"] / "generated" / build["args"]["SEAMS_ROUTES_FILE"]).is_file()
     # no static dev user: identities (and so roles) come from the request headers
     assert "SEAMS_DEV_USER" not in str(override)

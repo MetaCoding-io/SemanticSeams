@@ -4,13 +4,14 @@
 #   docker build -f docker/runtime.Dockerfile \
 #     --build-arg SEAMS_APP_DIR=examples/other-app --build-arg SEAMS_ROUTES_FILE=other_api.py .
 # The second app is the expense tutorial's last checkpoint: its
-# examples/expenses/chapter-08/compose.override.yaml builds this image with
-# SEAMS_APP_DIR=examples/expenses/chapter-08 and SEAMS_ROUTES_FILE=expense_api.py.
+# examples/expenses/chapter-09/compose.override.yaml builds this image with
+# SEAMS_APP_DIR=examples/expenses/chapter-09 and SEAMS_ROUTES_FILE=expense_api.py.
 # The app dir must hold generated/<routes file>, generated/templates/ and seed.json;
 # the seed file is required, so an app without seed data commits a seed.json of `{}`.
-# The model (the TriG plus its BPMN/DMN payloads) is not baked in: the generated
-# compose file bind-mounts it read-only at /model and SEAMS_MODEL names the TriG
-# the runtime loads.
+# The model (the TriG plus its BPMN/DMN payloads, and the handlers/ package of
+# hand-written code when a comm:PythonHandler needs it, ADR-0012) is not baked
+# in: the generated compose file bind-mounts it read-only at /model and
+# SEAMS_MODEL names the TriG the runtime loads.
 # Dependencies come from uv.lock: the semanticseams-runtime workspace member's
 # locked set, without the dev group, installed into /opt/venv, including the
 # semanticseams library (packages/seams) that the runtime builds on.

@@ -52,6 +52,7 @@ jobs:
             examples/expenses/chapter-06
             examples/expenses/chapter-07
             examples/expenses/chapter-08
+            examples/expenses/chapter-09
 
   # docs/tutorial.md end to end: build and start the compose stack (gateway in
   # stub mode), chat through the generated page and routes, then tear it down.

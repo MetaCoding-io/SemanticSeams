@@ -14,7 +14,10 @@ a ``proc:UserTask`` ``seam:completedOn``, ``runtime.complete_task`` the task
 as the identity its ``task_policy`` dependency yields, ADR-0009), query the
 returned shape and render the fragment the GAP-19 rule names. Nothing else:
 no branching, no domain names. A channel-started process (ADR-0010) gets no
-route: the runtime starts it when its channel is published on. Every collection is sorted by IRI, and a missing or ambiguous
+route: the runtime starts it when its channel is published on. Nor does an
+exposed operation that a task of an executed process ``seam:invokes`` and no
+``ifml:Event`` ``seam:submitsTo`` (a ``comm:PythonHandler``'s operation,
+ADR-0012): the worker serves it in-process, and the module header says so. Every collection is sorted by IRI, and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
 """
 
@@ -145,6 +148,7 @@ class RouteModule:
     system: str  # curie of the arch:System that arch:contains the container
     exposes: tuple[str, ...]
     not_routed: tuple[NotRouted, ...]
+    invoked_only: tuple[str, ...]  # curies of exposed operations only a task invokes (not routed)
     endpoints: tuple[Endpoint, ...]
 
     @property
@@ -206,6 +210,7 @@ def _module(model: Model, container: Container) -> RouteModule:
     processes = container.executes
     triggered = _triggered(model, processes)
     exposed = container.exposes
+    invoked_only = _invoked_only(model, container, processes)
     return RouteModule(
         file_name=f"{local_name(container.iri)}.py",
         id=local_name(container.iri),
@@ -213,7 +218,8 @@ def _module(model: Model, container: Container) -> RouteModule:
         system=model.compact(systems[0].iri),
         exposes=tuple(model.compact(e.iri) for e in exposed),
         not_routed=_not_routed(model, container, processes),
-        endpoints=tuple(_endpoint(model, e, triggered) for e in exposed),
+        invoked_only=tuple(model.compact(e.iri) for e in exposed if e.iri in invoked_only),
+        endpoints=tuple(_endpoint(model, e, triggered) for e in exposed if e.iri not in invoked_only),
     )
 
 
@@ -266,6 +272,19 @@ def _not_routed(model: Model, container: Container, processes: Many[Process]) ->
         for other in op.exposed_by
         if other != container
     )
+
+
+def _invoked_only(model: Model, container: Container, processes: Many[Process]) -> set[URIRef]:
+    """IRIs of the operations the container seam:exposes that a process it
+    executes (or a task of its BPMN model) seam:invokes and no ifml:Event
+    seam:submitsTo. The worker calls them in-process (ADR-0012), so they get
+    no route."""
+    invoked = {op.iri for p in processes for op in p.invoked_operations}
+    return {
+        e.iri
+        for e in container.exposes
+        if isinstance(e, Operation) and e in model.operations and e.iri in invoked and not e.submitted_by
+    }
 
 
 def _handler_name(iri) -> str:

@@ -9,6 +9,9 @@
 [% for n in m.not_routed %]
 # [[ n.operation ]] is not routed here: [[ n.container ]] seam:exposes [[ n.operation ]]
 [% endfor %]
+[% for o in m.invoked_only %]
+# [[ o ]] is not routed: a task seam:invokes it and no ifml:Event seam:submitsTo it, so the runtime calls it in-process
+[% endfor %]
 # ADR-0007 rule 1: handlers hold no domain logic; the runtime interprets BPMN/DMN/SHACL
 # Handler names: the operation or channel IRI local name minus a trailing _op (gaps.md GAP-21)
 

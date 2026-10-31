@@ -15,10 +15,22 @@ transitional methods. Their result types that share a name with a view class
 prefixes bound, and ``model.question(name, **bindings)`` runs a bundled
 canned question (``question_names()``).
 
+``seams.coverage`` answers what no scenario or test exercises (D054):
+``unexercised_paths`` (BPMN paths no scenario runs), ``unfired_transitions``
+and ``policies_without_deny``.
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
 
+from .coverage import (
+    ProcessPath,
+    UndeniedPermission,
+    policies_without_deny,
+    process_paths,
+    unexercised_paths,
+    unfired_transitions,
+)
 from .dmn import DecisionTable, Rule, TableInput, TableOutput, decision_table, parse_dmn
 from .errors import ResolutionError, SeamsError
 from .graph import (
@@ -152,6 +164,7 @@ __all__ = [
     "Process",
     "ProcessElement",
     "ProcessFacts",
+    "ProcessPath",
     "Processes",
     "ResolutionError",
     "Rule",
@@ -170,6 +183,7 @@ __all__ = [
     "System",
     "TableInput",
     "TableOutput",
+    "UndeniedPermission",
     "Transition",
     "VERIFY",
     "Volume",
@@ -183,5 +197,9 @@ __all__ = [
     "model_hash",
     "parse_dmn",
     "payload_path",
+    "policies_without_deny",
+    "process_paths",
     "question_names",
+    "unexercised_paths",
+    "unfired_transitions",
 ]

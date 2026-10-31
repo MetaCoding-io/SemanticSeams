@@ -52,5 +52,10 @@ kind, or a handler path that is missing, duplicated or has a segment that is
 not a Python identifier raise `ResolutionError` naming the subject and
 predicate. The operation view's `implemented_by` lists the nodes.
 
+`seams.coverage` lists what nothing exercises (D054): `unexercised_paths`
+(BPMN start-to-end paths no `verify:Scenario` runs, joined in Python because
+sequence flows live only in the XML), `unfired_transitions` and
+`policies_without_deny` (the `coverage/` canned questions).
+
 The full API, views, SPARQL and model-hash reference is
 [The seams library](../../docs/reference/seams-library.md) on the docs site.

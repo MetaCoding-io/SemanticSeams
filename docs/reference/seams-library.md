@@ -391,6 +391,40 @@ seams.question_names()  # ["c4-l1-rollup", "impact-of-node", …]
   `seams.question_names()` with no folder still lists only the top-level
   questions. Any folder other than `coverage` raises `KeyError`.
 
+## Coverage
+
+`seams.coverage` answers what the model declares that no scenario or test
+exercises (D054). It covers three things:
+
+- `seams.unexercised_paths(model, process=None)` lists the BPMN paths no
+  `verify:Scenario` runs, as `ProcessPath` records. Each record has
+  `process`, `nodes` (the `FlowNode`s in walk order), `iris`, `bpmn_ids`,
+  `start`, `end` and `scenarios`. `seams.process_paths` returns every path
+  along with the scenarios that run it. Sequence flows live only in the BPMN
+  XML (ADR-0007), so this is a Python join, not SPARQL. A path is a simple
+  walk from a `bpmn:startEvent` to a node with no way out. A boundary event
+  counts as one more way out of its task. A walk that can only loop back is
+  dropped.
+- A scenario exercises a path when all of these hold:
+  - it runs that path's process;
+  - its `verify:expectEndEvent` is on the path;
+  - a node on the path `seam:fires` a transition into its
+    `verify:expectState`;
+  - its steps are exactly the user tasks on the path, in order, up to the
+    last of those expectations.
+
+  No scenario exercises a path through a boundary event, because the
+  vocabulary cannot make an operation fail.
+- `seams.unfired_transitions(model, lifecycle=None)` runs
+  `coverage/unfired-transitions` and returns a `Many[Transition]`.
+- `seams.policies_without_deny(model, policy=None)` runs
+  `coverage/policies-without-deny` and returns `UndeniedPermission`
+  records (`policy`, `target`, `assignee`).
+
+On chapter 9 the three scenarios run the auto, manager-approve and
+finance-approve paths. The two reject paths, the two notify-failed escalation
+paths and both payout paths are unexercised. Both SPARQL reports are empty.
+
 ## The model hash
 
 `"sha256:<hex>"`, where each payload is framed as relative path, NUL, decimal

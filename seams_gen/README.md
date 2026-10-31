@@ -412,6 +412,56 @@ d.name, d.gaps   # 'send_message.executed', ()
 from the captured run `tests/fixtures/traces/chat_send_message.json`; a live run with a
 mocked LLM renders the same lines (`tests/test_sequence_executed.py`).
 
+## Handler stubs
+
+```
+python -m seams_gen.stubs app/model.trig
+# -> app/handlers/__init__.py, app/handlers/notify.py   (absent files only, each printed)
+python -m seams_gen.stubs app/model.trig --handlers path/to/handlers
+```
+
+`seams_gen.stubs` writes a starting point for hand-written code under
+[ADR-0012](../docs/adr/0012-operation-implementation.md)'s regeneration rule (D050). For
+each `comm:PythonHandler` an operation is `seam:implementedBy`, it writes the module its
+`comm:handler` names into the handlers package, `handlers/` beside the model file by
+default (the runtime's default too; the runtime also reads `SEAMS_HANDLERS`, this command
+only `--handlers`). It is not a `GENERATORS` entry: `seams generate` does not run it and
+`seams.lock` does not record its files, because they are owned code from the moment they
+exist.
+
+**Write once.** A file that exists is never opened for writing (files are created with
+mode `x`). A module that exists but does not bind a function the model names, or does not
+parse, is reported on stderr as `<implementation IRI>: <comm:handler IRI>: ...` and left
+alone; adding the function is the owner's edit. Existing files are read with `ast`, never
+imported. A model with no `comm:PythonHandler`, such as the chat app, writes nothing, not
+even the package.
+
+| Graph fact | Stub |
+|---|---|
+| `comm:handler "a.b.f"` | function `f` in `a/b.py`; `a/__init__.py` and the package `__init__.py` are created when absent. A module that is also a package prefix is that package's `__init__.py`; a one-segment path is a function of the package `__init__.py` (as the runtime imports them). Functions of one module are sorted by name |
+| Header | `# Generated once by the seams handler stub generator from the <stem> model.`, the owned-code line and `# model-hash: sha256:…`. A package `__init__.py` with no functions is the header alone |
+| Signature | `def f(entity: dict) -> dict:`; `-> None` when no operation the handler implements has a `seam:returnsShape`, `-> dict \| None` when only some do |
+| Docstring | `comm:handler "<path>" of <implementations> (comm:PythonHandler).`, then per operation: `Implements <op> (seam:implementedBy <impl>).`, the `seam:acceptsShape` the entity is and the `seam:returnsShape` the result must be |
+| Body | `raise NotImplementedError("<path>: write the handler for <operations>")`, so a stubbed operation fails its instance (naming the operation and `PythonHandler`) until it is written |
+
+**Errors.** A fact `ModelGraph.operation_implementation` rejects (several
+`seam:implementedBy`, a missing or unknown kind, a missing or non-identifier
+`comm:handler`) is a `GeneratorError` naming the same subject and predicate: exit **2**,
+nothing written. A model that does not parse also exits 2. A model file that cannot be
+read or a handlers path that cannot be written exits **1**. Reports exit 0.
+
+Owned handlers are not in ruff's `extend-exclude`: they are linted and tested like any
+other code. The golden is `tests/golden/handler_stubs/notify.py` (plain text, with the
+`sha256:<model-hash>` placeholder `golden_target` fills).
+
+```python
+from seams import ModelGraph
+from seams_gen.stubs import extract_stubs, plan_stubs, render_module, write_stubs
+stubs = extract_stubs(ModelGraph.load("model.trig"))
+plan = plan_stubs(stubs, "handlers")   # plan.writes: ((path, text), ...), plan.reports
+write_stubs(plan)
+```
+
 ## Tests
 
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines
@@ -445,6 +495,11 @@ the parsed structure (read-only model binds, external secrets), bind sources fol
 missing artifact, `deploy:secretName` and node label failing through the API and the
 CLI, the CLI writing exactly `compose.yaml`, and `docker compose config -q` accepting
 the output (skipped when docker compose is not installed).
+`tests/test_handler_stubs.py`: byte equality with the stub golden, the runtime loading
+the stub, a second run leaving owned files byte-identical, the missing-function and
+unparseable-module reports, nested packages, `-> None` without a returns shape,
+determinism across hash seeds, the chat app writing nothing, and exit 2 (bad handler
+path, bad kind, nothing written) and 1 (missing model, unwritable directory).
 `tests/test_complexity.py`: the chat app (0 / 3 / 60, two failures), checkout and
 expense chapter 8 (4 / 6 / 115, passing, also through the CLI) scores,
 determinism, the ontology not being loaded, a synthetic passing model and its

@@ -1,0 +1,14 @@
+[% for line in module.header %]
+[[ line ]]
+[% endfor %]
+[% for fn in module.functions %]
+
+
+def [[ fn.name ]](entity: dict) -> [[ fn.returns ]]:
+    """[[ fn.summary ]]
+[% for line in fn.doc %]
+[[ line ]]
+[% endfor %]
+    """
+    raise NotImplementedError([[ fn.error_text ]])
+[% endfor %]

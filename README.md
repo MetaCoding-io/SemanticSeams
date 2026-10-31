@@ -99,6 +99,11 @@ rendering rules, each keyed on a graph fact, are in [`seams_gen/README.md`](seam
 size (models per notation, most-reached elements, seam edges) and prints PASS or FAIL
 against thresholds; the chat app fails by design.
 
+`python -m seams_gen.stubs <model.trig>` writes a stub for each `comm:PythonHandler`
+whose module is missing from the model's `handlers/` package, and never overwrites a file
+there: hand-written handlers are owned code
+([ADR-0012](docs/adr/0012-operation-implementation.md)).
+
 ## v1: the viewer
 
 Read-only, navigable, notation-switching browser over a hand-authored model. Stack:

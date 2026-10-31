@@ -136,7 +136,9 @@ by id. Type a message and press **Send Message**:
    An empty message is rejected with a 422 that names the violated shape constraint.
 2. The worker runs the BPMN process: the DMN table picks the provider, the service task
    calls the gateway, and each token is published on the conversation's SSE channel
-   (`/conversations/<id>/stream`, event `token`), which the page appends.
+   (`/conversations/<id>/stream`, event `token`), which the page appends. The worker
+   publishes the tokens because the model states `invoke_llm seam:publishesTo :stream_events`;
+   a task that declares no channel streams nothing.
 3. The reply is stored as an assistant message; reload the page to see the whole thread.
 
 ### See where it landed

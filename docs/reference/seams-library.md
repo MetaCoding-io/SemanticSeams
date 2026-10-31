@@ -66,7 +66,12 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `landmark_page()`, `task_iri(bpmn_id)`, `triggering_operation(process)`,
   `is_channel_started(process)`, `decision_binding(task)`,
   `implementing_container(operation)`, `lifecycle_for(shape)`, `policy(policy)`
-  and `shape_graph()`. Each answers from graph facts and raises
+  and `shape_graph()`. `published_channel(element)` is the one `comm:Channel`
+  the element `seam:publishesTo` (`None` when it declares none, more than one
+  raises), and `published_channels(process)` lists the distinct channels any
+  element of the process's BPMN model publishes to, sorted by IRI; the runtime
+  streams deltas only on the first and closes all of the second on failure
+  (D046). Each answers from graph facts and raises
   `ResolutionError` naming the subject and predicate when a hop is missing.
   `landmark_page()` and `task_iri()` are view-backed: `landmark_page()` is
   `model.interfaces.landmark()`, and `task_iri()` resolves through

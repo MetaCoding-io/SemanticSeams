@@ -42,11 +42,10 @@ HUMAN_TASK_TRIG = ROOT / "tests" / "fixtures" / "human_task" / "approval.trig"
 EXPENSES_CHAPTER_7_TRIG = ROOT / "examples" / "expenses" / "chapter-07" / "expenses.trig"
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
-# Declared ahead of their first example: seam:catches (ADR-0013) is added in M014/S04/T01,
-# and the expense chapter 9 checkpoint gains the first lifted error boundary in
-# M014/S04/T04. test_pending_predicates_are_not_yet_exercised fails once a fixture
-# uses one, as the reminder to drop it from this set.
-PENDING_PREDICATES = {SEAM.catches}
+# Predicates declared ahead of their first example. Empty since expense chapter 9
+# exercises seam:catches (ADR-0013). test_pending_predicates_are_not_yet_exercised
+# fails once a fixture uses one, as the reminder to drop it from this set.
+PENDING_PREDICATES: set = set()
 EXPENSES_CHAPTER_9_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
 
 

@@ -3,7 +3,8 @@
 At the end of this chapter the manager is told about an expense before the approval task
 opens for them. The message comes from a few lines of Python that you write yourself. The
 model says where that code lives and what it takes and returns, and `seams generate`
-never touches it.
+never touches it. When the message cannot be sent, the code raises an error the model
+declares, and the process takes the expense to finance instead of failing.
 
 Every service task so far was work the runtime already knew how to do: storing an entity,
 asking a decision, firing a transition, publishing on a channel. Some work is not like
@@ -99,10 +100,11 @@ takes the expense and returns a notification:
                     hydra:mapping [ a hydra:IriTemplateMapping ;
                                     hydra:variable "expense" ;
                                     hydra:property :id ] ] ;
-        seam:implementedBy :notify_manager_impl .
+        seam:implementedBy :notify_manager_impl ;
 ```
 
-`seam:implementedBy` names what serves it. The implementation node's type is its kind,
+The `;` leaves room for one more fact, which [the error section](#when-the-notification-fails)
+adds. `seam:implementedBy` names what serves it. The implementation node's type is its kind,
 here `comm:PythonHandler`, and `comm:handler` is the dotted path of the function in the
 handlers package:
 
@@ -260,8 +262,161 @@ stored notification says:
 ```
 
 Bob's approval and Carol's payment then go as in chapter 8. A 50.00 expense takes the
-auto path and notifies nobody. If the handler raises, the instance fails with a
-`HandlerError` that names `:notify_manager_op` and the kind, and nothing is stored.
+auto path and notifies nobody. If the handler raises anything other than an error the
+operation declares, the instance fails with a `HandlerError` that names
+`:notify_manager_op` and the kind, and nothing is stored. The next section declares one.
+
+## When the notification fails
+
+The manager is told by text message, and a text message holds 160 characters. An expense
+with a long description makes a message that does not fit. Failing the whole instance for
+that would lose the expense. [ADR-0013](/adr/0013-error-shapes-and-boundaries) lets the
+operation say how it fails, and lets the process catch that failure and take another
+path.
+
+### The operation declares its error
+
+An operation names each error it can raise as a `hydra:Status`, through Hydra's own
+`hydra:possibleStatus`. Add it to `:notify_manager_op`:
+
+```trig
+        seam:implementedBy :notify_manager_impl ;
+        hydra:possibleStatus :notify_failed .
+```
+
+The status has its HTTP code, an error code the code raises and the BPMN matches, and the
+shape of the error body:
+
+```trig
+    :notify_failed a hydra:Status ; rdfs:label "Notification failed" ;
+        hydra:statusCode 502 ;
+        comm:errorCode "notify-failed" ;
+        seam:returnsShape :NotifyProblemShape .
+```
+
+The body is [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details
+(`application/problem+json`). Its shape uses the `comm:` member properties, so the field
+names are the JSON member names. Put it in the data graph beside `NotificationShape`:
+
+```trig
+    :NotifyProblemShape a sh:NodeShape ; rdfs:label "Notify problem" ;
+        sh:property [ sh:path comm:title ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path comm:status ; sh:datatype xsd:integer ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path comm:detail ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        seam:inModel :expense_data .
+```
+
+You never state `title` or `status` in code. The runtime fills them from the status's
+`rdfs:label` and `hydra:statusCode`, so each is stated once.
+
+### The handler raises it
+
+The handler raises `OperationError` with the error code and a `detail` member:
+
+```python
+from seams_runtime import OperationError
+
+# Who the notification is for: the approval process only runs this handler on
+# the path the routing table sends to the manager.
+RECIPIENT = "manager"
+# The manager is told by text message, which holds at most this many characters.
+MAX_MESSAGE = 160
+
+
+def notify_manager(entity: dict) -> dict:
+    message = f"{entity['description']} ({entity['amount']}, {entity['date']}) is waiting for your approval."
+    if len(message) > MAX_MESSAGE:
+        raise OperationError(
+            "notify-failed", f"the message is {len(message)} characters; a text message holds {MAX_MESSAGE}"
+        )
+    return {"recipient": RECIPIENT, "message": message}
+```
+
+A code the operation does not declare, or any other exception, still fails the instance.
+
+### The process catches it
+
+In BPMN the construct is an error boundary event: a catch event on the edge of a task,
+with its own outgoing flow. Declare the error once at the top of `approval.bpmn`, with
+the same code:
+
+```xml
+<bpmn:error id="notify_failed_error" name="Notification failed" errorCode="notify-failed" />
+```
+
+Attach the boundary to `notify_manager`, and send its flow to finance's approval task:
+
+```xml
+<bpmn:boundaryEvent id="notify_failed_boundary" name="Notification failed" attachedToRef="notify_manager">
+  <bpmn:outgoing>flow_escalate</bpmn:outgoing>
+  <bpmn:errorEventDefinition id="notify_failed_def" errorRef="notify_failed_error" />
+</bpmn:boundaryEvent>
+```
+
+```xml
+<bpmn:sequenceFlow id="flow_escalate" name="escalate" sourceRef="notify_failed_boundary" targetRef="finance_approve_expense" />
+```
+
+`finance_approve_expense` gains `flow_escalate` as a second incoming flow. The boundary
+catches an operation's error, so it takes part in a seam and gets an IRI, as every
+seam-bearing BPMN element does. Lift it into the process graph:
+
+```trig
+    <https://example.org/expenses/approval_bpmn#notify_failed_boundary> a proc:ErrorBoundaryEvent ;
+        rdfs:label "Notification failed" ;
+        seam:inModel :approval_bpmn .
+```
+
+and say which error it catches, in the seams graph:
+
+```trig
+    <https://example.org/expenses/approval_bpmn#notify_failed_boundary>
+        seam:catches :notify_failed .
+```
+
+The task it is attached to and the code stay in the XML. When the runtime loads, it
+checks the two agree: a boundary on `notify_manager` that catches a status of
+`:notify_manager_op`, with a `bpmn:error` whose `errorCode` is that status's
+`comm:errorCode`. If you mistype the code in either file, the runtime refuses to load and
+names the boundary and `seam:catches`.
+
+### Run the error path
+
+Regenerate the chapter. Only the model hashes change, because no route serves
+`:notify_manager_op`. Then submit an expense whose description is too long for a text
+message:
+
+```sh
+curl -X POST http://localhost:8001/expenses/conf -d amount=250.00 -d date=2026-10-03 \
+  -d "description=Conference in Leeds: three nights at the venue hotel, the conference dinner, return rail tickets and two taxis" \
+  -H "X-Forwarded-User: alice" -H "X-Forwarded-Groups: employee"
+```
+
+The message is 161 characters, so the handler raises `notify-failed`. The runtime builds
+the problem body and validates it against `NotifyProblemShape`:
+
+```
+{"title": "Notification failed", "status": 502, "detail": "the message is 161 characters; a text message holds 160"}
+```
+
+It then routes the instance down the boundary. The body becomes the instance's current
+`NotifyProblemShape` entity, so a task on the error path could read it. Nothing is
+stored for the notification and the expense stays `submitted`. The `notify_manager` trace
+row records what happened:
+
+```
+"error": {"code": "notify-failed", "status": "https://example.org/expenses/notify_failed", "operation": "https://example.org/expenses/notify_manager_op"},
+"boundary": "https://example.org/expenses/approval_bpmn#notify_failed_boundary"
+```
+
+The next row is the boundary's own, with `"caught": "notify-failed"`. The OpenTelemetry
+span for the task carries the same facts as `seams.error.code`, `seams.error.status` and
+`seams.boundary`. Bob has no approval task for this expense. Carol finds it on the finance
+approval form, and once she approves it, it goes on to payment as any other expense does.
+
+In the viewer, open Expense Approval (BPMN). The boundary sits on the edge of Notify
+Manager with one seam badge, "catches → Notification failed". Click the badge to open the
+status, which shows the boundary that catches it and the shape its body returns.
 
 ## Run it with docker compose
 
@@ -286,7 +441,10 @@ CI checks the rest of this chapter in `tests/test_expense_handler.py`. It runs t
 step in process and checks its trace row and stored notification. It checks that the
 other routes notify nobody and that a failing handler fails the instance. It also runs
 `seams generate` and the stub generator on a copy of the checkpoint and checks that
-`handlers/` is byte for byte unchanged.
+`handlers/` is byte for byte unchanged. `tests/test_expenses_error_path.py` checks the
+error path: the 160-character limit, the boundary resolved at load and the load faults
+for a mismatched code, the routed trace rows and spans, the problem body, finance's
+approval after the escalation, and the boundary's badge in the viewer.
 
 ## Checkpoint
 
@@ -304,5 +462,5 @@ diff examples/expenses/chapter-08/expenses.trig examples/expenses/chapter-09/exp
 
 That is the whole tutorial. You started from an empty file and now have an architecture,
 two screen models, two processes, two decisions, two lifecycles, roles, a deployment and
-one function you wrote yourself. The model says where that function lives and what it
+one function you wrote yourself, with a declared error the process catches. The model says where that function lives and what it
 takes and returns, so it fits with everything that was generated.

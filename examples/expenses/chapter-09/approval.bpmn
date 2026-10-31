@@ -6,6 +6,10 @@
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    id="approval_bpmn_defs"
                    targetNamespace="https://example.org/expenses/approval_bpmn">
+  <!-- The error :notify_manager_op declares (ADR-0013): Spiff routes on its errorCode,
+       which equals the comm:errorCode of the hydra:Status the boundary seam:catches. -->
+  <bpmn:error id="notify_failed_error" name="Notification failed" errorCode="notify-failed" />
+
   <bpmn:process id="approval_process" name="Expense Approval" isExecutable="true">
     <bpmn:startEvent id="start" name="Expense Submitted">
       <bpmn:outgoing>flow_to_persist</bpmn:outgoing>
@@ -40,8 +44,16 @@
       <bpmn:outgoing>flow_manager_decided</bpmn:outgoing>
     </bpmn:userTask>
 
+    <!-- The failure path (ADR-0013): when the handler raises notify-failed, the
+         worker throws it here and the expense goes to finance instead. -->
+    <bpmn:boundaryEvent id="notify_failed_boundary" name="Notification failed" attachedToRef="notify_manager">
+      <bpmn:outgoing>flow_escalate</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="notify_failed_def" errorRef="notify_failed_error" />
+    </bpmn:boundaryEvent>
+
     <bpmn:userTask id="finance_approve_expense" name="Finance Approve Expense">
       <bpmn:incoming>flow_finance</bpmn:incoming>
+      <bpmn:incoming>flow_escalate</bpmn:incoming>
       <bpmn:outgoing>flow_finance_decided</bpmn:outgoing>
     </bpmn:userTask>
 
@@ -91,6 +103,7 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">route == "finance"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flow_to_approve" sourceRef="notify_manager" targetRef="approve_expense" />
+    <bpmn:sequenceFlow id="flow_escalate" name="escalate" sourceRef="notify_failed_boundary" targetRef="finance_approve_expense" />
     <bpmn:sequenceFlow id="flow_manager_decided" sourceRef="approve_expense" targetRef="decision_gateway" />
     <bpmn:sequenceFlow id="flow_finance_decided" sourceRef="finance_approve_expense" targetRef="decision_gateway" />
     <bpmn:sequenceFlow id="flow_approved" name="approved" sourceRef="decision_gateway" targetRef="record_approval">
@@ -120,6 +133,9 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="notify_manager_di" bpmnElement="notify_manager">
         <dc:Bounds x="560" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notify_failed_boundary_di" bpmnElement="notify_failed_boundary">
+        <dc:Bounds x="592" y="160" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="approve_expense_di" bpmnElement="approve_expense">
         <dc:Bounds x="710" y="98" width="100" height="80" />
@@ -169,6 +185,11 @@
       <bpmndi:BPMNEdge id="flow_to_approve_di" bpmnElement="flow_to_approve">
         <di:waypoint x="660" y="138" />
         <di:waypoint x="710" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_escalate_di" bpmnElement="flow_escalate">
+        <di:waypoint x="610" y="196" />
+        <di:waypoint x="610" y="288" />
+        <di:waypoint x="710" y="288" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_finance_di" bpmnElement="flow_finance">
         <di:waypoint x="475" y="163" />

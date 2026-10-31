@@ -71,9 +71,12 @@ examples/expenses/
                              the database_url secret at docker/local-secrets/expense_database_url
   chapter-09/expenses.trig   hand-written code: chapter 8 plus the notify_manager service task, the
                              NotificationShape and :notify_manager_op, seam:implementedBy the
-                             comm:PythonHandler "notify.notify_manager" (ADR-0012)
+                             comm:PythonHandler "notify.notify_manager" (ADR-0012), its error
+                             :notify_failed with NotifyProblemShape, and the lifted
+                             notify_failed_boundary that seam:catches it (ADR-0013)
   chapter-09/approval.bpmn   chapter 8's process with notify_manager between the manager route and
-                             approve_expense
+                             approve_expense, and an error boundary on it that escalates to
+                             finance_approve_expense
   chapter-09/handlers/       owned code, never regenerated: notify.py, written once by
                              python -m seams_gen.stubs and then edited by hand
   chapter-09/generated/      chapter 8's route module and templates (notify_manager_op is not routed)
@@ -240,3 +243,15 @@ stored. The auto and finance routes store none, and a handler that raises fails
 the instance with a `HandlerError` naming the operation. On a copy of the
 checkpoint, `seams generate` and the stub generator leave `handlers/` byte for
 byte unchanged.
+
+The operation also declares how it fails (ADR-0013): `:notify_failed`, a
+`hydra:Status` with code 502, `comm:errorCode "notify-failed"` and a
+problem+json body shaped by `NotifyProblemShape`. The handler raises
+`OperationError("notify-failed")` when the message is longer than the 160
+characters a text message holds. An error boundary on `notify_manager` in
+`approval.bpmn`, lifted as a `proc:ErrorBoundaryEvent` that `seam:catches
+:notify_failed`, sends the expense to `finance_approve_expense` instead of
+failing the instance. `tests/test_expenses_error_path.py` checks the load-time
+join and its faults, the routed trace rows and spans, the problem body,
+finance's approval after the escalation, and the boundary's seam badge in the
+viewer.

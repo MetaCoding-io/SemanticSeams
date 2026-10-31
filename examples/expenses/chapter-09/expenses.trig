@@ -10,6 +10,13 @@
 # `python -m seams_gen.stubs` wrote that file once; from then on it is owned
 # code, and `seams generate` never touches it.
 #
+# The operation also declares how it fails (ADR-0013): one hydra:Status,
+# :notify_failed, with the error code "notify-failed" and a problem+json
+# body shaped by :NotifyProblemShape. An error boundary event on the notify
+# task, lifted as a proc:ErrorBoundaryEvent, seam:catches it. When the
+# handler raises that error, the worker routes the expense down the
+# boundary's flow to finance's approval task instead of failing it.
+#
 # Chapter 8: growing up. Chapter 7's graphs are kept; chapter 8 adds a
 # second process that runs on its own. When finance has paid an approved expense, the approval
 # process ends on a message end event that seam:publishesTo the new
@@ -176,6 +183,15 @@
                       sh:order 0 ] ;
         sh:property [ sh:path :message ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
                       sh:order 1 ] ;
+        seam:inModel :expense_data .
+
+    # The body of the notify operation's error response: RFC 9457 problem
+    # details (ADR-0013). The comm: paths are the problem+json member names;
+    # the runtime fills title and status from the error's hydra:Status.
+    :NotifyProblemShape a sh:NodeShape ; rdfs:label "Notify problem" ;
+        sh:property [ sh:path comm:title ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path comm:status ; sh:datatype xsd:integer ; sh:minCount 1 ; sh:maxCount 1 ] ;
+        sh:property [ sh:path comm:detail ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
         seam:inModel :expense_data .
 
     # What finance records when it pays an approved expense: the payment
@@ -369,6 +385,13 @@
     # Hand-written code: the manager is told before the approval task opens.
     <https://example.org/expenses/approval_bpmn#notify_manager> a proc:ServiceTask ;
         rdfs:label "Notify Manager" ;
+        seam:inModel :approval_bpmn .
+
+    # Lifted because it catches an operation error (ADR-0013). Its
+    # attachedToRef and errorCode stay in approval.bpmn; the runtime checks
+    # them against the graph when it loads.
+    <https://example.org/expenses/approval_bpmn#notify_failed_boundary> a proc:ErrorBoundaryEvent ;
+        rdfs:label "Notification failed" ;
         seam:inModel :approval_bpmn .
 
     <https://example.org/expenses/approval_bpmn#approve_expense> a proc:UserTask ;
@@ -653,6 +676,12 @@
         seam:invokes :notify_manager_op ;
         seam:writes :NotificationShape .
 
+    # Process to API (ADR-0013): the boundary on the notify task catches the
+    # operation's notify-failed error. Its flow goes to finance's approval
+    # task, so an expense the manager cannot be told about is not lost.
+    <https://example.org/expenses/approval_bpmn#notify_failed_boundary>
+        seam:catches :notify_failed .
+
     # The human task (ADR-0009): it shows the expense, waits for someone to
     # submit :approve_form, and stores what they entered as an ApprovalShape.
     <https://example.org/expenses/approval_bpmn#approve_expense>
@@ -872,9 +901,18 @@
                     hydra:mapping [ a hydra:IriTemplateMapping ;
                                     hydra:variable "expense" ;
                                     hydra:property :id ] ] ;
-        seam:implementedBy :notify_manager_impl .
+        seam:implementedBy :notify_manager_impl ;
+        hydra:possibleStatus :notify_failed .
     :notify_manager_impl a comm:PythonHandler ; rdfs:label "notify manager handler" ;
         comm:handler "notify.notify_manager" .
+
+    # How the operation fails (ADR-0013): the handler raises
+    # OperationError("notify-failed") when it cannot send the message. The
+    # error response has this HTTP status and a :NotifyProblemShape body.
+    :notify_failed a hydra:Status ; rdfs:label "Notification failed" ;
+        hydra:statusCode 502 ;
+        comm:errorCode "notify-failed" ;
+        seam:returnsShape :NotifyProblemShape .
 
     # The payout channel: the event the approval process publishes when an
     # expense is paid (its rdfs:label names the event). The API serves it as

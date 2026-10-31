@@ -10,7 +10,7 @@ generated from [`ontology/seam.ttl`](../../ontology/seam.ttl).
 
 ## Four design rules
 
-1. **Few and generic beats many and precise.** Twenty-eight predicates. Precision lives
+1. **Few and generic beats many and precise.** Twenty-nine predicates. Precision lives
    in the layer vocabularies and in SHACL shapes over the seams, not in a growing list of
    specialised edges.
 2. **Every predicate must earn a cross-layer query.** If no question needs it, it does
@@ -40,10 +40,10 @@ The rest group by the layers they join. A few examples:
 |---|---|
 | Architecture to everything | `presents` (container to its interface), `executes` (container to the process it runs), `exposes` and `consumes` (operations and channels), `deployedTo` |
 | Interface to process | `triggers` (event to process), `completedOn` (user task to the form a person completes it on, [ADR-0009](/adr/0009-human-tasks)), `visibleWhen` (view component to lifecycle state) |
-| Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo` (a message throw event's completion event, or a service task that streams its invoked operation's deltas onto a channel), `subscribesTo` (a message start event that subscribes to a channel starts its process on each publish, [ADR-0010](/adr/0010-channel-started-processes)), `reads`, `writes` |
+| Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo` (a message throw event's completion event, or a service task that streams its invoked operation's deltas onto a channel), `subscribesTo` (a message start event that subscribes to a channel starts its process on each publish, [ADR-0010](/adr/0010-channel-started-processes)), `catches` (an error boundary event to the operation error it routes, [ADR-0013](/adr/0013-error-shapes-and-boundaries)), `reads`, `writes` |
 | Data to architecture | `storedIn` (shape to the store container that persists its instances, [ADR-0011](/adr/0011-storage-resolution)) |
 | Data to lifecycle | `lifecycle` (shape to state machine), `fires` (task to transition) |
-| Communication contracts | `acceptsShape`, `returnsShape`, `mediaKind`, `implementedBy` (operation to what serves it: an LLM completion, a Python handler or an HTTP endpoint, [ADR-0012](/adr/0012-operation-implementation)) |
+| Communication contracts | `acceptsShape`, `returnsShape` (also a `hydra:Status` to its problem+json error shape), `mediaKind`, `implementedBy` (operation to what serves it: an LLM completion, a Python handler or an HTTP endpoint, [ADR-0012](/adr/0012-operation-implementation)) |
 | Authorization | `governedBy`, deliberately attachable to anything |
 
 `reads` and `writes` are the workhorses of impact analysis: a property path through
@@ -54,6 +54,15 @@ data".
 is lost if this node goes away". The store's kind (`deploy:storeKind`) and the binding
 that reaches it (`deploy:connectsTo`) are deployment facts, so they live in `deploy:`,
 not among the seams.
+
+`catches` is how a failure path crosses layers. An operation declares each error it can
+raise as a `hydra:Status` with a `comm:errorCode`, and the status's `returnsShape` is the
+problem+json body. A BPMN error boundary event on a task that invokes the operation is
+lifted as a `proc:ErrorBoundaryEvent` and `catches` one of those statuses. The task it is
+attached to and the code it matches stay in the BPMN XML, and the runtime checks the two
+agree when it loads. In the expense tutorial's
+[chapter 9](/tutorials/expenses/09-hand-written-code#when-the-notification-fails), a
+notification that cannot be sent takes the expense to finance.
 
 ## How each seam is revealed
 

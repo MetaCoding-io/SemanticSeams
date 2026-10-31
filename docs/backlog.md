@@ -58,7 +58,7 @@ updated reason.
 |---|---|---|---|---|
 | 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. That example now exists: the expense-approval build-along tutorial's final checkpoint (E1, done in M009/S07) passes the complexity check (E3), and the slice opens by running that check; see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
 | 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item | planned (M008/S01) |
-| 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief | planned (M008/S04) |
+| 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Explicit v1 non-goal in the product brief. If the reason no longer holds, I1 to I5 are the plan ([note](research/2026-10-30-domain-ide-and-generator-kit.md)) | planned (M008/S04) |
 | 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
 
 Resolved open questions from the Levels note: L4 is a preset of reveal
@@ -161,6 +161,58 @@ milestone covers.
 |---|---|---|---|---|---|
 | A10 | **More than one replica**: the chat-app model declares `deploy:replicas 3`, but only one replica works, because process instances and the live-update stream are held in memory. Needs the shared store from U9 and a shared channel for the stream. Until then, M016 caps generated replicas at one. See "Not covered" in the [storage plan](research/2026-10-29-runtime-storage.md) | M | U9, A4 | none expected | proposed |
 | U10 | **Scheduled and background work**: lift BPMN timer start events and run recurring jobs (reminders, cleanups, digests), with a seam to the container that runs the schedule. See section 3.6 of the [UML coverage note](research/2026-10-29-uml-coverage-and-gaps.md) | M | ADR first | a seam to the scheduling container | proposed |
+
+## Generator kit and domain IDE
+
+*Added 2026-10-30 from the [generator kit and domain IDE note](research/2026-10-30-domain-ide-and-generator-kit.md),
+which reads Boersma's* Building User-Friendly DSLs *and Parr's* Language Implementation
+Patterns *against the repository. Not yet scheduled.* M010 gave users the
+library and a generator guide; nothing yet registers their generators or packages the
+reference-first method G2 used. The kit items do that. The IDE items refine P2 item 13 (Editing), which
+stays a v1 non-goal until M008/S04 checks it again. K1 and K2 stand alone and are worth
+doing first: today a model can show *Conforms* in the viewer and still fail generation. T1 to T5 come from the
+[generation trace note](research/2026-10-31-generation-trace.md): tracing each generated line back to its
+template and model, a view of it, and write-back in tiers. T1 to T3 need no editing, so
+they can ship while editing stays a v1 non-goal. C1 to C5 come from the
+[LLM generator note](research/2026-10-31-llm-generator.md): code the templates cannot
+write, drafted by an LLM behind a deterministic stub and tests from the model, accepted
+once, then owned and traced by its model context. O1 to O6 and R1 to R3 come from
+the [data-centric note](research/2026-10-31-data-centric-model-and-copilot.md): an ontology
+layer anchored in gist, SemPKM as the default RDF store, and a model copilot. R1 needs
+nothing else and can start now.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| K1 | **Shapes catch every generator fault first**: a parity test with one minimal broken model per `GeneratorError` condition; each fault gets a shape or is listed as generator-only with the reason. Starts with `ifml:order` on page components and `seam:reads` on `ifml:List`, which the generator requires and the shapes do not | S | none | shapes only | proposed |
+| K2 | **Static checks for decisions**: DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s | S | none | shapes or SPARQL checks only | proposed |
+| K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | proposed |
+| K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | proposed |
+| K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | proposed |
+| K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | proposed |
+| I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | proposed |
+| I2 | **Forms from shapes**: edit one element through a form derived from the shapes that target its class; save invalid models and flag them | M | I1, K1 | none | proposed |
+| I3 | **Live checks and preview**: re-run the shapes and the generators in lenient mode after each save; show the generated page beside the model | M | I2, K3 | none | proposed |
+| I4 | **BPMN and DMN round-trip**: modelers in place of viewers, an ID rename that rewrites the seams graph (ADR-0002), a model-health check that lifted IRIs exist in the XML | M | I1 | none | proposed |
+| I5 | **Domain profiles**: a package of vocabulary, shapes, generators, palette and labels, attached by the reserved `seam:conformsTo`, restricting what the editor offers | L | ADR first, I2, K3 | extends `seam:Profile` | proposed |
+| T1 | **Trace capture**: template origins by sentinel render, model origins through Jinja2 `finalize` with origin-carrying values, a sidecar trace per output, A2 provenance derived from it, and a test comparing traces with golden markers. [Note](research/2026-10-31-generation-trace.md) | M | K3; A2 for storage | none | proposed |
+| T2 | **Logic out of templates**: move the 43 of 213 template expressions that filter, concatenate or branch into `extract`, goldens unchanged; value-level traces need it, and K5 recommends it | S | none | none | proposed |
+| T3 | **Generation view**: model, template and output panes joined by trace lines, a fan-out view, and a "Generated" section in the element inspector ([mockup](research/2026-10-31-generation-trace.md)) | M | T1 | none | proposed |
+| T4 | **Write-back of single-literal values**: edit a label, title or path in the output, apply a one-triple patch after regenerating reproduces the edit, and show effects beyond the page first | M | T1, I1 | none | proposed |
+| T5 | **Structural edit proposals**: drafted model patches accepted only when regeneration reproduces the edit; start with adding and removing form fields | M | T4 | none | proposed |
+| C1 | **Implementation stub generator**: per service task, a deterministic, traced stub with data classes from the read and written shapes, the signature, and a docstring naming the decision and transition. [Note](research/2026-10-31-llm-generator.md) | S | U6 (ADR first), T1 | none | proposed |
+| C2 | **Acceptance tests from the model**: shape conformance, legal-transition state, decision-branch scenarios, and a type check against the stub | M | U5, A9, C1 | none | proposed |
+| C3 | **Context assembly**: per-kind rules narrowed to the facts used, canonical hashing of each element and native file, and a manifest with a context hash; useful as a review report before any LLM is involved | S | none | none | proposed |
+| C4 | **LLM draft generator**: provider-agnostic call, versioned prompt templates, writes only to the U6 location, `seams propose`, accepted only when C2's tests pass; model text quoted as data, binding names but never values, never run in CI | M | C1 to C3, K3, U6 | none | proposed |
+| C5 | **Drafts in the lockfile, `seams check` and the generation view**: an `llm-draft` record, staleness from the context hash, hand-edit detection, and the draft node in T3 ([mockup](research/2026-10-31-llm-generator.md)) | S | A1, A2, T3, C3 | none | proposed |
+| O1 | **Ontology notation**: `seam:Ontology` model graphs, gist imports, a class view in the viewer, and model-health checks for imports and versions. [Note](research/2026-10-31-data-centric-model-and-copilot.md) | M | ADR first; K6 for versions | a notation value | proposed |
+| O2 | **Shapes target classes; states as categories**: `sh:targetClass`, `sh:name` for field names, lifecycle state IRIs as category members replacing copied `sh:in` lists, and form flattening for `sh:node` with fixed values ([gist example](research/examples/expense-gist.trig)) | M | O1 | none; plain SHACL | proposed |
+| O3 | **JSON-LD context generator** for API payloads, from the ontology and shapes | S | O1, O2 | none | proposed |
+| O4 | **SemPKM storage backend** behind U9's interface: validate, then `POST /api/commands`; read through scoped SPARQL; the compose generator adds SemPKM's services when the model names it. Decided in U9's ADR, alongside SQLite and PostgreSQL | M | U9, O2 | a store-kind value | proposed |
+| O5 | **Mental Model generator**: `manifest.yaml`, ontology, shapes, and views from IFML, as a package SemPKM installs | M | O1, O2, K3 | none | proposed |
+| O6 | **SemPKM webhooks as a channel**, so `object.changed` can start a BPMN process through `seam:subscribesTo` | S | O4, ADR-0010 | a channel transport value | proposed |
+| R1 | **Model review checks**: lifecycle labels repeated in `sh:in` (found three times today), `sh:class` pointing at a shape, shapes without a target class, undeclared paths, T2's computing expressions, and literals in drafts that repeat model facts; reported by `seams check` and the health badge | S | none | none | proposed |
+| R2 | **Copilot suggestions**: LLM-proposed model patches (move logic into DMN, merge shapes into a class, gist anchors), each accepted after validation, regeneration and review | M | R1, T5, C4 | none | proposed |
+| R3 | **Generators that write generators**: an LLM drafts a template and `extract` step from a reference output, accepted when the golden test passes | M | K5, C4 | none | proposed |
 
 ## Generation: what is planned, what is not
 

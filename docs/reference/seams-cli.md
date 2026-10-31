@@ -663,3 +663,33 @@ The output is deterministic, so it can be committed as release notes.
 | 2 | A model is missing or cannot be loaded, or git cannot extract a `REF:PATH` (an unknown ref, a path absent at the ref, or no repository). |
 
 Errors print to stderr as `seams plan: <message>`; a git error names the ref.
+
+### In CI
+
+The composite action
+[`.github/actions/seams-plan`](../../.github/actions/seams-plan/README.md) takes a
+`base` git ref and a `projects` list like the seams-check action's. For each project
+whose files differ from the base (`git diff --quiet BASE -- PROJECT`), it runs
+`seams plan BASE:PROJECT PROJECT` and appends the plan to the job summary
+(`$GITHUB_STEP_SUMMARY`) under a heading naming the project; a project absent at the
+base is reported as new. A breaking change adds a warning annotation but does not fail
+the step: the plan is for the reviewer, and `seams check` is the gate. An unknown base
+ref, a failing `git diff` or an exit 2 from `seams plan` fails the step after every
+project has run.
+
+This repository's `change-plan` job runs it on pull requests, with the same projects
+as the acceptance job. The checkout needs the base branch's history:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+- run: uv sync --locked --all-packages
+- run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+- uses: ./.github/actions/seams-plan
+  with:
+    base: origin/${{ github.base_ref }}
+    projects: |
+      examples/chat-app
+      examples/expenses/chapter-01
+```

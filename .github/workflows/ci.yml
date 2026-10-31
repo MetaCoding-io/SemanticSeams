@@ -54,6 +54,39 @@ jobs:
             examples/expenses/chapter-08
             examples/expenses/chapter-09
 
+  # On a pull request, writes a seams plan change plan to the job summary for each
+  # project whose model changed against the base branch. A breaking change is
+  # reported, not failed; seams check in the acceptance job is the gate.
+  # tests/test_ci_change_plan.py checks the projects list matches the acceptance job's.
+  change-plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The base branch's history, so git can diff and archive origin/<base>.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-packages
+      - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Change plan
+        uses: ./.github/actions/seams-plan
+        with:
+          base: origin/${{ github.base_ref }}
+          projects: |
+            examples/chat-app
+            examples/expenses/chapter-01
+            examples/expenses/chapter-02
+            examples/expenses/chapter-03
+            examples/expenses/chapter-04
+            examples/expenses/chapter-05
+            examples/expenses/chapter-06
+            examples/expenses/chapter-07
+            examples/expenses/chapter-08
+            examples/expenses/chapter-09
+
   # docs/tutorial.md end to end: build and start the compose stack (gateway in
   # stub mode), chat through the generated page and routes, then tear it down.
   tutorial-e2e:

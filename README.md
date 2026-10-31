@@ -85,7 +85,11 @@ the docs embed the golden diagrams, rendered with Mermaid.
 run's trace rows (a trace JSON file or an instance id in the runtime's SQLite store), on
 the same lifelines, with a `%% gap:` line for every row the model cannot place.
 `seams diff OLD NEW` classifies each shape and operation-contract change between two
-model versions as compatible or breaking, and exits 1 when any change is breaking. The
+model versions as compatible or breaking, and exits 1 when any change is breaking.
+`seams plan OLD NEW` turns those changes and the elements each layer adds and removes into
+a Markdown change plan (release notes), between paths or git `REF:PATH` specs; on a pull
+request that changes a model, CI's `change-plan` job posts it to the job summary through
+the composite action in `.github/actions/seams-plan`. The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

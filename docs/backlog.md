@@ -145,7 +145,7 @@ the model.
 | A4 | **Environments from the model**: development and production as `arch:Environment`s, one compose file per environment, so `compose.override.yaml` stops being hand-written | M | ADR first, U9 | environment-specific `deploy:` facts | planned (M016/S01, S02) |
 | A5 | **Image build and publish** for containers that run generated code, tagged with the model hash or a release version | M | A4 | none expected | planned (M016/S03) |
 | A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | done (M012/S04): `seams status [--env]` reads each runtime container's `/healthz` from the endpoints in `seams.toml` and reports it current, behind, ahead or unreachable against the current model, ordering past hashes by the `seams.lock` git history; the chat app and expense chapter 8 declare a `local` environment |
-| A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | planned (M015/S02) |
+| A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | done (M015/S02): `seams plan OLD NEW` writes a Markdown change plan (breaking and compatible changes, then elements added and removed per layer) between model paths or git `REF:PATH` specs; the `seams-plan` action posts it to the job summary on pull requests that change a model |
 | A8 | **Secrets and configuration checklist** per environment, checking existence without reading values, plus an example `.env` | S | A4 | none | planned (M016/S04) |
 | A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | planned (M015/S05) |
 
@@ -374,7 +374,10 @@ UI work must not eat M3.*
      error path to finance.*
    - **M015, Change Safety and Verification** (U8, A7, U5, A9): shape and contract diff,
      change plans, scenarios with derived tests and coverage queries, and generated smoke
-     tests. Depends on M010 and M012.
+     tests. Depends on M010 and M012. *U8 done, M015/S01: `seams diff OLD NEW` classifies
+     shape and operation-contract changes as compatible or breaking. A7 done, M015/S02:
+     `seams plan OLD NEW` writes change plans and release notes, and CI's `change-plan`
+     job posts one to the job summary for each pull request that changes a model.*
    - **M016, Deploy from the Model** (A4, A5, A8): an ADR on environments, one compose file
      per environment, image build and publish, and a secrets checklist. Depends on M011 and
      M012.

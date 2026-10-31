@@ -164,3 +164,21 @@ CURIEs where a prefix is bound; `--json` prints `to_json`'s changes (with their
 change, 1 with any, after `seams diff: N breaking, M compatible` on stderr, and
 2 when a model cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-diff).
+
+## seams plan
+
+```sh
+seams plan examples/expenses/chapter-08 examples/expenses/chapter-09
+seams plan main:examples/expenses/expenses.trig examples/expenses/expenses.trig --output CHANGES.md
+```
+
+It writes a Markdown change plan, or release notes (D053, `plan.py`,
+`render`): the breaking and then the compatible `seams diff` changes, then
+`## Elements by layer` with the element IRIs each changed layer adds and
+removes (`layer_changes`, matched by IRI through the `seams.Model` views), as
+CURIEs. Either argument may be a git `REF:PATH` when the text before the colon
+is not an existing path; `resolve` extracts it with `git archive` into a
+temporary directory. The plan goes to stdout or to `--output FILE`. Exit codes
+and the stderr summary are `seams diff`'s; a failing git or an unknown ref exits
+2 with a message naming the ref. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-plan).

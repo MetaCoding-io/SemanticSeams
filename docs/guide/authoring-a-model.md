@@ -440,6 +440,16 @@ it, give it the new IRI and state `:NewShape owl:sameAs :OldShape` in the new mo
 full IRIs and their `data`/`contract` scopes, for a CI step or a release note. The full
 rules are in the [seams CLI reference](/reference/seams-cli#seams-diff).
 
+For release notes, `seams plan` writes the same changes as Markdown, breaking ones first,
+followed by the elements each layer adds and removes. Either side can be a git ref and a
+path, so you do not need a copy of the old model:
+
+```sh
+seams plan main:expenses.trig expenses.trig --output CHANGES.md
+```
+
+It exits like `seams diff`. See the [seams CLI reference](/reference/seams-cli#seams-plan).
+
 ## View it
 
 The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your

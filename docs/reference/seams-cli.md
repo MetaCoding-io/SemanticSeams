@@ -5,7 +5,9 @@ file, `seams.toml`, kept next to an app's model. `seams generate` runs every
 generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams sequence`
 derives an event's sequence diagrams; `seams diff` classifies the shape and
-operation-contract changes between two model versions as compatible or breaking. Its distribution name is `semanticseams-cli` and its import name is
+operation-contract changes between two model versions as compatible or breaking;
+`seams plan` writes those changes and the elements each layer adds and removes
+as a Markdown change plan. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -576,3 +578,88 @@ compared.
 | 2 | A model is missing or cannot be loaded. |
 
 Errors print to stderr as `seams diff: <message>`.
+
+## seams plan
+
+```sh
+seams plan examples/expenses/chapter-08 examples/expenses/chapter-09
+seams plan v1.2:examples/expenses/expenses.trig examples/expenses/expenses.trig --output CHANGES.md
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `OLD` | required | The old model: a `.trig` file, a directory, or a git `REF:PATH`. |
+| `NEW` | required | The new model, in the same forms. |
+| `--output FILE` | stdout | Write the plan to FILE and print its path. |
+
+`seams plan` writes a change plan, or release notes, for a model change
+(backlog A7, D053). It reads no `seams.toml`. It runs the
+[seams diff](#seams-diff) comparison and then compares the elements of each
+layer by IRI ([ADR-0002](/adr/0002-iri-identity-and-migration)): architecture
+(systems, containers, deployment nodes, environments), operations, channels,
+shapes, lifecycles (with their states and transitions), policies, interfaces
+(interaction models, pages, components, events, flows), processes (with their
+BPMN elements) and decisions.
+
+An argument whose text before the first `:` is not an existing path is a git
+`REF:PATH`: `seams plan` runs `git archive REF -- PATH` at the repository root
+and loads the extracted copy, so `seams plan main:model model` compares the
+model on `main` with the working tree. PATH is relative to the working
+directory, like a plain path.
+
+### Output
+
+The plan is Markdown: `# Change plan`, then `## Breaking changes` and
+`## Compatible changes` with one bullet per diff change (`<kind> <subject>`,
+plus the detail when there is one), or `None`; then `## Elements by layer`
+with a `### <Layer>` section only for a layer that changed, each listing
+`Added:` and `Removed:` CURIEs. Chapter 8 to chapter 9 of the expenses tutorial:
+
+```markdown
+# Change plan
+
+## Breaking changes
+
+None
+
+## Compatible changes
+
+- shape-added :NotificationShape
+- shape-added :NotifyProblemShape
+- operation-added :notify_failed
+- operation-added :notify_manager_op
+
+## Elements by layer
+
+### Operations
+
+Added:
+
+- :notify_manager_op
+
+### Shapes
+
+Added:
+
+- :NotificationShape
+- :NotifyProblemShape
+
+### Processes
+
+Added:
+
+- :approval_bpmn#notify_failed_boundary
+- :approval_bpmn#notify_manager
+```
+
+The output is deterministic, so it can be committed as release notes.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | No change is breaking. |
+| 1 | At least one change is breaking; `seams plan: N breaking, M compatible` goes to stderr. The plan is still written. |
+| 2 | A model is missing or cannot be loaded, or git cannot extract a `REF:PATH` (an unknown ref, a path absent at the ref, or no repository). |
+
+Errors print to stderr as `seams plan: <message>`; a git error names the ref.

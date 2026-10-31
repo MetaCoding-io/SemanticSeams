@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``, ``seams diff OLD NEW``.
+"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -52,6 +52,14 @@ sorted, with CURIEs where a prefix is bound; ``--json`` prints the changes,
 their data/contract scopes and the counts instead. With any breaking change,
 ``seams diff: N breaking, M compatible`` goes to stderr and the exit code is 1.
 A model that cannot be loaded exits 2. It reads no seams.toml.
+
+``seams plan OLD NEW [--output FILE]`` (D053) writes a Markdown change plan:
+the breaking and compatible changes ``seams diff`` finds, then the elements
+each layer adds and removes, as CURIEs. OLD and NEW are model paths or git
+``REF:PATH`` specs, extracted with ``git archive``. The plan goes to stdout,
+or to FILE, whose path is then printed. Exit codes and the stderr summary
+(``seams plan: N breaking, M compatible``) are diff's; an unknown ref or a
+failing git exits 2.
 """
 
 from __future__ import annotations
@@ -59,6 +67,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 import seams
@@ -69,6 +78,7 @@ from .check import FILE_KINDS, run_check
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
 from .generate import apply, generate_project
 from .lockfile import locate
+from .plan import render, resolve
 from .project import ProjectError, load_project, resolve_model
 from .sequence import run_sequence
 from .status import run_status
@@ -129,6 +139,15 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("new", type=Path, help="the new model: a .trig file or a directory")
     diff.add_argument("--json", action="store_true", help="print the changes, scopes and counts as JSON")
     diff.set_defaults(run=_diff)
+    plan = sub.add_parser(
+        "plan",
+        help="write a Markdown change plan (release notes) between two models or git REF:PATH specs",
+        description="Write the breaking and compatible changes and the elements each layer adds and removes.",
+    )
+    plan.add_argument("old", help="the old model: a .trig file, a directory or a git REF:PATH")
+    plan.add_argument("new", help="the new model, in the same forms")
+    plan.add_argument("--output", type=Path, help="write the plan to this file instead of stdout")
+    plan.set_defaults(run=_plan)
     return parser
 
 
@@ -213,6 +232,24 @@ def _diff(args: argparse.Namespace) -> int:
     breaking, compatible = report["counts"][BREAKING], report["counts"][COMPATIBLE]
     if breaking:
         print(f"seams diff: {breaking} breaking, {compatible} compatible", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _plan(args: argparse.Namespace) -> int:
+    with tempfile.TemporaryDirectory(prefix="seams-plan-") as tmp:
+        old = load_model(resolve(args.old, Path(tmp) / "old"))
+        new = load_model(resolve(args.new, Path(tmp) / "new"))
+    changes = diff_loaded(old, new)
+    text = render(old, new, changes)
+    if args.output is None:
+        sys.stdout.write(text)
+    else:
+        args.output.write_text(text, encoding="utf-8")
+        print(_display(args.output.resolve()))
+    counts = to_json(changes)["counts"]
+    if counts[BREAKING]:
+        print(f"seams plan: {counts[BREAKING]} breaking, {counts[COMPATIBLE]} compatible", file=sys.stderr)
         return 1
     return 0
 

@@ -280,7 +280,9 @@ This is the mockup above.
    edits and fails for reorganisations, so it should start narrow.
 4. **What stays out.**
    - Hand-written code lives outside generated files (U6), so it never needs
-     round-tripping.
+     round-tripping. The same goes for code an LLM drafts behind a generated stub.
+     It is traced by the model context it was given, at file level (see the
+     [LLM generator note](2026-10-31-llm-generator.md)).
    - BPMN and DMN are already bidirectional, because the native XML is the source and a
      modeler edits it directly (I4).
    - No general bidirectional transformation language. Its cost is a second way of

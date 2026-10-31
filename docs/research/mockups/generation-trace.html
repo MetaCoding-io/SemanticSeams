@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Mockup of a proposed SemanticSeams viewer pane (backlog T3). Self-contained: open it in a browser.
+<!-- Mockup of proposed SemanticSeams viewer panes (backlog T3 and C5). Self-contained: open it in a browser.
      Data: the chat app's generated chat_page.html, traced to template lines by a sentinel render
-     and to model elements by the G2 golden markers. See docs/research/2026-10-31-generation-trace.md. -->
+     and to model elements by the G2 golden markers. The LLM draft view uses the real context for the expense tutorial's send_now task.
+     See docs/research/2026-10-31-generation-trace.md and docs/research/2026-10-31-llm-generator.md. -->
 <style>body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -168,7 +169,49 @@ pre.patch .ins { color: var(--layer-data); }
 .f-api { background: var(--layer-architecture); }
 .f-compose { background: var(--layer-other); }
 
+/* LLM draft view */
+.llm-panes { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(280px, 1fr) minmax(300px, 1.15fr); gap: 64px; }
+.ctx-item { display: grid; grid-template-columns: 4px 1fr; gap: 0 9px; padding: 6px 12px 6px 0; }
+.ctx-item .bar { border-radius: 0 2px 2px 0; }
+.ctx-item .top { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.ctx-item .label { font-weight: 500; }
+.ctx-item .curie, .ctx-item .hash { font: 12px var(--font-code); color: var(--muted); overflow-wrap: anywhere; }
+.ctx-item .role { font: 600 10.5px var(--font-label); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.ctx-item .why { font-size: 12.5px; color: var(--muted); }
+.ctx-item.changed { background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.ctx-item.changed .hash { color: var(--warn); }
+.sline { display: grid; grid-template-columns: 2.6em 1fr; gap: 0 6px; white-space: pre; padding-right: 10px; }
+.sline.added { background: color-mix(in srgb, var(--layer-data) 14%, transparent); }
+.sline.sig { box-shadow: inset 3px 0 0 var(--brand); }
+.tests { padding: 8px 12px 12px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 6px; }
+.tests h3, .draft h3 { font: 600 11px var(--font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 4px 0 2px; }
+.test { display: grid; grid-template-columns: 18px 1fr; gap: 6px; font-size: 13px; }
+.test .mark { font: 600 12px var(--font-code); }
+.test.pass .mark { color: var(--layer-data); }
+.test.fail .mark { color: var(--layer-decision); }
+.test .src { font: 12px var(--font-code); color: var(--muted); }
+.draft { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.draft-node { border: 1.5px dashed var(--brand); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--brand-soft); }
+.draft-node.stale { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.draft-node .file { font: 600 13px var(--font-code); overflow-wrap: anywhere; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { font: 600 11px var(--font-label); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; }
+.pill.kind { background: var(--brand-soft); color: var(--brand); }
+.pill.ok { background: color-mix(in srgb, var(--layer-data) 16%, transparent); color: var(--layer-data); }
+.pill.stale { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.lock { font: 12px/1.55 var(--font-code); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; white-space: pre; overflow-x: auto; margin: 0; }
+.lock .k { color: var(--muted); }
+.lock .w { color: var(--warn); }
+.body-note { font-size: 12.5px; color: var(--muted); }
+details.body summary { cursor: pointer; font: 500 12.5px var(--font-ui); color: var(--brand); }
+details.body pre { font: 12px/1.55 var(--font-code); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; overflow-x: auto; margin: 6px 0 0; }
+.ci { font: 12.5px/1.5 var(--font-code); border-radius: 6px; padding: 8px 10px; border: 1px solid var(--rule); background: var(--panel); white-space: pre-wrap; }
+.ci.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--rule)); }
+.llm-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.gapnote { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--rule); padding-left: 10px; max-width: 70ch; }
+
 @media (max-width: 960px) {
+  .llm-panes { grid-template-columns: 1fr; gap: 12px; }
   .panes { grid-template-columns: 1fr; gap: 12px; }
   .scroll { height: min(46vh, 420px); }
   svg.links { display: none; }
@@ -180,7 +223,7 @@ pre.patch .ins { color: var(--layer-data); }
 </style>
 
 <div class="wrap">
-  <nav class="crumbs" aria-label="Breadcrumbs">
+  <nav class="crumbs" aria-label="Breadcrumbs" id="crumbs">
     <span>Chat App Architecture</span><span class="sep">›</span>
     <span>Chat Web Interface</span><span class="sep">›</span>
     <span>Chat Interface</span><span class="sep">›</span>
@@ -188,10 +231,10 @@ pre.patch .ins { color: var(--layer-data); }
   </nav>
 
   <div class="titlebar">
-    <h1>Generation trace · <code>chat_page.html</code></h1>
+    <h1 id="h1">Generation trace · <code>chat_page.html</code></h1>
     <div class="stats" id="stats"></div>
   </div>
-  <p class="mock"><strong>Mockup of a proposed viewer pane, with real data.</strong>
+  <p class="mock" id="intro"><strong>Mockup of a proposed viewer pane, with real data.</strong>
     The output is the chat app's generated landmark page. Each line is linked to the template line that wrote it
     by a sentinel-instrumented render, whose stripped output is byte-identical to the generator's, and to the model terms
     that justify it by the G2 golden markers. Click a line, an element or a template line. Dashed text can be edited
@@ -201,6 +244,7 @@ pre.patch .ins { color: var(--layer-data); }
     <div class="seg" role="group" aria-label="View">
       <button id="v-trace" aria-pressed="true">Trace</button>
       <button id="v-fan" aria-pressed="false">Fan-out</button>
+      <button id="v-llm" aria-pressed="false">LLM draft</button>
     </div>
     <div class="legend" id="legend"></div>
   </div>
@@ -228,6 +272,37 @@ pre.patch .ins { color: var(--layer-data); }
 
   <section id="fan-view" hidden>
     <div class="fan" id="fan"></div>
+  </section>
+
+  <section id="llm-view" hidden>
+    <div class="llm-controls">
+      <div class="seg" role="group" aria-label="Model state">
+        <button id="m-now" aria-pressed="true">Model as committed</button>
+        <button id="m-change" aria-pressed="false">After a model change</button>
+      </div>
+      <span class="body-note" id="change-note"></span>
+    </div>
+    <div class="stage" id="llm-stage" style="margin-top:12px">
+      <div class="llm-panes">
+        <div class="pane" id="lp-ctx">
+          <header><span class="k">Context assembled from the model</span><span class="v" id="ctx-hash"></span></header>
+          <div class="scroll" id="ls-ctx"></div>
+        </div>
+        <div class="pane" id="lp-draft">
+          <header><span class="k">LLM draft · owned, not regenerated</span><span class="v">impl/payout/send_now.py</span></header>
+          <div class="draft" id="draft"></div>
+        </div>
+        <div class="pane" id="lp-stub">
+          <header><span class="k">Deterministic stub · traced</span><span class="v">generated/stubs/send_now.py</span></header>
+          <div class="scroll" id="ls-stub" style="height:auto;max-height:none">
+            <div class="code" id="stub"></div>
+            <div class="tests" id="tests"></div>
+          </div>
+        </div>
+      </div>
+      <svg class="links" id="llm-links" aria-hidden="true"></svg>
+    </div>
+    <div class="ci" id="ci" style="margin-top:12px"></div>
   </section>
 </div>
 
@@ -470,6 +545,125 @@ function renderFan() {
         <div class="tot">${r.t}</div></div>`; }).join("");
 }
 
+/* LLM draft view: real context for the expense tutorial's Send Now task */
+const LLM = {"model":"examples/expenses/chapter-08/expenses.trig","model_hash":"sha256:f177d75576b2d87a06a6990dbfeabb65f5773a82c844da3fa6f2c32a4c83da86","task":":payout_bpmn#send_now","items":[{"curie":":send_now","label":"Send Now","role":"the task","why":"the element being implemented","layer":"process","hash":"sha256:1400aefe7314ea3c","triples":5,"hash_after_change":"sha256:1400aefe7314ea3c"},{"curie":":PaymentShape","label":"Payment","role":"output shape","why":"seam:writes: the body must return a conforming value","layer":"data","hash":"sha256:fed3f5c40d5cc3d9","triples":31,"hash_after_change":"sha256:2362a3587e67b62d"},{"curie":":t_send","label":null,"role":"transition","why":"seam:fires: success moves the entity along this transition","layer":"lifecycle","hash":"sha256:bdd3e5b9d5eaa72e","triples":5,"hash_after_change":"sha256:bdd3e5b9d5eaa72e"},{"curie":":s_scheduled","label":"scheduled","role":"state","why":"the transition's from and to states","layer":"lifecycle","hash":"sha256:cb7b9a80cb41d489","triples":3,"hash_after_change":"sha256:cb7b9a80cb41d489"},{"curie":":s_sent","label":"sent","role":"state","why":"the transition's from and to states","layer":"lifecycle","hash":"sha256:4ca95879845db162","triples":3,"hash_after_change":"sha256:4ca95879845db162"},{"curie":":payout_process","label":"Expense Payout","role":"process","why":"the process the task runs in, and its correlation key","layer":"process","hash":"sha256:2abedf23746539cf","triples":5,"hash_after_change":"sha256:2abedf23746539cf"},{"curie":":payout_method","label":"Choose Payout Method","role":"decision upstream","why":"the gateway condition method == \"now\" reads its output","layer":"decision","hash":"sha256:ef4591fd2dbc93c2","triples":14,"hash_after_change":"sha256:ef4591fd2dbc93c2"},{"curie":":expense_api","label":"Expense API","role":"container","why":"seam:executes the process: where the code runs","layer":"architecture","hash":"sha256:601a0ed7dfdca3ad","triples":27,"hash_after_change":"sha256:601a0ed7dfdca3ad"}],"payloads":[{"file":"examples/expenses/chapter-08/payout.bpmn","why":"flow around the task: the gateway and the condition into it","hash":"sha256:19b0e07de310d914"},{"file":"examples/expenses/chapter-08/payout.dmn","why":"the rules that choose \"now\"","hash":"sha256:600f569167f644b9"}],"fields":[{"name":"reference","path":":reference","datatype":"xsd:string","min":1,"max":1,"order":0},{"name":"paid_on","path":":paid_on","datatype":"xsd:date","min":1,"max":1,"order":1},{"name":"status","path":":status","datatype":"xsd:string","min":0,"max":1,"order":2}],"transition":{"curie":":t_send","from":"scheduled","to":"sent","trigger":"send"},"context_hash":"sha256:c9fa56b223cba76d","context_hash_after_change":"sha256:536a5bb524ac6f39","change":{"description":"PaymentShape gains a required :currency (xsd:string)","changed":[":PaymentShape"]}};
+let changed = false, ctxSel = null;
+const PY = { "xsd:string": "str", "xsd:date": "date", "xsd:decimal": "Decimal", "xsd:integer": "int", "xsd:boolean": "bool" };
+function stubLines() {
+  const L = [], add = (t, src = [], cls = "") => L.push({ t, src, cls });
+  add("# Generated by the seams implementation-stub generator from the expenses model. Do not edit.");
+  add(`# model-hash: ${LLM.model_hash.slice(0, 23)}…`);
+  add("# :send_now in :payout_process, run by :expense_api (FastAPI)", [":send_now", ":payout_process", ":expense_api"]);
+  add("from dataclasses import dataclass");
+  add("from datetime import date", [":PaymentShape"]);
+  add("");
+  add("from seams_runtime.tasks import TaskContext  # sketch of the U6 task API");
+  add(""); add("");
+  add("@dataclass", [":PaymentShape"]);
+  add("class Payment:  # :PaymentShape", [":PaymentShape"]);
+  const fields = LLM.fields.map(f => ({ ...f }));
+  if (changed) fields.splice(fields.findIndex(f => f.min === 0), 0, { name: "currency", datatype: "xsd:string", min: 1, added: true });
+  fields.forEach(f => add(`    ${f.name}: ${PY[f.datatype] || "str"}${f.min ? "" : " | None = None"}`, [":PaymentShape"], f.added ? "added" : ""));
+  add(""); add("");
+  add("async def send_now(payment: Payment, ctx: TaskContext) -> Payment:", [":send_now", ":PaymentShape"], "sig");
+  add('    """Send Now. Reached when Choose Payout Method returns "now".', [":send_now", ":payout_method"]);
+  add("    On return the runtime validates the result against :PaymentShape", [":PaymentShape"]);
+  add(`    and fires :t_send (${LLM.transition.from} -> ${LLM.transition.to})."""`, [":t_send", ":s_scheduled", ":s_sent"]);
+  add("    ...  # body: impl/payout/send_now.py (LLM draft, owned)");
+  return L;
+}
+function tests() {
+  return [
+    { name: "Returns a Payment that conforms to :PaymentShape", src: ":PaymentShape sh:minCount, sh:datatype", pass: !changed, why: changed ? "the draft never sets the new required currency" : "" },
+    { name: "Runs only on a payment in state scheduled, where :t_send is legal", src: ":t_send state:from :s_scheduled", pass: true },
+    { name: 'Runs only for the payout.dmn rules that return "now"', src: 'payout.dmn, flow_now: method == "now"', pass: true },
+    { name: "Type-checks against the stub signature", src: "generated/stubs/send_now.py", pass: !changed, why: changed ? "Payment(...) is called without currency" : "" },
+  ];
+}
+function renderLLM() {
+  const ctxHash = changed ? LLM.context_hash_after_change : LLM.context_hash;
+  $("#ctx-hash").textContent = `context ${ctxHash}`;
+  $("#ls-ctx").innerHTML = LLM.items.map(i => {
+    const h = changed ? i.hash_after_change : i.hash, ch = changed && i.hash !== i.hash_after_change;
+    return `<div class="ctx-item${ch ? " changed" : ""}${ctxSel === i.curie ? " on" : ""}" data-c="${esc(i.curie)}" tabindex="0" style="cursor:pointer">
+      <span class="bar" style="background:${lc(i.layer)}"></span>
+      <div><div class="role">${esc(i.role)}</div>
+      <div class="top"><span class="label">${esc(i.label || i.curie)}</span><span class="curie">${esc(i.curie)}</span></div>
+      <div class="why">${esc(i.why)}</div>
+      <div class="hash">${ch ? `${esc(i.hash)} → ${esc(h)}` : esc(h)} · ${i.triples} triples</div></div></div>`;
+  }).join("") + `<div class="group" style="padding-top:12px">Native files</div>` + LLM.payloads.map(p =>
+    `<div class="ctx-item"><span class="bar" style="background:var(--layer-other)"></span><div>
+      <div class="top"><span class="curie" style="color:var(--ink)">${esc(p.file.split("/").pop())}</span></div>
+      <div class="why">${esc(p.why)}</div><div class="hash">${esc(p.hash)}</div></div></div>`).join("");
+  const SL = stubLines();
+  $("#stub").innerHTML = SL.map((l, i) => `<div class="sline ${l.cls}${ctxSel && l.src.includes(ctxSel) ? " on" : ""}" data-src="${esc(l.src.join(" "))}" style="${ctxSel && l.src.includes(ctxSel) ? "background:var(--hit)" : ""}"><span class="ln">${i + 1}</span><span class="txt">${hlPlain(l.t)}</span></div>`).join("");
+  const T = tests(), passed = T.filter(t => t.pass).length;
+  $("#tests").innerHTML = `<h3>Tests the draft must pass, generated from the model</h3>` + T.map(t =>
+    `<div class="test ${t.pass ? "pass" : "fail"}"><span class="mark">${t.pass ? "✓" : "✗"}</span><div>${esc(t.name)}${t.why ? ` <span class="muted">· ${esc(t.why)}</span>` : ""}<div class="src">${esc(t.src)}</div></div></div>`).join("");
+  $("#draft").innerHTML = `<div class="draft-node${changed ? " stale" : ""}" id="draft-node">
+      <div class="file">impl/payout/send_now.py</div>
+      <div class="pills"><span class="pill kind">LLM draft</span><span class="pill ok">Accepted</span>${changed ? '<span class="pill stale">Stale</span>' : '<span class="pill ok">Current</span>'}</div>
+      <div class="body-note">Trace is file-level: the context below, not template lines. The stub's signature is the one line-level link.</div>
+    </div>
+    <h3>Lockfile record (A2)</h3>
+<pre class="lock"><span class="k">impl/payout/send_now.py:</span>
+  <span class="k">kind:</span> llm-draft
+  <span class="k">implements:</span> :payout_bpmn#send_now
+  <span class="k">stub:</span> generated/stubs/send_now.py
+  <span class="k">context:</span> ${esc(LLM.context_hash)}  <span class="k"># ${LLM.items.length} elements, ${LLM.payloads.length} files</span>${changed ? `\n  <span class="w">now:</span>     <span class="w">${esc(LLM.context_hash_after_change)}  # stale</span>` : ""}
+  <span class="k">prompt:</span> implement-service-task@1
+  <span class="k">model:</span> &lt;provider model id&gt;
+  <span class="k">accepted:</span> 2026-10-31, by a reviewer
+  <span class="k">tests:</span> 4 of 4 passed at acceptance
+  <span class="k">edits:</span> hand edits after acceptance are recorded, never reverted</pre>
+    <details class="body"><summary>Body (illustrative; no LLM was called for this mockup)</summary>
+<pre>from datetime import date
+
+from generated.stubs.send_now import Payment, TaskContext
+from impl.adapters.payments import PaymentsClient  # hand-written adapter
+
+
+async def send_now(payment: Payment, ctx: TaskContext) -&gt; Payment:
+    client = PaymentsClient.from_env(ctx)
+    await client.send(reference=payment.reference)
+    return Payment(reference=payment.reference,
+                   paid_on=date.today(), status="sent")</pre></details>
+    <p class="gapnote">The model names no payment provider, so the draft can only call a hand-written adapter. U6's implementation seam is where the model would name the endpoint; with it, the endpoint and its secret's name join the context.</p>`;
+  $("#ci").className = "ci" + (changed ? " warn" : "");
+  $("#ci").innerHTML = changed
+    ? `$ seams check\ngenerated/stubs/send_now.py   regenerated   +1 line: currency: str\nimpl/payout/send_now.py       <span style="color:var(--warn)">STALE</span>   context ${esc(LLM.context_hash)} → ${esc(LLM.context_hash_after_change)} (${LLM.change.changed.join(", ")} changed)\n                              ${T.length - passed} of ${T.length} tests now fail; the draft is not overwritten\nnext: seams propose impl/payout/send_now.py   # calls the LLM with the new context and opens a diff for review`
+    : `$ seams check\ngenerated/stubs/send_now.py   current   deterministic, byte-identical on regeneration\nimpl/payout/send_now.py       current   llm-draft, context ${esc(LLM.context_hash)}, ${passed} of ${T.length} tests pass\n                              CI never calls the LLM; it only recomputes the context hash`;
+  $("#change-note").textContent = changed ? `Simulated: ${LLM.change.description}. Only ${LLM.change.changed.join(", ")} hashes differently.` : "Toggle to see what a model change does to an accepted draft.";
+  requestAnimationFrame(drawLLM);
+}
+function drawLLM() {
+  const svg = $("#llm-links");
+  if ($("#llm-view").hidden || getComputedStyle(svg).display === "none") { svg.innerHTML = ""; return; }
+  const st = $("#llm-stage").getBoundingClientRect(), node = $("#draft-node"); if (!node) return;
+  const nr = node.getBoundingClientRect(); let h = "";
+  const pane = $("#ls-ctx").getBoundingClientRect();
+  document.querySelectorAll("#ls-ctx .ctx-item[data-c]").forEach((it, k) => {
+    const r = it.getBoundingClientRect(); let y = r.top + r.height / 2; const clamped = y < pane.top || y > pane.bottom;
+    y = Math.min(Math.max(y, pane.top + 4), pane.bottom - 4);
+    const i = LLM.items.find(x => x.curie === it.dataset.c), ch = changed && i.hash !== i.hash_after_change;
+    const a = { x: r.right - st.left, y: y - st.top }, b = { x: nr.left - st.left, y: nr.top - st.top + 18 + k * 5 };
+    const dx = (b.x - a.x) / 2, col = ch ? "var(--warn)" : lc(i.layer), op = ctxSel && ctxSel !== i.curie ? .15 : clamped ? .3 : .75;
+    h += `<path d="M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}" fill="none" stroke="${col}" stroke-width="${ch ? 2.2 : 1.4}" stroke-opacity="${op}" stroke-dasharray="4 3"/>`;
+  });
+  const sig = $("#stub .sline.sig");
+  if (sig) {
+    const r = sig.getBoundingClientRect(), a = { x: r.left - st.left, y: r.top + r.height / 2 - st.top }, b = { x: nr.right - st.left, y: nr.bottom - st.top - 14 };
+    const dx = (b.x - a.x) / 2;
+    h += `<path d="M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}" fill="none" stroke="var(--brand)" stroke-width="1.8"/><circle cx="${b.x}" cy="${b.y}" r="3" fill="var(--brand)"/>`;
+  }
+  svg.innerHTML = h;
+}
+function setChanged(v) { changed = v; $("#m-now").setAttribute("aria-pressed", String(!v)); $("#m-change").setAttribute("aria-pressed", String(v)); renderLLM(); }
+$("#m-now").addEventListener("click", () => setChanged(false));
+$("#m-change").addEventListener("click", () => setChanged(true));
+$("#ls-ctx").addEventListener("click", ev => { const it = ev.target.closest(".ctx-item[data-c]"); if (!it) return; ctxSel = ctxSel === it.dataset.c ? null : it.dataset.c; renderLLM(); });
+$("#ls-ctx").addEventListener("scroll", () => requestAnimationFrame(drawLLM), { passive: true });
+
 /* events */
 function select(s, scroll = true) { sel = s; draft = null; apply(scroll); }
 document.addEventListener("click", ev => {
@@ -491,18 +685,30 @@ document.addEventListener("keydown", ev => {
 });
 ["#s-model", "#s-tpl", "#s-out"].forEach(s => $(s).addEventListener("scroll", () => requestAnimationFrame(draw), { passive: true }));
 window.addEventListener("resize", () => requestAnimationFrame(draw));
-function setView(fan) {
-  $("#v-trace").setAttribute("aria-pressed", String(!fan)); $("#v-fan").setAttribute("aria-pressed", String(fan));
-  $("#trace-view").hidden = fan; $("#fan-view").hidden = !fan; $("#legend").style.visibility = fan ? "hidden" : "visible";
-  try { localStorage.setItem("trace-view", fan ? "fan" : "trace"); } catch (e) {}
-  if (!fan) requestAnimationFrame(draw);
+const CHAT_HEAD = { crumbs: $("#crumbs").innerHTML, h1: $("#h1").innerHTML, intro: $("#intro").innerHTML, legend: $("#legend").innerHTML };
+const LLM_HEAD = {
+  crumbs: `<span>Expense Approval Architecture</span><span class="sep">›</span><span>Expense API</span><span class="sep">›</span><span>Payout Process</span><span class="sep">›</span><b>Send Now: implementation</b>`,
+  h1: `LLM draft · <code>send_now</code>`,
+  legend: ["architecture", "process", "decision", "data", "lifecycle"].map(l => `<span><i style="background:${lc(l)}"></i>${LAYER_NAME[l]}</span>`).join("") + `<span><i style="background:var(--warn)"></i>Changed by the model edit</span>`,
+  intro: `<strong>Mockup of a proposed generator kind, with real context.</strong> The left pane is what an LLM generator would assemble for the expense tutorial's Send Now task (chapter 8): eight model elements and two native files, each with its real canonical hash. The stub and the tests come from deterministic generators; only the body is drafted by an LLM, accepted once, then owned. No LLM was called for this mockup. Toggle the model change to see the draft go stale.`,
+};
+function setView(v) {
+  ["trace", "fan", "llm"].forEach(n => { $("#v-" + n).setAttribute("aria-pressed", String(n === v)); $(`#${n}-view`).hidden = n !== v; });
+  const H = v === "llm" ? LLM_HEAD : CHAT_HEAD;
+  $("#crumbs").innerHTML = H.crumbs; $("#h1").innerHTML = H.h1; $("#intro").innerHTML = H.intro; $("#legend").innerHTML = H.legend;
+  $("#stats").hidden = v === "llm"; $("#legend").style.visibility = v === "fan" ? "hidden" : "visible";
+  try { localStorage.setItem("trace-view", v); } catch (e) {}
+  if (v === "trace") requestAnimationFrame(draw);
+  if (v === "llm") renderLLM();
 }
-$("#v-trace").addEventListener("click", () => setView(false));
-$("#v-fan").addEventListener("click", () => setView(true));
+$("#v-trace").addEventListener("click", () => setView("trace"));
+$("#v-fan").addEventListener("click", () => setView("fan"));
+$("#v-llm").addEventListener("click", () => setView("llm"));
+window.addEventListener("resize", () => requestAnimationFrame(drawLLM));
 
 renderModel(); renderTabs(); renderTpl(); renderOut(); renderFan();
 select({ kind: "line", n: 17 }, true);
-try { if (localStorage.getItem("trace-view") === "fan") setView(true); } catch (e) {}
+try { const v = localStorage.getItem("trace-view"); if (v === "fan" || v === "llm") setView(v); } catch (e) {}
 document.fonts && document.fonts.ready.then(() => requestAnimationFrame(draw));
 </script>
 

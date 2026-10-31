@@ -173,7 +173,10 @@ stays a v1 non-goal until M008/S04 checks it again. K1 and K2 stand alone and ar
 doing first: today a model can show *Conforms* in the viewer and still fail generation. T1 to T5 come from the
 [generation trace note](research/2026-10-31-generation-trace.md): tracing each generated line back to its
 template and model, a view of it, and write-back in tiers. T1 to T3 need no editing, so
-they can ship while editing stays a v1 non-goal.
+they can ship while editing stays a v1 non-goal. C1 to C5 come from the
+[LLM generator note](research/2026-10-31-llm-generator.md): code the templates cannot
+write, drafted by an LLM behind a deterministic stub and tests from the model, accepted
+once, then owned and traced by its model context.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
@@ -193,6 +196,11 @@ they can ship while editing stays a v1 non-goal.
 | T3 | **Generation view**: model, template and output panes joined by trace lines, a fan-out view, and a "Generated" section in the element inspector ([mockup](research/2026-10-31-generation-trace.md)) | M | T1 | none | proposed |
 | T4 | **Write-back of single-literal values**: edit a label, title or path in the output, apply a one-triple patch after regenerating reproduces the edit, and show effects beyond the page first | M | T1, I1 | none | proposed |
 | T5 | **Structural edit proposals**: drafted model patches accepted only when regeneration reproduces the edit; start with adding and removing form fields | M | T4 | none | proposed |
+| C1 | **Implementation stub generator**: per service task, a deterministic, traced stub with data classes from the read and written shapes, the signature, and a docstring naming the decision and transition. [Note](research/2026-10-31-llm-generator.md) | S | U6 (ADR first), T1 | none | proposed |
+| C2 | **Acceptance tests from the model**: shape conformance, legal-transition state, decision-branch scenarios, and a type check against the stub | M | U5, A9, C1 | none | proposed |
+| C3 | **Context assembly**: per-kind rules narrowed to the facts used, canonical hashing of each element and native file, and a manifest with a context hash; useful as a review report before any LLM is involved | S | none | none | proposed |
+| C4 | **LLM draft generator**: provider-agnostic call, versioned prompt templates, writes only to the U6 location, `seams propose`, accepted only when C2's tests pass; model text quoted as data, binding names but never values, never run in CI | M | C1 to C3, K3, U6 | none | proposed |
+| C5 | **Drafts in the lockfile, `seams check` and the generation view**: an `llm-draft` record, staleness from the context hash, hand-edit detection, and the draft node in T3 ([mockup](research/2026-10-31-llm-generator.md)) | S | A1, A2, T3, C3 | none | proposed |
 
 ## Generation: what is planned, what is not
 

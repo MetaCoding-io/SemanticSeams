@@ -116,7 +116,7 @@ container it qualifies.
                           deploy:version "local" ;
                           deploy:build [ a deploy:Build ;
                                          deploy:context "../.." ;
-                                         deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+                                         deploy:dockerfile "examples/chat-app/generated/chat_api.Dockerfile" ] ] ;
         deploy:configuration [ a deploy:Configuration ;
             deploy:binding [ deploy:key "DB_URL" ;
                              deploy:secretFile "../../docker/local-secrets/db_url" ;
@@ -252,7 +252,12 @@ inventory above):
 - **S03** generates the build file for the serving container, which can replace the
   development `deploy:dockerfile` fact and the `SEAMS_APP_DIR`/`SEAMS_ROUTES_FILE` build
   args, and publishes images tagged with the model hash so production's shared
-  `deploy:artifact` references exist.
+  `deploy:artifact` references exist. *Done (M016/S03): the `dockerfile` generator writes
+  `generated/<route module>.Dockerfile` for the serving container, the development
+  `deploy:dockerfile` names it, compose passes no build args, and
+  `docker/runtime.Dockerfile` is gone. The gated `publish-images.yml` workflow (manual
+  or `v*` tag) builds those files and tags each image with the production reference and
+  version and `sha-<model hash>`.*
 - **S04** lists secrets and configuration keys per environment by applying the same
   override rule: production's `deploy:secretName`s, development's `deploy:secretFile`s,
   and every `deploy:key`. It checks that each exists without reading it.
@@ -276,3 +281,14 @@ change nothing above.
   `seams-expenses`.
 - Every `compose*.yaml` at a compose target counts as generated, so a leftover
   `compose.yaml` or `compose.override.yaml` fails `tests/test_generated_outputs_current.py`.
+
+Recorded when S03 landed (M016/S03):
+
+- The `dockerfile` generator writes exactly one file, for the serving container; a
+  project that lists it and has no development `deploy:build` fails with a
+  `GeneratorError` naming `deploy:build` rather than skipping. A test pins each committed
+  project's development `deploy:dockerfile` to the generated path.
+- The publish workflow lists images with `python -m seams_gen.images` and builds them in
+  a matrix job. The short model hash in the `sha-` tag is the first 12 hex digits of the
+  model hash; the image also carries `org.opencontainers.image.revision`,
+  `io.semanticseams.model-hash` and `io.semanticseams.container` labels.

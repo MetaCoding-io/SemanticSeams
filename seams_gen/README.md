@@ -78,12 +78,21 @@ dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", ba
 | `htmx` (other served pages) | `<out>/<page local name>.html` and its partials, built like the landmark page but without task forms | each page of `model.interfaces.served_pages()` after the landmark: an `ifml:ViewContainer` with an `ifml:path` that is not the landmark and holds no task form, from any `ifml:InteractionModel` its container `seam:presents`. The expense tutorial's `:payouts_page` (chapter 8) is one. A partial two pages would render differently is a `GeneratorError` |
 | `fastapi` | `<out>/<container local name>.py`, a thin FastAPI route module | the one serving `arch:Container` (it `seam:executes` a `proc:Process`, or `seam:exposes` an operation an `ifml:Event` `seam:submitsTo`), and what it `seam:exposes` |
 | `compose` | `<out>/compose.<environment local name>.yaml`, one docker compose file per `arch:Environment` (ADR-0015), with paths relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts under the override rule for that environment, `seam:deployedTo` and the serving-container rule |
+| `dockerfile` | `<out>/<route module stem>.Dockerfile` (`chat_api.Dockerfile`), the runtime image build file, with every path literal and relative to the build context; header and `io.semanticseams.model-hash` / `io.semanticseams.container` labels name the model hash and the container | the serving `arch:Container` and the `deploy:build` of its `deploy:artifact` in the `development` `arch:Environment` (ADR-0015); no serving container, or no development build, is a `GeneratorError` naming `seam:executes` or `deploy:build` |
 | `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py`, `<out>/test_shape_examples.py` and `<out>/test_policies.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`, and each `odrl:permission` of `model.policies` with every `odrl:Party`; [Tests rendering rules](#tests-rendering-rules) |
 | `smoke` | `<out>/test_smoke.py`, a pytest file that calls a running app (backlog A9) | each `hydra:Operation` of `model.operations` with a `hydra:method` and a `comm:path`, its `seam:acceptsShape` / `seam:returnsShape`, its error statuses (ADR-0013), the first `verify:validExample` of its shapes and each `odrl:permission` targeting it; [Smoke rendering rules](#smoke-rendering-rules) |
 
 Each generator is one subcommand in `GENERATORS` in `__main__.py`, called as
-`generate(trig, out)`; `htmx`, `fastapi`, `compose` (S06), `tests` (M015) and `smoke`
-(M015/S05) are registered the same way, and only `compose` uses `out`.
+`generate(trig, out)`; `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke`
+(M015/S05) and `dockerfile` (M016/S03) are registered the same way, and only `compose` uses `out`.
+
+**Images.** `python -m seams_gen.images PROJECT...` (`images.py`) is not a generator: it
+prints, as JSON, each Dockerfile a project's `dockerfile` generator writes, its build
+context, the production `deploy:artifact` reference and version, and the tags
+`<reference>:<version>` and `<reference>:sha-<first 12 hex digits of the model hash>`.
+The gated `.github/workflows/publish-images.yml` (manual or `v*` tag only) builds and
+pushes from that list. A missing project file or Dockerfile exits 1; a missing model fact
+prints the `GeneratorError` and exits 2.
 
 **Errors.** A missing or ambiguous required fact raises `GeneratorError(subject,
 predicate, detail)`. Its message names the subject IRI and the predicate, so the model
@@ -257,7 +266,7 @@ container.
 | `name` | The project name: the `arch:System`'s local name, lower-cased, so two apps never share volumes. |
 | Services | The `arch:Container`s that the one `arch:System` `arch:contains`, by IRI, named by local name (none or several systems: `GeneratorError(<model file>, arch:contains)`). Keys in the order `image`, `build`, `pull_policy`, `command`, `ports`, `expose`, `depends_on`, `environment`, `secrets`, `volumes`, `healthcheck`, `deploy`. |
 | `image` | The environment's `deploy:artifact`: `<deploy:reference>:<deploy:version>` (missing: error on the container and `deploy:artifact`). |
-| `build` / `pull_policy` | An artifact with a `deploy:build`: `build.context` is `deploy:context` (relative to the model file's directory) rewritten relative to `--out`, `build.dockerfile` is `deploy:dockerfile` (relative to the context, as in Docker), and `pull_policy: build`. For the serving container, `build.args` adds `SEAMS_APP_DIR` (the model file's directory relative to the context) and `SEAMS_ROUTES_FILE` (its route module, `fastapi.route_file_name`). An artifact without a build is pulled. |
+| `build` / `pull_policy` | An artifact with a `deploy:build`: `build.context` is `deploy:context` (relative to the model file's directory) rewritten relative to `--out`, `build.dockerfile` is `deploy:dockerfile` (relative to the context, as in Docker), and `pull_policy: build`. There are no build args: the serving container's `deploy:dockerfile` names the file the `dockerfile` generator writes, with the app's paths literal. An artifact without a build is pulled. |
 | `command` | A container that `deploy:proxies` another: `caddy reverse-proxy --from :<its single deploy:containerPort> --to <target>:<target's single deploy:containerPort>` (not one port, or a target outside the system: error). |
 | `ports` / `expose` | Each `deploy:port`: with `deploy:publishedPort` → `ports: - "pub:cont"`; without → `expose: - "cont"`. |
 | `depends_on` | Each `deploy:dependsOn` target by local name (not `arch:dependsOn`), with `condition: service_healthy` when the target has a healthcheck (a `deploy:healthcheck`, or the serving container's probe) and `service_started` otherwise; a target outside the system is an error. |

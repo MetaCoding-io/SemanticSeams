@@ -135,10 +135,11 @@ Compose builds the runtime and gateway images from this checkout and starts four
 `chat_api` (the runtime serving the generated route module), `llm_gateway`, `chat_ui`
 (a reverse proxy on port 8080) and `message_db`. The first build takes a minute or two.
 
-The runtime image bakes in one app's generated route module, templates and seed data,
-chosen by the `SEAMS_APP_DIR` and `SEAMS_ROUTES_FILE` build args (default
-`examples/chat-app` and `chat_api.py`; the generator writes them from the model). It does
-not bake in the model: the compose file
+The runtime image bakes in one app's generated route module, templates and seed data.
+Its build file, `examples/chat-app/generated/chat_api.Dockerfile`, is generated from the
+model too: the `dockerfile` generator writes the app's paths into it literally and labels
+the image with the model hash, and the development override's `deploy:dockerfile` names
+it. It does not bake in the model: the compose file
 bind-mounts the TriG and its payloads at `/model`, and `SEAMS_MODEL` names the TriG the
 runtime loads (see [seams_runtime/README.md](https://github.com/MetaCoding-io/SemanticSeams/blob/main/seams_runtime/README.md)).
 

@@ -177,7 +177,7 @@ that names the environment and carries only the facts that differ:
                           deploy:version "local" ;
                           deploy:build [ a deploy:Build ;
                                          deploy:context "../../.." ;
-                                         deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+                                         deploy:dockerfile "examples/expenses/chapter-09/generated/expense_api.Dockerfile" ] ] ;
         deploy:configuration [ a deploy:Configuration ;
             deploy:binding [ deploy:key "DATABASE_URL" ;
                              deploy:secretFile "../../../docker/local-secrets/expense_database_url" ;
@@ -212,6 +212,20 @@ node. `deploy:proxies` on a code-free container (the chat UI and the employee po
 Caddy) makes it a reverse proxy to the named container. Name the `seams.toml`
 environments after the same local names, so `seams status --env development` reads the
 stack that `compose.development.yaml` starts.
+
+The serving container's build file is generated as well. List the `dockerfile` generator
+in `seams.toml` and it writes `generated/<route module>.Dockerfile` (here
+`expense_api.Dockerfile`) from the container's development `deploy:build`, with the app
+directory, route module and seed data as literal paths and the model hash and container
+IRI as image labels. Point the development `deploy:dockerfile` at that file, relative to
+the context; compose passes no build args.
+
+Production names images by `deploy:reference` and `deploy:version`. The gated
+`.github/workflows/publish-images.yml` workflow builds each project's generated
+Dockerfile and tags the image `<reference>:<version>` and `<reference>:sha-<model hash>`
+(the first 12 hex digits). It runs only by hand (`workflow_dispatch`, which pushes only
+when its `push` input is set) or on a `v*` tag, never on a push to main or a pull
+request. `python -m seams_gen.images PROJECT...` prints the list it builds, as JSON.
 
 The generated serving container runs one replica until the runtime can share state
 (backlog A10). A larger `deploy:replicas` stays in the model, shows as a warning in the

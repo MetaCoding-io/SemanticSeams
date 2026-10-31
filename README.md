@@ -83,7 +83,9 @@ The viewer shows them per event (its Sequences section and `GET /sequence/{event
 the docs embed the golden diagrams, rendered with Mermaid.
 `seams sequence <event> --trace RUN` draws the as-executed counterpart from a recorded
 run's trace rows (a trace JSON file or an instance id in the runtime's SQLite store), on
-the same lifelines, with a `%% gap:` line for every row the model cannot place. The
+the same lifelines, with a `%% gap:` line for every row the model cannot place.
+`seams diff OLD NEW` classifies each shape and operation-contract change between two
+model versions as compatible or breaking, and exits 1 when any change is breaking. The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

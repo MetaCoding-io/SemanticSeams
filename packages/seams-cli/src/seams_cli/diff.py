@@ -17,7 +17,8 @@ response.
 - A shape change is also in the ``contract`` scope when an operation in either
   model accepts or returns that shape.
 
-A model that cannot be loaded raises ProjectError.
+A model that cannot be loaded raises ProjectError. ``shorten`` turns the IRIs of a
+subject or detail into CURIEs for the text output of ``seams diff``.
 """
 
 from __future__ import annotations
@@ -62,13 +63,17 @@ class _Property(NamedTuple):
     max_count: int | None
 
 
-def _load(model: Path) -> rdflib.Graph:
+def load_model(path: Path) -> seams.Model:
+    """The model at ``path`` (a TriG file or a directory); ProjectError when it cannot be loaded."""
     try:
-        ds = seams.load(model).ds
+        return seams.load(path)
     except Exception as err:
-        raise ProjectError(f"{model}: cannot load the model: {err}") from err
+        raise ProjectError(f"{path}: cannot load the model: {err}") from err
+
+
+def _union(model: seams.Model) -> rdflib.Graph:
     graph = rdflib.Graph()
-    for s, p, o, _ctx in ds.quads((None, None, None, None)):
+    for s, p, o, _ctx in model.ds.quads((None, None, None, None)):
         graph.add((s, p, o))
     return graph
 
@@ -154,7 +159,12 @@ def _compare_property(path: str, old: _Property, new: _Property) -> list[tuple[s
 
 def diff_models(old: Path, new: Path) -> list[Change]:
     """Every shape and operation-contract change from OLD to NEW, sorted."""
-    old_graph, new_graph = _load(old), _load(new)
+    return diff_loaded(load_model(old), load_model(new))
+
+
+def diff_loaded(old: seams.Model, new: seams.Model) -> list[Change]:
+    """``diff_models`` over two models already loaded with ``load_model``."""
+    old_graph, new_graph = _union(old), _union(new)
     old_shapes, new_shapes = _shapes(old_graph), _shapes(new_graph)
     renames = _renames(new_graph, old_shapes - new_shapes, new_shapes - old_shapes)
     old_ops, new_ops = _operations(old_graph), _operations(new_graph)
@@ -214,6 +224,22 @@ def diff_models(old: Path, new: Path) -> list[Change]:
                 changes.append(Change(BREAKING, f"{role}-changed", op, detail, (CONTRACT,)))
 
     return sorted(changes, key=lambda c: (c.subject, c.kind, c.detail, c.verdict))
+
+
+def shorten(text: str, *models: seams.Model) -> str:
+    """``text`` with each IRI token (split on spaces and commas) as a CURIE of the first model binding its
+    namespace; a token no model binds stays as it is."""
+
+    def token(word: str) -> str:
+        if "://" not in word or word.startswith("["):
+            return word
+        for model in models:
+            short = model.compact(word, whole=True)
+            if short != word:
+                return short
+        return word
+
+    return " ".join(",".join(token(w) for w in part.split(",")) for part in text.split(" "))
 
 
 def to_json(changes: Iterable[Change]) -> dict:

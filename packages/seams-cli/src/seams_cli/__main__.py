@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``.
+"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``, ``seams diff OLD NEW``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -43,11 +43,21 @@ the worker's trace rows: RUN is a trace JSON file or an instance id in the
 runtime's SQLite store (``--db PATH``, default SEAMS_DB, else
 ``<project root>/seams.sqlite``). A missing instance exits 2; ``--db``
 without ``--trace`` is a usage error.
+
+``seams diff OLD NEW [--json]`` (D052) compares two model versions, each a
+TriG file or a directory, and classifies every SHACL shape and operation
+contract (seam:acceptsShape, seam:returnsShape) change as compatible or
+breaking. Each change prints as ``<verdict> <kind> <subject> <detail>``,
+sorted, with CURIEs where a prefix is bound; ``--json`` prints the changes,
+their data/contract scopes and the counts instead. With any breaking change,
+``seams diff: N breaking, M compatible`` goes to stderr and the exit code is 1.
+A model that cannot be loaded exits 2. It reads no seams.toml.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -56,6 +66,7 @@ import seams
 from seams_gen import GeneratorError
 
 from .check import FILE_KINDS, run_check
+from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
 from .generate import apply, generate_project
 from .lockfile import locate
 from .project import ProjectError, load_project, resolve_model
@@ -109,6 +120,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--db", type=Path, help="the runtime's SQLite store (default: SEAMS_DB, else <project>/seams.sqlite)"
     )
     sequence.set_defaults(run=_sequence)
+    diff = sub.add_parser(
+        "diff",
+        help="classify shape and operation-contract changes between two models as compatible or breaking",
+        description="Compare the SHACL shapes and operation contracts of two model versions.",
+    )
+    diff.add_argument("old", type=Path, help="the old model: a .trig file or a directory")
+    diff.add_argument("new", type=Path, help="the new model: a .trig file or a directory")
+    diff.add_argument("--json", action="store_true", help="print the changes, scopes and counts as JSON")
+    diff.set_defaults(run=_diff)
     return parser
 
 
@@ -178,6 +198,22 @@ def _sequence(args: argparse.Namespace) -> int:
         print(f"seams sequence: gap {name}: {gap}", file=sys.stderr)
     for path in paths:
         print(_display(path.resolve()))
+    return 0
+
+
+def _diff(args: argparse.Namespace) -> int:
+    old, new = load_model(args.old), load_model(args.new)
+    changes = diff_loaded(old, new)
+    report = to_json(changes)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        for c in changes:
+            print(shorten(f"{c.verdict} {c.kind} {c.subject} {c.detail}", new, old))
+    breaking, compatible = report["counts"][BREAKING], report["counts"][COMPATIBLE]
+    if breaking:
+        print(f"seams diff: {breaking} breaking, {compatible} compatible", file=sys.stderr)
+        return 1
     return 0
 
 

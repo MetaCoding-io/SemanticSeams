@@ -408,6 +408,38 @@ The exit code is 0 on pass, 1 on fail, and 2 when the file is missing, unreadabl
 valid TriG (the message goes to stderr). The check loads only the TriG, not the ontology
 files. The source queries are in `docs/queries/complexity/` in the repository.
 
+## Checking a change with seams diff
+
+Before you change a model that already has stored data or callers, compare the old
+version with the new one:
+
+```sh
+seams diff old/expenses.trig expenses.trig
+```
+
+Both arguments are a TriG file or a directory of them; a git worktree or a copy of the
+previous commit works as the old side. Each change to a SHACL shape or an operation
+contract (`seam:acceptsShape`, `seam:returnsShape`) prints as
+`<verdict> <kind> <subject> <detail>`. Going from expenses chapter 8 to chapter 9 adds the
+notification shapes and operations, all compatible:
+
+```
+compatible shape-added :NotificationShape -
+compatible shape-added :NotifyProblemShape -
+compatible operation-added :notify_failed -
+compatible operation-added :notify_manager_op -
+```
+
+The command exits 1, with `seams diff: N breaking, M compatible` on stderr, when any change
+is breaking: a removed shape, property or operation, a new required property
+(`sh:minCount` above 0), a changed `sh:datatype` or `sh:class`, a tighter count, or an
+operation that now accepts or returns another shape. Adding an optional property, a shape
+or an operation, or loosening a count, is compatible. To rename a shape without breaking
+it, give it the new IRI and state `:NewShape owl:sameAs :OldShape` in the new model
+([ADR-0002](/adr/0002-iri-identity-and-migration)). `--json` prints the same changes with
+full IRIs and their `data`/`contract` scopes, for a CI step or a release note. The full
+rules are in the [seams CLI reference](/reference/seams-cli#seams-diff).
+
 ## View it
 
 The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your

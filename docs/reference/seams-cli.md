@@ -4,7 +4,8 @@
 file, `seams.toml`, kept next to an app's model. `seams generate` runs every
 generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams sequence`
-derives an event's sequence diagrams. Its distribution name is `semanticseams-cli` and its import name is
+derives an event's sequence diagrams; `seams diff` classifies the shape and
+operation-contract changes between two model versions as compatible or breaking. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -503,3 +504,75 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 | 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, the event is unknown, the `--trace` instance is not in the store, the trace file is not JSON, or `--db` was given without `--trace`. |
 
 Errors print to stderr as `seams sequence: <message>`.
+
+## seams diff
+
+```sh
+seams diff examples/expenses/chapter-08/expenses.trig examples/expenses/chapter-09/expenses.trig
+seams diff old/ new/ --json
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `OLD` | required | The old model: a `.trig` file, or a directory whose TriG files load as one model. |
+| `NEW` | required | The new model, in the same form. |
+| `--json` | off | Print the changes, their scopes and the counts as JSON instead of text. |
+
+`seams diff` says whether a model change is safe for stored data and for
+operation contracts (backlog U8, D052). It reads no `seams.toml`. It compares
+the SHACL shapes and the operation contracts (`seam:acceptsShape`,
+`seam:returnsShape`) of two model versions and classifies each change:
+
+| Change | Verdict |
+|---|---|
+| A node shape added | compatible |
+| A node shape removed | breaking |
+| A node shape renamed (`new owl:sameAs old`, stated in NEW) | compatible |
+| A property added with no `sh:minCount`, or `sh:minCount 0` | compatible |
+| A property added with `sh:minCount` above 0 | breaking |
+| A property removed | breaking |
+| An `sh:datatype` or `sh:class` changed or added | breaking |
+| An `sh:datatype` or `sh:class` dropped | compatible |
+| `sh:minCount` raised, or `sh:maxCount` lowered or added | breaking |
+| `sh:minCount` lowered, or `sh:maxCount` raised or dropped | compatible |
+| An operation added | compatible |
+| An operation removed | breaking |
+| An operation's accepted or returned shape changed | breaking |
+
+Node shapes and operations are matched by IRI ([ADR-0002](/adr/0002-iri-identity-and-migration));
+property shapes by their node shape and `sh:path`, since they are often blank
+nodes. Every change is in the `data` scope when it is a shape change, and also
+in the `contract` scope when an operation in either model accepts or returns
+that shape; operation changes are in `contract` only.
+
+### Output
+
+Each change prints as `<verdict> <kind> <subject> <detail>`, sorted by subject,
+with CURIEs wherever the new or old model binds a prefix. The detail is `-` for
+an added or removed shape or operation, the path and the new `sh:minCount` for
+an added property, and the path with `before -> after` for a changed one.
+Diffing expenses chapter 9 back to chapter 8:
+
+```
+$ seams diff examples/expenses/chapter-09 examples/expenses/chapter-08
+breaking shape-removed :NotificationShape -
+breaking shape-removed :NotifyProblemShape -
+breaking operation-removed :notify_failed -
+breaking operation-removed :notify_manager_op -
+seams diff: 4 breaking, 0 compatible
+```
+
+`--json` prints `{"changes": [...], "counts": {"breaking": N, "compatible": M}}`;
+each change has `verdict`, `kind`, `subject` and `detail` with full IRIs, and a
+sorted `scopes` list. The output is deterministic, so it can be committed or
+compared.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | No change is breaking (there may be compatible ones, or none at all). |
+| 1 | At least one change is breaking; `seams diff: N breaking, M compatible` goes to stderr. |
+| 2 | A model is missing or cannot be loaded. |
+
+Errors print to stderr as `seams diff: <message>`.

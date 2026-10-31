@@ -139,3 +139,28 @@ runtime's SQLite store, `--db PATH`, defaulting to `SEAMS_DB`, else
 `<project root>/seams.sqlite`. An instance missing from the store or a trace
 file that is not JSON exits 2; `--db` without `--trace` is a usage error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-sequence).
+
+## seams diff
+
+```sh
+seams diff examples/expenses/chapter-08/expenses.trig examples/expenses/chapter-09/expenses.trig
+seams diff old/ new/ --json
+```
+
+It compares the SHACL shapes and operation contracts (`seam:acceptsShape`,
+`seam:returnsShape`) of two model versions, each a TriG file or a directory,
+and classifies every change as compatible or breaking for stored data and for
+operation contracts (D052, `diff.py`, `diff_models`). It reads no `seams.toml`.
+Node shapes and operations are matched by IRI, with `new owl:sameAs old` in NEW
+read as a rename; property shapes by node shape and `sh:path`. A removed shape,
+property or operation, a new required property, a changed accepted or returned
+shape, a changed `sh:datatype` or `sh:class` and a tighter `sh:minCount` or
+`sh:maxCount` are breaking; additions of optional properties, shapes and
+operations, and looser bounds, are compatible.
+
+Each change prints as `<verdict> <kind> <subject> <detail>`, sorted, with
+CURIEs where a prefix is bound; `--json` prints `to_json`'s changes (with their
+`data`/`contract` scopes) and counts instead. It exits 0 with no breaking
+change, 1 with any, after `seams diff: N breaking, M compatible` on stderr, and
+2 when a model cannot be loaded. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-diff).

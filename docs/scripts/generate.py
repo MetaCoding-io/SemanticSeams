@@ -3,7 +3,7 @@
 view over the files CI already parses and validates, never a second copy of them:
 
   seam-predicates.md  ontology/seam.ttl
-  vocabularies.md     ontology/{arch,ifml,proc,state,comm,deploy}.ttl
+  vocabularies.md     ontology/{arch,ifml,proc,state,comm,deploy,verify}.ttl
   shapes.md           ontology/shapes/seam-shapes.ttl
   queries.md          the seams question catalog (the same bytes as docs/queries/*.rq),
                       with the question table in docs/queries/README.md
@@ -37,7 +37,7 @@ DOCS = Path(__file__).resolve().parent.parent
 ROOT = DOCS.parent
 OUT = DOCS / "generated"
 
-VOCABULARIES = ["arch", "ifml", "proc", "state", "comm", "deploy"]
+VOCABULARIES = ["arch", "ifml", "proc", "state", "comm", "deploy", "verify"]
 
 BANNER = re.compile(r"^#{5,}\s*$")
 TITLE = re.compile(r"^#\s+(\S.*?)\s*$")

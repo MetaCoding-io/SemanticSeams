@@ -1,0 +1,124 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix dec:    <https://w3id.org/seams/dec#> .
+@prefix state:  <https://w3id.org/seams/state#> .
+@prefix verify: <https://w3id.org/seams/verify#> .
+
+<https://w3id.org/seams/verify> a owl:Ontology ;
+    rdfs:label "SemanticSeams Scenario and Example Vocabulary" ;
+    rdfs:comment """What a model says it should do, stated so a generator can turn it into
+tests (ADR-0014). A scenario runs a process through its user tasks and names the state
+it ends in; a decision example gives a decision's inputs and its expected output; a
+shape example points a SHACL shape at a node it must accept or reject. Policy tests
+need no terms here: they derive from the ODRL policies already in the model.
+
+Every triple that uses these terms lives in the seams graph, next to the ODRL policies:
+each one joins layers (a process, data paths, parties, lifecycle states). DASH's test
+cases were checked first; ADR-0014 records why each was not reused. The constraints on
+these terms are the shapes in ontology/shapes/seam-shapes.ttl.""" .
+
+#################################################################
+# Scenarios
+#################################################################
+
+verify:Scenario a rdfs:Class ;
+    rdfs:label "Scenario" ;
+    rdfs:comment """One run of a process: the verify:actor starts verify:process with the
+verify:given field values, the parties in verify:step complete its user tasks in order,
+and the run ends in verify:expectState, at verify:expectEndEvent, or both. The process
+is one a UI event seam:triggers, so the run starts the way a person starts it.""" .
+
+verify:process a rdf:Property ;
+    rdfs:label "process" ;
+    rdfs:domain verify:Scenario ;
+    rdfs:range proc:Process ;
+    rdfs:comment "The proc:Process the scenario runs." .
+
+verify:actor a rdf:Property ;
+    rdfs:label "actor" ;
+    rdfs:range odrl:Party ;
+    rdfs:comment """The odrl:Party who acts: on a scenario, who starts the process; on a
+step, who completes the step's user task. A test acts as a person holding that role.""" .
+
+verify:given a rdf:Property ;
+    rdfs:label "given" ;
+    rdfs:comment """One input field value, as a blank node with one verify:field and one
+verify:value. On a scenario it is a field of the form that starts the process; on a
+step, a field of the form the task is completed on; on a decision example, a value of
+one of the decision's dec:input bindings.""" .
+
+verify:field a rdf:Property ;
+    rdfs:label "field" ;
+    rdfs:comment "The sh:path of the shape property the given value fills, e.g. :amount." .
+
+verify:value a rdf:Property ;
+    rdfs:label "value" ;
+    rdfs:comment """The literal for a given field or an expected output. Its lexical form
+is what a form submits; its datatype is what a decision evaluator receives.""" .
+
+verify:step a rdf:Property ;
+    rdfs:label "step" ;
+    rdfs:domain verify:Scenario ;
+    rdfs:comment """An RDF list of the user tasks the scenario completes, in order. Each
+member is a blank node with one verify:task, one verify:actor and the verify:given
+fields the task's form is submitted with.""" .
+
+verify:task a rdf:Property ;
+    rdfs:label "task" ;
+    rdfs:range proc:UserTask ;
+    rdfs:comment "The proc:UserTask a step completes. It is in the same BPMN model as the scenario's process." .
+
+verify:expectState a rdf:Property ;
+    rdfs:label "expect state" ;
+    rdfs:domain verify:Scenario ;
+    rdfs:range state:State ;
+    rdfs:comment """The state:State the process's entity is in when the steps are done.
+The entity is the one whose shape seam:lifecycle holds that state.""" .
+
+verify:expectEndEvent a rdf:Property ;
+    rdfs:label "expect end event" ;
+    rdfs:domain verify:Scenario ;
+    rdfs:comment """The BPMN end event the run finishes on: its IRI is the process model's
+IRI with the end event's id as fragment (ADR-0002), and it is lifted into the process's
+model graph like any element a seam names.""" .
+
+#################################################################
+# Decision examples
+#################################################################
+
+verify:DecisionExample a rdfs:Class ;
+    rdfs:label "Decision example" ;
+    rdfs:comment """One row of a decision's expected behaviour: the verify:given values for
+every dec:input of verify:decision, and the verify:expectOutput the DMN must return.""" .
+
+verify:decision a rdf:Property ;
+    rdfs:label "decision" ;
+    rdfs:domain verify:DecisionExample ;
+    rdfs:range dec:Decision ;
+    rdfs:comment "The dec:Decision the example evaluates." .
+
+verify:expectOutput a rdf:Property ;
+    rdfs:label "expect output" ;
+    rdfs:domain verify:DecisionExample ;
+    rdfs:comment """One expected output, as a blank node with the dec:variable of one of the
+decision's dec:output bindings and the verify:value the DMN returns for it.""" .
+
+#################################################################
+# Shape examples
+#################################################################
+
+verify:validExample a rdf:Property ;
+    rdfs:label "valid example" ;
+    rdfs:domain sh:NodeShape ;
+    rdfs:comment """A node the shape must accept: validating it with the shape as its only
+shape conforms. The example node carries no rdf:type a shape targets, so it never makes
+the model itself fail its shapes.""" .
+
+verify:invalidExample a rdf:Property ;
+    rdfs:label "invalid example" ;
+    rdfs:domain sh:NodeShape ;
+    rdfs:comment "A node the shape must reject: validating it with the shape as its only shape does not conform." .

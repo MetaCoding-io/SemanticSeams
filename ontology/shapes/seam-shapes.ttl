@@ -12,6 +12,8 @@
 @prefix state:  <https://w3id.org/seams/state#> .
 @prefix comm:   <https://w3id.org/seams/comm#> .
 @prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix verify: <https://w3id.org/seams/verify#> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
 
 <https://w3id.org/seams/shapes> a owl:Ontology ;
@@ -28,7 +30,12 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
     sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] ,
                [ sh:prefix "ifml" ; sh:namespace "https://w3id.org/seams/ifml#"^^xsd:anyURI ] ,
                [ sh:prefix "hydra" ; sh:namespace "http://www.w3.org/ns/hydra/core#"^^xsd:anyURI ] ,
-               [ sh:prefix "comm" ; sh:namespace "https://w3id.org/seams/comm#"^^xsd:anyURI ] .
+               [ sh:prefix "comm" ; sh:namespace "https://w3id.org/seams/comm#"^^xsd:anyURI ] ,
+               [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ] ,
+               [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ] ,
+               [ sh:prefix "state" ; sh:namespace "https://w3id.org/seams/state#"^^xsd:anyURI ] ,
+               [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
+               [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -481,3 +488,186 @@ seamsh:StoreKindShape a sh:NodeShape ;
         sh:in ( deploy:PostgreSQL deploy:SQLite ) ;
         sh:message "deploy:storeKind is at most one of deploy:PostgreSQL or deploy:SQLite." ] ;
     sh:message "Only an arch:Container carries a deploy:storeKind." .
+
+#################################################################
+# Scenarios and examples (ADR-0014)
+#################################################################
+
+# Each constraint below is a fault the tests generator would otherwise have to reject
+# (principle 5): if a model's scenarios and examples pass these shapes, the generator
+# can derive a test from every one of them.
+
+seamsh:ScenarioShape a sh:NodeShape ;
+    sh:targetClass verify:Scenario ;
+    sh:targetSubjectsOf verify:process , verify:step , verify:expectState , verify:expectEndEvent ;
+    sh:class verify:Scenario ;
+    sh:nodeKind sh:IRI ;
+    sh:property [ sh:path verify:process ; sh:minCount 1 ; sh:maxCount 1 ; sh:class proc:Process ;
+        sh:message "A scenario runs exactly one verify:process, a proc:Process." ] ;
+    sh:property [ sh:path verify:actor ; sh:minCount 1 ; sh:maxCount 1 ; sh:class odrl:Party ;
+        sh:message "A scenario is started by exactly one verify:actor, an odrl:Party." ] ;
+    sh:property [ sh:path verify:step ; sh:maxCount 1 ;
+        sh:message "A scenario has at most one verify:step list." ] ;
+    sh:property [ sh:path ( verify:step [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ; sh:node seamsh:StepShape ;
+        sh:message "Each verify:step names one verify:task (a proc:UserTask) and one verify:actor (an odrl:Party)." ] ;
+    sh:property [ sh:path verify:expectState ; sh:maxCount 1 ; sh:class state:State ;
+        sh:message "A scenario expects at most one verify:expectState, a state:State." ] ;
+    sh:property [ sh:path verify:expectEndEvent ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "A scenario expects at most one verify:expectEndEvent, an IRI." ] ;
+    sh:sparql [
+        sh:message "A scenario states what it expects: a verify:expectState, a verify:expectEndEvent, or both." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER NOT EXISTS { $this verify:expectState ?s }
+                FILTER NOT EXISTS { $this verify:expectEndEvent ?e }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A scenario's process is started by a UI event: some ifml:Event seam:triggers it." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:process ?value .
+                FILTER NOT EXISTS { ?event seam:triggers ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "verify:step is an RDF list (rdf:nil or a node with rdf:first)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:step ?value .
+                FILTER (?value != rdf:nil)
+                FILTER NOT EXISTS { ?value rdf:first ?first }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A step's verify:task is in the same BPMN model (seam:inModel) as the scenario's process." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:process/seam:inModel ?model ;
+                      verify:step/rdf:rest*/rdf:first/verify:task ?value .
+                FILTER NOT EXISTS { ?value seam:inModel ?model }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "verify:expectEndEvent is lifted into the scenario's process model (seam:inModel)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:process/seam:inModel ?model ;
+                      verify:expectEndEvent ?value .
+                FILTER NOT EXISTS { ?value seam:inModel ?model }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "verify:expectState is a state of a lifecycle some shape seam:lifecycle names, so the test knows whose state to read." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:expectState ?value .
+                FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle ?machine }
+            }""" ;
+    ] ;
+    sh:message "Only a verify:Scenario carries verify:process, verify:step or an expected state or end event, and a scenario is an IRI (its local name names its generated test)." .
+
+# Not targeted: applied to each member of a scenario's verify:step list.
+seamsh:StepShape a sh:NodeShape ;
+    sh:property [ sh:path verify:task ; sh:minCount 1 ; sh:maxCount 1 ; sh:class proc:UserTask ] ;
+    sh:property [ sh:path verify:actor ; sh:minCount 1 ; sh:maxCount 1 ; sh:class odrl:Party ] .
+
+seamsh:GivenShape a sh:NodeShape ;
+    sh:targetObjectsOf verify:given ;
+    sh:property [ sh:path verify:field ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "A verify:given value names exactly one verify:field, an IRI." ] ;
+    sh:property [ sh:path verify:value ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:Literal ;
+        sh:message "A verify:given value has exactly one verify:value, a literal." ] ;
+    sh:sparql [
+        sh:message "verify:field is the sh:path of a property of some shape in the model." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:field ?value .
+                FILTER NOT EXISTS { ?shape sh:property ?property . ?property sh:path ?value }
+            }""" ;
+    ] .
+
+seamsh:GivenUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf verify:given ;
+    sh:sparql [
+        sh:message "A scenario, step or decision example gives each verify:field at most once." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:given ?a , ?b .
+                ?a verify:field ?value .
+                ?b verify:field ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+seamsh:DecisionExampleShape a sh:NodeShape ;
+    sh:targetClass verify:DecisionExample ;
+    sh:targetSubjectsOf verify:decision , verify:expectOutput ;
+    sh:class verify:DecisionExample ;
+    sh:nodeKind sh:IRI ;
+    sh:property [ sh:path verify:decision ; sh:minCount 1 ; sh:maxCount 1 ; sh:class dec:Decision ;
+        sh:message "A decision example evaluates exactly one verify:decision, a dec:Decision." ] ;
+    sh:property [ sh:path verify:expectOutput ; sh:minCount 1 ; sh:node seamsh:ExpectOutputShape ;
+        sh:message "A decision example expects at least one output: a dec:variable string and a literal verify:value." ] ;
+    sh:sparql [
+        sh:message "Each verify:given field of a decision example is the dec:fromPath of one of the decision's dec:input bindings." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:decision ?decision ;
+                      verify:given/verify:field ?value .
+                FILTER NOT EXISTS { ?decision dec:input/dec:fromPath ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A decision example gives a value for every dec:input of its decision." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:decision ?decision .
+                ?decision dec:input/dec:fromPath ?value .
+                FILTER NOT EXISTS { $this verify:given/verify:field ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "Each expected output's dec:variable names one of the decision's dec:output bindings." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:decision ?decision ;
+                      verify:expectOutput/dec:variable ?value .
+                FILTER NOT EXISTS { ?decision dec:output/dec:variable ?value }
+            }""" ;
+    ] ;
+    sh:message "Only a verify:DecisionExample carries verify:decision or verify:expectOutput, and a decision example is an IRI (its local name names its generated test)." .
+
+# Not targeted: applied through seamsh:DecisionExampleShape to each expected output.
+seamsh:ExpectOutputShape a sh:NodeShape ;
+    sh:property [ sh:path dec:variable ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path verify:value ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:Literal ] .
+
+seamsh:ShapeExampleShape a sh:NodeShape ;
+    sh:targetSubjectsOf verify:validExample , verify:invalidExample ;
+    sh:class sh:NodeShape ;
+    sh:property [ sh:path verify:validExample ; sh:nodeKind sh:IRI ;
+        sh:message "A verify:validExample is an IRI: its local name names its generated test." ] ;
+    sh:property [ sh:path verify:invalidExample ; sh:nodeKind sh:IRI ;
+        sh:message "A verify:invalidExample is an IRI: its local name names its generated test." ] ;
+    sh:sparql [
+        sh:message "A node is not both a valid and an invalid example of the same shape." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:validExample ?value ;
+                      verify:invalidExample ?value .
+            }""" ;
+    ] ;
+    sh:message "Only a sh:NodeShape carries verify:validExample or verify:invalidExample." .

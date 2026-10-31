@@ -19,3 +19,4 @@ supersedes an earlier one instead.
 | [ADR-0011](./0011-storage-resolution) | Storage resolution: a shape is `seam:storedIn` a store whose `deploy:storeKind` the runtime supports, reached through a `deploy:connectsTo` binding | Accepted |
 | [ADR-0012](./0012-operation-implementation) | Operation implementation: an operation `seam:implementedBy` an LLM completion, a Python handler in the handlers package, or an HTTP endpoint | Accepted |
 | [ADR-0013](./0013-error-shapes-and-boundaries) | Error shapes and boundaries: an operation's `hydra:possibleStatus` carries a `comm:errorCode` and a problem+json error shape, and a lifted BPMN error boundary event `seam:catches` it | Accepted |
+| [ADR-0014](./0014-scenarios-and-derived-tests) | Scenarios and derived tests: `verify:` scenarios, decision examples and shape examples in the seams graph, and ODRL policies, become generated pytest files under `generated/tests` | Accepted |

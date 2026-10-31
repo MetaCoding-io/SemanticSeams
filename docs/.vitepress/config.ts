@@ -40,6 +40,7 @@ const decisions = [
   ["0011", "Storage resolution", "0011-storage-resolution"],
   ["0012", "Operation implementation", "0012-operation-implementation"],
   ["0013", "Error shapes and boundaries", "0013-error-shapes-and-boundaries"],
+  ["0014", "Scenarios and derived tests", "0014-scenarios-and-derived-tests"],
 ] as const;
 
 export default defineConfig({

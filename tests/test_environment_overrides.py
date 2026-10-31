@@ -179,7 +179,9 @@ def test_a_container_without_overrides_is_shared_in_every_environment():
 def test_override_artifact_and_replicas_replace_whole():
     m = model(DEVELOPMENT, DEV_OVERRIDE)
     dev = container(m, "chat_api").for_environment(env(m, "development"))
-    assert dev.artifact == Artifact("seams/chat-api", "local", Build("../..", "examples/chat-app/generated/chat_api.Dockerfile"))
+    assert dev.artifact == Artifact(
+        "seams/chat-api", "local", Build("../..", "examples/chat-app/generated/chat_api.Dockerfile")
+    )
     assert dev.replicas == 1
 
 

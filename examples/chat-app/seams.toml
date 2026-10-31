@@ -17,6 +17,12 @@ out = "generated"
 name = "htmx"
 out = "generated/templates"
 
+# The runtime image's Dockerfile, beside the route module: its paths are literal
+# and relative to the serving container's development deploy:build context.
+[[generators]]
+name = "dockerfile"
+out = "generated"
+
 # One compose.<environment>.yaml per arch:Environment at the repository root
 # (ADR-0015); their bind mounts and build contexts are relative to the root.
 [[generators]]

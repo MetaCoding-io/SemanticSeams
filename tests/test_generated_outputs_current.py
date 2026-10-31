@@ -1,6 +1,6 @@
 """The committed generated outputs equal what the generators produce now.
 
-examples/chat-app/generated/ (route module and templates) and the root
+examples/chat-app/generated/ (route module, runtime Dockerfile and templates) and the root
 compose.<environment>.yaml files (ADR-0015) are committed so the docker images
 and `docker compose -f compose.development.yaml up` use stable paths. Each test regenerates through the `python -m seams_gen` entry point and
 compares against the committed copy: the same set of files (no stale extra
@@ -27,7 +27,7 @@ TEMPLATES = GENERATED / "templates"
 # Every failure hint gives the one command that rewrites all the chat-app
 # outputs from examples/chat-app/seams.toml.
 REGENERATE = "seams generate --project examples/chat-app"
-COMMANDS = {"fastapi": REGENERATE, "htmx": REGENERATE, "compose": REGENERATE}
+COMMANDS = {"fastapi": REGENERATE, "dockerfile": REGENERATE, "htmx": REGENERATE, "compose": REGENERATE}
 # Files in examples/chat-app/generated/ that no generator writes.
 HAND_WRITTEN = {"README.md"}
 
@@ -75,10 +75,12 @@ def assert_current(generated, committed, committed_dir, command):
     assert not problems, "\n".join(problems)
 
 
-def test_route_module_is_current(tmp_path):
-    assert_current(
-        regenerate("fastapi", TRIG, tmp_path), committed_files(GENERATED, HAND_WRITTEN), GENERATED, COMMANDS["fastapi"]
+def test_route_module_and_dockerfile_are_current(tmp_path):
+    # Both generators write into generated/, so the file set is their union.
+    generated = regenerate("fastapi", TRIG, tmp_path / "fastapi") | regenerate(
+        "dockerfile", TRIG, tmp_path / "dockerfile"
     )
+    assert_current(generated, committed_files(GENERATED, HAND_WRITTEN), GENERATED, COMMANDS["fastapi"])
 
 
 def test_templates_are_current(tmp_path):

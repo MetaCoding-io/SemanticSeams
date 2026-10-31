@@ -1,8 +1,8 @@
 """Command line: ``python -m seams_gen <generator> <trig> --out <dir>``.
 
 Each generator is a subcommand registered in ``GENERATORS``: ``htmx`` (S04),
-``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015, ADR-0014) and
-``smoke`` (M015/S05, backlog A9). A generator is called as
+``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015, ADR-0014),
+``smoke`` (M015/S05, backlog A9) and ``dockerfile`` (M016/S03). A generator is called as
 ``generate(trig, out)`` and returns ``{relative file name: text}``; only
 ``compose`` uses ``out``, as the base directory its bind-mount sources, build
 contexts and secret files are relative to (D018). ``compose`` writes one
@@ -21,6 +21,7 @@ from seams import load
 
 from . import GeneratorError
 from .compose import generate_compose_environments
+from .dockerfile import generate_dockerfiles
 from .fastapi import route_module
 from .htmx import generate_pages
 from .smoke import generate_smoke
@@ -52,6 +53,13 @@ def _compose(trig: Path, out: Path) -> dict[str, str]:
     return generate_compose_environments(trig, base_dir=out)
 
 
+def _dockerfile(trig: Path, out: Path) -> dict[str, str]:
+    """{<route module stem>.Dockerfile: content}: the runtime image build file
+    of the serving container whose development deploy:artifact has a
+    deploy:build, with literal paths relative to its build context."""
+    return generate_dockerfiles(trig)
+
+
 def _tests(trig: Path, out: Path) -> dict[str, str]:
     """{test_scenarios.py, test_decisions.py, test_shape_examples.py, test_policies.py: content}:
     pytest files for the model's verify: scenarios, decision examples and
@@ -72,6 +80,7 @@ GENERATORS = {
     "compose": ("a docker compose file of the arch:System's containers per arch:Environment", _compose),
     "tests": ("pytest files for the model's verify: scenarios and examples, and its ODRL permissions", _tests),
     "smoke": ("a pytest file calling each operation on a running app, checking seam:returnsShape", _smoke),
+    "dockerfile": ("the runtime image Dockerfile of the serving container's development build", _dockerfile),
 }
 
 

@@ -18,6 +18,8 @@ read the model, through their own extract functions and the seams views
   and each of its containers.
 - ``tests``: per file, the scenarios with their processes and step tasks,
   the decision examples with their decisions, or the example shapes and nodes.
+- ``dockerfile``: the serving container and the development
+  arch:Environment whose deploy:build it renders.
 - ``smoke``: each operation it calls, the shapes it accepts and returns (and
   its error statuses'), the examples it sends and the policies and parties
   governing it.
@@ -32,7 +34,8 @@ from seams import PROC, Model, ProcessElement, load
 from seams import Component as ComponentView
 
 from ._views import only, optional, view_errors
-from .compose import compose_file_name, environments, extract_compose
+from .compose import DEVELOPMENT, _resolve_environment, compose_file_name, environments, extract_compose
+from .dockerfile import dockerfile_name, extract_dockerfile
 from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
 from .smoke import smoke_sources
@@ -99,6 +102,13 @@ def _compose(trig: Path, out: Path) -> Sources:
     return found
 
 
+def _dockerfile(trig: Path, out: Path) -> Sources:
+    model = load(trig)
+    d = extract_dockerfile(model)  # the generator's checks: one serving container with a build
+    env = _resolve_environment(model, DEVELOPMENT)
+    return {dockerfile_name(d.container): _iris(model, [d.container, env.iri])}
+
+
 # generator name -> sources(trig, out) -> {relative file name: full IRIs}
 SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "htmx": _htmx,
@@ -106,6 +116,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "compose": _compose,
     "tests": lambda trig, out: tests_sources(trig),
     "smoke": lambda trig, out: smoke_sources(trig),
+    "dockerfile": _dockerfile,
 }
 
 

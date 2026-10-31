@@ -28,6 +28,7 @@ for p in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(p))
 
 from fastapi.testclient import TestClient  # noqa: E402
+from seams_cli import load_project  # noqa: E402
 from test_generated_outputs_current import (  # noqa: E402
     HAND_WRITTEN,
     assert_current,
@@ -94,18 +95,21 @@ def host_command(chapter: str) -> list[str]:
 
 
 def assert_generated_current(chapter: str, tmp_path: Path, generator: str) -> None:
-    """The committed route module (``fastapi``) or templates (``htmx``) equal
-    a fresh run of the generator on the chapter's checkpoint."""
+    """The committed route module (``fastapi``, with the runtime Dockerfile
+    when the chapter's seams.toml lists the ``dockerfile`` generator, which
+    writes into the same generated/) or templates (``htmx``) equal a fresh
+    run of the generator on the chapter's checkpoint."""
     generated = chapter_dir(chapter) / "generated"
     trig = chapter_dir(chapter) / "expenses.trig"
+    fresh = regenerate(generator, trig, tmp_path / generator)
     if generator == "fastapi":
         committed_dir, committed = generated, committed_files(generated, HAND_WRITTEN)
+        if "dockerfile" in {t.name for t in load_project(chapter_dir(chapter)).generators}:
+            fresh |= regenerate("dockerfile", trig, tmp_path / "dockerfile")
     else:
         committed_dir = generated / "templates"
         committed = committed_files(committed_dir)
-    assert_current(
-        regenerate(generator, trig, tmp_path / generator), committed, committed_dir, commands(chapter)[generator]
-    )
+    assert_current(fresh, committed, committed_dir, commands(chapter)[generator])
 
 
 def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str) -> tuple[Path, dict[str, str]]:

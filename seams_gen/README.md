@@ -293,6 +293,72 @@ r = measure(load_model("examples/checkout.trig"))
 r.multi_model_notations, r.max_reach, r.edges, r.failures   # 1, 4, 37, [...]
 ```
 
+## Sequence diagrams
+
+```
+python -m seams_gen.sequence examples/chat-app/chat-app.trig :send_message --out build/sequences
+# -> build/sequences/send_message.mmd
+python -m seams_gen.sequence examples/expenses/chapter-08/expenses.trig :submit_expense --out build/sequences
+# -> build/sequences/submit_expense--auto.mmd, submit_expense--manager--approved.mmd, ...
+```
+
+`seams_gen.sequence` (backlog U1, R008, D047) derives as-designed Mermaid sequence
+diagrams for one IFML event (a CURIE, local name or full IRI). It is not a `GENERATORS`
+entry, because it needs an event as well as a model; `seams sequence <event>` runs the
+same deriver from a project file ([seams CLI](../docs/reference/seams-cli.md#seams-sequence)).
+Every arrow comes from a graph fact read through the `seams` views, and the step order
+comes from the sequence flows of the BPMN process the event triggers. The executing
+container (API below) is the one that `seam:exposes` the operation the event submits to
+and `seam:executes` the triggered process.
+
+| Graph fact | Diagram element |
+|---|---|
+| `odrl:assignee` of a `seam:governedBy` policy of the event | `actor`; the first arrow, `<event> (policy: <policy>)`, goes to the UI |
+| the container that `seam:presents` the event's interaction model | the UI lifeline |
+| `seam:submitsTo` | `UI->>API: <METHOD> <operation> [<accepted shape>]`, then `Note over API: start <process>` |
+| `seam:writes` + `seam:storedIn` | `API->>STORE: <task> writes <shape>`, once per store container |
+| `seam:fires` | `Note over API: <transition>` |
+| `seam:rendersComponent` of the submitted operation | `API-->>UI: <component> fragment`, after the node that invokes that operation |
+| `seam:decidedBy` | `API->>API: <task> (DMN <decision>)` |
+| `seam:invokes` an operation another container `seam:exposes` | `API->>C: <task>, <operation> [<accepted>]` and `C-->>API: <operation> returns [<returned>]` |
+| `seam:publishesTo` from a task | `API-->>X: <channel> (<comm:eventName> deltas)` per `seam:consumes` container |
+| `seam:publishesTo` from a throw or end event | `API-->>X: <channel> (<label> event)` per consumer |
+| a channel a message start event `seam:subscribesTo` | `API-->>C: <channel> starts <process>` (the walk does not enter it) |
+| a user task's policy assignee and `seam:completedOn` form | `<actor>->>UI: <task> on <form>`, then `UI->>API: complete <task> [<output shape>]` |
+| an exclusive gateway branch | `Note over API: <gateway>: <flow>` |
+| `seam:reads` | nothing |
+
+**One diagram per path.** The walk forks at every exclusive gateway with more than one
+outgoing flow, in BPMN document order, so there are no `alt`, `opt` or `par` blocks. A
+single-path event is named `<event>`; otherwise the name joins the chosen flow labels,
+`<event>--<flow>--...`, and the header reads `%% path: manager, approved`. A flow met
+twice on one path ends that path with the gap `loop at <flow>`. A parallel or inclusive
+gateway is a gap and follows only its first flow.
+
+**Gaps.** Every arrow the deriver cannot place is a gap, never a silent omission. It is
+rendered in the diagram header as `%% gap: <detail>` (for example
+`%% gap: MessageShape written by persist_user_msg has no seam:storedIn`), and the command
+prints it on stderr as `gap <diagram name>: <detail>`. Each diagram also records
+`%% derived from <event IRI>` and `%% path: <labels or single>`. Gaps are a model audit,
+so the exit code stays 0; a GeneratorError (including an unknown event) or a model that
+cannot be read or parsed exits 2 with `python -m seams_gen.sequence: <message>` on stderr,
+and a file that cannot be written exits 1. Files are written as UTF-8 with `\n` newlines
+by `write_diagrams`, which `seams sequence` shares.
+
+**Goldens.** `docs/generation/sequences/chat-app/send_message.mmd` (one path, with the
+Message Store lifeline from `seam:storedIn` and the `invoke_llm` delta arrow from
+`seam:publishesTo`) and the five `docs/generation/sequences/expenses/submit_expense--*.mmd`
+diagrams of expense chapter 8 (`auto`, then `manager` and `finance`, each `approved` or
+`rejected`). Chapter 8 is the only expense checkpoint with `seam:storedIn`; earlier
+chapters derive storedIn gaps instead of store lifelines.
+
+```python
+import seams
+from seams_gen.sequence import derive, render
+(d,) = derive(seams.load("examples/chat-app/chat-app.trig"), ":send_message")
+d.name, d.gaps, render(d)   # 'send_message', (), 'sequenceDiagram\n    %% derived from ...'
+```
+
 ## Tests
 
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines

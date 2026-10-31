@@ -30,11 +30,22 @@ twice on one path ends it with a ``loop at <flow>`` gap; a parallel or
 inclusive gateway is a gap and follows its first flow. Every arrow the
 deriver cannot place (a missing fact) is recorded as a gap and rendered as a
 ``%% gap: <detail>`` line, never dropped.
+
+Command line: ``python -m seams_gen.sequence <trig> <event> --out DIR``
+writes each diagram as ``DIR/<name>.mmd`` (``write_diagrams``, shared with
+``seams sequence``), prints each path, and prints ``gap <name>: <detail>`` to
+stderr per gap. Gaps are an audit, not a failure: it exits 0 with them. A
+GeneratorError (an unknown event included) or a model that cannot be read or
+parsed exits 2 with ``python -m seams_gen.sequence: <message>`` on stderr; a
+file that cannot be written exits 1.
 """
 
 from __future__ import annotations
 
+import argparse
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from rdflib import URIRef
 from seams import Component, Container, Event, FlowNode, Model, Operation, Page, local_name
@@ -460,3 +471,65 @@ def file_name(diagram: SequenceDiagram) -> str:
     """``<name>.mmd``: ``<event local>.mmd`` for a single path,
     ``<event local>--<flow>[--<flow>].mmd`` otherwise."""
     return f"{diagram.name}.mmd"
+
+
+def write_diagrams(diagrams: list[SequenceDiagram], out: Path) -> list[Path]:
+    """Write each diagram to ``out/<file_name>`` (UTF-8, ``\\n`` newlines),
+    creating ``out``; the paths written, in order."""
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for d in diagrams:
+        path = out / file_name(d)
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(render(d))
+        paths.append(path)
+    return paths
+
+
+EXIT_OK = 0
+EXIT_IO_ERROR = 1
+EXIT_ERROR = 2
+_PROG = "python -m seams_gen.sequence"
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=_PROG, description="Derive Mermaid sequence diagrams for an IFML event, one per gateway path."
+    )
+    parser.add_argument("trig", type=Path, help="the model's TriG file")
+    parser.add_argument("event", help="the IFML event: a CURIE (:send_message), local name or full IRI")
+    parser.add_argument("--out", type=Path, required=True, help="the directory the .mmd files are written to")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        if not args.trig.is_file():
+            raise FileNotFoundError(f"no such model file: {args.trig}")
+        diagrams = derive(_load(args.trig), args.event)
+    except Exception as exc:  # GeneratorError, OSError, or any rdflib parse error
+        print(f"{_PROG}: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    try:
+        paths = write_diagrams(diagrams, args.out)
+    except OSError as exc:
+        print(f"{_PROG}: {exc}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    for path in paths:
+        print(path)
+    for d in diagrams:
+        for gap in d.gaps:
+            print(f"gap {d.name}: {gap}", file=sys.stderr)
+    return EXIT_OK
+
+
+def _load(trig: Path) -> Model:
+    import seams
+
+    return seams.load(trig)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

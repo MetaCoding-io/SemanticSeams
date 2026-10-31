@@ -3,7 +3,8 @@
 `seams` is the command line for a Semantic Seams project. It reads a project
 file, `seams.toml`, kept next to an app's model. `seams generate` runs every
 generator the file names; `seams check` fails when the model, its gate queries
-or the generated outputs are not in order, and writes nothing. Its distribution name is `semanticseams-cli` and its import name is
+or the generated outputs are not in order, and writes nothing; `seams sequence`
+derives an event's sequence diagrams. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -419,3 +420,59 @@ rebuilt or restarted.
 | 2 | The project file is missing or malformed, the environment is missing, unknown or ambiguous, an endpoint names no runtime container, no model was given, or the model cannot be loaded. |
 
 Errors print to stderr as `seams status: <message>`.
+
+## seams sequence
+
+```sh
+seams sequence :send_message --project examples/chat-app
+seams sequence :submit_expense --project examples/expenses/chapter-08 --out build/sequences
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `EVENT` | required | The IFML event: a CURIE (`:send_message`), a local name or a full IRI. |
+| `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
+| `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `--out DIR` | `<project root>/sequences` | The directory the `.mmd` files are written to. |
+
+`seams sequence` derives the as-designed Mermaid sequence diagrams of an IFML
+event (backlog U1, D047). The arrows come only from graph facts, and their order
+from the sequence flows of the BPMN process the event triggers. There is one
+diagram per path through the exclusive gateways, never an `alt` block: the chat
+app's `:send_message` gives `send_message.mmd`, and expense chapter 8's
+`:submit_expense` gives `submit_expense--auto.mmd`,
+`submit_expense--manager--approved.mmd`, `submit_expense--manager--rejected.mmd`,
+`submit_expense--finance--approved.mmd` and `submit_expense--finance--rejected.mmd`.
+The committed goldens are under `docs/generation/sequences/`. The fact-to-arrow
+rules are listed in [seams_gen/README.md](../../seams_gen/README.md#sequence-diagrams);
+`python -m seams_gen.sequence <trig> <event> --out DIR` runs the same deriver
+without a project file.
+
+The diagrams are views, so they are not generator outputs: `seams generate` does
+not write them and `seams.lock` does not record them.
+
+### Gaps
+
+An arrow the deriver cannot place, because a fact is missing from the model, is
+a gap. It is written into the diagram's header as a `%% gap:` comment and
+printed to stderr. With `MessageShape seam:storedIn :message_db` removed from the
+chat app:
+
+```
+$ seams sequence :send_message --project examples/chat-app --model edited.trig --out build
+seams sequence: gap send_message: MessageShape written by persist_user_msg has no seam:storedIn
+seams sequence: gap send_message: MessageShape written by persist_response has no seam:storedIn
+build/send_message.mmd
+```
+
+Gaps are an audit of the model, not a failure, so the exit code stays 0.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The diagrams were written, with or without gaps. |
+| 1 | A file could not be read or written. |
+| 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or the event is unknown. |
+
+Errors print to stderr as `seams sequence: <message>`.

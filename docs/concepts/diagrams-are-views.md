@@ -42,6 +42,42 @@ There is deliberately no BPMN or DMN ontology. Those standards already have exce
 XML formats and renderers, so the XML stays the source and the graph indexes only the
 elements that take part in a cross-layer edge.
 
+## Derived sequence diagrams
+
+A sequence diagram is never authored. `seams sequence <event>` derives one from the
+graph: the actor from the event's governing policy, the lifelines from the containers
+that present, expose, store and consume, and the step order from the BPMN sequence
+flows. There is one diagram per path through the process's exclusive gateways rather
+than one diagram with `alt` blocks. An arrow the deriver cannot place is written into
+the diagram as a `%% gap:` line, so the diagram doubles as an audit of the model: a
+gap names the fact that is missing. See [the seams CLI](/reference/seams-cli#seams-sequence).
+The chat app's send-message event derives to:
+
+```
+sequenceDiagram
+    %% derived from https://example.org/chat/send_message
+    %% path: single
+    actor authenticated_user as Authenticated users
+    participant chat_ui as Chat Web Interface
+    participant chat_api as Chat API
+    participant message_db as Message Store
+    participant llm_gateway as LLM Provider Gateway
+    authenticated_user->>chat_ui: send_message (policy: user_send_policy)
+    chat_ui->>chat_api: POST send_message_op [MessageShape]
+    Note over chat_api: start send_message_process
+    chat_api->>message_db: persist_user_msg writes MessageShape
+    Note over chat_api: t_send
+    chat_api-->>chat_ui: message_thread fragment
+    chat_api->>chat_api: route_to_provider (DMN routing_decision)
+    Note over chat_api: t_stream
+    chat_api->>llm_gateway: invoke_llm, completion_op [MessageShape]
+    llm_gateway-->>chat_api: completion_op returns [MessageShape]
+    chat_api-->>chat_ui: stream_events (token deltas)
+    chat_api->>message_db: persist_response writes MessageShape
+    Note over chat_api: t_finish
+    chat_api-->>chat_ui: stream_events (stream.events event)
+```
+
 ## Why one graph pays
 
 Two things fall out of the single graph that no toolchain of separate modelers offers:

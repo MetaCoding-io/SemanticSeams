@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|status [--project PATH] [--model PATH]``.
+"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -31,6 +31,13 @@ seams.lock's git history), ahead (it is not) or unreachable. With any container
 not current, ``seams status: N of M not current`` goes to stderr and the exit
 code is 1. ``--env`` defaults to the only environment with endpoints; a missing
 or unknown environment, or an endpoint that is not a runtime container, exits 2.
+
+``seams sequence <event> [--out DIR]`` (D047) derives the as-designed Mermaid
+sequence diagrams of an IFML event (a CURIE, local name or IRI), one per
+gateway path, writes each as ``<DIR>/<name>.mmd`` (default
+``<project root>/sequences``) and prints each path. Each fact the deriver
+could not place prints to stderr as ``seams sequence: gap <name>: <detail>``;
+gaps are an audit, and the exit code stays 0. An unknown event exits 2.
 """
 
 from __future__ import annotations
@@ -47,6 +54,7 @@ from .check import FILE_KINDS, run_check
 from .generate import apply, generate_project
 from .lockfile import locate
 from .project import ProjectError, load_project, resolve_model
+from .sequence import run_sequence
 from .status import run_status
 
 EXIT_PROJECT_ERROR = 2
@@ -79,6 +87,15 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--env", help="the [environments.<name>] to read (default: the only one with endpoints)")
     status.add_argument("--timeout", type=float, default=5.0, help="seconds to wait for each /healthz (default: 5)")
     status.set_defaults(run=_status)
+    sequence = sub.add_parser(
+        "sequence",
+        help="derive the Mermaid sequence diagrams of an IFML event, one per gateway path",
+        description="Derive as-designed sequence diagrams from the model's graph facts and BPMN step order.",
+    )
+    sequence.add_argument("event", help="the IFML event: a CURIE (:send_message), local name or full IRI")
+    _project_arguments(sequence)
+    sequence.add_argument("--out", type=Path, help="the directory for the .mmd files (default: <project>/sequences)")
+    sequence.set_defaults(run=_sequence)
     return parser
 
 
@@ -138,6 +155,16 @@ def _status(args: argparse.Namespace) -> int:
     if behind:
         print(f"seams status: {behind} of {len(statuses)} not current", file=sys.stderr)
         return 1
+    return 0
+
+
+def _sequence(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    paths, gaps = run_sequence(project, args.model, args.event, args.out)
+    for name, gap in gaps:
+        print(f"seams sequence: gap {name}: {gap}", file=sys.stderr)
+    for path in paths:
+        print(_display(path.resolve()))
     return 0
 
 

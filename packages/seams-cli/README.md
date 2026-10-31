@@ -115,3 +115,20 @@ behind), `ahead` (any other hash, or every differing hash outside git) or
 `seams status: N of M not current` on stderr, and 2 for a project, environment
 or model error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-status).
+
+## seams sequence
+
+```sh
+seams sequence :send_message --project examples/chat-app
+seams sequence :submit_expense --project examples/expenses/chapter-08 --out build/sequences
+```
+
+It derives the as-designed Mermaid sequence diagrams of one IFML event (a CURIE,
+local name or full IRI) from the project's model, one per exclusive-gateway path
+(D047, `sequence.py`, `run_sequence`), and writes each as `<out>/<name>.mmd`;
+`--out` defaults to `<project root>/sequences`. The model is chosen as for
+`seams generate`. Each written path is printed. Each fact the deriver could not
+place prints to stderr as `seams sequence: gap <name>: <detail>` and the exit
+code stays 0; the diagrams are not recorded in `seams.lock`. A project error, an
+unloadable model or an unknown event exits 2. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-sequence).

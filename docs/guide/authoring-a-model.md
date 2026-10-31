@@ -211,7 +211,10 @@ only. Placement constraints appear only in the environment that `arch:contains` 
 node. `deploy:proxies` on a code-free container (the chat UI and the employee portal are
 Caddy) makes it a reverse proxy to the named container. Name the `seams.toml`
 environments after the same local names, so `seams status --env development` reads the
-stack that `compose.development.yaml` starts.
+stack that `compose.development.yaml` starts. Before `compose up`, `seams secrets --env production` checks that
+every binding's secret file, `.env` key or docker secret exists without reading a value,
+and `seams secrets --write-example` writes a `.env.example` with the keys to fill in
+(see the [CLI reference](../reference/seams-cli.md)).
 
 The serving container's build file is generated as well. List the `dockerfile` generator
 in `seams.toml` and it writes `generated/<route module>.Dockerfile` (here

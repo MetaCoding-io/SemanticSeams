@@ -39,6 +39,26 @@ is selected. Its trace runs back to `htmx_component.html.j2` line 5 and to
 `:conversation_list`, and editing the dashed label shows the one-triple patch it would
 make.*
 
+![Mockup in the dark theme with the Message Thread element selected: dashed lines run from it to the fourteen output lines it reaches, and the panel lists them](img/generation-trace-element.webp)
+
+*The reverse direction, in the dark theme. Selecting `:message_thread` draws a line to
+each of the 14 lines of the page it reaches. The panel adds the 2 lines it reaches in
+`chat_api.py`.*
+
+![Fan-out view: one bar per element, split by generated file, with Message reaching 21 lines and Chat API 19](img/generation-trace-fanout.webp)
+
+*The fan-out view: golden output lines per element across the three generated files.*
+
+**Where the mockup lives.**
+
+- **In the repository:** [`mockups/generation-trace.html`](mockups/generation-trace.html)
+  is a self-contained copy. Download it and open it in a browser; all three views
+  work.
+- **As a Claude artifact:** <https://claude.ai/artifact/4YYa63dU5ArmTiED4FeypE>. It is
+  visible only to people it has been shared with.
+- **The session:** <https://claude.ai/code/session_012jE99SoAYEh4Ug83ssw9b3> is the
+  conversation that produced the note, the prototype and the mockup.
+
 ## 1. What exists
 
 - **Comments in generated files.** Every file starts with the generator, the model stem

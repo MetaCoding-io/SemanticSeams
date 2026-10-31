@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Mockup of a proposed SemanticSeams viewer pane (backlog T3). Self-contained: open it in a browser.
+     Data: the chat app's generated chat_page.html, traced to template lines by a sentinel render
+     and to model elements by the G2 golden markers. See docs/research/2026-10-31-generation-trace.md. -->
+<style>body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Seams Generation Trace</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: the viewer's page chrome over three linked panes (model | template | output),
+   joined by an SVG overlay of trace lines; stacks to one column on phones. */
+:root {
+  --bg: #f3f6f8;
+  --panel: #ffffff;
+  --ink: #15222a;
+  --muted: #586a75;
+  --rule: #d9e1e6;
+  --brand: #1f6f8b;
+  --brand-soft: rgba(31, 111, 139, 0.12);
+  --hit: rgba(31, 111, 139, 0.18);
+  --code-expr: #8a4b08;
+  --code-tag: #5a3e9e;
+  --warn: #b45309;
+  --layer-architecture: #2563eb;
+  --layer-interaction: #d97706;
+  --layer-process: #7c3aed;
+  --layer-decision: #e11d48;
+  --layer-data: #16a34a;
+  --layer-lifecycle: #0d9488;
+  --layer-other: #8b98a3;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-label: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-code: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1418; --panel: #131c21; --ink: #e2eaee; --muted: #93a5b0; --rule: #25333b;
+    --brand: #5fb9d3; --brand-soft: rgba(95, 185, 211, 0.14); --hit: rgba(95, 185, 211, 0.2);
+    --code-expr: #f0b36a; --code-tag: #b9a3f0; --warn: #f59e0b;
+    --layer-architecture: #5b8def; --layer-interaction: #f0a43a; --layer-process: #a07cf2;
+    --layer-decision: #f2557a; --layer-data: #3cc271; --layer-lifecycle: #2fc0b1; --layer-other: #7f8d97;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1418; --panel: #131c21; --ink: #e2eaee; --muted: #93a5b0; --rule: #25333b;
+  --brand: #5fb9d3; --brand-soft: rgba(95, 185, 211, 0.14); --hit: rgba(95, 185, 211, 0.2);
+  --code-expr: #f0b36a; --code-tag: #b9a3f0; --warn: #f59e0b;
+  --layer-architecture: #5b8def; --layer-interaction: #f0a43a; --layer-process: #a07cf2;
+  --layer-decision: #f2557a; --layer-data: #3cc271; --layer-lifecycle: #2fc0b1; --layer-other: #7f8d97;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+}
+.wrap { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* chrome */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.crumbs b { color: var(--ink); font-weight: 600; }
+.crumbs .sep { opacity: .6; }
+.titlebar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+h1 { font-family: var(--font-label); font-weight: 600; font-size: 22px; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h1 code { font-family: var(--font-code); font-weight: 500; font-size: 19px; }
+.mock { font-size: 12.5px; color: var(--muted); max-width: 70ch; }
+.mock strong { color: var(--ink); font-weight: 600; }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats span b { color: var(--ink); font-weight: 600; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.seg button { font: 500 13px var(--font-ui); color: var(--muted); background: none; border: 0; padding: 6px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--brand-soft); color: var(--ink); }
+.seg button:focus-visible, .row:focus-visible, .oline:focus-visible, .tline:focus-visible, .wb:focus-visible, .tabs button:focus-visible, .clear:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+
+/* panes */
+.stage { position: relative; }
+.panes { display: grid; grid-template-columns: minmax(230px, 0.85fr) minmax(280px, 1.1fr) minmax(320px, 1.35fr); gap: 56px; }
+.pane { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; display: flex; flex-direction: column; min-width: 0; }
+.pane header { padding: 9px 12px 8px; border-bottom: 1px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
+.pane header .k { font: 600 11px var(--font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pane header .v { font: 500 13px var(--font-code); overflow-wrap: anywhere; }
+.scroll { overflow: auto; height: min(64vh, 640px); position: relative; }
+svg.links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+
+/* model rows */
+.group { font: 600 11px var(--font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 12px 4px; display: flex; align-items: center; gap: 6px; }
+.group i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.row { display: grid; grid-template-columns: 4px 1fr auto; gap: 0 9px; padding: 5px 12px 5px 0; cursor: pointer; border-left: 0; }
+.row .bar { border-radius: 0 2px 2px 0; }
+.row .name { min-width: 0; }
+.row .label { font-weight: 500; overflow-wrap: anywhere; }
+.row .curie { font: 12px var(--font-code); color: var(--muted); overflow-wrap: anywhere; }
+.row .n { font: 12px var(--font-code); color: var(--muted); font-variant-numeric: tabular-nums; align-self: center; }
+.row:hover { background: var(--brand-soft); }
+.row.on { background: var(--hit); }
+.dim .row:not(.on), .dim .oline:not(.on), .dim .tline:not(.on) { opacity: .42; }
+
+/* code panes */
+.code { font: 12.5px/1.6 var(--font-code); padding: 4px 0 10px; }
+.oline, .tline { display: grid; grid-template-columns: 3.2em 14px 1fr; gap: 0 6px; padding: 0 10px 0 0; cursor: pointer; white-space: pre; }
+.tline { grid-template-columns: 3.2em 1fr; }
+.oline:hover, .tline:hover { background: var(--brand-soft); }
+.oline.on, .tline.on { background: var(--hit); }
+.oline.focus, .tline.focus { box-shadow: inset 3px 0 0 var(--brand); }
+.ln { color: var(--muted); text-align: right; user-select: none; font-variant-numeric: tabular-nums; }
+.kind { display: flex; align-items: center; justify-content: center; }
+.kind i { width: 7px; height: 7px; border-radius: 50%; }
+.kind i.fixed { border: 1.5px solid var(--muted); background: transparent; }
+.txt { overflow: hidden; text-overflow: ellipsis; }
+.x { color: var(--code-expr); }
+.t { color: var(--code-tag); }
+.wb { text-decoration: underline dashed var(--brand); text-underline-offset: 3px; cursor: text; border-radius: 2px; }
+.wb:hover, .wb.on { background: var(--brand-soft); }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tabs button { font: 500 12px var(--font-code); color: var(--muted); background: none; border: 1px solid transparent; border-radius: 5px; padding: 2px 7px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { border-color: var(--rule); color: var(--ink); background: var(--bg); }
+
+/* detail */
+.detail { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px 28px; }
+.detail h2 { font: 600 15px var(--font-label); margin: 0 0 6px; letter-spacing: .01em; }
+.detail p { margin: 0 0 8px; max-width: 68ch; }
+.detail .muted { color: var(--muted); }
+.detail code, .detail .mono { font: 12.5px var(--font-code); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.chip { font: 12px var(--font-code); border: 1px solid var(--rule); border-radius: 999px; padding: 1px 8px; display: inline-flex; align-items: center; gap: 5px; background: var(--bg); }
+.chip i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+button.chip { cursor: pointer; color: var(--ink); }
+pre.patch { font: 12px/1.55 var(--font-code); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; margin: 8px 0; overflow-x: auto; white-space: pre; }
+pre.patch .del { color: var(--layer-decision); }
+pre.patch .ins { color: var(--layer-data); }
+.field { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.field label { font: 600 11px var(--font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.field input { font: 13px var(--font-code); color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 5px; padding: 6px 8px; max-width: 360px; }
+.field input:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
+.tier { font: 600 11px var(--font-label); letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; display: inline-block; margin-bottom: 6px; }
+.tier.nav { background: var(--brand-soft); color: var(--brand); }
+.tier.put { background: color-mix(in srgb, var(--layer-data) 16%, transparent); color: var(--layer-data); }
+.tier.struct { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.clear { font: 500 12px var(--font-ui); color: var(--brand); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+
+/* fan-out view */
+.fan { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.fan .head, .fan .frow { display: grid; grid-template-columns: minmax(150px, 230px) 1fr 3.5em; gap: 12px; align-items: center; }
+.fan .head { font: 600 11px var(--font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fan .who { min-width: 0; }
+.fan .who .label { font-weight: 500; }
+.fan .who .curie { font: 12px var(--font-code); color: var(--muted); }
+.fan .bars { display: flex; height: 16px; border-radius: 3px; overflow: hidden; background: var(--bg); }
+.fan .bars span { height: 100%; }
+.fan .tot { font: 12px var(--font-code); text-align: right; font-variant-numeric: tabular-nums; }
+.fkey { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.fkey i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.f-page { background: var(--layer-interaction); }
+.f-api { background: var(--layer-architecture); }
+.f-compose { background: var(--layer-other); }
+
+@media (max-width: 960px) {
+  .panes { grid-template-columns: 1fr; gap: 12px; }
+  .scroll { height: min(46vh, 420px); }
+  svg.links { display: none; }
+  .detail { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  svg.links path { transition: opacity .15s; }
+}
+</style>
+
+<div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumbs">
+    <span>Chat App Architecture</span><span class="sep">›</span>
+    <span>Chat Web Interface</span><span class="sep">›</span>
+    <span>Chat Interface</span><span class="sep">›</span>
+    <b>Generated: chat_page.html</b>
+  </nav>
+
+  <div class="titlebar">
+    <h1>Generation trace · <code>chat_page.html</code></h1>
+    <div class="stats" id="stats"></div>
+  </div>
+  <p class="mock"><strong>Mockup of a proposed viewer pane, with real data.</strong>
+    The output is the chat app's generated landmark page. Each line is linked to the template line that wrote it
+    by a sentinel-instrumented render, whose stripped output is byte-identical to the generator's, and to the model terms
+    that justify it by the G2 golden markers. Click a line, an element or a template line. Dashed text can be edited
+    and shows the model patch it would make.</p>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="View">
+      <button id="v-trace" aria-pressed="true">Trace</button>
+      <button id="v-fan" aria-pressed="false">Fan-out</button>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <section id="trace-view">
+    <div class="stage" id="stage">
+      <div class="panes" id="panes">
+        <div class="pane" id="p-model">
+          <header><span class="k">Model elements</span><span class="v">chat-app.trig</span></header>
+          <div class="scroll" id="s-model"></div>
+        </div>
+        <div class="pane" id="p-tpl">
+          <header><span class="k">Generator template</span><div class="tabs" id="tabs"></div></header>
+          <div class="scroll" id="s-tpl"><div class="code" id="tpl"></div></div>
+        </div>
+        <div class="pane" id="p-out">
+          <header><span class="k">Generated output</span><span class="v">examples/chat-app/generated/templates/chat_page.html</span></header>
+          <div class="scroll" id="s-out"><div class="code" id="out"></div></div>
+        </div>
+      </div>
+      <svg class="links" id="links" aria-hidden="true"></svg>
+    </div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+  </section>
+
+  <section id="fan-view" hidden>
+    <div class="fan" id="fan"></div>
+  </section>
+</div>
+
+<script>
+const D = {"model":"examples/chat-app/chat-app.trig","output":"chat_page.html","model_hash":"sha256:376faedb8e4dd05f3b321e851fa35003e364abaeb0c10146453fe5222a45f3c5","lines":[{"n":1,"text":"{# Generated by the seams htmx generator from the chat-app model. Do not edit. #}","templates":[["htmx_page.html.j2",7]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":2,"text":"{# model-hash: sha256:376faedb8e4dd05f3b321e851fa35003e364abaeb0c10146453fe5222a45f3c5 #}","templates":[["htmx_page.html.j2",8]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":3,"text":"{# page :chat_page, from :chat_ifml ifml:contains :chat_page ; ifml:isLandmark true #}","templates":[["htmx_page.html.j2",10]],"kind":"graph","evidence":":chat_ifml ifml:contains :chat_page ifml:ViewContainer ifml:isLandmark","terms":[":chat_ifml","ifml:contains",":chat_page","ifml:ViewContainer","ifml:isLandmark"],"spans":[]},{"n":4,"text":"{# route: GET / (the landmark page is the app entry point) #}","templates":[["htmx_page.html.j2",11]],"kind":"graph","evidence":":chat_page ifml:isLandmark ifml:path","terms":[":chat_page","ifml:isLandmark","ifml:path"],"spans":[{"start":14,"end":15,"subject":":chat_page","predicate":"ifml:path","value":"/","graph":"urn:seams:graph:model:chat_ifml"}]},{"n":5,"text":"<!doctype html>","templates":[["htmx_page.html.j2",16]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":6,"text":"<html lang=\"en\">","templates":[["htmx_page.html.j2",17]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":7,"text":"<head>","templates":[["htmx_page.html.j2",18]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":8,"text":"  <meta charset=\"utf-8\">","templates":[["htmx_page.html.j2",19]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":9,"text":"  <title>Chat<\/title>","templates":[["htmx_page.html.j2",20]],"kind":"graph","evidence":":chat_page ifml:title","terms":[":chat_page","ifml:title"],"spans":[{"start":9,"end":13,"subject":":chat_page","predicate":"ifml:title","value":"Chat","graph":"urn:seams:graph:model:chat_ifml"}]},{"n":10,"text":"  <script src=\"https://unpkg.com/htmx.org@2.0.4\"><\/script>","templates":[["htmx_page.html.j2",21]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":11,"text":"  <script src=\"https://unpkg.com/htmx-ext-sse@2.2.2/sse.js\"><\/script>","templates":[["htmx_page.html.j2",23]],"kind":"graph","evidence":":chat_ui seam:consumes :stream_events comm:transport comm:SSE","terms":[":chat_ui","seam:consumes",":stream_events","comm:transport","comm:SSE"],"spans":[]},{"n":12,"text":"<\/head>","templates":[["htmx_page.html.j2",25]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":13,"text":"<body>","templates":[["htmx_page.html.j2",26]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":14,"text":"<main id=\"chat_page\" data-seam=\":chat_page\">","templates":[["htmx_page.html.j2",27]],"kind":"graph","evidence":":chat_page ifml:ViewContainer","terms":[":chat_page","ifml:ViewContainer"],"spans":[]},{"n":15,"text":"  {# ifml:List :conversation_list, seam:reads :ConversationShape #}","templates":[["htmx_page.html.j2",32]],"kind":"graph","evidence":":conversation_list ifml:List seam:reads :ConversationShape","terms":[":conversation_list","ifml:List","seam:reads",":ConversationShape"],"spans":[]},{"n":16,"text":"  {% block conversation_list %}","templates":[["htmx_page.html.j2",33]],"kind":"graph","evidence":":chat_page ifml:contains :conversation_list ifml:order","terms":[":chat_page","ifml:contains",":conversation_list","ifml:order"],"spans":[]},{"n":17,"text":"  <nav id=\"conversation_list\" aria-label=\"Conversations\">","templates":[["htmx_component.html.j2",5]],"kind":"graph","evidence":":conversation_list rdfs:label","terms":[":conversation_list","rdfs:label"],"spans":[{"start":42,"end":55,"subject":":conversation_list","predicate":"rdfs:label","value":"Conversations","graph":"urn:seams:graph:model:chat_ifml"}]},{"n":18,"text":"    <ul>","templates":[["htmx_component.html.j2",6]],"kind":"graph","evidence":":conversation_list ifml:List","terms":[":conversation_list","ifml:List"],"spans":[]},{"n":19,"text":"      {% for item in conversations %}","templates":[["htmx_component.html.j2",7]],"kind":"graph","evidence":":conversation_list ifml:List seam:reads :ConversationShape","terms":[":conversation_list","ifml:List","seam:reads",":ConversationShape"],"spans":[]},{"n":20,"text":"      <li>","templates":[["htmx_component.html.j2",8]],"kind":"graph","evidence":":conversation_list ifml:List","terms":[":conversation_list","ifml:List"],"spans":[]},{"n":21,"text":"        <a href=\"#message_thread\"","templates":[["htmx_component.html.j2",9]],"kind":"graph","evidence":":select_to_thread ifml:target :message_thread","terms":[":select_to_thread","ifml:target",":message_thread"],"spans":[]},{"n":22,"text":"           hx-get=\"/conversations/{{ item.id }}/messages\"","templates":[["htmx_component.html.j2",10]],"kind":"graph","evidence":":message_thread_op seam:rendersComponent :message_thread hydra:method comm:path hydra:template hydra:mapping hydra:property :id","terms":[":message_thread_op","seam:rendersComponent",":message_thread","hydra:method","comm:path","hydra:template","hydra:mapping","hydra:property",":id"],"spans":[]},{"n":23,"text":"           hx-trigger=\"click\"","templates":[["htmx_component.html.j2",11]],"kind":"graph","evidence":":select_conversation ifml:trigger","terms":[":select_conversation","ifml:trigger"],"spans":[]},{"n":24,"text":"           hx-target=\"#message_thread\"","templates":[["htmx_component.html.j2",12]],"kind":"graph","evidence":":conversation_list ifml:hasEvent :select_conversation -> :select_to_thread ifml:source ifml:NavigationFlow ifml:target :message_thread","terms":[":conversation_list","ifml:hasEvent",":select_conversation",":select_to_thread","ifml:source","ifml:NavigationFlow","ifml:target",":message_thread"],"spans":[]},{"n":25,"text":"           hx-swap=\"outerHTML\"","templates":[["htmx_component.html.j2",13]],"kind":"graph","evidence":":select_to_thread ifml:swap ifml:Replace","terms":[":select_to_thread","ifml:swap","ifml:Replace"],"spans":[]},{"n":26,"text":"           hx-vals='{\"conversation\": \"{{ item.id }}\"}'>","templates":[["htmx_component.html.j2",15]],"kind":"graph","evidence":":list_to_thread ifml:DataFlow ifml:binds ifml:ParameterBinding ifml:sourceParameter :selected_conversation ifml:targetParameter :conversation","terms":[":list_to_thread","ifml:DataFlow","ifml:binds","ifml:ParameterBinding","ifml:sourceParameter",":selected_conversation","ifml:targetParameter",":conversation"],"spans":[]},{"n":27,"text":"          {{ item.title }}","templates":[["htmx_component.html.j2",17]],"kind":"graph","evidence":":ConversationShape sh:property sh:path :title sh:datatype","terms":[":ConversationShape","sh:property","sh:path",":title","sh:datatype"],"spans":[]},{"n":28,"text":"        <\/a>","templates":[["htmx_component.html.j2",18]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":29,"text":"      <\/li>","templates":[["htmx_component.html.j2",19]],"kind":"graph","evidence":":conversation_list ifml:List","terms":[":conversation_list","ifml:List"],"spans":[]},{"n":30,"text":"      {% endfor %}","templates":[["htmx_component.html.j2",20]],"kind":"graph","evidence":":conversation_list ifml:List","terms":[":conversation_list","ifml:List"],"spans":[]},{"n":31,"text":"    <\/ul>","templates":[["htmx_component.html.j2",21]],"kind":"graph","evidence":":conversation_list ifml:List","terms":[":conversation_list","ifml:List"],"spans":[]},{"n":32,"text":"  <\/nav>","templates":[["htmx_component.html.j2",22]],"kind":"graph","evidence":":conversation_list","terms":[":conversation_list"],"spans":[]},{"n":33,"text":"  {% endblock %}","templates":[["htmx_page.html.j2",35]],"kind":"graph","evidence":":chat_page ifml:contains :conversation_list","terms":[":chat_page","ifml:contains",":conversation_list"],"spans":[]},{"n":34,"text":"","templates":[],"kind":null,"evidence":"","terms":[],"spans":[]},{"n":35,"text":"  {# ifml:Details :message_thread, seam:reads :MessageShape, seam:visibleWhen :s_complete , :s_composing , :s_sending , :s_streaming #}","templates":[["htmx_page.html.j2",32]],"kind":"graph","evidence":":message_thread ifml:Details seam:reads :MessageShape seam:visibleWhen :s_complete :s_composing :s_sending :s_streaming","terms":[":message_thread","ifml:Details","seam:reads",":MessageShape","seam:visibleWhen",":s_complete",":s_composing",":s_sending",":s_streaming"],"spans":[]},{"n":36,"text":"  {% block message_thread %}","templates":[["htmx_page.html.j2",33]],"kind":"graph","evidence":":chat_page ifml:contains :message_thread ifml:order","terms":[":chat_page","ifml:contains",":message_thread","ifml:order"],"spans":[]},{"n":37,"text":"  {% if message_state in (\"complete\", \"composing\", \"sending\", \"streaming\") %}","templates":[["htmx_component.html.j2",28]],"kind":"graph","evidence":":message_thread seam:visibleWhen :s_complete :s_composing :s_sending :s_streaming seam:reads :MessageShape seam:lifecycle :message_lifecycle state:hasState rdfs:label","terms":[":message_thread","seam:visibleWhen",":s_complete",":s_composing",":s_sending",":s_streaming","seam:reads",":MessageShape","seam:lifecycle",":message_lifecycle","state:hasState","rdfs:label"],"spans":[{"start":27,"end":35,"subject":":s_complete","predicate":"rdfs:label","value":"complete","graph":"urn:seams:graph:model:message_lifecycle"},{"start":39,"end":48,"subject":":s_composing","predicate":"rdfs:label","value":"composing","graph":"urn:seams:graph:model:message_lifecycle"},{"start":52,"end":59,"subject":":s_sending","predicate":"rdfs:label","value":"sending","graph":"urn:seams:graph:model:message_lifecycle"},{"start":63,"end":72,"subject":":s_streaming","predicate":"rdfs:label","value":"streaming","graph":"urn:seams:graph:model:message_lifecycle"}]},{"n":38,"text":"  <section id=\"message_thread\" aria-label=\"Message Thread\"","templates":[["htmx_component.html.j2",31]],"kind":"graph","evidence":":message_thread ifml:Details rdfs:label","terms":[":message_thread","ifml:Details","rdfs:label"],"spans":[{"start":43,"end":57,"subject":":message_thread","predicate":"rdfs:label","value":"Message Thread","graph":"urn:seams:graph:model:chat_ifml"}]},{"n":39,"text":"           data-conversation=\"{{ conversation }}\">","templates":[["htmx_component.html.j2",33]],"kind":"graph","evidence":":message_thread ifml:hasParameter :conversation","terms":[":message_thread","ifml:hasParameter",":conversation"],"spans":[]},{"n":40,"text":"    <ol id=\"message_thread_items\">","templates":[["htmx_component.html.j2",35]],"kind":"graph","evidence":":message_thread ifml:Details seam:reads :MessageShape","terms":[":message_thread","ifml:Details","seam:reads",":MessageShape"],"spans":[]},{"n":41,"text":"      {% for message in messages %}","templates":[["htmx_component.html.j2",36]],"kind":"graph","evidence":":message_thread seam:reads :MessageShape","terms":[":message_thread","seam:reads",":MessageShape"],"spans":[]},{"n":42,"text":"      <li class=\"message\">","templates":[["htmx_item.html.j2",4]],"kind":"graph","evidence":":MessageShape rdfs:label","terms":[":MessageShape","rdfs:label"],"spans":[]},{"n":43,"text":"        <p>{{ message.content }}<\/p>","templates":[["htmx_item.html.j2",8]],"kind":"graph","evidence":":MessageShape sh:property sh:path :content sh:datatype sh:order","terms":[":MessageShape","sh:property","sh:path",":content","sh:datatype","sh:order"],"spans":[]},{"n":44,"text":"        <span class=\"role\">{{ message.role }}<\/span>","templates":[["htmx_item.html.j2",12]],"kind":"graph","evidence":":MessageShape sh:property sh:path :role sh:datatype sh:order","terms":[":MessageShape","sh:property","sh:path",":role","sh:datatype","sh:order"],"spans":[]},{"n":45,"text":"        <span class=\"status\">{{ message.status }}<\/span>","templates":[["htmx_item.html.j2",12]],"kind":"graph","evidence":":MessageShape sh:property sh:path :status sh:datatype sh:in sh:order seam:lifecycle :message_lifecycle","terms":[":MessageShape","sh:property","sh:path",":status","sh:datatype","sh:in","sh:order","seam:lifecycle",":message_lifecycle"],"spans":[]},{"n":46,"text":"        <time datetime=\"{{ message.timestamp }}\">{{ message.timestamp }}<\/time>","templates":[["htmx_item.html.j2",10]],"kind":"graph","evidence":":MessageShape sh:property sh:path :timestamp sh:datatype sh:order","terms":[":MessageShape","sh:property","sh:path",":timestamp","sh:datatype","sh:order"],"spans":[]},{"n":47,"text":"      <\/li>","templates":[["htmx_item.html.j2",15]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":48,"text":"      {% endfor %}","templates":[["htmx_component.html.j2",38]],"kind":"graph","evidence":":message_thread seam:reads :MessageShape","terms":[":message_thread","seam:reads",":MessageShape"],"spans":[]},{"n":49,"text":"    <\/ol>","templates":[["htmx_component.html.j2",39]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":50,"text":"    {# token stream: :stream_complete_event seam:publishesTo :stream_events comm:Channel #}","templates":[["htmx_component.html.j2",41]],"kind":"graph","evidence":":chat_bpmn#stream_complete_event seam:publishesTo :stream_events comm:Channel","terms":[":chat_bpmn#stream_complete_event","seam:publishesTo",":stream_events","comm:Channel"],"spans":[]},{"n":51,"text":"    <div id=\"stream_events\"","templates":[["htmx_component.html.j2",42]],"kind":"graph","evidence":":stream_events comm:Channel","terms":[":stream_events","comm:Channel"],"spans":[]},{"n":52,"text":"         hx-ext=\"sse\"","templates":[["htmx_component.html.j2",43]],"kind":"graph","evidence":":chat_ui seam:consumes :stream_events comm:transport comm:SSE","terms":[":chat_ui","seam:consumes",":stream_events","comm:transport","comm:SSE"],"spans":[]},{"n":53,"text":"         sse-connect=\"/conversations/{{ conversation }}/stream\"","templates":[["htmx_component.html.j2",44]],"kind":"graph","evidence":":stream_events comm:path hydra:template hydra:mapping hydra:property :id","terms":[":stream_events","comm:path","hydra:template","hydra:mapping","hydra:property",":id"],"spans":[]},{"n":54,"text":"         sse-swap=\"token\"","templates":[["htmx_component.html.j2",45]],"kind":"graph","evidence":":stream_events comm:eventName","terms":[":stream_events","comm:eventName"],"spans":[]},{"n":55,"text":"         hx-swap=\"beforeend\">","templates":[["htmx_component.html.j2",46]],"kind":"graph","evidence":":chat_ui seam:consumes :stream_events comm:Channel","terms":[":chat_ui","seam:consumes",":stream_events","comm:Channel"],"spans":[]},{"n":56,"text":"    <\/div>","templates":[["htmx_component.html.j2",47]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":57,"text":"  <\/section>","templates":[["htmx_component.html.j2",49]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":58,"text":"  {% endif %}","templates":[["htmx_component.html.j2",51]],"kind":"graph","evidence":":message_thread seam:visibleWhen :s_complete :s_composing :s_sending :s_streaming","terms":[":message_thread","seam:visibleWhen",":s_complete",":s_composing",":s_sending",":s_streaming"],"spans":[]},{"n":59,"text":"  {% endblock %}","templates":[["htmx_page.html.j2",35]],"kind":"graph","evidence":":chat_page ifml:contains :message_thread","terms":[":chat_page","ifml:contains",":message_thread"],"spans":[]},{"n":60,"text":"","templates":[],"kind":null,"evidence":"","terms":[],"spans":[]},{"n":61,"text":"  {# ifml:Form :compose_form, seam:writes :MessageShape #}","templates":[["htmx_page.html.j2",32]],"kind":"graph","evidence":":compose_form ifml:Form seam:writes :MessageShape","terms":[":compose_form","ifml:Form","seam:writes",":MessageShape"],"spans":[]},{"n":62,"text":"  {% block compose_form %}","templates":[["htmx_page.html.j2",33]],"kind":"graph","evidence":":chat_page ifml:contains :compose_form ifml:order","terms":[":chat_page","ifml:contains",":compose_form","ifml:order"],"spans":[]},{"n":63,"text":"  {# :send_message seam:triggers :send_message_process ; seam:governedBy :user_send_policy #}","templates":[["htmx_component.html.j2",56]],"kind":"graph","evidence":":send_message seam:triggers :send_message_process seam:governedBy :user_send_policy","terms":[":send_message","seam:triggers",":send_message_process","seam:governedBy",":user_send_policy"],"spans":[]},{"n":64,"text":"  {# POST, UIFragment response: :chat_ui seam:consumes :send_message_op #}","templates":[["htmx_component.html.j2",58]],"kind":"graph","evidence":":chat_ui seam:consumes :send_message_op hydra:method seam:mediaKind seam:UIFragment","terms":[":chat_ui","seam:consumes",":send_message_op","hydra:method","seam:mediaKind","seam:UIFragment"],"spans":[]},{"n":65,"text":"  {# :send_message seam:submitsTo :send_message_op ; the route enforces seam:governedBy :user_send_policy #}","templates":[["htmx_component.html.j2",59]],"kind":"graph","evidence":":send_message seam:submitsTo :send_message_op seam:governedBy :user_send_policy","terms":[":send_message","seam:submitsTo",":send_message_op","seam:governedBy",":user_send_policy"],"spans":[]},{"n":66,"text":"  <form id=\"compose_form\" aria-label=\"Compose Message\"","templates":[["htmx_component.html.j2",63]],"kind":"graph","evidence":":compose_form ifml:Form rdfs:label","terms":[":compose_form","ifml:Form","rdfs:label"],"spans":[{"start":38,"end":53,"subject":":compose_form","predicate":"rdfs:label","value":"Compose Message","graph":"urn:seams:graph:model:chat_ifml"}]},{"n":67,"text":"        hx-post=\"/conversations/{{ conversation }}/messages\"","templates":[["htmx_component.html.j2",64]],"kind":"graph","evidence":":send_message seam:submitsTo :send_message_op hydra:method comm:path hydra:template","terms":[":send_message","seam:submitsTo",":send_message_op","hydra:method","comm:path","hydra:template"],"spans":[]},{"n":68,"text":"        hx-target=\"#message_thread_items\"","templates":[["htmx_component.html.j2",68]],"kind":"graph","evidence":":send_to_thread ifml:source :send_message ifml:target :message_thread ifml:swap ifml:Append","terms":[":send_to_thread","ifml:source",":send_message","ifml:target",":message_thread","ifml:swap","ifml:Append"],"spans":[]},{"n":69,"text":"        hx-swap=\"beforeend\">","templates":[["htmx_component.html.j2",69]],"kind":"graph","evidence":":send_to_thread ifml:NavigationFlow ifml:swap ifml:Append","terms":[":send_to_thread","ifml:NavigationFlow","ifml:swap","ifml:Append"],"spans":[]},{"n":70,"text":"    <label for=\"compose_content\">content<\/label>","templates":[["htmx_component.html.j2",71]],"kind":"graph","evidence":":MessageShape sh:property sh:path :content","terms":[":MessageShape","sh:property","sh:path",":content"],"spans":[]},{"n":71,"text":"    <textarea id=\"compose_content\"","templates":[["htmx_component.html.j2",72]],"kind":"graph","evidence":":MessageShape sh:property sh:path :content dash:editor dash:TextAreaEditor sh:order","terms":[":MessageShape","sh:property","sh:path",":content","dash:editor","dash:TextAreaEditor","sh:order"],"spans":[]},{"n":72,"text":"              name=\"content\"","templates":[["htmx_component.html.j2",74]],"kind":"graph","evidence":":compose_form seam:writes :MessageShape sh:property sh:path :content","terms":[":compose_form","seam:writes",":MessageShape","sh:property","sh:path",":content"],"spans":[]},{"n":73,"text":"              maxlength=\"16000\"","templates":[["htmx_component.html.j2",74]],"kind":"graph","evidence":":MessageShape sh:property sh:path :content sh:maxLength","terms":[":MessageShape","sh:property","sh:path",":content","sh:maxLength"],"spans":[]},{"n":74,"text":"              required><\/textarea>","templates":[["htmx_component.html.j2",74]],"kind":"graph","evidence":":message_input ifml:boundTo :content sh:minCount","terms":[":message_input","ifml:boundTo",":content","sh:minCount"],"spans":[]},{"n":75,"text":"    {# role, status and timestamp are set by the runtime, not entered: no parameter is ifml:boundTo them #}","templates":[["htmx_component.html.j2",78]],"kind":"graph","evidence":":compose_form ifml:hasParameter :message_input ifml:boundTo :content","terms":[":compose_form","ifml:hasParameter",":message_input","ifml:boundTo",":content"],"spans":[]},{"n":76,"text":"    <button type=\"submit\">Send Message<\/button>","templates":[["htmx_component.html.j2",80]],"kind":"graph","evidence":":compose_form ifml:hasEvent :send_message rdfs:label","terms":[":compose_form","ifml:hasEvent",":send_message","rdfs:label"],"spans":[{"start":26,"end":38,"subject":":send_message","predicate":"rdfs:label","value":"Send Message","graph":"urn:seams:graph:model:chat_ifml"}]},{"n":77,"text":"  <\/form>","templates":[["htmx_component.html.j2",81]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":78,"text":"  {% endblock %}","templates":[["htmx_page.html.j2",35]],"kind":"graph","evidence":":chat_page ifml:contains :compose_form","terms":[":chat_page","ifml:contains",":compose_form"],"spans":[]},{"n":79,"text":"<\/main>","templates":[["htmx_page.html.j2",37]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":80,"text":"<\/body>","templates":[["htmx_page.html.j2",38]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":81,"text":"<\/html>","templates":[["htmx_page.html.j2",39]],"kind":"fixed","evidence":"","terms":[],"spans":[]},{"n":82,"text":"","templates":[],"kind":null,"evidence":"","terms":[],"spans":[]}],"elements":{":chat_ifml":{"iri":"https://example.org/chat/chat_ifml","curie":":chat_ifml","label":"Chat Interface","types":["ifml:InteractionModel","seam:Model"],"layer":"interaction"},":chat_page":{"iri":"https://example.org/chat/chat_page","curie":":chat_page","label":"Chat Page","types":["ifml:ViewContainer"],"layer":"interaction"},":chat_ui":{"iri":"https://example.org/chat/chat_ui","curie":":chat_ui","label":"Chat Web Interface","types":["arch:Container"],"layer":"architecture"},":stream_events":{"iri":"https://example.org/chat/stream_events","curie":":stream_events","label":"stream.events","types":["comm:Channel"],"layer":"other"},":conversation_list":{"iri":"https://example.org/chat/conversation_list","curie":":conversation_list","label":"Conversations","types":["ifml:List"],"layer":"interaction"},":ConversationShape":{"iri":"https://example.org/chat/ConversationShape","curie":":ConversationShape","label":"Conversation","types":["sh:NodeShape"],"layer":"data"},":select_to_thread":{"iri":"https://example.org/chat/select_to_thread","curie":":select_to_thread","label":null,"types":["ifml:NavigationFlow"],"layer":"interaction"},":message_thread":{"iri":"https://example.org/chat/message_thread","curie":":message_thread","label":"Message Thread","types":["ifml:Details"],"layer":"interaction"},":message_thread_op":{"iri":"https://example.org/chat/message_thread_op","curie":":message_thread_op","label":"Message Thread","types":["hydra:Operation"],"layer":"other"},":id":{"iri":"https://example.org/chat/id","curie":":id","label":null,"types":[],"layer":"other"},":select_conversation":{"iri":"https://example.org/chat/select_conversation","curie":":select_conversation","label":"Select Conversation","types":["ifml:Event"],"layer":"interaction"},":list_to_thread":{"iri":"https://example.org/chat/list_to_thread","curie":":list_to_thread","label":null,"types":["ifml:DataFlow"],"layer":"interaction"},":selected_conversation":{"iri":"https://example.org/chat/selected_conversation","curie":":selected_conversation","label":"selected conversation","types":["ifml:Parameter"],"layer":"interaction"},":conversation":{"iri":"https://example.org/chat/conversation","curie":":conversation","label":"conversation","types":["ifml:Parameter"],"layer":"interaction"},":title":{"iri":"https://example.org/chat/title","curie":":title","label":null,"types":[],"layer":"other"},":MessageShape":{"iri":"https://example.org/chat/MessageShape","curie":":MessageShape","label":"Message","types":["sh:NodeShape"],"layer":"data"},":s_complete":{"iri":"https://example.org/chat/s_complete","curie":":s_complete","label":"complete","types":["state:State"],"layer":"lifecycle"},":s_composing":{"iri":"https://example.org/chat/s_composing","curie":":s_composing","label":"composing","types":["state:State"],"layer":"lifecycle"},":s_sending":{"iri":"https://example.org/chat/s_sending","curie":":s_sending","label":"sending","types":["state:State"],"layer":"lifecycle"},":s_streaming":{"iri":"https://example.org/chat/s_streaming","curie":":s_streaming","label":"streaming","types":["state:State"],"layer":"lifecycle"},":message_lifecycle":{"iri":"https://example.org/chat/message_lifecycle","curie":":message_lifecycle","label":"Message Lifecycle","types":["seam:Model","state:StateMachine"],"layer":"lifecycle"},":content":{"iri":"https://example.org/chat/content","curie":":content","label":null,"types":[],"layer":"other"},":role":{"iri":"https://example.org/chat/role","curie":":role","label":null,"types":[],"layer":"other"},":status":{"iri":"https://example.org/chat/status","curie":":status","label":null,"types":[],"layer":"other"},":timestamp":{"iri":"https://example.org/chat/timestamp","curie":":timestamp","label":null,"types":[],"layer":"other"},":chat_bpmn#stream_complete_event":{"iri":"https://example.org/chat/chat_bpmn#stream_complete_event","curie":":stream_complete_event","label":"Stream Complete","types":["proc:MessageThrowEvent"],"layer":"process"},":compose_form":{"iri":"https://example.org/chat/compose_form","curie":":compose_form","label":"Compose Message","types":["ifml:Form"],"layer":"interaction"},":send_message":{"iri":"https://example.org/chat/send_message","curie":":send_message","label":"Send Message","types":["ifml:Event"],"layer":"interaction"},":send_message_process":{"iri":"https://example.org/chat/send_message_process","curie":":send_message_process","label":"Send Message Process","types":["proc:Process"],"layer":"process"},":user_send_policy":{"iri":"https://example.org/chat/user_send_policy","curie":":user_send_policy","label":"Authenticated users may send messages in their own conversations","types":["odrl:Policy"],"layer":"other"},":send_message_op":{"iri":"https://example.org/chat/send_message_op","curie":":send_message_op","label":"Send Message","types":["hydra:Operation"],"layer":"other"},":send_to_thread":{"iri":"https://example.org/chat/send_to_thread","curie":":send_to_thread","label":null,"types":["ifml:NavigationFlow"],"layer":"interaction"},":message_input":{"iri":"https://example.org/chat/message_input","curie":":message_input","label":"message input","types":["ifml:Parameter"],"layer":"interaction"},":chat_api":{"iri":"https://example.org/chat/chat_api","curie":":chat_api","label":"Chat API","types":["arch:Container"],"layer":"architecture"},":chat_system":{"iri":"https://example.org/chat/chat_system","curie":":chat_system","label":"LLM Chat App","types":["arch:System"],"layer":"architecture"},":list_conversations_op":{"iri":"https://example.org/chat/list_conversations_op","curie":":list_conversations_op","label":"List Conversations","types":["hydra:Operation"],"layer":"other"},":completion_op":{"iri":"https://example.org/chat/completion_op","curie":":completion_op","label":"LLM Completion","types":["hydra:Operation"],"layer":"other"},":llm_gateway":{"iri":"https://example.org/chat/llm_gateway","curie":":llm_gateway","label":"LLM Provider Gateway","types":["arch:Container"],"layer":"architecture"},":chat_bpmn":{"iri":"https://example.org/chat/chat_bpmn","curie":":chat_bpmn","label":"Message Processing (BPMN)","types":["seam:Model"],"layer":"process"},":message_db":{"iri":"https://example.org/chat/message_db","curie":":message_db","label":"Message Store","types":["arch:Container"],"layer":"architecture"},":routing_dmn":{"iri":"https://example.org/chat/routing_dmn","curie":":routing_dmn","label":"Provider Routing (DMN)","types":["dec:DecisionModel","seam:Model"],"layer":"decision"},":app01":{"iri":"https://example.org/chat/app01","curie":":app01","label":"app01","types":["arch:DeploymentNode"],"layer":"architecture"},":web01":{"iri":"https://example.org/chat/web01","curie":":web01","label":"web01","types":["arch:DeploymentNode"],"layer":"architecture"},":db01":{"iri":"https://example.org/chat/db01","curie":":db01","label":"db01","types":["arch:DeploymentNode"],"layer":"architecture"}},"templates":{"htmx_component.html.j2":["[#- The body of one component's {% block %} (D016), included by","    htmx_page.html.j2 inside the block and by htmx_fragment.html.j2 as a","    whole-component partial (GAP-19). Expects `c`, a Component. #]","[% if c.kind == \"List\" %]","  <nav id=\"[[ c.id ]]\" aria-label=\"[[ c.label|e ]]\">","    <ul>","      {% for [[ c.loop_var ]] in [[ c.collection ]] %}","      <li>","        <a href=\"#[[ c.link.flow.target ]]\"","           hx-get=\"[[ c.link.get_path ]]\"","           hx-trigger=\"[[ c.link.event_trigger ]]\"","           hx-target=\"#[[ c.link.flow.target_id ]]\"","           hx-swap=\"[[ c.link.flow.swap ]]\"[[ \"\" if c.link.vals else \">\" ]]","[% if c.link.vals %]","           hx-vals='{[% for k, v in c.link.vals %]\"[[ k ]]\": \"{{ [[ v ]] }}\"[[ \"\" if loop.last else \", \" ]][% endfor %]}'>","[% endif %]","          {{ [[ c.loop_var ]].[[ c.display_field ]] }}","        <\/a>","      <\/li>","      {% endfor %}","    <\/ul>","  <\/nav>","[% elif c.kind == \"Details\" %]","[% if c.guard_variable %]","[% if c.guard_states|length == 1 %]","  {% if [[ c.guard_variable ]] == \"[[ c.guard_states[0] ]]\" %}","[% else %]","  {% if [[ c.guard_variable ]] in ([% for s in c.guard_states %]\"[[ s ]]\"[[ \"\" if loop.last else \", \" ]][% endfor %]) %}","[% endif %]","[% endif %]","  <section id=\"[[ c.id ]]\" aria-label=\"[[ c.label|e ]]\"[[ \"\" if c.parameters else \">\" ]]","[% for p in c.parameters %]","           data-[[ p ]]=\"{{ [[ p ]] }}\"[[ \">\" if loop.last else \"\" ]]","[% endfor %]","    <ol id=\"[[ c.id ]]_items\">","      {% for [[ c.loop_var ]] in [[ c.collection ]] %}","[% include \"htmx_item.html.j2\" %]","      {% endfor %}","    <\/ol>","[% if c.stream %]","    {# [[ c.stream.event_name ]] stream: [[ c.stream.publisher ]] seam:publishesTo [[ c.stream.curie ]] comm:Channel #}","    <div id=\"[[ c.stream.id ]]\"","         hx-ext=\"sse\"","         sse-connect=\"[[ c.stream.connect ]]\"","         sse-swap=\"[[ c.stream.event_name ]]\"","         hx-swap=\"beforeend\">","    <\/div>","[% endif %]","  <\/section>","[% if c.guard_variable %]","  {% endif %}","[% endif %]","[% elif c.kind == \"Form\" %]","[% set s = c.submit %]","[% if s.triggers or s.event_policies %]","  {# [[ s.event ]][[ \" seam:triggers \" ~ s.triggers|join(\", \") if s.triggers else \"\" ]][[ \" ;\" if s.triggers and s.event_policies else \"\" ]][[ \" seam:governedBy \" ~ s.event_policies|join(\", \") if s.event_policies else \"\" ]] #}","[% endif %]","  {# [[ s.method_upper ]], [[ s.media_kind ]] response: [[ s.consumer ]] seam:consumes [[ s.operation ]] #}","  {# [[ s.event ]] seam:submitsTo [[ s.operation ]][[ \" ; the route enforces seam:governedBy \" ~ s.route_policies|join(\", \") if s.route_policies else \"\" ]] #}","[% if s.mint %]","  {# {[[ s.mint|join(\"}, {\") ]]} starts a new process instance: no component on the page binds it, so the browser fills it with a fresh random key on every submit #}","[% endif %]","  <form id=\"[[ c.id ]]\" aria-label=\"[[ c.label|e ]]\"","        hx-[[ s.method ]]=\"[[ s.path ]]\"","[% if s.mint %]","        hx-on::config-request=\"[% for v in s.mint %]event.detail.path = event.detail.path.replace('{[[ v ]]}', Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join(''));[% endfor %]\"","[% endif %]","        hx-target=\"#[[ s.flow.target_id ]]\"","        hx-swap=\"[[ s.flow.swap ]]\">","[% for i in c.inputs %]","    <label for=\"[[ i.id ]]\">[[ i.name ]]<\/label>","    <[[ i.element ]] id=\"[[ i.id ]]\"","[% for a in i.attributes %]","[[ \" \" * (i.element|length + 6) ]][[ a ]][[ (\"><\/\" ~ i.element ~ \">\" if i.element == \"textarea\" else \">\") if loop.last else \"\" ]]","[% endfor %]","[% endfor %]","[% if c.unbound %]","    {# [[ c.unbound|english_list ]] [[ \"is\" if c.unbound|length == 1 else \"are\" ]] set by the runtime, not entered: no parameter is ifml:boundTo [[ \"it\" if c.unbound|length == 1 else \"them\" ]] #}","[% endif %]","    <button type=\"submit\">[[ s.label|e ]]<\/button>","  <\/form>","[% endif %]",""],"htmx_item.html.j2":["[#- One item of an ifml:Details item list (D016), included inside the","    Details {% for %} loop and by htmx_fragment.html.j2 as an item partial","    (GAP-19). Expects `c`, a Details Component. #]","      <li class=\"[[ c.item_class ]]\">","[% for fl in c.fields %]","[% set value = \"{{ \" ~ c.loop_var ~ \".\" ~ fl.name ~ \" }}\" %]","[% if fl.kind == \"textarea\" %]","        <p>[[ value ]]<\/p>","[% elif fl.kind == \"datetime\" %]","        <time datetime=\"[[ value ]]\">[[ value ]]<\/time>","[% else %]","        <span class=\"[[ fl.name ]]\">[[ value ]]<\/span>","[% endif %]","[% endfor %]","      <\/li>",""],"htmx_page.html.j2":["[#- The seams htmx page template (D016). Rendered with square-bracket","    delimiters, so the Jinja2 {{ }} / {% %} / {# #} it emits are plain text.","    Fixed text lives here; every model-specific value comes from the PageModel","    built by seams_gen/htmx.py, and this file holds no graph queries. Each","    block body is htmx_component.html.j2, shared with the fragment partials","    (htmx_fragment.html.j2). -#]","{# Generated by the seams htmx generator from the [[ page.model_stem ]] model. Do not edit. #}","{# model-hash: [[ page.model_hash ]] #}","[% if page.landmark %]","{# page [[ page.curie ]], from [[ page.interaction_model ]] ifml:contains [[ page.curie ]] ; ifml:isLandmark true #}","{# route: GET [[ page.path ]] (the landmark page is the app entry point) #}","[% else %]","{# page [[ page.curie ]], from [[ page.interaction_model ]] ifml:contains [[ page.curie ]] #}","{# route: GET [[ page.path ]] (a page with an ifml:path and no task form) #}","[% endif %]","<!doctype html>","<html lang=\"en\">","<head>","  <meta charset=\"utf-8\">","  <title>[[ page.title|e ]]<\/title>","  <script src=\"https://unpkg.com/htmx.org@2.0.4\"><\/script>","[% if page.uses_sse %]","  <script src=\"https://unpkg.com/htmx-ext-sse@2.2.2/sse.js\"><\/script>","[% endif %]","<\/head>","<body>","<main id=\"[[ page.id ]]\" data-seam=\"[[ page.curie ]]\">","[% for c in page.components %]","[% if not loop.first %]","","[% endif %]","  {# [[ c.type_curie ]] [[ c.curie ]][[ \", seam:reads \" ~ c.reads if c.reads else \"\" ]][[ \", seam:writes \" ~ c.writes if c.writes else \"\" ]][[ \", seam:visibleWhen \" ~ c.guard_state_curies|join(\" , \") if c.guard_state_curies else \"\" ]] #}","  {% block [[ c.id ]] %}","[% include \"htmx_component.html.j2\" %]","  {% endblock %}","[% endfor %]","<\/main>","<\/body>","<\/html>",""]},"fanout":{":chat_page":{"chat_page.html":10},":chat_ifml":{"chat_page.html":1},":stream_events":{"chat_page.html":7,"chat_api.py":6},":chat_ui":{"chat_page.html":4,"compose.yaml":10},":ConversationShape":{"chat_page.html":3,"chat_api.py":1},":conversation_list":{"chat_page.html":12,"chat_api.py":1},":message_thread":{"chat_page.html":14,"chat_api.py":2},":select_to_thread":{"chat_page.html":3,"chat_api.py":1},":id":{"chat_page.html":2,"chat_api.py":1},":message_thread_op":{"chat_page.html":1,"chat_api.py":6},":select_conversation":{"chat_page.html":2},":list_to_thread":{"chat_page.html":1},":selected_conversation":{"chat_page.html":1},":conversation":{"chat_page.html":2,"chat_api.py":2},":title":{"chat_page.html":1},":MessageShape":{"chat_page.html":15,"chat_api.py":6},":s_complete":{"chat_page.html":3},":s_composing":{"chat_page.html":3},":s_sending":{"chat_page.html":3},":s_streaming":{"chat_page.html":3},":message_lifecycle":{"chat_page.html":2},":content":{"chat_page.html":7},":role":{"chat_page.html":1},":status":{"chat_page.html":1},":timestamp":{"chat_page.html":1},":chat_bpmn#stream_complete_event":{"chat_page.html":1},":compose_form":{"chat_page.html":7},":send_message_process":{"chat_page.html":1,"chat_api.py":3,"compose.yaml":1},":send_message":{"chat_page.html":5},":user_send_policy":{"chat_page.html":2,"chat_api.py":1},":send_message_op":{"chat_page.html":3,"chat_api.py":13},":send_to_thread":{"chat_page.html":2,"chat_api.py":1},":message_input":{"chat_page.html":2},":chat_api":{"chat_api.py":4,"compose.yaml":15},":chat_system":{"chat_api.py":1,"compose.yaml":4},":list_conversations_op":{"chat_api.py":6},":completion_op":{"chat_api.py":1},":llm_gateway":{"chat_api.py":1,"compose.yaml":10},":chat_bpmn":{"chat_api.py":1,"compose.yaml":1},":message_db":{"compose.yaml":14},":routing_dmn":{"compose.yaml":1},":app01":{"compose.yaml":2},":web01":{"compose.yaml":1},":db01":{"compose.yaml":1}}};
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const LAYERS = ["architecture", "interaction", "process", "decision", "data", "lifecycle", "other"];
+const LAYER_NAME = { architecture: "Architecture", interaction: "Interaction", process: "Process", decision: "Decision", data: "Data", lifecycle: "Lifecycle", other: "Vocabulary terms" };
+const lc = l => `var(--layer-${l})`;
+const el = k => D.elements[k];
+const name = k => (el(k) && el(k).label) || k;
+const lines = D.lines;
+const cites = k => lines.filter(L => L.terms.includes(k));
+const elKeys = Object.keys(D.elements).filter(k => cites(k).length);
+const firstLayer = L => { const k = L.terms.find(t => t.startsWith(":")); return k ? el(k).layer : "other"; };
+
+let sel = null;            // {kind:"line",n} | {kind:"el",key} | {kind:"tpl",file,line} | {kind:"span",n,i}
+let tplFile = "htmx_page.html.j2";
+let draft = null;
+
+/* stats + legend */
+(function () {
+  const model = lines.filter(L => L.kind === "graph").length, fixed = lines.filter(L => L.kind === "fixed").length;
+  const blank = lines.filter(L => !L.text.trim()).length, spans = lines.reduce((a, L) => a + L.spans.length, 0);
+  $("#stats").innerHTML = `<span><b>${lines.length}</b> lines</span><span><b>${model}</b> from the model</span>` +
+    `<span><b>${fixed}</b> template constants</span><span><b>${blank}</b> blank</span>` +
+    `<span><b>${elKeys.length}</b> elements cited</span><span><b>${spans}</b> editable values</span>` +
+    `<span class="mono">model-hash ${esc(D.model_hash.slice(0, 15))}…</span>`;
+  const used = new Set(elKeys.map(k => el(k).layer));
+  $("#legend").innerHTML = LAYERS.filter(l => used.has(l)).map(l => `<span><i style="background:${lc(l)}"></i>${LAYER_NAME[l]}</span>`).join("") +
+    `<span><i style="border:1.5px solid var(--muted);background:transparent"></i>Template constant</span>`;
+})();
+
+/* model pane */
+function renderModel() {
+  const by = {};
+  elKeys.forEach(k => (by[el(k).layer] ||= []).push(k));
+  let h = "";
+  LAYERS.forEach(l => {
+    if (!by[l]) return;
+    h += `<div class="group"><i style="background:${lc(l)}"></i>${LAYER_NAME[l]}</div>`;
+    by[l].sort((a, b) => name(a).localeCompare(name(b))).forEach(k => {
+      const e = el(k), t = e.types.join(", ");
+      h += `<div class="row" tabindex="0" data-el="${esc(k)}"><span class="bar" style="background:${lc(l)}"></span>` +
+        `<span class="name"><div class="label">${esc(e.label || k)}</div><div class="curie">${e.label ? esc(k) + (t ? " · " : "") : ""}${esc(t)}</div></span>` +
+        `<span class="n" title="lines of chat_page.html citing it">${cites(k).length}</span></div>`;
+    });
+  });
+  $("#s-model").innerHTML = h;
+}
+
+/* code highlighting: jinja [[ ]] / [% %] in templates, {{ }} / {% %} / {# #} in output */
+function hlTpl(s) {
+  return esc(s).replace(/\[\[.*?\]\]/g, m => `<span class="x">${m}</span>`).replace(/\[%.*?%\]|\[#.*?#\]/g, m => `<span class="t">${m}</span>`);
+}
+function hlOut(text, spans, n) {
+  const parts = []; let i = 0;
+  [...spans].map((s, j) => ({ ...s, j })).sort((a, b) => a.start - b.start).forEach(s => {
+    if (s.start < i) return;
+    parts.push(hlPlain(text.slice(i, s.start)));
+    parts.push(`<span class="wb" tabindex="0" data-span="${n}:${s.j}" title="${esc(s.subject + " " + s.predicate)}">${esc(text.slice(s.start, s.end))}</span>`);
+    i = s.end;
+  });
+  parts.push(hlPlain(text.slice(i)));
+  return parts.join("");
+}
+function hlPlain(s) {
+  return esc(s).replace(/\{\{.*?\}\}/g, m => `<span class="x">${m}</span>`).replace(/\{%.*?%\}|\{#.*?#\}/g, m => `<span class="t">${m}</span>`);
+}
+
+function renderOut() {
+  $("#out").innerHTML = lines.map(L => {
+    const k = L.kind === "graph" ? `<i style="background:${lc(firstLayer(L))}"></i>` : L.kind === "fixed" ? `<i class="fixed"></i>` : "";
+    return `<div class="oline" tabindex="0" data-n="${L.n}"><span class="ln">${L.n}</span><span class="kind">${k}</span><span class="txt">${hlOut(L.text, L.spans, L.n)}</span></div>`;
+  }).join("");
+}
+
+function renderTabs() {
+  $("#tabs").innerHTML = Object.keys(D.templates).map(f => `<button data-file="${f}" aria-pressed="${f === tplFile}">${f}</button>`).join("");
+}
+function renderTpl() {
+  const src = D.templates[tplFile];
+  $("#tpl").innerHTML = src.map((t, i) => `<div class="tline" tabindex="0" data-file="${tplFile}" data-line="${i + 1}"><span class="ln">${i + 1}</span><span class="txt">${hlTpl(t)}</span></div>`).join("");
+}
+
+/* selection */
+function linesFor() {
+  if (!sel) return { out: [], els: [], tpl: [] };
+  if (sel.kind === "line" || sel.kind === "span") {
+    const L = lines[sel.n - 1];
+    return { out: [L.n], els: L.terms.filter(t => t.startsWith(":")), tpl: L.templates };
+  }
+  if (sel.kind === "el") {
+    const ls = cites(sel.key);
+    return { out: ls.map(L => L.n), els: [sel.key], tpl: [] };
+  }
+  const ls = lines.filter(L => L.templates.some(([f, n]) => f === sel.file && n === sel.line));
+  return { out: ls.map(L => L.n), els: [...new Set(ls.flatMap(L => L.terms.filter(t => t.startsWith(":"))))], tpl: [[sel.file, sel.line]] };
+}
+
+function apply(scroll) {
+  const S = linesFor();
+  const on = new Set(S.out), ons = new Set(S.els), ont = new Set(S.tpl.map(([f, n]) => f + ":" + n));
+  if ((sel?.kind === "line" || sel?.kind === "span") && S.tpl.length) {
+    const want = S.tpl[S.tpl.length - 1][0];
+    if (want !== tplFile) { tplFile = want; renderTabs(); renderTpl(); }
+  }
+  document.querySelectorAll(".oline").forEach(x => { x.classList.toggle("on", on.has(+x.dataset.n)); x.classList.toggle("focus", (sel?.kind === "line" || sel?.kind === "span") && +x.dataset.n === sel.n); });
+  document.querySelectorAll(".row").forEach(x => x.classList.toggle("on", ons.has(x.dataset.el)));
+  document.querySelectorAll(".tline").forEach(x => { const k = x.dataset.file + ":" + x.dataset.line; x.classList.toggle("on", ont.has(k)); x.classList.toggle("focus", sel?.kind === "tpl" && ont.has(k)); });
+  document.querySelectorAll(".wb").forEach(x => x.classList.toggle("on", sel?.kind === "span" && x.dataset.span === `${sel.n}:${sel.i}`));
+  ["#p-model", "#p-tpl", "#p-out"].forEach(p => $(p).classList.toggle("dim", !!sel));
+  if (scroll) {
+    const first = (sc, q) => { const t = $(q, $(sc)); if (t) t.scrollIntoView({ block: "nearest", inline: "nearest" }); };
+    if (S.els[0]) first("#s-model", `.row[data-el="${CSS.escape(S.els[0])}"]`);
+    const tp = S.tpl.find(([f]) => f === tplFile); if (tp) first("#s-tpl", `.tline[data-line="${tp[1]}"]`);
+    if (S.out[0] && sel.kind !== "line" && sel.kind !== "span") first("#s-out", `.oline[data-n="${S.out[0]}"]`);
+  }
+  renderDetail(S);
+  requestAnimationFrame(draw);
+}
+
+/* connectors */
+function anchor(node, pane, side) {
+  const st = $("#stage").getBoundingClientRect(), r = node.getBoundingClientRect(), p = $(pane).getBoundingClientRect();
+  let y = r.top + r.height / 2; const clamped = y < p.top + 4 || y > p.bottom - 4;
+  y = Math.min(Math.max(y, p.top + 4), p.bottom - 4);
+  return { x: (side === "r" ? r.right : r.left) - st.left, y: y - st.top, clamped };
+}
+function curve(a, b, color, dashed) {
+  const dx = Math.max(24, (b.x - a.x) / 2);
+  return `<path d="M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}" fill="none" stroke="${color}" stroke-width="1.6" stroke-opacity="${a.clamped || b.clamped ? .35 : .9}"${dashed || a.clamped || b.clamped ? ' stroke-dasharray="4 3"' : ""}/>` +
+    `<circle cx="${b.x}" cy="${b.y}" r="2.6" fill="${color}" fill-opacity="${b.clamped ? .35 : .9}"/>`;
+}
+function draw() {
+  const svg = $("#links");
+  if (!sel || getComputedStyle(svg).display === "none") { svg.innerHTML = ""; return; }
+  const S = linesFor(); let h = "";
+  const rowOf = k => $(`.row[data-el="${CSS.escape(k)}"]`);
+  const outOf = n => $(`.oline[data-n="${n}"]`);
+  const tplOf = n => $(`.tline[data-line="${n}"]`);
+  const tpls = S.tpl.filter(([f]) => f === tplFile).map(([, n]) => tplOf(n)).filter(Boolean);
+  if (sel.kind === "line" || sel.kind === "span" || sel.kind === "tpl") {
+    const outs = S.out.map(outOf).filter(Boolean).slice(0, 40);
+    S.els.forEach(k => { const r = rowOf(k); if (r) tpls.forEach(t => h += curve(anchor(r, "#s-model", "r"), anchor(t, "#s-tpl", "l"), lc(el(k).layer))); });
+    tpls.forEach(t => outs.forEach(o => h += curve(anchor(t, "#s-tpl", "r"), anchor(o, "#s-out", "l"), "var(--brand)")));
+    if (!tpls.length && S.tpl.length) S.els.forEach(k => { const r = rowOf(k); if (r) outs.forEach(o => h += curve(anchor(r, "#s-model", "r"), anchor(o, "#s-out", "l"), lc(el(k).layer), true)); });
+  } else {
+    const r = rowOf(sel.key);
+    if (r) S.out.slice(0, 40).forEach(n => { const o = outOf(n); if (o) h += curve(anchor(r, "#s-model", "r"), anchor(o, "#s-out", "l"), lc(el(sel.key).layer), true); });
+  }
+  svg.innerHTML = h;
+}
+
+/* detail panel */
+function chipEl(k) { const e = el(k); return `<button class="chip" data-goto="${esc(k)}"><i style="background:${lc(e.layer)}"></i>${esc(e.label || k)} <span class="muted">${esc(k)}</span></button>`; }
+function fanText(k) {
+  const f = D.fanout[k]; if (!f) return "";
+  return Object.entries(f).map(([file, n]) => `${n} line${n > 1 ? "s" : ""} of <code>${esc(file)}</code>`).join(", ");
+}
+function renderDetail(S) {
+  const d = $("#detail");
+  if (!sel) {
+    d.innerHTML = `<div><span class="tier nav">Navigate</span><h2>Pick anything to see where it came from or what it produced</h2>
+      <p>A line of output links back to the template line that wrote it and the model elements its golden marker cites. An element links forward to every line it reaches. A template line inside a loop links to every line it emitted.</p></div>
+      <div><span class="tier put">Write back</span><h2>Dashed values map to one triple</h2><p class="muted">Ten values on this page come from exactly one literal in the model, such as a label or a page title. Editing one shows the patch it would apply. The other lines are generated from structure, so an edit there would become a proposed model change, accepted only if regenerating reproduces it.</p></div>`;
+    return;
+  }
+  if (sel.kind === "span") return renderPut(d);
+  if (sel.kind === "line") {
+    const L = lines[sel.n - 1];
+    const tp = L.templates.map(([f, n]) => `<code>${esc(f)}:${n}</code>`).join(" inside ") || "none";
+    const kind = L.kind === "graph" ? "From the model" : L.kind === "fixed" ? "Template constant" : "Blank";
+    const els = L.terms.filter(t => t.startsWith(":")), preds = L.terms.filter(t => !t.startsWith(":"));
+    d.innerHTML = `<div><span class="tier nav">Line ${L.n} · ${kind}</span>
+      <h2 class="mono">${esc(L.text.trim() || "(blank)")}</h2>
+      <p>Written by ${tp}.${L.templates.length > 1 ? " The outer template includes the inner one." : ""}</p>
+      ${L.evidence ? `<p class="muted">Golden marker evidence: <code>${esc(L.evidence)}</code></p>` : ""}
+      ${L.kind === "fixed" ? `<p class="muted">No model fact changes this line. Editing it means changing the template, not the model.</p>` : ""}
+      <button class="clear" data-clear>Clear selection</button></div>
+      <div>${els.length ? `<h2>Model elements</h2><div class="chips">${els.map(chipEl).join("")}</div>` : ""}
+      ${preds.length ? `<h2>Vocabulary terms</h2><div class="chips">${preds.map(p => `<span class="chip">${esc(p)}</span>`).join("")}</div>` : ""}
+      ${L.spans.length ? `<p class="muted">This line has ${L.spans.length} editable value${L.spans.length > 1 ? "s" : ""}, shown dashed.</p>` : L.kind === "graph" ? `<span class="tier struct">Structural</span><p class="muted">No single literal produces this line. A direct edit here would be a proposed model change.</p>` : ""}</div>`;
+    return;
+  }
+  if (sel.kind === "el") {
+    const e = el(sel.key), ls = cites(sel.key);
+    d.innerHTML = `<div><span class="tier nav">Element</span><h2>${esc(e.label || sel.key)} <span class="muted mono">${esc(sel.key)}</span></h2>
+      <p>${esc(e.types.join(", ") || "A property path in a shape")} · ${LAYER_NAME[e.layer]} layer.</p>
+      <p>Reaches ${ls.length} line${ls.length !== 1 ? "s" : ""} of this page${D.fanout[sel.key] ? `, and across all three golden outputs ${fanText(sel.key)}` : ""}.</p>
+      <button class="clear" data-clear>Clear selection</button></div>
+      <div><h2>Lines it reaches here</h2><div class="chips">${ls.map(L => `<button class="chip" data-line="${L.n}">${L.n}</button>`).join("")}</div>
+      <p class="muted">This is the reverse of A2's planned file-level provenance, at line level.</p></div>`;
+    return;
+  }
+  const ls = lines.filter(L => L.templates.some(([f, n]) => f === sel.file && n === sel.line));
+  d.innerHTML = `<div><span class="tier nav">Template line</span><h2 class="mono">${esc(sel.file)}:${sel.line}</h2>
+    <p class="mono">${esc(D.templates[sel.file][sel.line - 1].trim() || "(blank)")}</p>
+    <p>Emitted ${ls.length} line${ls.length !== 1 ? "s" : ""} of this page${ls.length > 1 ? ", once per pass of its enclosing loop" : ""}.</p>
+    <button class="clear" data-clear>Clear selection</button></div>
+    <div><h2>Output lines</h2><div class="chips">${ls.map(L => `<button class="chip" data-line="${L.n}">${L.n}</button>`).join("") || '<span class="muted">None on this page. Its branch was not taken for the chat app.</span>'}</div>
+    ${S.els.length ? `<h2>Elements behind them</h2><div class="chips">${S.els.map(chipEl).join("")}</div>` : ""}</div>`;
+}
+function lit(v) { return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; }
+function renderPut(d) {
+  const L = lines[sel.n - 1], s = L.spans[sel.i];
+  const val = draft ?? s.value;
+  const same = lines.flatMap(M => M.spans.filter(t => t.subject === s.subject && t.predicate === s.predicate).map(() => M.n));
+  const changed = val !== s.value;
+  const g = `<${s.graph}>`;
+  const patch = changed
+    ? `<span class="del">DELETE DATA { GRAPH ${esc(g)} { ${esc(s.subject)} ${esc(s.predicate)} ${esc(lit(s.value))} } } ;</span>\n<span class="ins">INSERT DATA { GRAPH ${esc(g)} { ${esc(s.subject)} ${esc(s.predicate)} ${esc(lit(val))} } }</span>`
+    : `<span class="muted"># Change the value to see the patch.</span>`;
+  d.innerHTML = `<div><span class="tier put">Write back · line ${L.n}</span>
+    <h2>${esc(s.subject)} ${esc(s.predicate)}</h2>
+    <p>This text comes from one literal in <code>${esc(s.graph)}</code>, so an edit here maps to exactly one triple.</p>
+    <div class="field"><label for="put-input">Value</label><input id="put-input" value="${esc(val)}" autocomplete="off" spellcheck="false"></div>
+    <pre class="patch">${patch}</pre>
+    <button class="clear" data-clear>Clear selection</button></div>
+    <div><h2>What regenerating would change</h2>
+    <p>On this page: line${same.length > 1 ? "s" : ""} ${same.join(", ")}.${D.fanout[s.subject] ? ` The element also reaches ${fanText(s.subject)}, but not necessarily through this value.` : ""}</p>
+    <p class="muted">The check before applying the patch: regenerate, then confirm the new output equals the edited output. This is the golden test used as a round-trip check. Here it holds by construction, because the value appears verbatim.</p>
+    ${s.predicate === "rdfs:label" && s.graph.includes("lifecycle") ? `<p class="muted">Caution: this label is a lifecycle state name the runtime also reads. Renaming it is a model change with effects beyond this page.</p>` : ""}</div>`;
+  const inp = $("#put-input");
+  inp.addEventListener("input", () => { draft = inp.value; const pos = inp.selectionStart; renderPut(d); const n = $("#put-input"); n.focus(); n.setSelectionRange(pos, pos); });
+}
+
+/* fan-out view */
+function renderFan() {
+  const rows = Object.entries(D.fanout).map(([k, f]) => ({ k, f, t: Object.values(f).reduce((a, b) => a + b, 0) })).sort((a, b) => b.t - a.t || a.k.localeCompare(b.k)).slice(0, 18);
+  const max = rows[0].t, cls = { "chat_page.html": "f-page", "chat_api.py": "f-api", "compose.yaml": "f-compose" };
+  $("#fan").innerHTML = `<div><h2 style="font:600 15px var(--font-label);margin:0 0 4px">Fan-out: one fact, many lines</h2>
+    <p class="muted" style="margin:0;max-width:70ch">Golden output lines that cite each element, across the three generated files of the chat app. The 18 elements with the most lines are shown. Bars share one scale.</p></div>
+    <div class="fkey"><span><i class="f-page"></i>chat_page.html (htmx)</span><span><i class="f-api"></i>chat_api.py (FastAPI)</span><span><i class="f-compose"></i>compose.yaml</span></div>
+    <div class="head"><span>Element</span><span>Lines per file</span><span style="text-align:right">Total</span></div>` +
+    rows.map(r => { const e = el(r.k) || { label: null, layer: "other" };
+      return `<div class="frow"><div class="who"><div class="label">${esc(e.label || r.k)}</div><div class="curie">${e.label ? esc(r.k) : "property path"}</div></div>
+        <div class="bars" style="width:${(r.t / max) * 100}%" role="img" aria-label="${esc(Object.entries(r.f).map(([a, b]) => b + " in " + a).join(", "))}">${Object.entries(r.f).map(([file, n]) => `<span class="${cls[file]}" style="width:${(n / r.t) * 100}%" title="${n} in ${esc(file)}"></span>`).join("")}</div>
+        <div class="tot">${r.t}</div></div>`; }).join("");
+}
+
+/* events */
+function select(s, scroll = true) { sel = s; draft = null; apply(scroll); }
+document.addEventListener("click", ev => {
+  const t = ev.target;
+  const wb = t.closest(".wb"); if (wb) { const [n, i] = wb.dataset.span.split(":").map(Number); select({ kind: "span", n, i }, true); return; }
+  const o = t.closest(".oline"); if (o) { select({ kind: "line", n: +o.dataset.n }, true); return; }
+  const r = t.closest(".row"); if (r) { select({ kind: "el", key: r.dataset.el }, true); return; }
+  const tl = t.closest(".tline"); if (tl) { select({ kind: "tpl", file: tl.dataset.file, line: +tl.dataset.line }, true); return; }
+  const tab = t.closest(".tabs button"); if (tab) { tplFile = tab.dataset.file; renderTabs(); renderTpl(); apply(false); return; }
+  const go = t.closest("[data-goto]"); if (go) { select({ kind: "el", key: go.dataset.goto }, true); return; }
+  const ln = t.closest("[data-line]"); if (ln && ln.classList.contains("chip")) { select({ kind: "line", n: +ln.dataset.line }, true); $(`.oline[data-n="${ln.dataset.line}"]`).scrollIntoView({ block: "nearest" }); return; }
+  if (t.closest("[data-clear]")) { select(null, false); }
+});
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape") { select(null, false); return; }
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const a = document.activeElement;
+  if (a && (a.classList.contains("oline") || a.classList.contains("row") || a.classList.contains("tline") || a.classList.contains("wb"))) { ev.preventDefault(); a.click(); }
+});
+["#s-model", "#s-tpl", "#s-out"].forEach(s => $(s).addEventListener("scroll", () => requestAnimationFrame(draw), { passive: true }));
+window.addEventListener("resize", () => requestAnimationFrame(draw));
+function setView(fan) {
+  $("#v-trace").setAttribute("aria-pressed", String(!fan)); $("#v-fan").setAttribute("aria-pressed", String(fan));
+  $("#trace-view").hidden = fan; $("#fan-view").hidden = !fan; $("#legend").style.visibility = fan ? "hidden" : "visible";
+  try { localStorage.setItem("trace-view", fan ? "fan" : "trace"); } catch (e) {}
+  if (!fan) requestAnimationFrame(draw);
+}
+$("#v-trace").addEventListener("click", () => setView(false));
+$("#v-fan").addEventListener("click", () => setView(true));
+
+renderModel(); renderTabs(); renderTpl(); renderOut(); renderFan();
+select({ kind: "line", n: 17 }, true);
+try { if (localStorage.getItem("trace-view") === "fan") setView(true); } catch (e) {}
+document.fonts && document.fonts.ready.then(() => requestAnimationFrame(draw));
+</script>
+
+</body>
+</html>

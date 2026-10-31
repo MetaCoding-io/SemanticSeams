@@ -456,7 +456,7 @@ store, which SHACL checks:
                               deploy:version "local" ;
                               deploy:build [ a deploy:Build ;
                                              deploy:context "../../.." ;
-                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+                                             deploy:dockerfile "examples/expenses/chapter-08/generated/expense_api.Dockerfile" ] ] ;
             deploy:configuration [ a deploy:Configuration ;
                 deploy:binding [ deploy:key "DATABASE_URL" ;
                                  deploy:secretFile "../../../docker/local-secrets/expense_database_url" ;
@@ -552,8 +552,8 @@ expenses they pay.
 
 [`compose.development.yaml`](../../../examples/expenses/chapter-08/compose.development.yaml)
 is the development environment, generated, with nothing written by hand. It builds the
-runtime image with the chapter 8 code (the generator adds the `SEAMS_APP_DIR` and
-`SEAMS_ROUTES_FILE` build args), runs the portal as a Caddy reverse proxy in front of
+runtime image with the chapter 8 code from the generated
+`generated/expense_api.Dockerfile`, which names the chapter's paths literally, runs the portal as a Caddy reverse proxy in front of
 the API, and names the project `expense_system` after the `arch:System`, so it never
 shares volumes with the chat app. Every container with a healthcheck makes the
 containers that depend on it wait until it is healthy, so the API starts once the

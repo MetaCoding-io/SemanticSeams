@@ -26,9 +26,20 @@ def _uses(job: dict) -> list[str]:
     return [step["uses"] for step in job.get("steps", []) if "uses" in step]
 
 
+def _local_action_runs(job: dict) -> str:
+    """The run scripts of the repository's own composite actions (``uses: ./...``) a job calls."""
+    runs = []
+    for uses in _uses(job):
+        if uses.startswith("./"):
+            action = yaml.safe_load((ROOT / uses / "action.yml").read_text(encoding="utf-8"))
+            runs += [step.get("run", "") for step in action["runs"].get("steps", [])]
+    return "\n".join(runs)
+
+
 def _runs_python(job: dict) -> bool:
-    runs = _runs(job)
-    return any(word in runs for word in ("python", "pytest", "npm run build", "ruff", "pyright"))
+    # A local composite action counts as the job's own steps; the seams CLI is Python.
+    runs = _runs(job) + "\n" + _local_action_runs(job)
+    return any(word in runs for word in ("python", "pytest", "npm run build", "ruff", "pyright", "seams "))
 
 
 def test_workflows_are_found():

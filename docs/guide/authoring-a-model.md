@@ -334,6 +334,27 @@ decision's inputs. Chapter 9 of the expense tutorial,
 [Say what it should do](/tutorials/expenses/09-hand-written-code#say-what-it-should-do),
 adds three scenarios, five decision examples and a pair of shape examples.
 
+To get the tests, list the generator in the app's `seams.toml` and run
+`seams generate`:
+
+```toml
+[[generators]]
+name = "tests"
+out = "generated/tests"
+```
+
+It writes `test_scenarios.py`, `test_decisions.py` and `test_shape_examples.py`, one
+test per statement, named `test_scenario_manager_approved`,
+`test_decision_routes_up_to_1000_to_manager` and so on. A scenario test runs the app
+in-process on a temporary store and acts as each party. It also writes
+`test_policies.py` from the ODRL policies you already have, with no extra statements:
+for each permission, the assignee may reach the target, every other `odrl:Party` is
+refused with 403 (`test_policy_manager_approval_policy_approve_expense_denies_finance`),
+and a request with no identity gets 401. A target is reached the way a scenario
+reaches it, so give each governed operation and user task a scenario. Run them with
+`pytest generated/tests`. The [seams_gen README](../../seams_gen/README.md#tests-rendering-rules)
+gives the rules.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

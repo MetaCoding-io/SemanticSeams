@@ -494,6 +494,10 @@ gets an expense it accepts and one it refuses:
 The shapes check these too: a decision example must give every input its decision
 reads, and a scenario must expect something. The `tests` generator turns each one into
 a test whose name carries its local name, so a moved threshold fails the test named for `routes_up_to_100_automatically`.
+It also writes `test_policies.py` from the ODRL policies you already have: each
+permission's assignee may act and every other party is refused. Add it to `seams.toml`
+(`name = "tests"`, `out = "generated/tests"`), run `seams generate`, then
+`pytest generated/tests`.
 [Scenarios and examples](/guide/authoring-a-model#scenarios-and-examples) in
 the authoring guide lists the terms.
 

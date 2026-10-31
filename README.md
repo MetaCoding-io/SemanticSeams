@@ -89,7 +89,10 @@ model versions as compatible or breaking, and exits 1 when any change is breakin
 `seams plan OLD NEW` turns those changes and the elements each layer adds and removes into
 a Markdown change plan (release notes), between paths or git `REF:PATH` specs; on a pull
 request that changes a model, CI's `change-plan` job posts it to the job summary through
-the composite action in `.github/actions/seams-plan`. The
+the composite action in `.github/actions/seams-plan`. The `tests` generator turns the
+model's `verify:` scenarios, decision examples and shape examples, and every ODRL
+permission per party, into pytest files under `generated/tests`
+([ADR-0014](docs/adr/0014-scenarios-and-derived-tests.md)). The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

@@ -19,8 +19,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
 
 `seams.load` reads a TriG file or a directory of them (or `SEAMS_MODEL`), and
 the views (`model.architecture`, `interfaces`, `processes`, `decisions`,
-`shapes`, `operations`, `channels`, `lifecycles`, `policies`) read every model
-of a layer at once. `model.sparql` and `model.question` run read-only SPARQL.
+`shapes`, `operations`, `channels`, `lifecycles`, `policies`, and the ADR-0014
+`scenarios` and `decision_examples`) read every model of a layer at once.
+`model.sparql` and `model.question` run read-only SPARQL.
 
 `ModelGraph.store_plan()` resolves which store the runtime keeps its rows in
 (ADR-0011) from `deploy:storeKind`, `deploy:connectsTo` and `seam:storedIn`,

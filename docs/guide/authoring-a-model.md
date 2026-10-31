@@ -249,6 +249,48 @@ the runtime serves the operation itself). The
 [`seams_runtime` README](../../seams_runtime/README.md#operation-implementations)
 lists every load and run-time error.
 
+### Errors and error boundaries
+
+An operation declares how it fails with `hydra:possibleStatus`
+([ADR-0013](/adr/0013-error-shapes-and-boundaries)). Each `hydra:Status` that carries a
+`comm:errorCode` is an error: its `hydra:statusCode` is the HTTP status and its
+`seam:returnsShape` is the shape of the `application/problem+json` body, whose property
+paths are the RFC 9457 members (`comm:type`, `comm:title`, `comm:status`,
+`comm:detail`, `comm:instance`).
+
+```turtle
+:notify_manager_op seam:implementedBy :notify_manager_impl ;
+    hydra:possibleStatus :notify_failed .
+:notify_failed a hydra:Status ; rdfs:label "Notification failed" ;
+    hydra:statusCode 502 ;
+    comm:errorCode "notify-failed" ;
+    seam:returnsShape :NotifyProblemShape .
+```
+
+A Python handler raises `OperationError("notify-failed", detail)`; an HTTP endpoint
+answers with the declared status and a problem+json body. Generated FastAPI routes list
+each error status as a problem+json response, and the generated problem handler turns a
+raised `OperationError` into that status with a body checked against the shape.
+
+To catch the error in a process, draw an error boundary event on the service task in
+the BPMN, with an `errorEventDefinition` whose error has the same code, lift it as a
+`proc:ErrorBoundaryEvent` and give it `seam:catches` the status in the seams graph:
+
+```turtle
+<https://example.org/expenses/approval_bpmn#notify_failed_boundary>
+    seam:catches :notify_failed .
+```
+
+The boundary's `attachedToRef` and error code stay in the BPMN; `Runtime.load` checks
+them against the graph. When the task raises a caught error, the worker runs the
+boundary's flow instead of failing the instance, and the trace row records the code,
+status and boundary. An error nothing catches fails the instance as before. Chapter 9
+of the expense tutorial,
+[When the notification fails](/tutorials/expenses/09-hand-written-code#when-the-notification-fails),
+builds one, and the
+[`seams_runtime` README](../../seams_runtime/README.md#error-boundaries) lists the
+checks.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

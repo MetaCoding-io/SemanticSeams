@@ -104,6 +104,7 @@ export default defineConfig({
               { text: "6 · The lifecycle", link: "/tutorials/expenses/06-lifecycle" },
               { text: "7 · People and permissions", link: "/tutorials/expenses/07-permissions" },
               { text: "8 · Growing up", link: "/tutorials/expenses/08-growing-up" },
+              { text: "9 · Hand-written code", link: "/tutorials/expenses/09-hand-written-code" },
             ],
           },
         ],

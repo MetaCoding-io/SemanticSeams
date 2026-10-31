@@ -22,9 +22,11 @@ triple is there.
 | 6 | [The lifecycle](./06-lifecycle) | A statechart: draft, submitted, approved or rejected, paid; the tasks that fire each transition; a block guarded by state | Each path ending in its state, a block shown only while submitted, an illegal transition refused |
 | 7 | [People and permissions](./07-permissions) | Employee, manager and finance roles, a policy on the submit operation and on each user task, and a payment task | A 403 for the wrong role, an expense ending paid, and the viewer naming the screens an employee can use that write a payment |
 | 8 | [Growing up](./08-growing-up) | A payouts channel, a payout process started from it with its own decision and payment lifecycle, a finance console, deploy facts, and where the data lives (a PostgreSQL store the shapes are `seam:storedIn`) | The payout running on its own after finance pays, the whole system under `docker compose up`, and the complexity check passing |
+| 9 | [Hand-written code](./09-hand-written-code) | A Notify Manager service task whose operation is `seam:implementedBy` a Python function, the stub that function starts from, and the function itself | The manager's notification stored before the approval task opens, and `seams generate` leaving your code alone |
 
-All eight chapters are written. The last one ends with the whole system running under
+All nine chapters are written. Chapter 8 ends with the whole system running under
 `docker compose up` and a model large enough to pass `python -m seams_gen.complexity`.
+Chapter 9 adds the one piece the model cannot generate: a function you write yourself.
 
 ## Prerequisites
 
@@ -58,6 +60,7 @@ examples/expenses/chapter-05/expenses.trig
 examples/expenses/chapter-06/expenses.trig
 examples/expenses/chapter-07/expenses.trig
 examples/expenses/chapter-08/expenses.trig
+examples/expenses/chapter-09/expenses.trig
 ```
 
 Each checkpoint is the previous one plus that chapter's additions, so a `diff` between
@@ -75,8 +78,9 @@ the [seam shapes](/reference/shapes) and opens it in the viewer
 (`tests/test_expense_checkpoints.py`). It also runs chapter 3's generated app
 (`tests/test_expense_chapter3_app.py`) and the process chapters' generated apps from
 chapter 4 on (`tests/test_expense_process_app.py`), checks chapter 6's lifecycle guard
-(`tests/test_expense_lifecycle.py`), chapter 7's roles (`tests/test_expense_roles.py`) and chapter 8's payout
-(`tests/test_expense_payout.py`, and `tests/test_expense_e2e.py` under docker compose),
+(`tests/test_expense_lifecycle.py`), chapter 7's roles (`tests/test_expense_roles.py`), chapter 8's payout
+(`tests/test_expense_payout.py`) and chapter 9's hand-written handler
+(`tests/test_expense_handler.py`, and `tests/test_expense_e2e.py` under docker compose),
 and checks that every model excerpt on these pages
 appears verbatim in its chapter's checkpoint (`tests/test_expense_tutorial_doc.py`).
 

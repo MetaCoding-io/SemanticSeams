@@ -523,7 +523,8 @@ docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses
 It lists `https://example.org/expenses/ExpenseShape` along with the approval and
 payment rows, and `curl http://localhost:8080/healthz` reports the store as
 `"kind": "postgresql"`, `"declared": "PostgreSQL"` and `"override": false`.
-`tests/test_expense_e2e.py` runs both checks. Optionally,
+`tests/test_expense_e2e.py` runs both checks against chapter 9's stack, which is this one
+with a hand-written handler added. Optionally,
 `seams status --project examples/expenses/chapter-08 --env local` reads the same
 `/healthz` through the `local` environment in `seams.toml` and prints
 `expense_api current` when the running API is on this chapter's model
@@ -606,8 +607,8 @@ The rest are in [`docs/generation/sequences/expenses`](../../generation/sequence
 
 CI checks every step of this chapter. `tests/test_expense_payout.py` runs both processes
 in process on both payout paths, `tests/test_expense_compose.py` checks that the
-committed `compose.yaml` is current, `tests/test_expense_e2e.py` runs the docker compose
-stack in CI's `tutorial-e2e` job, and `tests/test_complexity.py` pins the measurement.
+committed `compose.yaml` is current, `tests/test_expense_e2e.py` runs the same docker compose
+stack, with chapter 9's handler, in CI's `tutorial-e2e` job, and `tests/test_complexity.py` pins the measurement.
 
 ## Checkpoint
 
@@ -624,6 +625,8 @@ To see only what this chapter added:
 diff examples/expenses/chapter-07/expenses.trig examples/expenses/chapter-08/expenses.trig
 ```
 
-That is the whole tutorial. You started from an empty file and now have an architecture,
-two screen models, two processes, two decisions, two lifecycles, roles and a deployment.
-Every one of them is in one TriG file, and every line of generated code follows from it.
+You started from an empty file and now have an architecture, two screen models, two
+processes, two decisions, two lifecycles, roles and a deployment. Every one of them is in
+one TriG file, and every line of generated code follows from it. The last chapter,
+[Hand-written code](./09-hand-written-code), adds the one thing that does not: a
+function you write yourself, behind a service task.

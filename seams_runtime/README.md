@@ -261,6 +261,12 @@ against op's `seam:returnsShape` and becomes the current entity of that shape, w
 task's `seam:writes` then persists. An operation with no `seam:returnsShape` must return
 `None`. A handler never sees the store, the bus, statuses or secrets.
 
+**A worked example** is chapter 9 of the expense tutorial
+([docs/tutorials/expenses/09-hand-written-code.md](../docs/tutorials/expenses/09-hand-written-code.md)):
+`examples/expenses/chapter-09/handlers/notify.py` is the owned `notify.notify_manager`
+behind the approval process's Notify Manager task, and `tests/test_expense_handler.py`
+runs it in process.
+
 **HTTP endpoints** use the base URL in the environment variable the executing
 container's `deploy:binding` with `deploy:serviceOf` the exposing container names, as the
 LLM call does; `http_base_url=` overrides it and `http_transport=` injects an httpx

@@ -69,6 +69,18 @@ examples/expenses/
                              chapter 8's generated code, puts Caddy in front as the portal,
                              adds the /data volume, gives expense_db a dev password and points
                              the database_url secret at docker/local-secrets/expense_database_url
+  chapter-09/expenses.trig   hand-written code: chapter 8 plus the notify_manager service task, the
+                             NotificationShape and :notify_manager_op, seam:implementedBy the
+                             comm:PythonHandler "notify.notify_manager" (ADR-0012)
+  chapter-09/approval.bpmn   chapter 8's process with notify_manager between the manager route and
+                             approve_expense
+  chapter-09/handlers/       owned code, never regenerated: notify.py, written once by
+                             python -m seams_gen.stubs and then edited by hand
+  chapter-09/generated/      chapter 8's route module and templates (notify_manager_op is not routed)
+  chapter-09/compose.yaml    chapter 8's compose file plus the read-only handlers mount on the API
+  chapter-09/compose.override.yaml
+                             chapter 8's override, pointed at chapter 9
+                             (approval.dmn, payout.bpmn, payout.dmn and seed.json are unchanged)
 ```
 
 Every checkpoint is a cumulative copy of the one before it, so the diff between
@@ -194,12 +206,37 @@ Caddy passes through. Send them yourself (for example
 `curl -H 'X-Forwarded-User: alice' -H 'X-Forwarded-Groups: employee' ...`); a
 request without them is a 401. Keep the stack on localhost.
 
-`tests/test_expense_compose.py` checks that the committed `compose.yaml`
-equals what the generator writes now, and what the override builds.
-`tests/test_expense_e2e.py` runs only with `SEAMS_E2E=1` (CI's `tutorial-e2e`
-job): it brings the stack up, and over `http://localhost:8080` an employee
+CI's `acceptance` job runs `seams check` on chapter 8, so its committed
+`compose.yaml` stays current. `tests/test_expense_compose.py` and
+`tests/test_expense_e2e.py` run chapter 9's stack, which is chapter 8's plus
+the handlers mount (see below). `tests/test_expense_compose.py` checks that the
+committed `compose.yaml` equals what the generator writes now, and what the
+override builds. `tests/test_expense_e2e.py` runs only with `SEAMS_E2E=1`
+(CI's `tutorial-e2e` job): it brings the stack up, and over `http://localhost:8080` an employee
 submits, the manager approves through the generated form route, finance pays,
 and the test polls `/payouts` until the payout process has batched the
-payment and the expense is paid. An invalid submit is a 422 and a submit with
+payment and the expense is paid. The manager path also runs chapter 9's
+notify handler, and the test waits for its `NotificationShape` row in
+`expense_db`. An invalid submit is a 422 and a submit with
 no identity a 401. On failure it prints `docker compose logs`; teardown always
 runs `down -v`.
+
+## Chapter 9: hand-written code
+
+Chapter 9 puts a `notify_manager` service task on the manager's path. The task
+`seam:invokes :notify_manager_op`, which is `seam:implementedBy` a
+`comm:PythonHandler` whose `comm:handler` is `"notify.notify_manager"`: the
+function in `chapter-09/handlers/notify.py` (ADR-0012). That file was written
+once by `python -m seams_gen.stubs examples/expenses/chapter-09/expenses.trig`
+and then edited by hand. It is owned code, so `seams generate` never writes it
+and ruff lints it. The compose generator mounts the package read-only at
+`/model/handlers` in the API container, where the runtime looks for it beside
+the model.
+
+`tests/test_expense_handler.py` serves the checkpoint and submits 250.00: the
+notify step's trace row has `implementation` `PythonHandler` and `handler`
+`notify.notify_manager`, and a `NotificationShape` naming the expense is
+stored. The auto and finance routes store none, and a handler that raises fails
+the instance with a `HandlerError` naming the operation. On a copy of the
+checkpoint, `seams generate` and the stub generator leave `handlers/` byte for
+byte unchanged.

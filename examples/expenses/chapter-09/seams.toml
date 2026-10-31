@@ -21,6 +21,12 @@ out = "generated/templates"
 name = "compose"
 out = "."
 
+# pytest files from the scenarios and examples at the end of the seams graph
+# (ADR-0014). Each test is named after the model fact it checks.
+[[generators]]
+name = "tests"
+out = "generated/tests"
+
 [environments.prod]
 
 # The local `docker compose up` stack. The Caddy UI container (employee_portal) on

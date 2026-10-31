@@ -1,0 +1,85 @@
+[#- test_scenarios.py (seams_gen.tests, ADR-0014): one test per verify:Scenario.
+    Expects `t` (a TestsModel); every value is a pre-rendered Python literal. -#]
+[% include "tests_header.py.j2" %]
+"""Scenario tests: each verify:Scenario run on the host app, in-process.
+
+Each test submits the start form as the scenario's party, completes each
+step's user task as the step's party, and checks the state or end event the
+model expects (seams_runtime.verify.run_scenario).
+"""
+
+import pytest
+from seams_cli.project import find_project, load_project, resolve_model
+from seams_runtime.verify import FAILED, Request, Scenario, Step, load_model, run_scenario, serve
+
+[% include "tests_project.py.j2" %]
+
+
+[% if t.routes %]
+@pytest.fixture
+def app(tmp_path):
+    load_model(MODEL, MODEL_HASH)
+    with serve(MODEL, OUT["fastapi"] / [[ t.routes ]], OUT["htmx"], tmp_path / "seams.sqlite") as served:
+        yield served
+[% endif %]
+[% for s in t.scenarios %]
+
+
+# [[ s.curie ]] a verify:Scenario ; verify:process [[ s.process_curie ]]
+[% for step in s.steps %]
+#   step [[ loop.index ]]: [[ step.curie ]]
+[% endfor %]
+[% if s.expect_state_curie %]
+#   verify:expectState [[ s.expect_state_curie ]]
+[% endif %]
+[% if s.expect_end_event_curie %]
+#   verify:expectEndEvent [[ s.expect_end_event_curie ]]
+[% endif %]
+def [[ s.name ]](app):
+    scenario = Scenario(
+        iri=[[ s.iri ]],
+        process=[[ s.process ]],
+        key_variable=[[ s.key_variable ]],
+        key=[[ s.key ]],
+        start=Request(
+            [[ s.start.method ]],
+            [[ s.start.path ]],
+            [[ s.start.actor ]],
+            (
+[% for name, value in s.start.data %]
+                ([[ name ]], [[ value ]]),
+[% endfor %]
+            ),
+        ),
+[% if not s.steps %]
+        steps=(),
+[% else %]
+        steps=(
+[% for step in s.steps %]
+            Step(
+                [[ step.task ]],
+                Request(
+                    [[ step.request.method ]],
+                    [[ step.request.path ]],
+                    [[ step.request.actor ]],
+                    (
+[% for name, value in step.request.data %]
+                        ([[ name ]], [[ value ]]),
+[% endfor %]
+                    ),
+                ),
+            ),
+[% endfor %]
+        ),
+[% endif %]
+        entity_shape=[[ s.entity_shape ]],
+    )
+    run = run_scenario(*app, scenario)
+    assert run.status != FAILED, run.error
+[% if s.expect_state_curie %]
+    assert run.state == [[ s.expect_state ]], [[ s.state_failure ]] + repr(run.state)
+[% endif %]
+[% if s.expect_end_event %]
+    assert [[ s.expect_end_event ]] in run.reached, [[ s.end_event_failure ]] + repr(run.reached)
+[% endif %]
+[% endfor %]

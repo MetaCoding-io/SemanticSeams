@@ -11,7 +11,7 @@ from rdflib.namespace import SH
 from rdflib.term import Node
 
 from ..errors import ResolutionError
-from ..namespaces import DASH, SEAM, local_name
+from ..namespaces import DASH, SEAM, VERIFY, local_name
 from ._base import Element, Many, element_type, optional, sorted_many
 
 if TYPE_CHECKING:
@@ -98,6 +98,16 @@ class Shape(Element):
         from .lifecycles import Lifecycle
 
         return optional(self._many(Lifecycle, self._objects(SEAM.lifecycle), SEAM.lifecycle))
+
+    @property
+    def valid_examples(self) -> tuple[URIRef, ...]:
+        """The nodes it must accept (verify:validExample, ADR-0014), by IRI."""
+        return tuple(self._objects(VERIFY.validExample))
+
+    @property
+    def invalid_examples(self) -> tuple[URIRef, ...]:
+        """The nodes it must reject (verify:invalidExample, ADR-0014), by IRI."""
+        return tuple(self._objects(VERIFY.invalidExample))
 
     @property
     def read_by(self) -> Many[Element]:

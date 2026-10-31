@@ -60,7 +60,7 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `ResolutionError(subject, predicate, detail="")`, also a `LookupError`,
   raised when a graph hop is missing.
 - Namespaces: `SEAM`, `COMM`, `DEC`, `PROC`, `STATE`, `HYDRA`, `ODRL`,
-  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), plus `local_name(iri)`.
+  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), `VERIFY` (ADR-0014 scenarios and examples), plus `local_name(iri)`.
 - `ModelGraph(path, dataset=None)` (and `ModelGraph.load(path)`) is a `Model`
   plus the one-of-each resolvers the runtime and the generators share, such as
   `landmark_page()`, `task_iri(bpmn_id)`, `triggering_operation(process)`,
@@ -146,7 +146,8 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   `model.interfaces` an `Interfaces`: objects with the list methods below.
   `model.processes` is a `Processes` and `model.lifecycles` a `Lifecycles`,
   both a `Many` with extra lookups. `model.operations`, `model.channels`,
-  `model.shapes`, `model.decisions` and `model.policies` are plain `Many`s.
+  `model.shapes`, `model.decisions`, `model.policies`, `model.scenarios` and
+  `model.decision_examples` are plain `Many`s.
 - **`model.architecture`** has `systems()`, `containers()`,
   `deployment_nodes()` and `environments()`.
   - `System.containers` (the `arch:Container`s it `arch:contains`).
@@ -195,6 +196,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     order).
   - `lifecycle`, `read_by`, `written_by` and `stored_in` (the store
     containers it is `seam:storedIn`).
+  - `valid_examples` and `invalid_examples`: the IRIs of the nodes it
+    `verify:validExample` or `verify:invalidExample`
+    ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
 - **`model.lifecycles`**: one `Lifecycle` per `state:StateMachine`.
   `model.lifecycles.transitions()` lists the transitions of all of them.
   - `Lifecycle` has `initial`, `states()`, `finals()`, `transitions()`,
@@ -202,6 +206,17 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   - `Transition` has `from_state`, `to_state` (`State` objects),
     `from_states`, `trigger`, `lifecycle`, `lifecycles` (every machine that
     `state:hasTransition` it) and `fired_by`.
+- **`model.scenarios`** and **`model.decision_examples`**: what the model says it should
+  do ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
+  - `Scenario` has `process` (a `Process`), `actor` (the party IRI), `givens`,
+    `steps`, `expect_state` (a `State` or None) and `expect_end_event` (an IRI or None).
+    A `Given` has `field` (the `sh:path` IRI) and `value` (a `Literal`), sorted by
+    field. A `Step` has `task` (a `ProcessElement`), `actor` and `givens`, in
+    `verify:step` list order.
+  - `DecisionExample` has `decision` (a `Decision`), `givens` and `expected`: the
+    `ExpectedOutput`s (`variable`, `value`), sorted by variable.
+  - A missing or duplicated fact, or a field given twice, raises
+    `ResolutionError(subject, predicate)`; the ADR-0014 shapes flag the same faults.
 - **`model.policies`**: a `Policy` has `permissions` and `governs`.
   `permissions` holds `Permission` tuples sorted as `ModelGraph.policy`
   sorts them. `governs` lists the operations and tasks that are

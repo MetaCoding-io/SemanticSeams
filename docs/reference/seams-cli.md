@@ -289,6 +289,7 @@ The generator names are the `python -m seams_gen` subcommands. The
 | `fastapi` | `<container>.py`, the route module of the serving container |
 | `htmx` | the Jinja2/htmx page templates and their partials |
 | `compose` | `compose.yaml`, with bind-mount sources relative to `out` |
+| `tests` | `test_scenarios.py`, `test_decisions.py` and `test_shape_examples.py`, pytest files for the model's `verify:` scenarios and examples ([ADR-0014](/adr/0014-scenarios-and-derived-tests)) |
 
 `python -m seams_gen <generator> <model> --out <dir>` still runs a single
 generator without a project file.

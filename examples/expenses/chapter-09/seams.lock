@@ -169,6 +169,50 @@
         "https://example.org/expenses/payment_list",
         "https://example.org/expenses/payouts_page"
       ]
+    },
+    {
+      "generator": "tests",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",
+      "path": "generated/tests/test_decisions.py",
+      "sha256": "a80d6e4b86238908ebcc46cd7b0e23ed9236c07a814a41adaf28cd4be9df7fd3",
+      "sources": [
+        "https://example.org/expenses/approval_routing",
+        "https://example.org/expenses/batches_payouts_up_to_500",
+        "https://example.org/expenses/payout_method",
+        "https://example.org/expenses/routes_above_1000_to_finance",
+        "https://example.org/expenses/routes_up_to_1000_to_manager",
+        "https://example.org/expenses/routes_up_to_100_automatically",
+        "https://example.org/expenses/sends_payouts_above_500_now"
+      ]
+    },
+    {
+      "generator": "tests",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",
+      "path": "generated/tests/test_scenarios.py",
+      "sha256": "a030846063144b50eb9700264f3f5b55c82c41761996a43d321b9afcb5504be8",
+      "sources": [
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/auto_approved",
+        "https://example.org/expenses/finance_approved",
+        "https://example.org/expenses/manager_approved"
+      ]
+    },
+    {
+      "generator": "tests",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",
+      "path": "generated/tests/test_shape_examples.py",
+      "sha256": "cc33aef706cf81d75ab96b8e304d574aa00b40dd4b9245ac819e1fdf4f2ea425",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_negative_amount",
+        "https://example.org/expenses/expense_train"
+      ]
     }
   ]
 }

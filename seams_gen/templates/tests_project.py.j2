@@ -1,0 +1,7 @@
+[#- The fixed lines that find the app this file belongs to: the nearest
+    seams.toml above it names the model and the other generators' outputs. -#]
+MODEL_HASH = "[[ t.model_hash ]]"
+# The app whose seams.toml lists the tests generator: its model and the other generators' outputs.
+PROJECT = load_project(find_project(__file__))
+MODEL = resolve_model(PROJECT)
+OUT = {target.name: target.out for target in PROJECT.generators}

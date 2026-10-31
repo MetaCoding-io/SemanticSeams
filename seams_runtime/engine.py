@@ -21,6 +21,10 @@ here, and neither file carries a vendor extension:
   variables. ``after_task`` returns them. The worker calls these hooks, or
   calls ``run_task``, which wraps ``task.run()`` with them.
 
+``decide`` evaluates one dec:Decision on its own, outside any process, with
+the same input typing and the same Spiff DMN engine a business-rule task
+uses. The tests generator's decision examples run through it (ADR-0014).
+
 Plain bpmn:serviceTask specs stay STARTED after ``task.run()``. The caller
 completes them once its handler has finished.
 
@@ -41,6 +45,7 @@ from lxml import etree
 from rdflib import RDFS, URIRef
 from SpiffWorkflow.bpmn.parser.TaskParser import TaskParser
 from SpiffWorkflow.bpmn.parser.util import full_tag
+from SpiffWorkflow.bpmn.script_engine import PythonScriptEngine
 from SpiffWorkflow.bpmn.serializer import BpmnWorkflowSerializer
 from SpiffWorkflow.bpmn.serializer.config import DEFAULT_CONFIG
 from SpiffWorkflow.bpmn.serializer.default.task_spec import BpmnTaskSpecConverter
@@ -144,6 +149,16 @@ def _is_business_rule(task) -> bool:
     return isinstance(task.task_spec, BusinessRuleTask)
 
 
+class _DecisionContext:
+    """What Spiff's DMNEngine reads off a task: its ``data`` and its workflow's
+    ``script_engine``. ``Engine.decide`` evaluates a table with no workflow."""
+
+    def __init__(self, data: dict):
+        self.data = data
+        self.workflow = self
+        self.script_engine = PythonScriptEngine()
+
+
 class Engine:
     """Builds, steps and (de)serializes workflows of one ``ModelGraph``."""
 
@@ -152,6 +167,7 @@ class Engine:
         self.serializer = make_serializer()
         self._specs: dict = {}  # process IRI -> (ProcessFacts, process id, spec, subprocess specs)
         self._bindings: dict = {}  # task IRI -> DecisionBinding
+        self._dmn_engines: dict = {}  # (DMN path, decision id) -> Spiff DMNEngine, for decide()
 
     # ── parsing ──
 
@@ -323,6 +339,32 @@ class Engine:
                 f"but {b.from_path!r} is {value!r}",
             )
         return number
+
+    def decide(self, decision_curie, entity: dict) -> dict:
+        """Evaluate the dec:Decision ``decision_curie`` on ``entity`` (field
+        local name -> value, as a validated form gives them) outside any
+        process: each dec:input filled and typed by ``evaluate_inputs``, then
+        Spiff's DMN engine for the decision's table. Returns {DMN output name:
+        value}, the dict a business-rule task merges into its data before
+        ``map_outputs``; no rule matching gives {}. A missing input field is a
+        ``ResolutionError`` naming the dec:fromPath."""
+        decision = self.model.decisions.by_iri(self.model.curie(decision_curie))
+        # No task binds it here: the decision stands in for the task.
+        binding = DecisionBinding(
+            decision.iri,
+            decision.iri,
+            decision.dmn_model,
+            decision.dmn_path,
+            decision.decision_id,
+            decision.inputs,
+            decision.outputs,
+        )
+        key = (binding.dmn_path, binding.decision_id)
+        if key not in self._dmn_engines:
+            parser = BpmnDmnParser()
+            parser.add_dmn_file(str(binding.dmn_path))
+            self._dmn_engines[key] = parser.get_engine(binding.decision_id, None)
+        return dict(self._dmn_engines[key].result(_DecisionContext(self.evaluate_inputs(binding, entity))))
 
     def map_outputs(self, binding: DecisionBinding, task_data: dict) -> dict:
         """Copy each dec:output variable into its dec:processVariable (in place);

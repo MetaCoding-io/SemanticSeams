@@ -1,0 +1,30 @@
+[#- test_shape_examples.py (seams_gen.tests, ADR-0014): one test per shape example.
+    Expects `t` (a TestsModel); every value is a pre-rendered Python literal. -#]
+[% include "tests_header.py.j2" %]
+"""Shape example tests: each verify:validExample must conform to its shape, and
+each verify:invalidExample must not (pyshacl, against that shape alone;
+seams_runtime.verify.shape_conforms).
+"""
+
+import pytest
+from seams_cli.project import find_project, load_project, resolve_model
+from seams_runtime.verify import load_model, shape_conforms
+
+[% include "tests_project.py.j2" %]
+
+
+@pytest.fixture(scope="module")
+def model():
+    return load_model(MODEL, MODEL_HASH)
+[% for x in t.shape_examples %]
+
+
+# [[ x.shape_curie ]] [[ x.predicate ]] [[ x.node_curie ]]
+def [[ x.name ]](model):
+    conforms, report = shape_conforms(model, [[ x.shape ]], [[ x.node ]])
+[% if x.valid %]
+    assert conforms, report
+[% else %]
+    assert not conforms, [[ x.failure ]]
+[% endif %]
+[% endfor %]

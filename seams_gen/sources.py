@@ -15,6 +15,8 @@ read the model, through their own extract functions and the seams views
 - ``fastapi``: the serving container, the processes it executes and the
   operation or channel of each endpoint.
 - ``compose``: the arch:System and each of its containers.
+- ``tests``: per file, the scenarios with their processes and step tasks,
+  the decision examples with their decisions, or the example shapes and nodes.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from ._views import only, optional, view_errors
 from .compose import extract_compose
 from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
+from .tests import tests_sources
 
 Sources = dict[str, tuple[str, ...]]
 
@@ -93,6 +96,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "htmx": _htmx,
     "fastapi": _fastapi,
     "compose": _compose,
+    "tests": lambda trig, out: tests_sources(trig),
 }
 
 

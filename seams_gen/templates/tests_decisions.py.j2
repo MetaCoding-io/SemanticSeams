@@ -1,0 +1,38 @@
+[#- test_decisions.py (seams_gen.tests, ADR-0014): one test per verify:DecisionExample.
+    Expects `t` (a TestsModel); every value is a pre-rendered Python literal. -#]
+[% include "tests_header.py.j2" %]
+"""Decision tests: each verify:DecisionExample evaluated by the runtime's DMN engine.
+
+Each test fills the decision's inputs from the example's givens, as a
+validated form would, and compares every expected output
+(seams_runtime.verify.decide, Engine.decide).
+"""
+
+import pytest
+from seams_cli.project import find_project, load_project, resolve_model
+from seams_runtime.verify import Engine, decide, load_model, value
+
+[% include "tests_project.py.j2" %]
+
+
+@pytest.fixture(scope="module")
+def engine():
+    return Engine(load_model(MODEL, MODEL_HASH))
+[% for d in t.decision_examples %]
+
+
+# [[ d.curie ]] a verify:DecisionExample ; verify:decision [[ d.decision_curie ]]
+def [[ d.name ]](engine):
+    outputs = decide(
+        engine,
+        [[ d.decision ]],
+        {
+[% for name, lexical in d.inputs %]
+            [[ name ]]: [[ lexical ]],
+[% endfor %]
+        },
+    )
+[% for o in d.outputs %]
+    assert outputs.get([[ o.variable ]]) == value([[ o.lexical ]], [[ o.datatype ]]), outputs
+[% endfor %]
+[% endfor %]

@@ -139,6 +139,16 @@ def load_project(path: Path | str) -> Project:
     )
 
 
+def find_project(start: Path | str) -> Path:
+    """The nearest directory at or above ``start`` (a file or a directory)
+    that holds a seams.toml. Generated tests find their app this way (ADR-0014)."""
+    start = Path(start).resolve()
+    for directory in (start, *start.parents) if start.is_dir() else start.parents:
+        if (directory / PROJECT_FILE).is_file():
+            return directory
+    raise ProjectError(f"{start}: no {PROJECT_FILE} here or in any parent directory")
+
+
 def resolve_model(project: Project, override: Path | None = None) -> Path:
     """The model to generate from: ``override`` (``--model``), then the project's
     ``model``, then ``SEAMS_MODEL`` when non-empty. An explicit path beats the

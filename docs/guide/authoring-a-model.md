@@ -291,6 +291,49 @@ builds one, and the
 [`seams_runtime` README](../../seams_runtime/README.md#error-boundaries) lists the
 checks.
 
+### Scenarios and examples
+
+A model can also say what the app should do with a given input, in the `verify:`
+vocabulary ([ADR-0014](/adr/0014-scenarios-and-derived-tests)). The `tests` generator
+turns each statement into a test. All of it goes in the seams graph, next to the
+policies.
+
+- A **`verify:Scenario`** starts a process a UI event `seam:triggers`, as one
+  `verify:actor`, with `verify:given` field values. Its `verify:step` list completes
+  user tasks in order, each as a named party with the form it is submitted with. It
+  ends with a `verify:expectState`, a `verify:expectEndEvent`, or both.
+- A **`verify:DecisionExample`** gives a value for every `dec:input` of a decision and
+  the `verify:expectOutput` it must return, named by the output's `dec:variable`.
+- **`verify:validExample`** and **`verify:invalidExample`** point a `sh:NodeShape` at
+  an untyped node it must accept or reject.
+
+```turtle
+:manager_approved a verify:Scenario ;
+    verify:process :approval_process ;
+    verify:actor :employee ;
+    verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                 [ verify:field :amount ; verify:value 200.00 ] ,
+                 [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+    verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                    verify:actor :manager ;
+                    verify:given [ verify:field :decision ; verify:value "approved" ] ] ) ;
+    verify:expectState :s_approved .
+
+:routes_up_to_1000_to_manager a verify:DecisionExample ;
+    verify:decision :approval_routing ;
+    verify:given [ verify:field :amount ; verify:value 1000.00 ] ;
+    verify:expectOutput [ dec:variable "Route" ; verify:value "manager" ] .
+```
+
+Scenarios, decision examples and example nodes are IRIs: the generated test's name is
+their local name, so a failing test names the model fact that broke. Pick values at a
+rule's limit (1000.00 for a `<= 1000` rule), so moving a threshold breaks a named
+test. The shapes in `ontology/shapes/seam-shapes.ttl` check every statement (see
+[Validate it](#validate-it)), for example that a decision example gives exactly the
+decision's inputs. Chapter 9 of the expense tutorial,
+[Say what it should do](/tutorials/expenses/09-hand-written-code#say-what-it-should-do),
+adds three scenarios, five decision examples and a pair of shape examples.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

@@ -10,6 +10,12 @@
 # `python -m seams_gen.stubs` wrote that file once; from then on it is owned
 # code, and `seams generate` never touches it.
 #
+# The model also says what the app should do (ADR-0014): three verify:Scenario
+# runs of the approval process (auto, manager and finance routes), a
+# verify:DecisionExample for every rule of approval.dmn and payout.dmn, and a
+# valid and an invalid example of :ExpenseShape. They live at the end of the
+# seams graph, and the tests generator turns each one into a test.
+#
 # The operation also declares how it fails (ADR-0013): one hydra:Status,
 # :notify_failed, with the error code "notify-failed" and a problem+json
 # body shaped by :NotifyProblemShape. An error boundary event on the notify
@@ -63,6 +69,7 @@
 @prefix state:  <https://w3id.org/seams/state#> .
 @prefix dec:    <https://w3id.org/seams/dec#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix verify: <https://w3id.org/seams/verify#> .
 @prefix :       <https://example.org/expenses/> .
 
 #################################################################
@@ -926,4 +933,78 @@
                     hydra:mapping [ a hydra:IriTemplateMapping ;
                                     hydra:variable "expense" ;
                                     hydra:property :id ] ] .
+
+    # Scenarios (ADR-0014): an employee submits an expense, the named parties
+    # complete the user tasks in order, and the expense ends in the expected
+    # state. A step's verify:given values are the form it is submitted with.
+    # Up to 100 the routing table approves at once: no one takes a step, and
+    # the expense waits, approved, for finance to pay it.
+    :auto_approved a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 42.50 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:expectState :s_approved .
+
+    # Up to 1000 the manager is told, then approves.
+    :manager_approved a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                        verify:actor :manager ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ] ) ;
+        verify:expectState :s_approved .
+
+    # Above 1000 finance approves, then pays: the run ends on the paid end
+    # event, which publishes on :payouts.
+    :finance_approved a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Conference in Lisbon" ] ,
+                     [ verify:field :amount ; verify:value 5000.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ]
+                      [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :reference ; verify:value "PAY-0042" ] ,
+                                     [ verify:field :paid_on ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
+        verify:expectState :s_paid ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#approved_end> .
+
+    # Decision examples: one per rule of each table, at the rule's limit, so
+    # moving a threshold breaks a named test.
+    :routes_up_to_100_automatically a verify:DecisionExample ;
+        verify:decision :approval_routing ;
+        verify:given [ verify:field :amount ; verify:value 100.00 ] ;
+        verify:expectOutput [ dec:variable "Route" ; verify:value "auto" ] .
+    :routes_up_to_1000_to_manager a verify:DecisionExample ;
+        verify:decision :approval_routing ;
+        verify:given [ verify:field :amount ; verify:value 1000.00 ] ;
+        verify:expectOutput [ dec:variable "Route" ; verify:value "manager" ] .
+    :routes_above_1000_to_finance a verify:DecisionExample ;
+        verify:decision :approval_routing ;
+        verify:given [ verify:field :amount ; verify:value 1000.01 ] ;
+        verify:expectOutput [ dec:variable "Route" ; verify:value "finance" ] .
+    :batches_payouts_up_to_500 a verify:DecisionExample ;
+        verify:decision :payout_method ;
+        verify:given [ verify:field :amount ; verify:value 500.00 ] ;
+        verify:expectOutput [ dec:variable "Method" ; verify:value "batch" ] .
+    :sends_payouts_above_500_now a verify:DecisionExample ;
+        verify:decision :payout_method ;
+        verify:given [ verify:field :amount ; verify:value 500.01 ] ;
+        verify:expectOutput [ dec:variable "Method" ; verify:value "now" ] .
+
+    # Shape examples: an expense the form accepts, and one it refuses
+    # because its amount is below the 0.01 minimum. The nodes carry no
+    # rdf:type, so no shape targets them except in their own test.
+    :ExpenseShape verify:validExample :expense_train ;
+        verify:invalidExample :expense_negative_amount .
+    :expense_train :description "Train to Leeds" ; :amount 42.50 ; :date "2026-10-01"^^xsd:date .
+    :expense_negative_amount :description "Refund" ; :amount -5.00 ; :date "2026-10-01"^^xsd:date .
 }

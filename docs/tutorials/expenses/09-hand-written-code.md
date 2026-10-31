@@ -446,6 +446,57 @@ error path: the 160-character limit, the boundary resolved at load and the load 
 for a mismatched code, the routed trace rows and spans, the problem body, finance's
 approval after the escalation, and the boundary's badge in the viewer.
 
+## Say what it should do
+
+The model now says what the app *is*. It can also say what the app should *do*
+([ADR-0014](/adr/0014-scenarios-and-derived-tests)). Add the `verify:` prefix:
+
+```trig
+@prefix verify: <https://w3id.org/seams/verify#> .
+```
+
+Then, at the end of the seams graph, state one run of the approval process for each
+route. An employee submits, the named parties complete the user tasks in order, and
+the expense ends in the state you expect. The manager's run looks like this:
+
+```trig
+    :manager_approved a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                        verify:actor :manager ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ] ) ;
+        verify:expectState :s_approved .
+```
+
+`:auto_approved` has no steps and expects `:s_approved`. `:finance_approved` has two
+steps, finance approving and then paying, and also expects the `approved_end` event.
+Each rule of both decision tables gets an example at its limit, and `:ExpenseShape`
+gets an expense it accepts and one it refuses:
+
+```trig
+    :routes_up_to_100_automatically a verify:DecisionExample ;
+        verify:decision :approval_routing ;
+        verify:given [ verify:field :amount ; verify:value 100.00 ] ;
+        verify:expectOutput [ dec:variable "Route" ; verify:value "auto" ] .
+```
+
+```trig
+    :ExpenseShape verify:validExample :expense_train ;
+        verify:invalidExample :expense_negative_amount .
+    :expense_train :description "Train to Leeds" ; :amount 42.50 ; :date "2026-10-01"^^xsd:date .
+    :expense_negative_amount :description "Refund" ; :amount -5.00 ; :date "2026-10-01"^^xsd:date .
+```
+
+The shapes check these too: a decision example must give every input its decision
+reads, and a scenario must expect something. The `tests` generator turns each one into
+a test whose name carries its local name, so a moved threshold fails the test named for `routes_up_to_100_automatically`.
+[Scenarios and examples](/guide/authoring-a-model#scenarios-and-examples) in
+the authoring guide lists the terms.
+
 ## Checkpoint
 
 Your files should now match

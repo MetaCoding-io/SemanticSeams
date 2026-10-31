@@ -49,9 +49,9 @@ def _compose(trig: Path, out: Path) -> dict[str, str]:
 
 
 def _tests(trig: Path, out: Path) -> dict[str, str]:
-    """{test_scenarios.py, test_decisions.py, test_shape_examples.py: content}:
+    """{test_scenarios.py, test_decisions.py, test_shape_examples.py, test_policies.py: content}:
     pytest files for the model's verify: scenarios, decision examples and
-    shape examples (ADR-0014)."""
+    shape examples, and allow/deny tests per ODRL permission (ADR-0014)."""
     return generate_tests(trig)
 
 
@@ -60,7 +60,7 @@ GENERATORS = {
     "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
     "fastapi": ("the thin FastAPI route module of the container that executes the process", _fastapi),
     "compose": ("the docker compose file of the arch:System's containers", _compose),
-    "tests": ("pytest files for the model's verify: scenarios, decision examples and shape examples", _tests),
+    "tests": ("pytest files for the model's verify: scenarios and examples, and its ODRL permissions", _tests),
 }
 
 

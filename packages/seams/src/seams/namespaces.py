@@ -15,6 +15,7 @@ DEPLOY = Namespace("https://w3id.org/seams/deploy#")
 IFML = Namespace("https://w3id.org/seams/ifml#")
 ARCH = Namespace("https://w3id.org/seams/arch#")
 DASH = Namespace("http://datashapes.org/dash#")
+VERIFY = Namespace("https://w3id.org/seams/verify#")
 
 
 def local_name(iri: object) -> str:

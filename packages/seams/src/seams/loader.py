@@ -27,12 +27,14 @@ if TYPE_CHECKING:
         Architecture,
         Channel,
         Decision,
+        DecisionExample,
         Interfaces,
         Lifecycles,
         Many,
         Operation,
         Policy,
         Processes,
+        Scenario,
         Shape,
         Views,
     )
@@ -252,6 +254,20 @@ class Model:
         from . import views
 
         return views.decisions(self)
+
+    @property
+    def scenarios(self) -> Many[Scenario]:
+        """Every verify:Scenario (ADR-0014), by IRI."""
+        from . import views
+
+        return views.scenarios(self)
+
+    @property
+    def decision_examples(self) -> Many[DecisionExample]:
+        """Every verify:DecisionExample (ADR-0014), by IRI."""
+        from . import views
+
+        return views.decision_examples(self)
 
     # ── SPARQL (seams.sparql) ──
 

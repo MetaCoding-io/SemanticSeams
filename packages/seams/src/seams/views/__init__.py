@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from rdflib.namespace import SH
 
-from ..namespaces import COMM, HYDRA, ODRL, PROC, STATE
+from ..namespaces import COMM, HYDRA, ODRL, PROC, STATE, VERIFY
 from ._base import Element, HasIri, Many, Views
 from .architecture import (
     Architecture,
@@ -33,6 +33,7 @@ from .operations import Channel, Operation, PathTemplate, Status
 from .policies import Policy
 from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes
 from .shapes import Field, Shape
+from .verify import DecisionExample, ExpectedOutput, Given, Scenario, Step
 
 if TYPE_CHECKING:
     from ..loader import Model
@@ -45,13 +46,16 @@ __all__ = [
     "Component",
     "Container",
     "Decision",
+    "DecisionExample",
     "DeploymentNode",
     "Element",
     "Environment",
     "ErrorBoundary",
     "Event",
+    "ExpectedOutput",
     "Field",
     "Flow",
+    "Given",
     "FlowNode",
     "HasIri",
     "Healthcheck",
@@ -71,21 +75,25 @@ __all__ = [
     "Process",
     "ProcessElement",
     "Processes",
+    "Scenario",
     "Shape",
     "State",
     "Status",
+    "Step",
     "System",
     "Transition",
     "Views",
     "Volume",
     "architecture",
     "channels",
+    "decision_examples",
     "decisions",
     "interfaces",
     "lifecycles",
     "operations",
     "policies",
     "processes",
+    "scenarios",
     "shapes",
 ]
 
@@ -143,3 +151,13 @@ def processes(model: Model) -> Processes:
 def decisions(model: Model) -> Many[Decision]:
     views = model.views
     return views.view("decisions", lambda: all_decisions(views))
+
+
+def scenarios(model: Model) -> Many[Scenario]:
+    views = model.views
+    return views.view("scenarios", lambda: views.all(Scenario, VERIFY.Scenario))
+
+
+def decision_examples(model: Model) -> Many[DecisionExample]:
+    views = model.views
+    return views.view("decision_examples", lambda: views.all(DecisionExample, VERIFY.DecisionExample))

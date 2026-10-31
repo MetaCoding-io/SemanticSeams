@@ -1,0 +1,22 @@
+sequenceDiagram
+    %% derived from https://example.org/expenses/submit_expense
+    %% path: auto
+    actor employee as Employee
+    actor finance as Finance
+    participant employee_portal as Employee Portal
+    participant expense_api as Expense API
+    participant expense_db as Expense Store
+    employee->>employee_portal: submit_expense (policy: employee_submit_policy)
+    employee_portal->>expense_api: POST submit_expense_op [ExpenseShape]
+    Note over expense_api: start approval_process
+    expense_api->>expense_db: persist_expense writes ExpenseShape
+    Note over expense_api: t_submit
+    expense_api-->>employee_portal: expense_list fragment
+    expense_api->>expense_api: route_expense (DMN approval_routing)
+    Note over expense_api: Route?: auto
+    Note over expense_api: t_approve
+    finance->>employee_portal: pay_expense on payment_form
+    employee_portal->>expense_api: complete pay_expense [PaymentShape]
+    expense_api->>expense_db: pay_expense writes PaymentShape
+    Note over expense_api: t_pay
+    expense_api-->>expense_api: payouts starts payout_process

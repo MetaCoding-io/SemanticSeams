@@ -5,7 +5,8 @@ built only from graph facts, read through the ``seams`` views, with the step
 order taken from the BPMN sequence flows of the process the event triggers
 (research note docs/research/2026-10-29-uml-coverage-and-gaps.md, section 2):
 
-- the actor is the assignee of each permission of the event's policies;
+- the actor is the assignee of each permission of the policies governing the
+  event or the operation it submits to;
 - the UI is the container that seam:presents the interaction model holding
   the event's component or page;
 - the executing container ("API") exposes the operation the event
@@ -15,13 +16,20 @@ order taken from the BPMN sequence flows of the process the event triggers
   seam:invokes to the container that exposes the operation, and
   seam:publishesTo to the containers that seam:consume the channel. The
   operation's seam:rendersComponent fragment goes back to the UI after the
-  node that invokes the submitted operation. seam:reads draws nothing.
+  node that invokes the submitted operation. seam:reads draws nothing;
+- a user task (ADR-0009) is its policy's assignee submitting the task's
+  seam:completedOn form on the container presenting it, then the UI
+  completing the task on the API with the form's output shape;
+- a channel a message start event seam:subscribesTo is drawn as the API
+  starting that process on its executing container (the walk stops there).
 
-Every arrow the deriver cannot place (a missing fact) is recorded as a gap and
-rendered as a ``%% gap: <detail>`` line, never dropped. This version walks one
-linear path from the start event to the end event; a node with more than one
-outgoing flow raises ``NotImplementedError``, except a parallel gateway, which
-is a gap.
+There is one diagram per path: the walk forks at each exclusive gateway with
+more than one outgoing flow, in BPMN document order, notes the chosen flow,
+and names the diagram ``<event>--<flow>--...`` (no alt fragments). A flow met
+twice on one path ends it with a ``loop at <flow>`` gap; a parallel or
+inclusive gateway is a gap and follows its first flow. Every arrow the
+deriver cannot place (a missing fact) is recorded as a gap and rendered as a
+``%% gap: <detail>`` line, never dropped.
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ from dataclasses import dataclass, field
 
 from rdflib import URIRef
 from seams import Component, Container, Event, FlowNode, Model, Operation, Page, local_name
+from seams.bpmn import SequenceFlow
 
 from . import GeneratorError
 from ._views import view_errors
@@ -131,8 +140,17 @@ def find_event(model: Model, event: object) -> Event:
 
 def _ui(b: _Builder, event: Event) -> URIRef | None:
     """The container presenting the interaction model that holds the event's owner."""
+    found = _presenter(event.owners)
+    if found is None:
+        b.gap(f"{local_name(event.iri)} has no interaction model seam:presents by one container")
+    return found
+
+
+def _presenter(owners) -> URIRef | None:
+    """The one container presenting the interaction model of the pages or
+    components ``owners``, or None when there is none or several."""
     containers: list[Container] = []
-    for owner in event.owners:
+    for owner in owners:
         pages = [owner] if isinstance(owner, Page) else [owner.page] if isinstance(owner, Component) else []
         im = None
         while pages and im is None:  # a nested page sits in its parent's interaction model
@@ -143,19 +161,21 @@ def _ui(b: _Builder, event: Event) -> URIRef | None:
         presenter = None if im is None else im.presented_by
         if presenter is not None and presenter not in containers:
             containers.append(presenter)
-    if len(containers) != 1:
-        b.gap(f"{local_name(event.iri)} has no interaction model seam:presents by one container")
-        return None
-    return containers[0].iri
+    return containers[0].iri if len(containers) == 1 else None
 
 
-def _actors(b: _Builder, event: Event) -> list[tuple[URIRef, URIRef]]:
-    """(assignee, policy) for each permission of each governing policy."""
+def _actors(b: _Builder, event: Event, op: Operation | None) -> list[tuple[URIRef, URIRef]]:
+    """(assignee, policy) for each permission of each policy governing the
+    event, then of each governing the operation it submits to."""
     ev = local_name(event.iri)
     found: list[tuple[URIRef, URIRef]] = []
-    policies = event.governed_by
+    policies = list(event.governed_by)
+    for policy in [] if op is None else op.governed_by:
+        if policy.iri not in [p.iri for p in policies]:
+            policies.append(policy)
     if not policies:
-        b.gap(f"{ev} has no seam:governedBy policy, so no actor")
+        where = "" if op is None else f" or on {local_name(op.iri)}"
+        b.gap(f"{ev} has no seam:governedBy policy{where}, so no actor")
     for policy in policies:
         assignees = [p.assignee for p in policy.permissions if p.assignee is not None]
         if not assignees:
@@ -185,21 +205,45 @@ def _api(b: _Builder, event: Event, op: Operation | None) -> URIRef | None:
     return found[0] if found else None
 
 
+#: Gateway tags that fork without choosing one flow: drawn as their first flow and a gap.
+_FORK_TAGS = {"parallelGateway": "parallel", "inclusiveGateway": "inclusive", "complexGateway": "complex"}
+
+#: More paths than this is a model the deriver will not enumerate.
+MAX_PATHS = 256
+
+
+@dataclass(frozen=True)
+class _Path:
+    """One walk through a process: each node with the flow chosen out of it
+    when it is a forking exclusive gateway, the labels of those flows, and the
+    gaps the walk met (loops, parallel forks)."""
+
+    steps: tuple[tuple[FlowNode, SequenceFlow | None], ...]
+    labels: tuple[str, ...]
+    gaps: tuple[str, ...]
+
+
 def derive(model: Model, event: object) -> list[SequenceDiagram]:
-    """One ``SequenceDiagram`` per path of the process ``event`` triggers.
-    ``event`` is a CURIE, local name or full IRI; an unknown one raises
-    ``GeneratorError`` naming it."""
+    """One ``SequenceDiagram`` per path of the process ``event`` triggers,
+    from each start event through one outgoing flow of each exclusive gateway,
+    in BPMN document order. ``event`` is a CURIE, local name or full IRI; an
+    unknown one raises ``GeneratorError`` naming it."""
     ev = find_event(model, event)
     with view_errors():
-        return [_derive_path(model, ev)]
+        process = ev.triggers
+        if process is None:
+            return [_derive_path(model, ev, None)]
+        return [_derive_path(model, ev, path) for path in _paths(process)]
 
 
-def _derive_path(model: Model, event: Event) -> SequenceDiagram:
+def _derive_path(model: Model, event: Event, path: _Path | None) -> SequenceDiagram:
     b = _Builder(model)
     ev = local_name(event.iri)
-    actors = _actors(b, event)
-    ui = _ui(b, event)
+    labels = () if path is None else path.labels
+    name = "--".join([ev, *labels])
     op = event.submits_to
+    actors = _actors(b, event, op)
+    ui = _ui(b, event)
     process = event.triggers
     if op is None:
         b.gap(f"{ev} has no seam:submitsTo operation")
@@ -220,53 +264,82 @@ def _derive_path(model: Model, event: Event) -> SequenceDiagram:
         method = f"{op.method} " if op.method else ""
         b.arrow(ui, api, f"{method}{local_name(op.iri)}{_shape(op.accepts)}", op.iri, *_iris(op.accepts))
 
-    if api is None or process is None:
-        return b.diagram(ev, event.iri, ())
+    if api is None or process is None or path is None:
+        return b.diagram(name, event.iri, labels)
     b.note(api, f"start {local_name(process.iri)}", process.iri)
+    for gap in path.gaps:
+        b.gap(gap)
 
     nodes = process.nodes()
     invokers = [n for n in nodes if op is not None and n.invokes is not None and n.invokes.iri == op.iri]
     if not invokers:
         _fragment(b, api, ui, op)
 
-    for node in _walk(b, process):
+    for node, flow in path.steps:
         _node(b, api, ui, op, node)
         if node in invokers:
             _fragment(b, api, ui, op)
-    return b.diagram(ev, event.iri, ())
+        if flow is not None:
+            b.note(api, f"{node.name or node.bpmn_id}: {flow.name or flow.id}", process.iri)
+    return b.diagram(name, event.iri, labels)
 
 
 def _iris(*elements) -> tuple[URIRef, ...]:
     return tuple(e.iri for e in elements if e is not None)
 
 
-def _walk(b: _Builder, process) -> list[FlowNode]:
-    """The linear path from the process's start event (not a channel start)
-    to its end, following each node's single outgoing flow."""
+def _paths(process) -> list[_Path]:
+    """Every path from each start event of ``process`` (not a channel start)
+    to an end, depth first, forking at each exclusive gateway with more than
+    one outgoing flow in BPMN document order. A flow already on the path ends
+    it with a ``loop at`` gap; a parallel or inclusive fork is a gap and
+    follows only its first flow."""
     nodes = process.nodes()
     by_id = {n.bpmn_id: n for n in nodes}
     channel_starts = {s.iri for s in process.channel_starts}
     starts = [n for n in nodes if n.tag == "startEvent" and n.iri not in channel_starts]
     if not starts:
-        b.gap(f"{local_name(process.iri)} has no start event")
-        return []
-    path: list[FlowNode] = []
-    node: FlowNode | None = starts[0]
-    while node is not None:
-        if node in path:
-            b.gap(f"BPMN flow loops back to {node.bpmn_id}; the loop is drawn once")
-            break
-        path.append(node)
+        return [_Path((), (), (f"{local_name(process.iri)} has no start event",))]
+    found: list[_Path] = []
+
+    def add(path: _Path) -> None:
+        if len(found) >= MAX_PATHS:
+            raise GeneratorError(str(process.iri), "proc:Process", f"more than {MAX_PATHS} paths")
+        found.append(path)
+
+    def walk(node, steps, labels, flows, gaps) -> None:
         out = node.outgoing
+        if len(out) > 1 and node.tag == "exclusiveGateway":
+            for flow in out:
+                follow(flow, (*steps, (node, flow)), (*labels, flow.name or flow.id), flows, gaps)
+            return
         if len(out) > 1:
-            if node.tag != "parallelGateway":
-                raise NotImplementedError(f"{node.bpmn_id} has {len(out)} outgoing flows")
-            b.gap(
-                f"parallel gateway {node.bpmn_id} forks; only flow {out[0].name or out[0].id} is drawn, "
-                f"not {', '.join(f.name or f.id for f in out[1:])}"
+            kind = _FORK_TAGS.get(node.tag, node.tag)
+            gaps = (
+                *gaps,
+                f"{kind} gateway {node.bpmn_id} forks; only flow {out[0].name or out[0].id} is drawn, "
+                f"not {', '.join(f.name or f.id for f in out[1:])}",
             )
-        node = by_id.get(out[0].target) if out else None
-    return path
+        steps = (*steps, (node, None))
+        if out:
+            follow(out[0], steps, labels, flows, gaps)
+        else:
+            add(_Path(steps, labels, gaps))
+
+    def follow(flow, steps, labels, flows, gaps) -> None:
+        if flow.id in flows:
+            add(_Path(steps, labels, (*gaps, f"loop at {flow.id}")))
+            return
+        target = by_id.get(flow.target)
+        if target is None:
+            add(_Path(steps, labels, (*gaps, f"flow {flow.id} targets no flow node {flow.target}")))
+            return
+        walk(target, steps, labels, flows | {flow.id}, gaps)
+
+    for start in starts:
+        prefix = (start.name or start.bpmn_id,) if len(starts) > 1 else ()
+        walk(start, (), prefix, frozenset(), ())
+    return found
 
 
 def _fragment(b: _Builder, api: URIRef, ui: URIRef | None, op: Operation | None) -> None:
@@ -283,6 +356,8 @@ def _node(b: _Builder, api: URIRef, ui: URIRef | None, submitted: Operation | No
             b.gap(f"BPMN node {nid} has no graph element")
         return
     el = node.iri
+    if node.tag == "userTask":
+        _user_task(b, api, node)
 
     for shape in node.writes:
         stores = shape.stored_in
@@ -312,7 +387,8 @@ def _node(b: _Builder, api: URIRef, ui: URIRef | None, submitted: Operation | No
 
     for channel in node.publishes_to:
         consumers = [c.iri for c in channel.consumed_by]
-        if not consumers and not channel.subscribed_by:
+        subscribers = _channel_processes(b.model, channel)
+        if not consumers and not subscribers:
             b.gap(f"{local_name(channel.iri)} published by {nid} has no seam:consumes container or subscriber")
         if op is not None:
             text = f"{local_name(channel.iri)} ({channel.event_name} deltas)"
@@ -320,12 +396,59 @@ def _node(b: _Builder, api: URIRef, ui: URIRef | None, submitted: Operation | No
             text = f"{local_name(channel.iri)} ({_text(channel.label)} event)"
         for c in consumers:
             b.arrow(api, c, text, el, channel.iri, reply=True)
+        for started in subscribers:
+            executors = [c.iri for c in started.executed_by]
+            if not executors:
+                b.gap(f"{local_name(started.iri)} started by {local_name(channel.iri)} has no seam:executes container")
+            for c in executors:
+                b.arrow(
+                    api,
+                    c,
+                    f"{local_name(channel.iri)} starts {local_name(started.iri)}",
+                    el,
+                    channel.iri,
+                    started.iri,
+                    reply=True,
+                )
+
+
+def _channel_processes(model: Model, channel) -> list:
+    """The processes a message start event of which seam:subscribesTo ``channel``."""
+    return [p for p in model.processes if any(s.channel.iri == channel.iri for s in p.channel_starts)]
+
+
+def _user_task(b: _Builder, api: URIRef, node: FlowNode) -> None:
+    """``<actor>->>UI: <task> on <form>`` and ``UI->>API: complete <task> [<output>]``
+    (ADR-0009): the actor is the assignee of the policies governing the task,
+    the UI the container presenting the page that holds its seam:completedOn form."""
+    nid, el = node.bpmn_id, node.iri
+    actors: list[tuple[URIRef, URIRef]] = []
+    for policy in b.model.policies:
+        if el in policy.governs.iris():
+            actors += [(p.assignee, policy.iri) for p in policy.permissions if p.assignee is not None]
+    if not actors:
+        b.gap(f"user task {nid} has no seam:governedBy policy with an odrl:assignee, so no actor")
+    form = node.completed_on
+    if form is None:
+        b.gap(f"user task {nid} has no seam:completedOn form")
+        return
+    ui = _presenter([form])
+    if ui is None:
+        b.gap(f"form {local_name(form.iri)} of {nid} has no interaction model seam:presents by one container")
+        return
+    for actor, _ in actors:
+        b.lifeline(actor, actor=True)
+    for actor, policy in actors or [(ui, None)]:
+        b.arrow(actor, ui, f"{nid} on {local_name(form.iri)}", el, form.iri, *([policy] if policy else []))
+    shapes = list(form.writes) or list(node.writes)
+    output = shapes[0] if len(shapes) == 1 else None
+    b.arrow(ui, api, f"complete {nid}{_shape(output)}", el, *_iris(output))
 
 
 def render(diagram: SequenceDiagram) -> str:
     """The diagram as Mermaid text, ``\\n`` newlines and a trailing newline."""
     lines = ["sequenceDiagram", f"%% derived from {diagram.event}"]
-    lines.append(f"%% path: {' -> '.join(diagram.path) if diagram.path else 'single'}")
+    lines.append(f"%% path: {', '.join(diagram.path) if diagram.path else 'single'}")
     lines += [f"%% gap: {g}" for g in diagram.gaps]
     for p in diagram.participants:
         lines.append(f"{'actor' if p.actor else 'participant'} {p.id} as {p.label}")
@@ -334,5 +457,6 @@ def render(diagram: SequenceDiagram) -> str:
 
 
 def file_name(diagram: SequenceDiagram) -> str:
-    """``<event local>.mmd`` for a single path, ``<event local>--<flow>[--<flow>].mmd`` otherwise."""
-    return "--".join([diagram.name, *diagram.path]) + ".mmd"
+    """``<name>.mmd``: ``<event local>.mmd`` for a single path,
+    ``<event local>--<flow>[--<flow>].mmd`` otherwise."""
+    return f"{diagram.name}.mmd"

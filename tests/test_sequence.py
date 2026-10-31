@@ -1,6 +1,8 @@
 """The as-designed sequence deriver (backlog U1, R008, D047): seams_gen.sequence
 against the chat app's send_message event, its golden, and the gaps it
-reports when a fact it needs is removed from an in-memory copy of the model."""
+reports when a fact it needs is removed from an in-memory copy of the model;
+the expenses chapter-08 submit_expense event, one golden per gateway path;
+and the loop and parallel-fork gaps of synthetic BPMN."""
 
 from __future__ import annotations
 
@@ -19,6 +21,15 @@ ROOT = Path(__file__).resolve().parents[1]
 CHAT_DIR = ROOT / "examples" / "chat-app"
 CHAT = CHAT_DIR / "chat-app.trig"
 GOLDEN = ROOT / "docs" / "generation" / "sequences" / "chat-app" / "send_message.mmd"
+EXPENSES = ROOT / "examples" / "expenses"
+EXPENSE_GOLDENS = ROOT / "docs" / "generation" / "sequences" / "expenses"
+EXPENSE_NAMES = [
+    "submit_expense--auto.mmd",
+    "submit_expense--manager--approved.mmd",
+    "submit_expense--manager--rejected.mmd",
+    "submit_expense--finance--approved.mmd",
+    "submit_expense--finance--rejected.mmd",
+]
 
 #: The words a message line adds itself; everything else comes from a graph term.
 FIXED = {"Note", "over", "start", "writes", "fragment", "DMN", "policy", "returns", "deltas", "event"}
@@ -141,12 +152,16 @@ def test_channel_without_consumer_is_a_gap(tmp_path):
 
 
 def test_missing_policy_is_an_actor_gap(tmp_path):
-    d, text = _mutated(
-        tmp_path,
-        "        seam:submitsTo :send_message_op ;\n        seam:governedBy :user_send_policy .",
-        "        seam:submitsTo :send_message_op .",
+    # The actor comes from the policies on the event and on its operation
+    # (research note section 2), so both edges go.
+    old = (
+        "        seam:submitsTo :send_message_op ;\n        seam:governedBy :user_send_policy .\n\n"
+        "    # Operation → component whose partial the UIFragment response renders\n"
+        "    :send_message_op seam:rendersComponent :message_thread ;\n        seam:governedBy :user_send_policy ."
     )
-    assert "send_message has no seam:governedBy policy, so no actor" in d.gaps
+    new = "        seam:submitsTo :send_message_op .\n\n    :send_message_op seam:rendersComponent :message_thread ."
+    d, text = _mutated(tmp_path, old, new)
+    assert "send_message has no seam:governedBy policy or on send_message_op, so no actor" in d.gaps
     assert not any(p.actor for p in d.participants)
     assert d.messages[0].line == "chat_ui->>chat_ui: send_message"
 
@@ -158,3 +173,129 @@ def test_unlifted_task_is_a_gap(tmp_path):
     d, rendered = _mutated(tmp_path, old, "<https://example.org/chat/chat_bpmn#route_to_provider>")
     assert "BPMN node route_to_provider has no graph element" in d.gaps
     assert "routing_decision" not in rendered
+
+
+# ── gateway paths: expenses chapter 08 ──
+
+
+@pytest.fixture(scope="module")
+def expense_diagrams():
+    return derive(seams.load(EXPENSES / "chapter-08" / "expenses.trig"), ":submit_expense")
+
+
+def _lines(d):
+    return [m.line for m in d.messages]
+
+
+def test_expenses_one_golden_per_path(expense_diagrams):
+    assert [file_name(d) for d in expense_diagrams] == EXPENSE_NAMES
+    for d in expense_diagrams:
+        assert render(d) == (EXPENSE_GOLDENS / file_name(d)).read_bytes().decode("utf-8"), file_name(d)
+        assert d.gaps == ()
+    assert sorted(p.name for p in EXPENSE_GOLDENS.iterdir()) == sorted(EXPENSE_NAMES)
+
+
+def test_expenses_path_header(expense_diagrams):
+    lines = render(expense_diagrams[1]).splitlines()
+    assert lines[2] == "    %% path: manager, approved"
+    assert expense_diagrams[1].path == ("manager", "approved")
+    assert expense_diagrams[1].name == "submit_expense--manager--approved"
+    assert "Note over expense_api: Route?: manager" in _lines(expense_diagrams[1])
+    assert "Note over expense_api: Decision?: approved" in _lines(expense_diagrams[1])
+
+
+def test_expenses_no_fragments(expense_diagrams):
+    for d in expense_diagrams:
+        for keyword in ("alt", "opt", "par", "loop", "end"):
+            assert not re.search(rf"^\s*{keyword}\b", render(d), re.M), (file_name(d), keyword)
+
+
+def test_manager_paths_have_manager_and_store(expense_diagrams):
+    for d in expense_diagrams:
+        ids = [p.id for p in d.participants]
+        assert "expense_db" in ids
+        if "manager" in d.path:
+            assert "manager" in ids
+            assert next(p for p in d.participants if p.id == "manager").actor
+            assert "manager->>employee_portal: approve_expense on approve_form" in _lines(d)
+            assert "employee_portal->>expense_api: complete approve_expense [ApprovalShape]" in _lines(d)
+        else:
+            assert "manager" not in ids
+
+
+def test_approved_paths_start_the_payout_process(expense_diagrams):
+    for d in expense_diagrams:
+        started = "expense_api-->>expense_api: payouts starts payout_process" in _lines(d)
+        assert started == ("rejected" not in d.path), file_name(d)
+
+
+def test_chapter_07_reports_stored_in_gaps():
+    for d in derive(seams.load(EXPENSES / "chapter-07" / "expenses.trig"), ":submit_expense"):
+        assert "ExpenseShape written by persist_expense has no seam:storedIn" in d.gaps
+        assert not any("->>expense_db" in line for line in _lines(d))
+        assert "%% gap: ExpenseShape written by persist_expense has no seam:storedIn" in render(d)
+
+
+def test_user_task_without_policy_or_form_is_a_gap(tmp_path):
+    src = EXPENSES / "chapter-08"
+    text = (src / "expenses.trig").read_text(encoding="utf-8")
+    for old in (
+        "    <https://example.org/expenses/approval_bpmn#approve_expense> seam:governedBy :manager_approval_policy .\n",
+        "                          odrl:target <https://example.org/expenses/approval_bpmn#approve_expense> ;\n",
+        "        seam:completedOn :approve_form ;\n",
+    ):
+        assert old in text, old
+        text = text.replace(old, "")
+    for payload in src.iterdir():
+        if payload.suffix in (".bpmn", ".dmn"):
+            shutil.copy(payload, tmp_path / payload.name)
+    (tmp_path / "expenses.trig").write_text(text, encoding="utf-8")
+    d = derive(seams.load(tmp_path / "expenses.trig"), ":submit_expense")[1]
+    assert "user task approve_expense has no seam:governedBy policy with an odrl:assignee, so no actor" in d.gaps
+    assert "user task approve_expense has no seam:completedOn form" in d.gaps
+    assert "manager" not in [p.id for p in d.participants]
+
+
+# ── synthetic BPMN: loops and parallel forks ──
+
+_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="defs"
+                  targetNamespace="https://example.org/chat/chat_bpmn">
+  <bpmn:process id="send_message_process" isExecutable="true">
+    <bpmn:startEvent id="s"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:{tag} id="g" name="G"><bpmn:incoming>f1</bpmn:incoming><bpmn:incoming>f_back</bpmn:incoming>
+      <bpmn:outgoing>f_a</bpmn:outgoing><bpmn:outgoing>f_b</bpmn:outgoing></bpmn:{tag}>
+    <bpmn:task id="a"><bpmn:incoming>f_a</bpmn:incoming><bpmn:outgoing>f_back</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="e"><bpmn:incoming>f_b</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="s" targetRef="g" />
+    <bpmn:sequenceFlow id="f_a" name="again" sourceRef="g" targetRef="a" />
+    <bpmn:sequenceFlow id="f_back" sourceRef="a" targetRef="g" />
+    <bpmn:sequenceFlow id="f_b" sourceRef="g" targetRef="e" />
+  </bpmn:process>
+</bpmn:definitions>
+"""
+
+
+def _synthetic(tmp_path: Path, tag: str):
+    shutil.copy(CHAT, tmp_path / "chat-app.trig")
+    shutil.copy(CHAT_DIR / "routing.dmn", tmp_path / "routing.dmn")
+    (tmp_path / "chat_process.bpmn").write_text(_BPMN.format(tag=tag), encoding="utf-8")
+    return derive(seams.load(tmp_path / "chat-app.trig"), ":send_message")
+
+
+def test_cycle_reports_a_loop_gap_and_terminates(tmp_path):
+    # Round the loop once, then the second f_a ends that path.
+    diagrams = _synthetic(tmp_path, "exclusiveGateway")
+    assert [d.name for d in diagrams] == ["send_message--again--again", "send_message--again--f_b", "send_message--f_b"]
+    looped = diagrams[0]
+    assert "loop at f_a" in looped.gaps
+    assert "%% gap: loop at f_a" in render(looped)
+    assert _lines(looped).count("Note over chat_api: G: again") == 2
+    assert all("loop at" not in g for d in diagrams[1:] for g in d.gaps)
+
+
+def test_parallel_gateway_is_a_gap(tmp_path):
+    (d,) = _synthetic(tmp_path, "parallelGateway")
+    assert "parallel gateway g forks; only flow again is drawn, not f_b" in d.gaps
+    assert "loop at f_a" in d.gaps
+    assert d.name == "send_message" and d.path == ()

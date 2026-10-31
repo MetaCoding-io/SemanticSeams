@@ -1,0 +1,21 @@
+sequenceDiagram
+    %% derived from https://example.org/expenses/submit_expense
+    %% path: manager, rejected
+    actor employee as Employee
+    actor manager as Manager
+    participant employee_portal as Employee Portal
+    participant expense_api as Expense API
+    participant expense_db as Expense Store
+    employee->>employee_portal: submit_expense (policy: employee_submit_policy)
+    employee_portal->>expense_api: POST submit_expense_op [ExpenseShape]
+    Note over expense_api: start approval_process
+    expense_api->>expense_db: persist_expense writes ExpenseShape
+    Note over expense_api: t_submit
+    expense_api-->>employee_portal: expense_list fragment
+    expense_api->>expense_api: route_expense (DMN approval_routing)
+    Note over expense_api: Route?: manager
+    manager->>employee_portal: approve_expense on approve_form
+    employee_portal->>expense_api: complete approve_expense [ApprovalShape]
+    expense_api->>expense_db: approve_expense writes ApprovalShape
+    Note over expense_api: Decision?: rejected
+    Note over expense_api: t_reject

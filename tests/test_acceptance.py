@@ -103,7 +103,7 @@ def test_trig_parses():
     """TriG file parses into a Dataset with named graphs."""
     ds = rdflib.Dataset()
     ds.parse(EXAMPLE_TRIG, format="trig")
-    graphs = [g.identifier for g in ds.contexts()]
+    graphs = [g.identifier for g in ds.graphs()]
     assert len(graphs) >= 8, f"Expected 8+ graphs, got {len(graphs)}"
 
 

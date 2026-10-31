@@ -163,7 +163,7 @@ def test_no_override_falls_back_to_every_shared_fact():
     m = model(DEVELOPMENT, DEV_OVERRIDE)
     api = container(m, "chat_api")
     prod = api.for_environment(env(m, "production"))
-    assert prod.artifact == api.artifact == Artifact("ghcr.io/example/chat-api", "0.3.1")
+    assert prod.artifact == api.artifact == Artifact("ghcr.io/metacoding-io/chat-api", "0.3.1")
     assert prod.bindings == api.bindings
     assert prod.replicas == api.replicas == 3
 

@@ -151,7 +151,7 @@ def test_production_stays_production_shaped(chapter):
     compose = load(chapter, "compose.production.yaml")
     services = compose["services"]
     api = services["expense_api"]
-    assert api["image"] == f"ghcr.io/example/expense-api:0.{chapter[-1]}.0"
+    assert api["image"] == f"ghcr.io/metacoding-io/expense-api:0.{chapter[-1]}.0"
     assert "build" not in api and "pull_policy" not in api
     db = services["expense_db"]
     assert db["environment"] == {"POSTGRES_DB": "expenses", "POSTGRES_PASSWORD_FILE": "/run/secrets/postgres_password"}

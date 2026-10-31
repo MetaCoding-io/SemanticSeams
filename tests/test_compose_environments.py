@@ -217,7 +217,7 @@ def test_production_stays_production_shaped(prod):
     assert set(prod["secrets"]) == {"db_url", "llm_api_key", "postgres_password"}
     api = prod["services"]["chat_api"]
     assert "build" not in api
-    assert api["image"].startswith("ghcr.io/example/")
+    assert api["image"].startswith("ghcr.io/metacoding-io/")
     assert "SEAMS_DEV_USER" not in api["environment"]
     assert "SEAMS_SEED" not in api["environment"]
     assert "build" not in prod["services"]["llm_gateway"]

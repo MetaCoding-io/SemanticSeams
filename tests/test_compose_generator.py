@@ -128,7 +128,7 @@ def test_production_structure_parses_as_compose():
     assert list(doc) == ["name", "services", "secrets", "volumes"]
     assert list(doc["services"]) == ["chat_api", "chat_ui", "llm_gateway", "message_db"]
     api = doc["services"]["chat_api"]
-    assert api["image"] == "ghcr.io/example/chat-api:0.3.1"
+    assert api["image"] == "ghcr.io/metacoding-io/chat-api:0.3.1"
     assert "build" not in api and "pull_policy" not in api
     assert api["volumes"] and all(v.startswith("./") and v.endswith(":ro") for v in api["volumes"])
     assert [v.split(":")[1] for v in api["volumes"]] == [

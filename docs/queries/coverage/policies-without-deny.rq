@@ -1,0 +1,28 @@
+# Coverage: which policy permissions get no deny test?
+#
+# The `tests` generator (seams_gen/tests.py) writes one test per odrl:Party for
+# each odrl:permission: the assignee is allowed and every other party is denied.
+# A permission gets no party deny test when anyone may use it (no odrl:assignee,
+# or the assignee is an odrl:PartyCollection) or when no odrl:Party in the model
+# is outside its assignee. Each row is such a permission, named by ?policy, its
+# ?target and its ?assignee (unbound when it has none). It returns no rows when
+# every permission has a deny test, so `seams check` can run it as a gate (a gate
+# must return no rows; see ../gates/ungoverned-writes.rq).
+#
+# Bind ?policy to an odrl:Policy to check one policy; leave it free for the
+# whole model.
+
+PREFIX odrl: <http://www.w3.org/ns/odrl/2/>
+
+SELECT DISTINCT ?policy ?target ?assignee WHERE {
+  ?policy a odrl:Policy ;
+      odrl:permission ?permission .
+  OPTIONAL { ?permission odrl:target ?target . }
+  OPTIONAL { ?permission odrl:assignee ?assignee . }
+  FILTER (
+    !BOUND(?assignee)
+    || EXISTS { ?assignee a odrl:PartyCollection . }
+    || NOT EXISTS { ?party a odrl:Party . FILTER (?party != ?assignee) }
+  )
+}
+ORDER BY ?policy ?target ?assignee

@@ -811,7 +811,7 @@ DEPLOY_NS = seams.DEPLOY
 def test_chat_deploy_facts(chat: seams.Model):
     a = chat.architecture
     api, ui, gw, db = (a.containers().by_iri(f":{n}") for n in ("chat_api", "chat_ui", "llm_gateway", "message_db"))
-    assert api.artifact == seams.Artifact("ghcr.io/example/chat-api", "0.3.1")
+    assert api.artifact == seams.Artifact("ghcr.io/metacoding-io/chat-api", "0.3.1")
     assert api.ports == (seams.Port(8000, None),) and ui.ports == (seams.Port(8000, 8080),)
     assert api.replicas == 3 and ui.replicas is None
     assert api.deploy_depends_on.iris() == (URIRef(C + "llm_gateway"), URIRef(C + "message_db"))
@@ -838,7 +838,7 @@ def test_chat_deploy_facts(chat: seams.Model):
 def test_ch08_deploy_facts(ch08: seams.Model):
     a = ch08.architecture
     api, portal = a.containers().by_iri(":expense_api"), a.containers().by_iri(":employee_portal")
-    assert api.artifact == seams.Artifact("ghcr.io/example/expense-api", "0.8.0")
+    assert api.artifact == seams.Artifact("ghcr.io/metacoding-io/expense-api", "0.8.0")
     assert portal.ports == (seams.Port(8000, 8080),) and portal.deploy_depends_on.only() is api
     assert api.volumes == () and api.healthcheck is None
     # ADR-0011: the API's one binding is the DATABASE_URL secret, a different key

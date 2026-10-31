@@ -16,6 +16,15 @@ dev = ["pytest>=8.0", "pyyaml>=6.0", "httpx>=0.27", "ruff", "pyright", "types-lx
 # resolve from the repository root.
 pythonpath = ["."]
 testpaths = ["tests"]
+# A deprecated call fails the suite (docs/project/principles.md, "Deprecations").
+# The one exemption: rdflib 7.x calls its own deprecated Dataset APIs while
+# parsing TriG; the warning is attributed to rdflib, not to a caller of ours,
+# so a deprecated call from our code still fails.
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::PendingDeprecationWarning",
+    "ignore::DeprecationWarning:rdflib\\.",
+]
 
 [tool.pyright]
 include = ["packages/seams"]

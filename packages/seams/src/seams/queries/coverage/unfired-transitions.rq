@@ -1,0 +1,19 @@
+# Coverage: which lifecycle transitions does no process task fire?
+#
+# Each row is a state:Transition that no element seam:fires: declared lifecycle
+# movement that no modeled behavior can cause, so no scenario can exercise it.
+# It returns no rows when every transition is fired, so `seams check` can run it
+# as a gate (a gate must return no rows; see ../gates/ungoverned-writes.rq).
+#
+# ?lifecycle is the state machine the transition is seam:inModel. Bind it to
+# list one lifecycle's unfired transitions; leave it free for the whole model.
+
+PREFIX seam:  <https://w3id.org/seams/seam#>
+PREFIX state: <https://w3id.org/seams/state#>
+
+SELECT ?lifecycle ?transition WHERE {
+  ?transition a state:Transition ;
+      seam:inModel ?lifecycle .
+  FILTER NOT EXISTS { ?task seam:fires ?transition . }
+}
+ORDER BY ?lifecycle ?transition

@@ -242,6 +242,16 @@ second process, decision and page showed what that costs.
 - A test asserts the behaviour a reader would expect, not an implementation detail that
   happens to hold.
 
+### Deprecations
+
+A deprecation warning from our own code fails the suite: `pyproject.toml` turns
+`DeprecationWarning` and `PendingDeprecationWarning` into errors. Replace the deprecated
+call; do not add a filter for it. The one exemption is a warning a dependency raises
+about its own internals, which we cannot fix. rdflib 7.x is the only one today: it calls
+its own deprecated `Dataset` APIs while parsing TriG. That filter matches warnings
+attributed to the `rdflib` package, so our calls to a deprecated rdflib API still fail.
+A new exemption needs the same reason, in a comment beside the filter.
+
 ### Generated and derived files
 
 - **Never hand-edit:**
@@ -309,7 +319,7 @@ A short list to paste into a pull request or a review prompt:
 - [ ] Cross-package imports use public names; `seams` gained no dependency.
 - [ ] Errors name subject, predicate and detail.
 - [ ] Logic lives in `extract`, not in templates.
-- [ ] Tests added or updated; none skipped; ruff, pyright, pytest and the docs build pass.
+- [ ] Tests added or updated; none skipped; no new deprecation warnings; ruff, pyright, pytest and the docs build pass.
 - [ ] Model writes go through the write path; a written model file round-trips byte for byte.
 - [ ] Vocabulary additions have a backlog row or ADR.
 - [ ] Docs and README describe the new behaviour.

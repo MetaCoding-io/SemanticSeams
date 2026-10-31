@@ -4,7 +4,7 @@
 name: chat_system  # [graph: :chat_system arch:System]
 services:  # [fixed]
   chat_api:  # [graph: :chat_system arch:contains :chat_api]
-    image: ghcr.io/example/chat-api:0.3.1  # [graph: :chat_api deploy:artifact deploy:Artifact deploy:reference deploy:version]
+    image: ghcr.io/metacoding-io/chat-api:0.3.1  # [graph: :chat_api deploy:artifact deploy:Artifact deploy:reference deploy:version]
     expose:  # [graph: :chat_api deploy:port deploy:Port]
       - "8000"  # [graph: :chat_api deploy:port deploy:containerPort]
     depends_on:  # [graph: :chat_api deploy:dependsOn]

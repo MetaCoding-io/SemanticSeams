@@ -56,7 +56,7 @@
         arch:technology "FastAPI, SSE streaming" ;
         arch:dependsOn :message_db , :llm_gateway ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/chat-api" ;
+                          deploy:reference "ghcr.io/metacoding-io/chat-api" ;
                           deploy:version "0.3.1" ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "DB_URL" ;

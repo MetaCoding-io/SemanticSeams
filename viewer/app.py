@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
@@ -106,7 +108,20 @@ LAYER_BY_NOTATION = {
 RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn", "shapegraph"}
 PAYLOAD_RENDERERS = {"bpmn", "dmn"}
 
-app = FastAPI(title="SemanticSeams Viewer")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    get_graph()
+    logger.info(
+        "viewer model %s (%s), root %s",
+        MODEL_PATH,
+        f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default",
+        root_iri(),
+    )
+    yield
+
+
+app = FastAPI(title="SemanticSeams Viewer", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
@@ -758,17 +773,6 @@ def href_for(iri: str, trail: list[str], level: str = "", hide: list[str] | None
 
 def toggled(hidden: list[str], type_qname: str) -> list[str]:
     return sorted(set(hidden) ^ {type_qname})
-
-
-@app.on_event("startup")
-def startup() -> None:
-    get_graph()
-    logger.info(
-        "viewer model %s (%s), root %s",
-        MODEL_PATH,
-        f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default",
-        root_iri(),
-    )
 
 
 @app.get("/")

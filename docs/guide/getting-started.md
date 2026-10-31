@@ -65,6 +65,28 @@ CI starts a `postgres:16` service and sets `SEAMS_REQUIRE_POSTGRES=1`, which tur
 skip into a failure. Each PostgreSQL test works in its own `seams_test_*` schema and drops
 it afterwards, so nothing is left in `public`.
 
+## Run the chat app
+
+The chat app's local stack runs from the generated `compose.development.yaml` at the
+repository root. It builds the runtime and gateway images from this checkout, starts
+PostgreSQL, and serves the app on port 8080. You don't need a hand-written compose file.
+First check that the development environment's configuration keys and secrets exist:
+
+```sh
+seams secrets --project examples/chat-app --env development
+docker compose -f compose.development.yaml up -d --build
+```
+
+Open <http://localhost:8080>. Then confirm the running runtime serves the current model:
+
+```sh
+seams status --project examples/chat-app
+```
+
+It prints `chat_api current` and the model hash. `behind` means the image was built from
+an older model, so run `up -d --build` again. `unreachable` means the stack is not up.
+Stop it with `docker compose -f compose.development.yaml down`.
+
 ## Reset old dev data
 
 A model that declares no store runs on embedded SQLite at the file `SEAMS_DB` names. Since

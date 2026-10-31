@@ -110,7 +110,7 @@
         arch:technology "FastAPI" ;
         arch:dependsOn :expense_db ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/expense-api" ;
+                          deploy:reference "ghcr.io/metacoding-io/expense-api" ;
                           deploy:version "0.9.0" ] ;
         # The connection string is a secret; deploy:connectsTo says which
         # store it reaches, so no key-name convention is needed (ADR-0011).

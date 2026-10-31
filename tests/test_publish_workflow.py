@@ -131,7 +131,7 @@ def test_the_listed_dockerfile_is_generated_for_the_listed_model_hash(project):
 
 def test_the_chat_app_reference_matches_the_model_literal():
     (image,) = list_images(ROOT / "examples/chat-app", cwd=ROOT)
-    assert image.reference == "ghcr.io/example/chat-api"
+    assert image.reference == "ghcr.io/metacoding-io/chat-api"
     assert image.registry == "ghcr.io"
 
 
@@ -143,7 +143,7 @@ def test_paths_are_relative_to_the_working_directory():
 
 def test_short_hash_and_registry():
     assert short_hash("sha256:" + "ab" * 32) == "ab" * 6
-    assert registry("ghcr.io/example/chat-api") == "ghcr.io"
+    assert registry("ghcr.io/metacoding-io/chat-api") == "ghcr.io"
     assert registry("localhost:5000/x") == "localhost:5000"
     assert registry("seams/chat-api") == "docker.io"
     assert registry("postgres") == "docker.io"
@@ -159,7 +159,7 @@ def test_cli_prints_one_json_array_for_every_project():
     )
     assert result.returncode == 0, result.stderr
     images = json.loads(result.stdout)
-    assert [i["reference"] for i in images] == ["ghcr.io/example/chat-api", "ghcr.io/example/expense-api"]
+    assert [i["reference"] for i in images] == ["ghcr.io/metacoding-io/chat-api", "ghcr.io/metacoding-io/expense-api"]
     assert set(images[0]) == {
         "container",
         "context",

@@ -207,7 +207,8 @@ def test_postgres_location_redacts_the_password(store_backend, make_store):
     if "@" in url and ":" in url.split("://", 1)[1].split("@", 1)[0]:
         assert "***" in s.location
         password = url.split("://", 1)[1].split("@", 1)[0].split(":", 1)[1]
-        assert password not in s.location and password not in repr(s)
+        leaked = f":{password}@"  # the bare password may be a substring of the scheme, e.g. "postgres"
+        assert leaked not in s.location and leaked not in repr(s)
 
 
 @pytest.mark.parametrize(

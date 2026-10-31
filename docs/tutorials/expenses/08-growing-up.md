@@ -386,7 +386,7 @@ the secret leads to:
 ```trig
         arch:dependsOn :expense_db ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/expense-api" ;
+                          deploy:reference "ghcr.io/metacoding-io/expense-api" ;
                           deploy:version "0.8.0" ] ;
         # The connection string is a secret; deploy:connectsTo says which
         # store it reaches, so no key-name convention is needed (ADR-0011).
@@ -692,9 +692,9 @@ The rest are in [`docs/generation/sequences/expenses`](../../generation/sequence
 - **The bus is in process.** The approval instance and the payout instance run in the
   same runtime, so the payout cannot move to a separate worker container yet.
   [ADR-0010](/adr/0010-channel-started-processes) defers a cross-container broker.
-- **The production images do not exist.** `ghcr.io/example/expense-api` is a
-  placeholder, so only the development file runs here. Publishing images tagged with the
-  model hash is planned.
+- **The production images are published by hand.** `ghcr.io/metacoding-io/expense-api`
+  is pushed by the `Publish images` workflow, which runs only on a `v*` tag or a manual
+  run, so the production file works only after that workflow has run once.
 - **No timer starts.** A process can start from a UI event or a channel, but not on a
   schedule. A nightly payout batch would need one. There are no intermediate message
   catch events either.

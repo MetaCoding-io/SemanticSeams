@@ -161,7 +161,7 @@ that names the environment and carries only the facts that differ:
 ```turtle
 :expense_api a arch:Container ; rdfs:label "Expense API" ;
     deploy:artifact [ a deploy:Artifact ;
-                      deploy:reference "ghcr.io/example/expense-api" ;
+                      deploy:reference "ghcr.io/metacoding-io/expense-api" ;
                       deploy:version "0.8.0" ] ;
     deploy:configuration [ a deploy:Configuration ;
         deploy:binding [ deploy:key "DATABASE_URL" ;

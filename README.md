@@ -81,6 +81,12 @@ behind, ahead or unreachable compared with the current model.
 one per gateway path, with a `%% gap:` line for every arrow the model cannot place.
 The viewer shows them per event (its Sequences section and `GET /sequence/{event}`), and
 the docs embed the golden diagrams, rendered with Mermaid.
+`seams sequence <event> --trace RUN` draws the as-executed counterpart from a recorded
+run's trace rows (a trace JSON file or an instance id in the runtime's SQLite store), on
+the same lifelines, with a `%% gap:` line for every row the model cannot place. The
+runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
+(see [`seams_runtime/README.md`](seams_runtime/README.md)).
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 

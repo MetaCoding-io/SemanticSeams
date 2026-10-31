@@ -74,6 +74,23 @@ also catch every `ResolutionError` a resolver raises.
 lifecycle guard and policy hook ask it, or the view elements it hands back
 (`task_element`, `shape`, `page`, `component`), and never read raw triples.
 
+## Verification harness
+
+`seams_runtime.verify` is what the `tests` generator's output runs on
+([ADR-0014](../docs/adr/0014-scenarios-and-derived-tests.md)). The generated files
+hold the model's data and call these, so they stay thin:
+
+| Call | What it does |
+|---|---|
+| `serve(model, routes, templates, db)` | A context manager giving `(TestClient, Runtime)` for the host app (`host.build_app`) of the route module `routes`, with `SEAMS_STORE_OVERRIDE=sqlite` on `db` and no dev user or seed; it restores the environment on exit. |
+| `run_scenario(client, runtime, scenario, timeout=10.0)` | Sends the `Scenario`'s start `Request` as its party, then each `Step`'s request after checking the step's task is open for the scenario's key, waiting after each until the instance is waiting, complete or failed. Returns a `Run` (`status`, `error`, the `entity_shape` entity's stored `state` label, and `reached`, the trace's element IRIs). A non-200 answer, a task that is not open, a path variable other than the correlation key, or a run that does not settle raises `ScenarioError` (an `AssertionError`) naming the scenario and step. |
+| `attempt(client, runtime, target, party, timeout=10.0)` | Reaches a `Target` (a permission's target): runs its `Scenario`'s start and the steps before step `at` (`at=0`: the start itself is the target) and checks the target step's task is open, or, with no scenario, sends `request` at once with every path variable set to `key`. Then sends the target request as `party` (None: no identity headers). Returns an `Attempt`: HTTP `status`, the JSON `detail` (the `PolicyDenied` problem on 401/403), the body `text`, and `unchanged`, whether every instance's status and every open task are as before the request. A 200 is settled first. |
+| `identity(party)` | The headers a party acts with: its local name as `X-Forwarded-User` and as its one `X-Forwarded-Groups` role, which `RoleEvaluator` admits for a permission assigned to it. |
+| `load_model(path, expected_hash)` | The `ModelGraph`, or `ModelHashMismatch` (an `AssertionError`, "regenerate") when the model no longer hashes to the hash the generated file embeds. |
+| `decide(engine, decision, inputs)` | `Engine.decide`: the decision's DMN table evaluated on `inputs` (field local name to lexical value) outside any process, with the same input typing (`evaluate_inputs`) and the same Spiff DMN engine a business-rule task uses. Returns `{DMN output name: value}`. |
+| `value(lexical, datatype)` | The Python value of a literal, to compare an expected output with. |
+| `shape_conforms(model, shape, node)` | `(conforms, report text)`: pyshacl on the node's description against the shape's description with an added `sh:targetNode`, so no other shape takes part. |
+
 ## Store
 
 `seams_runtime.store` holds process state, entities and open user tasks in three

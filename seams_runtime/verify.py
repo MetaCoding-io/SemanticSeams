@@ -18,6 +18,11 @@ fact it checks (principle 7, the P007 thin-handler rule applied to tests).
   request that is not answered 200, a step whose task is not open, or a run
   that never settles raises ``ScenarioError`` (an ``AssertionError``, so
   pytest reports it as the scenario's failure) naming the scenario and step.
+- ``attempt`` sends the request that reaches a permission's target (a
+  ``Target``: a scenario's start or step, or a direct request when no
+  scenario reaches it) as a party, or with no identity, after driving the
+  scenario up to it. It returns an ``Attempt``: the status, the problem
+  detail and whether the store is unchanged, for the generated policy tests.
 - ``identity`` is the headers a party acts with: the party's local name as
   the user and as its one role, which ``RoleEvaluator`` admits for a
   permission assigned to that party.
@@ -35,6 +40,7 @@ fact it checks (principle 7, the P007 thin-handler rule applied to tests).
 from __future__ import annotations
 
 import os
+import re
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -109,6 +115,32 @@ class Run:
     error: object
     state: str | None
     reached: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Target:
+    """Where an odrl:permission's target is reached. With ``scenario``: its
+    request ``at`` (0: the start request, n: step n's), after the start and
+    the steps before it. Without one (no scenario reaches the target):
+    ``request`` sent at once, every path variable set to ``key``."""
+
+    scenario: Scenario | None
+    at: int = 0
+    request: Request | None = None
+    key: str = ""
+
+
+@dataclass(frozen=True)
+class Attempt:
+    """The answer to a request a party sent to a target: the HTTP ``status``,
+    the problem response's ``detail`` (None unless the answer is JSON), the
+    body ``text`` and whether the store's instances and open tasks are
+    ``unchanged`` by the request."""
+
+    status: int
+    detail: object
+    text: str
+    unchanged: bool
 
 
 def load_model(model: Path, expected_hash: str) -> ModelGraph:
@@ -202,19 +234,34 @@ def _send(client, scenario: Scenario, request: Request, what: str):
     return response
 
 
-def run_scenario(client, runtime, scenario: Scenario, timeout: float = DEFAULT_TIMEOUT) -> Run:
-    """Drive ``scenario`` through the app ``serve`` built and return its ``Run``."""
+def _open_step(runtime, scenario: Scenario, row: dict, number: int, step: Step) -> str:
+    """The step's description; ``ScenarioError`` unless its task is open."""
+    what = f"step {number} ({step.task})"
+    open_tasks = sorted(r["task"] for r in runtime.store.list_user_tasks() if r["correlation_key"] == scenario.key)
+    if step.task not in open_tasks:
+        raise ScenarioError(
+            f"{scenario.iri}: {what} is not open; the instance is {row['status']!r} with open tasks {open_tasks}"
+        )
+    return what
+
+
+def _drive(client, runtime, scenario: Scenario, steps: int, timeout: float) -> dict | None:
+    """Submit the start and complete the first ``steps`` steps; the settled
+    instance row (None when ``steps`` is negative, so nothing was sent)."""
+    if steps < 0:
+        return None
     _send(client, scenario, scenario.start, "start")
     row = _settle(runtime, scenario, "the start", timeout)
-    for number, step in enumerate(scenario.steps, 1):
-        what = f"step {number} ({step.task})"
-        open_tasks = sorted(r["task"] for r in runtime.store.list_user_tasks() if r["correlation_key"] == scenario.key)
-        if step.task not in open_tasks:
-            raise ScenarioError(
-                f"{scenario.iri}: {what} is not open; the instance is {row['status']!r} with open tasks {open_tasks}"
-            )
+    for number, step in enumerate(scenario.steps[:steps], 1):
+        what = _open_step(runtime, scenario, row, number, step)
         _send(client, scenario, step.request, what)
         row = _settle(runtime, scenario, what, timeout)
+    return row
+
+
+def run_scenario(client, runtime, scenario: Scenario, timeout: float = DEFAULT_TIMEOUT) -> Run:
+    """Drive ``scenario`` through the app ``serve`` built and return its ``Run``."""
+    row = _drive(client, runtime, scenario, len(scenario.steps), timeout)
     state = None
     if scenario.entity_shape is not None:
         entities = runtime.store.query(URIRef(scenario.entity_shape), correlation_key=scenario.key)
@@ -222,6 +269,44 @@ def run_scenario(client, runtime, scenario: Scenario, timeout: float = DEFAULT_T
     workflow = runtime.engine.deserialize(runtime.store.load_state(row["instance_id"]))
     reached = tuple(r["iri"] for r in workflow.data["seams"]["trace"])
     return Run(row["status"], row.get("error"), state, reached)
+
+
+def _store_snapshot(runtime) -> tuple:
+    """Every instance's status and every open user task: what a denied request must not change."""
+    instances = sorted((r["instance_id"], r["status"]) for r in runtime.store.list_instances())
+    tasks = sorted((r["task"], r["correlation_key"]) for r in runtime.store.list_user_tasks())
+    return instances, tasks
+
+
+def attempt(client, runtime, target: Target, party: str | None, timeout: float = DEFAULT_TIMEOUT) -> Attempt:
+    """Reach ``target`` and send its request as ``party`` (None: no identity headers).
+
+    With a scenario, its start and the steps before ``target.at`` run as
+    their own parties first, and the target step's task must be open
+    (``ScenarioError`` otherwise). An answered 200 is settled before the
+    ``Attempt`` is returned."""
+    scenario = target.scenario
+    if scenario is None:
+        request, key = target.request, target.key
+        path = re.sub(r"\{[^}]*\}", key, request.path)
+    else:
+        row = _drive(client, runtime, scenario, target.at - 1, timeout)
+        if target.at == 0:
+            request = scenario.start
+        else:
+            request = scenario.steps[target.at - 1].request
+            _open_step(runtime, scenario, row, target.at, scenario.steps[target.at - 1])
+        path = request.path.replace("{" + scenario.key_variable + "}", scenario.key)
+    before = _store_snapshot(runtime)
+    headers = {} if party is None else identity(party)
+    response = client.request(request.method, path, data=dict(request.data), headers=headers)
+    if response.status_code == 200 and scenario is not None:
+        _settle(runtime, scenario, f"{request.method} {path}", timeout)
+    detail = None
+    if response.headers.get("content-type", "").startswith("application/json"):
+        body = response.json()
+        detail = body.get("detail") if isinstance(body, dict) else None
+    return Attempt(response.status_code, detail, response.text, _store_snapshot(runtime) == before)
 
 
 def decide(engine: Engine, decision: str, inputs: dict[str, str]) -> dict:
@@ -254,6 +339,7 @@ def shape_conforms(model: ModelGraph, shape: str, node: str) -> tuple[bool, str]
 __all__ = [
     "DEFAULT_TIMEOUT",
     "FAILED",
+    "Attempt",
     "Engine",
     "ModelHashMismatch",
     "Request",
@@ -261,6 +347,8 @@ __all__ = [
     "Scenario",
     "ScenarioError",
     "Step",
+    "Target",
+    "attempt",
     "decide",
     "identity",
     "load_model",

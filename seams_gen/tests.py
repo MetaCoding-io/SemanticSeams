@@ -7,14 +7,18 @@ scenario to the routes a person would use: the operation the events that
 ``seam:triggers`` its process ``seam:submitsTo`` (``Process.triggering_operations``),
 and for each step the operation an event of the form its user task is
 ``seam:completedOn`` submits to. ``render_tests`` renders them through the
-``tests_*.py.j2`` templates into three files:
+``tests_*.py.j2`` templates into four files:
 
 - ``test_scenarios.py``: one test per ``verify:Scenario``, run in-process on
   the host app (``seams_runtime.verify.run_scenario``);
 - ``test_decisions.py``: one test per ``verify:DecisionExample``, evaluated by
   the runtime's DMN engine (``Engine.decide``);
 - ``test_shape_examples.py``: one test per valid or invalid shape example,
-  validated by pyshacl against that shape alone.
+  validated by pyshacl against that shape alone;
+- ``test_policies.py``: for each ``odrl:permission``, one test per declared
+  ``odrl:Party`` (the assignee allowed, every other party denied 403) and one
+  no-identity test (401), each reaching the target as the first scenario that
+  reaches it does (``seams_runtime.verify.attempt``).
 
 Every value in the output comes from the model; the templates hold the fixed
 harness calls only (principle 1). Test names embed IRI local names
@@ -28,7 +32,8 @@ A fault the ADR-0014 shapes flag raises ``GeneratorError`` naming the subject
 and predicate. Generator-only, because they are routing facts the fastapi
 generator needs as well (the README lists them): the one serving route module
 the scenarios run on, the one operation (with hydra:method and comm:path) that
-starts a scenario's process or completes a step's task, the form a step's
+starts a scenario's process or completes a step's task or reaches a
+permission's target, a permission target that is an operation or a user task, the form a step's
 task is seam:completedOn, and two IRIs whose local names would give two tests
 one name.
 """
@@ -39,8 +44,25 @@ import json
 import re
 from dataclasses import dataclass
 
-from rdflib import XSD, Literal
-from seams import COMM, HYDRA, SEAM, STATE, VERIFY, Model, Operation, Scenario, Shape, load, local_name
+from rdflib import XSD, Literal, URIRef
+from seams import (
+    COMM,
+    HYDRA,
+    ODRL,
+    SEAM,
+    STATE,
+    VERIFY,
+    Element,
+    Model,
+    Operation,
+    Permission,
+    Policy,
+    ProcessElement,
+    Scenario,
+    Shape,
+    load,
+    local_name,
+)
 
 from . import GeneratorError
 from ._views import required, view_errors
@@ -51,6 +73,7 @@ FILES = {
     "test_scenarios.py": "tests_scenarios.py.j2",
     "test_decisions.py": "tests_decisions.py.j2",
     "test_shape_examples.py": "tests_shape_examples.py.j2",
+    "test_policies.py": "tests_policies.py.j2",
 }
 NOT_IDENTIFIER = re.compile(r"[^0-9A-Za-z_]")
 
@@ -125,13 +148,42 @@ class ShapeExampleModel:
 
 
 @dataclass(frozen=True)
+class PolicyCaseModel:
+    """One party's (or no identity's) request to a permission's target."""
+
+    name: str
+    party: str  # IRI literal, or "None" for no identity
+    party_curie: str | None
+    allowed: bool
+    status: int  # the expected status when denied (403, or 401 without identity)
+
+
+@dataclass(frozen=True)
+class TargetModel:
+    """One odrl:permission: its policy, its target and how a test reaches it."""
+
+    constant: str  # the module-level name of its Target value
+    policy: str  # IRI literal
+    policy_curie: str
+    target_curie: str
+    assignee_curie: str  # or a note that any authenticated party is the assignee
+    reached_by: str
+    scenario: ScenarioModel | None  # the scenario that reaches it, or None (probe)
+    at: int
+    request: RequestModel | None  # the probe request, without a scenario
+    key: str
+    cases: tuple[PolicyCaseModel, ...]
+
+
+@dataclass(frozen=True)
 class TestsModel:
     model_stem: str
     model_hash: str
-    routes: str | None  # the route module file name literal, when there are scenarios
+    routes: str | None  # the route module file name literal, when there are scenarios or policies
     scenarios: tuple[ScenarioModel, ...]
     decision_examples: tuple[DecisionExampleModel, ...]
     shape_examples: tuple[ShapeExampleModel, ...]
+    targets: tuple[TargetModel, ...]
 
 
 # ── extraction ──────────────────────────────────────────────────────────────
@@ -144,9 +196,13 @@ def _py(value: object) -> str:
     return json.dumps(str(value), ensure_ascii=False)
 
 
+def _identifier(iri: object) -> str:
+    return NOT_IDENTIFIER.sub("_", local_name(iri))
+
+
 def _name(prefix: str, *iris: object) -> str:
     """A test function name from IRI local names."""
-    return "_".join([prefix, *(NOT_IDENTIFIER.sub("_", local_name(i)) for i in iris)])
+    return "_".join([prefix, *(_identifier(i) for i in iris)])
 
 
 def _lexical(value: Literal) -> str:
@@ -267,6 +323,94 @@ def _shape_examples(model: Model, shape: Shape) -> list[ShapeExampleModel]:
     return out
 
 
+def _target_operation(model: Model, policy: Policy, target: Element) -> Operation:
+    """The operation a request to ``target`` goes to: the target itself, or the
+    one operation the form a user task is seam:completedOn submits to."""
+    if isinstance(target, Operation):
+        return target
+    if isinstance(target, ProcessElement):
+        form = required(target.completed_on, target.iri, SEAM.completedOn, f"odrl:target of {policy.iri}")
+        ops = [e.submits_to for e in form.events() if e.submits_to is not None]
+        return _submits(form.iri, SEAM.submitsTo, ops, f"completing {target.iri}")
+    raise GeneratorError(policy.iri, ODRL.target, f"{target.iri} is neither a hydra:Operation nor a user task")
+
+
+def _reach(
+    scenarios: tuple[ScenarioModel, ...], starts: dict[str, str], target: Element
+) -> tuple[ScenarioModel, int] | None:
+    """The first scenario (by IRI) whose start (``at`` 0) or step ``at`` reaches ``target``."""
+    for s in scenarios:
+        if starts[s.iri] == str(target.iri):
+            return s, 0
+        for at, step in enumerate(s.steps, 1):
+            if step.task == _py(target.iri):
+                return s, at
+    return None
+
+
+def _reached_by(reached: tuple[ScenarioModel, int] | None) -> str:
+    if reached is None:
+        return "no scenario: the request is sent at once"
+    scenario, at = reached
+    return f"{scenario.curie}, its start" if at == 0 else f"{scenario.curie}, step {at}"
+
+
+def _permission_target(
+    model: Model,
+    policy: Policy,
+    permission: Permission,
+    parties: list[URIRef],
+    scenarios: tuple[ScenarioModel, ...],
+    starts: dict[str, str],
+) -> TargetModel:
+    if permission.target is None:
+        raise GeneratorError(policy.iri, ODRL.target, "a permission needs an odrl:target")
+    target = model.views.resolve(permission.target)
+    op = _target_operation(model, policy, target)
+    assignee = permission.assignee
+    anyone = assignee is None or ODRL.PartyCollection in permission.assignee_types
+    prefix = _name("test_policy", policy.iri, target.iri)
+    cases = [
+        PolicyCaseModel(
+            name=f"{prefix}_{'allows' if anyone or party == assignee else 'denies'}_{_identifier(party)}",
+            party=_py(party),
+            party_curie=model.compact(party),
+            allowed=anyone or party == assignee,
+            status=403,
+        )
+        for party in parties
+    ]
+    cases.append(PolicyCaseModel(f"{prefix}_denies_no_identity", "None", None, False, 401))
+    reached = _reach(scenarios, starts, target)
+    return TargetModel(
+        constant=prefix.removeprefix("test_policy_").upper(),
+        policy=_py(policy.iri),
+        policy_curie=model.compact(policy.iri),
+        target_curie=model.compact(target.iri),
+        assignee_curie="(any authenticated party)" if anyone else model.compact(assignee),
+        reached_by=_reached_by(reached),
+        scenario=None if reached is None else reached[0],
+        at=0 if reached is None else reached[1],
+        request=None if reached is not None else _request(op, assignee or "", ()),
+        key=_py(local_name(policy.iri)),
+        cases=tuple(cases),
+    )
+
+
+def _targets(model: Model, scenarios: tuple[ScenarioModel, ...]) -> tuple[TargetModel, ...]:
+    """One TargetModel per odrl:permission: policies by IRI, permissions in view order."""
+    parties = sorted(model.views.typed(ODRL.Party), key=str)
+    starts = {
+        _py(s.iri): str(_submits(s.process.iri, SEAM.triggers, list(s.process.triggering_operations), "").iri)
+        for s in model.scenarios
+    }
+    return tuple(
+        _permission_target(model, policy, permission, parties, scenarios, starts)
+        for policy in model.policies
+        for permission in policy.permissions
+    )
+
+
 def _unique(names: list[str], subject: object, predicate: object) -> None:
     seen: set[str] = set()
     for name in names:
@@ -281,11 +425,14 @@ def extract_tests(model: Model) -> TestsModel:
         scenarios = tuple(_scenario(model, s) for s in model.scenarios)
         examples = tuple(_decision_example(model, e) for e in model.decision_examples)
         shapes = tuple(x for shape in model.shapes for x in _shape_examples(model, shape))
+        targets = _targets(model, scenarios)
     _unique([s.name for s in scenarios], model.subject, VERIFY.Scenario)
     _unique([e.name for e in examples], model.subject, VERIFY.DecisionExample)
     _unique([x.name for x in shapes], model.subject, VERIFY.validExample)
+    _unique([c.name for t in targets for c in t.cases], model.subject, ODRL.permission)
+    _unique([t.constant for t in targets], model.subject, ODRL.permission)
     routes = None
-    if scenarios:
+    if scenarios or targets:
         routes = _py(route_module(model.path)[0])
     return TestsModel(
         model_stem=model.path.stem,
@@ -294,6 +441,7 @@ def extract_tests(model: Model) -> TestsModel:
         scenarios=scenarios,
         decision_examples=examples,
         shape_examples=shapes,
+        targets=targets,
     )
 
 
@@ -301,13 +449,13 @@ def extract_tests(model: Model) -> TestsModel:
 
 
 def render_tests(tests: TestsModel) -> dict[str, str]:
-    """{file name: text} of the three test files."""
+    """{file name: text} of the four test files."""
     env = _environment()
     return {name: env.get_template(template).render(t=tests) for name, template in sorted(FILES.items())}
 
 
 def generate_tests(trig_path) -> dict[str, str]:
-    """{file name: text}: test_scenarios.py, test_decisions.py and test_shape_examples.py."""
+    """{file name: text}: test_scenarios.py, test_decisions.py, test_shape_examples.py and test_policies.py."""
     return render_tests(extract_tests(load(trig_path)))
 
 
@@ -324,8 +472,14 @@ def tests_sources(trig_path) -> dict[str, tuple[str, ...]]:
         decision_iris.update(str(e.decision.iri) for e in model.decision_examples)
         shape_iris = {json.loads(x.shape) for x in tests.shape_examples}
         shape_iris.update(json.loads(x.node) for x in tests.shape_examples)
+        policy_iris = {str(party) for party in model.views.typed(ODRL.Party)} if tests.targets else set()
+        for policy in model.policies:
+            policy_iris.add(str(policy.iri))
+            policy_iris.update(str(perm.target) for perm in policy.permissions if perm.target is not None)
+        policy_iris.update(json.loads(g.scenario.iri) for g in tests.targets if g.scenario is not None)
     return {
         "test_decisions.py": tuple(sorted(decision_iris)),
+        "test_policies.py": tuple(sorted(policy_iris)),
         "test_scenarios.py": tuple(sorted(scenario_iris)),
         "test_shape_examples.py": tuple(sorted(shape_iris)),
     }

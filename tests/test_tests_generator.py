@@ -1,12 +1,15 @@
 """The tests generator (M015/S03, ADR-0014): model scenarios and examples become pytest files.
 
 examples/expenses/chapter-09 lists ``tests`` in its seams.toml, so
-generated/tests/ holds test_scenarios.py, test_decisions.py and
-test_shape_examples.py, tracked in seams.lock. These tests check that the
+generated/tests/ holds test_scenarios.py, test_decisions.py,
+test_shape_examples.py and test_policies.py, tracked in seams.lock. These tests check that the
 output is deterministic and committed, that a generated test fails when the
 model's expectation is wrong (so it really checks the run, not just that it
 runs), and that a malformed scenario is a GeneratorError naming the fact,
-which the ADR-0014 shapes also flag (principle 5).
+which the ADR-0014 shapes also flag (principle 5). The policy tests number
+one per permission for each declared party plus one no-identity case per
+permission, fail when a permission is not enforced, and still run for a
+target no scenario reaches.
 """
 
 from __future__ import annotations
@@ -15,11 +18,13 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 import rdflib
 from expense_app import ROOT, chapter_dir
-from seams import load
+from rdflib import RDF
+from seams import ODRL, load
 from seams_cli.generate import generate_project, write_outputs
 from seams_cli.project import load_project
 from test_generated_outputs_current import assert_current, committed_files, regenerate
@@ -33,7 +38,7 @@ CHAPTER = "chapter-09"
 TRIG = chapter_dir(CHAPTER) / "expenses.trig"
 COMMITTED = chapter_dir(CHAPTER) / "generated" / "tests"
 REGENERATE = f"seams generate --project examples/expenses/{CHAPTER}"
-FILES = ["test_decisions.py", "test_scenarios.py", "test_shape_examples.py"]
+FILES = ["test_decisions.py", "test_policies.py", "test_scenarios.py", "test_shape_examples.py"]
 # The manager-approved scenario's expectation, the one text the negative case edits.
 MANAGER_EXPECTS = (
     '        verify:given [ verify:field :decision ; verify:value "approved" ] ] ) ;\n'
@@ -68,10 +73,20 @@ class Outcomes:
 
 
 def run_generated(path) -> tuple[int, Outcomes]:
+    """Run the generated tests at ``path`` in-process. The modules the run
+    imports from the chapter are dropped afterwards: two chapter copies' test
+    files get the same module name, so a later run would otherwise test the
+    earlier copy."""
     outcomes = Outcomes()
-    code = pytest.main(
-        [str(path), "-q", "-p", "no:cacheprovider", "--import-mode=importlib", "-W", "ignore"], plugins=[outcomes]
-    )
+    chapter = str(Path(path).resolve().parents[2])
+    try:
+        code = pytest.main(
+            [str(path), "-q", "-p", "no:cacheprovider", "--import-mode=importlib", "-W", "ignore"], plugins=[outcomes]
+        )
+    finally:
+        for name, module in list(sys.modules.items()):
+            if (getattr(module, "__file__", None) or "").startswith(chapter):
+                del sys.modules[name]
     return code, outcomes
 
 
@@ -153,3 +168,63 @@ def test_a_scenario_without_a_process_is_a_generator_error_the_shapes_flag(tmp_p
     for s, p, o, _ in rdflib.Dataset(default_union=True).parse(trig, format="trig").quads():
         graph.add((s, p, o))
     assert SEAMSH.ScenarioShape in violating_shapes(graph)
+
+
+APPROVE_GOVERNED = (
+    "    <https://example.org/expenses/approval_bpmn#approve_expense> seam:governedBy :manager_approval_policy .\n"
+)
+
+
+def test_policy_tests_number_parties_times_permissions():
+    model = load(TRIG)
+    parties = sorted(set(model.ds.subjects(RDF.type, ODRL.Party)), key=str)
+    permissions = [(p, perm) for p in model.policies for perm in p.permissions]
+    assert len(parties) == 3 and len(permissions) == 4
+
+    tests = extract_tests(model)
+    cases = [c for g in tests.targets for c in g.cases]
+    with_party = [c for c in cases if c.party != "None"]
+    assert len(with_party) == len(parties) * len(permissions)
+    assert [c.status for c in cases if c.party == "None"] == [401] * len(permissions)
+    # exactly the assignee is allowed for each permission
+    assert sorted(c.name for c in cases if c.allowed) == [
+        "test_policy_employee_submit_policy_submit_expense_op_allows_employee",
+        "test_policy_finance_approval_policy_finance_approve_expense_allows_finance",
+        "test_policy_finance_payment_policy_pay_expense_allows_finance",
+        "test_policy_manager_approval_policy_approve_expense_allows_manager",
+    ]
+    text = generate_tests(TRIG)["test_policies.py"]
+    assert text.count("\ndef test_policy_") == len(cases)
+
+
+def test_an_unenforced_permission_fails_its_denials(tmp_path):
+    # the policy still names :manager, but nothing governs approve_expense any more
+    copy = copy_chapter(tmp_path, APPROVE_GOVERNED, "")
+    project = load_project(copy)
+    write_outputs(generate_project(project, project.model))
+
+    code, outcomes = run_generated(copy / "generated" / "tests" / "test_policies.py")
+    assert code == pytest.ExitCode.TESTS_FAILED
+    prefix = "test_policy_manager_approval_policy_approve_expense_"
+    failed = sorted(name for name, outcome in outcomes.by_name.items() if outcome == "failed")
+    assert failed == [prefix + "denies_employee", prefix + "denies_finance", prefix + "denies_no_identity"]
+    assert outcomes.by_name[prefix + "allows_manager"] == "passed"
+
+
+def test_a_target_no_scenario_reaches_is_probed(tmp_path):
+    # without :manager_approved no scenario completes approve_expense
+    start = "    # Up to 1000 the manager is told, then approves.\n"
+    end = "    # Above 1000 finance approves, then pays"
+    text = TRIG.read_text(encoding="utf-8")
+    block = text[text.index(start) : text.index(end)]
+    copy = copy_chapter(tmp_path, block, "")
+    project = load_project(copy)
+    write_outputs(generate_project(project, project.model))
+
+    tests = extract_tests(load(copy / "expenses.trig"))
+    [target] = [g for g in tests.targets if g.policy_curie == ":manager_approval_policy"]
+    assert target.scenario is None and target.reached_by.startswith("no scenario")
+
+    code, outcomes = run_generated(copy / "generated" / "tests" / "test_policies.py")
+    assert code == pytest.ExitCode.OK, outcomes.failures
+    assert len(outcomes.by_name) == 16

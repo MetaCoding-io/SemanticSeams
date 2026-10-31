@@ -1,0 +1,100 @@
+[#- test_policies.py (seams_gen.tests, ADR-0014): allow and deny tests per odrl:permission.
+    Expects `t` (a TestsModel); every value is a pre-rendered Python literal. -#]
+[% include "tests_header.py.j2" %]
+"""Policy tests: each odrl:permission's target reached by every declared party.
+
+For each permission, the assignee's request to the target is allowed, every
+other odrl:Party's is denied with the PolicyDenied problem response (403),
+and a request with no identity is denied with 401. A denied request changes
+nothing. A target is reached as a scenario reaches it, or, when no scenario
+does, sent at once; then "allowed" means only that no policy refused it
+(seams_runtime.verify.attempt).
+"""
+
+import pytest
+from seams_cli.project import find_project, load_project, resolve_model
+from seams_runtime.verify import Request, Scenario, Step, Target, attempt, load_model, serve
+
+[% include "tests_project.py.j2" %]
+[% if t.routes %]
+
+
+@pytest.fixture
+def app(tmp_path):
+    load_model(MODEL, MODEL_HASH)
+    with serve(MODEL, OUT["fastapi"] / [[ t.routes ]], OUT["htmx"], tmp_path / "seams.sqlite") as served:
+        yield served
+[% endif %]
+[% for g in t.targets %]
+
+
+# [[ g.policy_curie ]] odrl:permission [ odrl:target [[ g.target_curie ]] ; odrl:assignee [[ g.assignee_curie ]] ]
+#   reached by [[ g.reached_by ]]
+[% if g.scenario %]
+
+[[ g.constant ]] = Target(
+    scenario=Scenario(
+        iri=[[ g.scenario.iri ]],
+        process=[[ g.scenario.process ]],
+        key_variable=[[ g.scenario.key_variable ]],
+        key=[[ g.scenario.key ]],
+        start=Request(
+            [[ g.scenario.start.method ]],
+            [[ g.scenario.start.path ]],
+            [[ g.scenario.start.actor ]],
+            (
+[% for name, value in g.scenario.start.data %]
+                ([[ name ]], [[ value ]]),
+[% endfor %]
+            ),
+        ),
+[% if not g.scenario.steps %]
+        steps=(),
+[% else %]
+        steps=(
+[% for step in g.scenario.steps %]
+            Step(
+                [[ step.task ]],
+                Request(
+                    [[ step.request.method ]],
+                    [[ step.request.path ]],
+                    [[ step.request.actor ]],
+                    (
+[% for name, value in step.request.data %]
+                        ([[ name ]], [[ value ]]),
+[% endfor %]
+                    ),
+                ),
+            ),
+[% endfor %]
+        ),
+[% endif %]
+        entity_shape=[[ g.scenario.entity_shape ]],
+    ),
+    at=[[ g.at ]],
+)
+[% else %]
+
+[[ g.constant ]] = Target(
+    scenario=None,
+    request=Request([[ g.request.method ]], [[ g.request.path ]], [[ g.request.actor ]], ()),
+    key=[[ g.key ]],
+)
+[% endif %]
+[% for c in g.cases %]
+
+
+def [[ c.name ]](app):
+    result = attempt(*app, [[ g.constant ]], [[ c.party ]])
+[% if c.allowed and g.scenario %]
+    assert result.status == 200, result.text
+[% elif c.allowed %]
+    assert result.status not in (401, 403), result.text
+[% else %]
+    assert result.status == [[ c.status ]], result.text
+    assert result.detail["type"] == "PolicyDenied", result.detail
+    assert result.detail["policy"] == [[ g.policy ]], result.detail
+    assert result.unchanged, "a denied request changed the store"
+[% endif %]
+[% endfor %]
+[% endfor %]

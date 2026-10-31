@@ -190,6 +190,29 @@
       "generator": "tests",
       "generator_version": "0.1.0",
       "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",
+      "path": "generated/tests/test_policies.py",
+      "sha256": "e581b2908f593f1a5bc95d79150646d0374bd65ef5ea49f565482247d15eaae6",
+      "sources": [
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/auto_approved",
+        "https://example.org/expenses/employee",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/finance",
+        "https://example.org/expenses/finance_approval_policy",
+        "https://example.org/expenses/finance_approved",
+        "https://example.org/expenses/finance_payment_policy",
+        "https://example.org/expenses/manager",
+        "https://example.org/expenses/manager_approval_policy",
+        "https://example.org/expenses/manager_approved",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
+      "generator": "tests",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",
       "path": "generated/tests/test_scenarios.py",
       "sha256": "a030846063144b50eb9700264f3f5b55c82c41761996a43d321b9afcb5504be8",
       "sources": [

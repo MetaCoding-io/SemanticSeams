@@ -75,7 +75,7 @@ compose_yaml = generate_compose("examples/chat-app/chat-app.trig", base_dir=".")
 | `htmx` (other served pages) | `<out>/<page local name>.html` and its partials, built like the landmark page but without task forms | each page of `model.interfaces.served_pages()` after the landmark: an `ifml:ViewContainer` with an `ifml:path` that is not the landmark and holds no task form, from any `ifml:InteractionModel` its container `seam:presents`. The expense tutorial's `:payouts_page` (chapter 8) is one. A partial two pages would render differently is a `GeneratorError` |
 | `fastapi` | `<out>/<container local name>.py`, a thin FastAPI route module | the one serving `arch:Container` (it `seam:executes` a `proc:Process`, or `seam:exposes` an operation an `ifml:Event` `seam:submitsTo`), and what it `seam:exposes` |
 | `compose` | `<out>/compose.yaml`, a docker compose file whose bind-mount sources are relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts, `seam:deployedTo` and the serving-container rule |
-| `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py` and `<out>/test_shape_examples.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`; [Tests rendering rules](#tests-rendering-rules) |
+| `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py`, `<out>/test_shape_examples.py` and `<out>/test_policies.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`, and each `odrl:permission` of `model.policies` with every `odrl:Party`; [Tests rendering rules](#tests-rendering-rules) |
 
 Each generator is one subcommand in `GENERATORS` in `__main__.py`, called as
 `generate(trig, out)`; `htmx`, `fastapi`, `compose` (S06) and `tests` (M015) are
@@ -247,8 +247,8 @@ container.
 ## Tests rendering rules
 
 `extract_tests` (`tests.py`) builds a `TestsModel`; `render_tests` renders it through
-`templates/tests_scenarios.py.j2`, `tests_decisions.py.j2` and
-`tests_shape_examples.py.j2`, which share `tests_header.py.j2` and
+`templates/tests_scenarios.py.j2`, `tests_decisions.py.j2`,
+`tests_shape_examples.py.j2` and `tests_policies.py.j2`, which share `tests_header.py.j2` and
 `tests_project.py.j2`. Every value is pre-rendered as a Python literal in `extract`, so
 the templates hold only the fixed calls into `seams_runtime.verify`, the harness the
 generated files run on.
@@ -260,6 +260,14 @@ generated files run on.
 | `test_scenario_<local name>` | One per `verify:Scenario`, by IRI. The start `Request` is the one operation `Process.triggering_operations` gives (its `hydra:method` and `comm:path` template), sent as `verify:actor` with each `verify:given` as a form field (the `verify:field` local name and the value's lexical form, by field IRI). Each `verify:step`, in list order, is the operation an event of the form its task `seam:completedOn` `seam:submitsTo`, sent as the step's actor. `key_variable` is the process's `proc:correlationKey` label; the key is the scenario's local name. `verify:expectState` asserts the stored status of the shape whose `seam:lifecycle` holds the state equals the state's `rdfs:label`; `verify:expectEndEvent` asserts the run's trace reached that IRI. The run must not fail |
 | `test_decision_<local name>` | One per `verify:DecisionExample`, by IRI: `Engine.decide` on the decision with each given as input, then one assertion per `verify:expectOutput` (by `dec:variable`), comparing with the literal's Python value |
 | `test_valid_example_<shape>_<node>` / `test_invalid_example_<shape>_<node>` | One per example, shapes by IRI, valid before invalid, nodes by IRI: pyshacl on the node's description against the shape's description with `sh:targetNode` the node, so no other shape takes part |
+| `<POLICY>_<TARGET>` | One `Target` per `odrl:permission`, policies by IRI, permissions by (target, action, assignee). It is reached as the first scenario (by IRI) reaches it: the scenario whose start operation is the target (`at=0`), or whose step `at` completes the target user task, after the start and the earlier steps. With no such scenario, the target's operation (the target itself, or the one operation an event of the form the task `seam:completedOn` submits to) is sent at once with no form fields and every path variable set to the policy's local name |
+| `test_policy_<policy>_<target>_allows_<party>` / `…_denies_<party>` | One per permission for each `odrl:Party` in the model, by IRI: the assignee (every party, for no assignee or an `odrl:PartyCollection`) is allowed, answered 200 (or, without a reaching scenario, anything but 401 or 403); every other party is answered 403 with a `PolicyDenied` detail naming the policy, and the store's instances and open tasks are unchanged |
+| `test_policy_<policy>_<target>_denies_no_identity` | One per permission: no identity headers, answered 401 with a `PolicyDenied` detail naming the policy, store unchanged |
+
+So `test_policies.py` holds parties × permissions tests plus one no-identity test per
+permission. A permission whose target no route enforces (no `seam:governedBy`) fails its
+denials, which is the point. A target governed by two policies is tested against this
+permission alone: a party it admits that the other policy refuses fails its allow test.
 
 A party acts as user and role `<party local name>` (`seams_runtime.verify.identity`),
 which `RoleEvaluator` admits for a permission assigned to that party. A request not
@@ -274,8 +282,11 @@ field and one literal value, a decision example without an output. Generator-onl
 because they are routing facts the `fastapi` generator needs as well: exactly one
 serving route module when the model has scenarios; exactly one operation starting a
 scenario's process, and exactly one completing each step's task, with a
-`hydra:method` and a `comm:path`; a step's task `seam:completedOn` a form; and two
-IRIs whose local names would give two tests the same name.
+`hydra:method` and a `comm:path`; a step's task `seam:completedOn` a form; a
+permission's `odrl:target` that is missing, or neither a `hydra:Operation` nor a user
+task completed on a form with one submitting operation (ADR-0009 policy targets, which
+the shapes do not type); and two IRIs whose local names would give two tests the same
+name.
 
 ## Source elements
 
@@ -296,6 +307,7 @@ missing or ambiguous fact raises the generator's `GeneratorError`.
 | `tests` | `test_scenarios.py` | each `verify:Scenario`, its `proc:Process` and the `proc:UserTask` of each step |
 | `tests` | `test_decisions.py` | each `verify:DecisionExample` and the `dec:Decision` it evaluates |
 | `tests` | `test_shape_examples.py` | each `sh:NodeShape` with examples and each example node |
+| `tests` | `test_policies.py` | each `odrl:Policy`, each permission target, each `odrl:Party` and each scenario that reaches a target |
 
 ## Complexity check
 

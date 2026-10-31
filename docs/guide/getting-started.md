@@ -122,7 +122,10 @@ and explains everything else on the page.
   it with Docker Compose.
 - [The seams CLI](/reference/seams-cli): `seams generate` regenerates a project's outputs and
   `seams check` confirms they are current, in CI and as a pre-commit hook; `seams status`
-  checks that a running stack's containers are on the current model; `seams sequence`
+  checks that a running stack's containers are on the current model; `seams secrets`
+  checks that each environment's configuration keys and secrets exist before
+  `docker compose -f compose.development.yaml up`, and `--write-example` writes the
+  `.env.example` to copy to `.env`; `seams sequence`
   derives an event's sequence diagrams from the model, and
   `seams sequence :send_message --trace <instance>` draws a recorded run as executed.
 - [Build an expense approval app](/tutorials/expenses/): write a model yourself, one layer

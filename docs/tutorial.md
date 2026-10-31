@@ -123,6 +123,29 @@ override of `:llm_gateway`, and `compose.development.yaml` reads them from your 
 
 ## 5. Start the stack
 
+First check that every configuration key and secret the development environment needs
+exists. `seams secrets` lists them from the model and never reads a value
+([seams secrets](/reference/seams-cli#seams-secrets)):
+
+```
+seams secrets --project examples/chat-app --env development
+```
+
+Each line reads `<env> <container> <key> <kind> <verdict> <source>`. Both secrets are
+files: `DB_URL` is the committed dev URL in `docker/local-secrets/db_url`, and
+`LLM_API_KEY` is the key file from step 4. If a line reads `missing`, the command exits 1
+with `seams secrets: N missing` on stderr. Create the file it names before you go on.
+[`examples/chat-app/.env.example`](../examples/chat-app/.env.example), written by
+`seams secrets --write-example`, lists the same keys with the model's development values.
+To set the step 4 variables in a file instead of your shell, copy it to `.env` at the
+repository root, where compose reads it, and edit it there:
+
+```
+cp examples/chat-app/.env.example .env
+```
+
+Then start the stack:
+
 ```
 docker compose -f compose.development.yaml up --build
 ```

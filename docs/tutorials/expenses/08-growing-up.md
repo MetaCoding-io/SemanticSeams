@@ -596,6 +596,34 @@ with a hand-written handler added. Optionally,
 images, external swarm secrets for the connection string and the store's password, and
 placement constraints for `web01`, `app01` and `db01`.
 
+### Check the production secrets
+
+Production's external secrets must exist before the stack can start, and nothing in the
+compose file checks that. `seams secrets` lists each environment's configuration keys from
+the model and checks that each one exists, without reading a value
+([seams secrets](/reference/seams-cli#seams-secrets)):
+
+```sh
+seams secrets --project examples/expenses/chapter-08 --env production
+```
+
+```
+production expense_api DATABASE_URL secret-ref missing expenses-prod-database-url
+production expense_db POSTGRES_DB value present -
+production expense_db POSTGRES_PASSWORD secret-ref missing expenses-prod-postgres-password
+seams secrets: 2 missing
+```
+
+On a swarm manager it looks each `secret-ref` name up in `docker secret ls`. Here neither
+secret has been created, so the command exits 1. Create them with `docker secret create`
+and both lines read `present`. Without docker, or on a host that is not a swarm manager,
+the lines read `unchecked`, the reason goes to stderr, and the exit code stays 0. With
+`--env development`, the `DATABASE_URL` line is a `secret-file`, present because
+`docker/local-secrets/expense_database_url` exists. The chapter's committed
+[`.env.example`](../../../examples/expenses/chapter-08/.env.example), from
+`seams secrets --write-example`, lists the development keys. The secret is blank and the
+plain values keep the model's literals.
+
 ## Measure it
 
 The tutorial started from a question: is there a model large enough to need more than

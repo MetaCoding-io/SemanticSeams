@@ -120,6 +120,50 @@ behind), `ahead` (any other hash, or every differing hash outside git) or
 or model error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-status).
 
+## seams secrets
+
+```sh
+seams secrets                          # the seams.toml in the working directory
+seams secrets --project examples/chat-app --env development
+seams secrets --project examples/expenses/chapter-08 --write-example
+```
+
+It checks that every configuration key and secret of each arch:Environment
+exists, without reading a value (backlog A8, `secrets.py`, `run_secrets`).
+For each environment (by IRI, named by its local name), each container (by
+IRI) and each binding of `Container.for_environment` (by key) it prints
+`<env> <container> <key> <kind> <verdict> <source or ->`. The kind is `value`,
+`secret-ref`, `secret-file` or `service`. The source is the deploy:secretName,
+the deploy:secretFile path relative to the project root, or the service
+container, and never a value. `--env NAME` limits the rows to one environment.
+
+Value and service rows are `present` by definition. Every other row asks the
+checkers in order, and the first answer that is not `unchecked` wins:
+`FileChecker` (a secret file's path exists; the file is never opened),
+`DotenvChecker` (the key is named in `<project root>/.env`; only the text
+before each `=` is kept, so a blank value counts too) and `DockerSecretChecker` (the secret name is in
+`docker secret ls`, run once with a 10 s timeout). With no docker, a failing
+command (not a swarm manager, say) or a timeout, a secret-ref row is
+`unchecked`, and the reason goes to stderr as `seams secrets: unchecked:
+<reason>`. No checker reads a value, so no value can reach stdout, stderr or
+`--json`, which prints the rows and the count of each verdict instead.
+
+`--write-example` also writes `<project root>/.env.example` for `--env`, else
+`development`, else the first environment, and prints its path. Its keys are
+sorted. A plain deploy:value keeps the model's literal, each secret is blank
+under `# secret: <kind> <source>`, and each service is blank under
+`# service: <container>`. The file is byte-deterministic, and the chat app's and
+expense chapter 8's are committed. Copy it to `.env` and fill it in. `.env` is
+git-ignored and `.env.example` is not.
+
+| Code | Meaning |
+|---|---|
+| 0 | No row is missing (unchecked rows do not fail). |
+| 1 | At least one row is missing, after `seams secrets: N missing` on stderr, or a file could not be read or written. |
+| 2 | The project file is missing or malformed, the `--env` names no arch:Environment, no model was given, or a binding has no kind or more than one. |
+
+See [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-secrets).
+
 ## seams sequence
 
 ```sh

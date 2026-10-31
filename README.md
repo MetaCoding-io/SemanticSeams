@@ -78,6 +78,10 @@ output. CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
 `seams status` reads each running runtime container's `/healthz` and reports it as current,
 behind, ahead or unreachable compared with the current model.
+`seams secrets` lists every configuration key and secret of each `arch:Environment` from the
+model and checks that each exists (a secret file on disk, a key in the project's `.env`, a
+`docker secret ls` name) without reading a value; any missing one exits 1, and
+`--write-example` writes the project's `.env.example`.
 `seams sequence <event>` derives an IFML event's Mermaid sequence diagrams from the graph,
 one per gateway path, with a `%% gap:` line for every arrow the model cannot place.
 The viewer shows them per event (its Sequences section and `GET /sequence/{event}`), and

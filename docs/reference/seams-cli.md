@@ -8,7 +8,8 @@ derives an event's sequence diagrams; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
 as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
-and policies no scenario or test exercises. Its distribution name is `semanticseams-cli` and its import name is
+and policies no scenario or test exercises; `seams secrets` checks that each
+environment's configuration keys and secrets exist, without reading a value. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -438,6 +439,140 @@ rebuilt or restarted.
 | 2 | The project file is missing or malformed, the environment is missing, unknown or ambiguous, an endpoint names no runtime container, no model was given, or the model cannot be loaded. |
 
 Errors print to stderr as `seams status: <message>`.
+
+## seams secrets
+
+```sh
+seams secrets                                     # the seams.toml in the working directory
+seams secrets --project examples/chat-app --env development
+seams secrets --project examples/expenses/chapter-08 --env production --json
+seams secrets --project examples/chat-app --write-example
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
+| `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `--env NAME` | every environment | The `arch:Environment` to check, by local name. |
+| `--write-example` | off | Also write `<project root>/.env.example`. |
+| `--json` | off | Print the rows and verdict counts as JSON. |
+
+`seams secrets` lists every configuration key and secret a deployment needs,
+per environment, and checks that each one exists before the deployment runs
+(backlog A8). It never reads a value. It writes nothing unless
+`--write-example` is given.
+
+### Rows
+
+The rows come from the model, not from a compose file. For each
+`arch:Environment` (by IRI), each container (by IRI) and each binding of
+`Container.for_environment`, the merge of the shared `deploy:binding`s with
+the environment's `deploy:override`s ([ADR-0015](/adr/0015-environments)),
+one row, sorted by key:
+
+| Kind | Binding | Source |
+|---|---|---|
+| `value` | `deploy:value` | none (`-`); the literal is in the model |
+| `secret-ref` | `deploy:secretRef` | the `deploy:secretName`, else the secret's IRI |
+| `secret-file` | `deploy:secretFile` | the path, resolved against the model's directory and written relative to the project root |
+| `service` | `deploy:serviceOf` | the container it names |
+
+A binding with no kind or more than one is a model fault (exit 2).
+
+### Verdicts
+
+| Verdict | Meaning |
+|---|---|
+| `present` | The key or secret exists. Value and service rows are present by definition. |
+| `missing` | A checker looked and found nothing. |
+| `unchecked` | No checker could tell. |
+
+Every secret row asks the checkers in this order, and the first answer that is
+not `unchecked` wins:
+
+1. **Files.** A `secret-file` row is present when the path exists and missing
+   when it does not. Only `Path.exists` is called; the file is never opened.
+2. **`.env`.** A key named in `<project root>/.env` is present, for value and
+   `secret-ref` rows. Only the text before each line's first `=` is kept
+   (an `export ` prefix and comments are skipped). Because the value is never
+   read, a key with a blank value counts as present too: a `.env` copied from
+   `.env.example` names every key. A key absent from `.env` proves nothing,
+   so the row goes on to the next checker.
+3. **Docker secrets.** A `secret-ref` row is present when its secret name is
+   in the names `docker secret ls` prints and missing when it is not. The
+   command runs once, with a 10 second timeout. With no `docker` on the path,
+   a failing command (the host is not a swarm manager, for example) or a
+   timeout, the row stays unchecked and the reason goes to stderr as
+   `seams secrets: unchecked: <reason>`.
+
+No checker reads a value, so no value can reach the output.
+
+### Output
+
+One stdout line per row, as
+`<env> <container> <key> <kind> <verdict> <source or ->`:
+
+```
+$ seams secrets --project examples/chat-app --env development
+development chat_api DB_URL secret-file present ../../docker/local-secrets/db_url
+development chat_api LLM_GATEWAY_URL service present llm_gateway
+development chat_api SEAMS_DEV_USER value present -
+development chat_api SEAMS_SEED value present -
+development llm_gateway LLM_API_KEY secret-file present ../../.secrets/llm_api_key
+development llm_gateway LLM_GATEWAY_STUB value present -
+development llm_gateway LLM_MODEL_OVERRIDE value present -
+development llm_gateway UPSTREAM_BASE_URL value present -
+development message_db POSTGRES_DB value present -
+development message_db POSTGRES_PASSWORD value present -
+```
+
+Production reads its connection string and API key from swarm secrets, so on
+a swarm manager that has not created them the count goes to stderr:
+
+```
+$ seams secrets --project examples/chat-app --env production
+production chat_api DB_URL secret-ref missing chat-prod-db-url
+production chat_api LLM_GATEWAY_URL service present llm_gateway
+production llm_gateway LLM_API_KEY secret-ref missing chat-prod-llm-key
+...
+seams secrets: 3 missing
+```
+
+`--json` prints `{"rows": [...], "counts": {"present": N, "missing": N,
+"unchecked": N}}` instead, each row with `environment`, `container`, `key`,
+`kind`, `source` and `verdict`.
+
+### .env.example
+
+`--write-example` writes `<project root>/.env.example` for `--env`, else for
+`development`, else for the first environment, and prints its path. Keys are
+sorted. A plain value keeps the model's literal (with a `# differs per
+container` comment when containers disagree), each secret is blank under
+`# secret: <kind> <source>`, and each service is blank under
+`# service: <container>`:
+
+```
+# secret: secret-file ../../docker/local-secrets/db_url
+DB_URL=
+...
+POSTGRES_DB=chat
+```
+
+The file is byte-deterministic. The chat app's
+[`examples/chat-app/.env.example`](https://github.com/MetaCoding-io/SemanticSeams/blob/main/examples/chat-app/.env.example)
+and expense chapter 8's are committed, and a test keeps each equal to a fresh
+render. Copy it to `.env` and fill it in. `.gitignore` ignores `.env` and
+`.env.*` but not `.env.example`.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | No row is missing. Unchecked rows do not fail. |
+| 1 | At least one row is missing. A file could not be read or written. |
+| 2 | The project file is missing or malformed, `--env` names no `arch:Environment`, no model was given, the model cannot be loaded, or a binding has no kind or more than one. |
+
+Errors print to stderr as `seams secrets: <message>`.
 
 ## seams sequence
 

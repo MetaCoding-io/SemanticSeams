@@ -35,7 +35,8 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ] ,
                [ sh:prefix "state" ; sh:namespace "https://w3id.org/seams/state#"^^xsd:anyURI ] ,
                [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
-               [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] .
+               [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
+               [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -423,7 +424,27 @@ seamsh:ArtifactShape a sh:NodeShape ;
     sh:property [ sh:path deploy:reference ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
         sh:message "A deploy:artifact has exactly one string deploy:reference." ] ;
     sh:property [ sh:path deploy:version ; sh:maxCount 1 ; sh:datatype xsd:string ;
-        sh:message "A deploy:artifact has at most one string deploy:version." ] .
+        sh:message "A deploy:artifact has at most one string deploy:version." ] ;
+    sh:property [ sh:path deploy:build ; sh:maxCount 1 ;
+        sh:message "A deploy:artifact has at most one deploy:build." ] .
+
+seamsh:BuildShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:build ;
+    sh:property [ sh:path deploy:context ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:build has exactly one string deploy:context." ] ;
+    sh:property [ sh:path deploy:dockerfile ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:build has at most one string deploy:dockerfile." ] .
+
+# deploy:artifact, deploy:configuration and deploy:replicas have no rdfs:domain, since
+# a container and an override both state them (ADR-0015); this shape is the domain.
+seamsh:OverridableSubjectShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:artifact , deploy:configuration , deploy:replicas ;
+    sh:or ( [ sh:class arch:Container ] [ sh:class deploy:Override ] ) ;
+    sh:property [ sh:path deploy:artifact ; sh:maxCount 1 ;
+        sh:message "A container or override has at most one deploy:artifact." ] ;
+    sh:property [ sh:path deploy:replicas ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ;
+        sh:message "deploy:replicas is at most one non-negative integer." ] ;
+    sh:message "Only an arch:Container or a deploy:Override carries deploy:artifact, deploy:configuration or deploy:replicas." .
 
 seamsh:PortShape a sh:NodeShape ;
     sh:targetObjectsOf deploy:port ;
@@ -453,17 +474,83 @@ seamsh:BindingShape a sh:NodeShape ;
         sh:message "A deploy:binding has exactly one deploy:key." ] ;
     sh:xone ( [ sh:path deploy:value ; sh:minCount 1 ]
               [ sh:path deploy:secretRef ; sh:minCount 1 ]
+              [ sh:path deploy:secretFile ; sh:minCount 1 ]
               [ sh:path deploy:serviceOf ; sh:minCount 1 ] ) ;
+    sh:property [ sh:path deploy:secretFile ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "deploy:secretFile is at most one string path." ] ;
     sh:property [ sh:path deploy:serviceOf ; sh:class arch:Container ;
         sh:message "deploy:serviceOf points at an arch:Container." ] ;
     sh:property [ sh:path deploy:connectsTo ; sh:maxCount 1 ; sh:class arch:Container ;
         sh:message "deploy:connectsTo points at one arch:Container (a store)." ] ;
-    sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef or deploy:serviceOf." .
+    sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef, deploy:secretFile or deploy:serviceOf." .
 
 seamsh:SecretNameShape a sh:NodeShape ;
     sh:targetSubjectsOf deploy:secretName ;
     sh:property [ sh:path deploy:secretRef ; sh:minCount 1 ;
         sh:message "deploy:secretName names the platform secret for a deploy:secretRef binding; a binding with a secretName must carry a secretRef." ] .
+
+seamsh:ProxiesShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:proxies ;
+    sh:class arch:Container ;
+    sh:property [ sh:path deploy:proxies ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "deploy:proxies points at one arch:Container." ] ;
+    sh:message "Only an arch:Container deploy:proxies another." .
+
+#################################################################
+# Environments (ADR-0015)
+#################################################################
+
+# Each constraint below is a fault Container.for_environment raises ResolutionError
+# for (principle 5).
+
+seamsh:OverrideShape a sh:NodeShape ;
+    sh:targetClass deploy:Override ;
+    sh:targetObjectsOf deploy:override ;
+    sh:class deploy:Override ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type deploy:environment deploy:artifact deploy:configuration deploy:replicas ) ;
+    sh:property [ sh:path deploy:environment ; sh:minCount 1 ; sh:maxCount 1 ; sh:class arch:Environment ;
+        sh:message "A deploy:Override names exactly one deploy:environment, an arch:Environment." ] ;
+    sh:message "A deploy:Override is the object of deploy:override and carries only deploy:environment, deploy:artifact, deploy:configuration and deploy:replicas (ADR-0015)." .
+
+seamsh:OverridePerEnvironmentShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:override ;
+    sh:sparql [
+        sh:message "A container has at most one deploy:override per deploy:environment (ADR-0015)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this deploy:override ?a , ?b .
+                ?a deploy:environment ?value .
+                ?b deploy:environment ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+# The store is the same in every environment: an override binding keeps the
+# deploy:connectsTo of the shared binding with its deploy:key, in both directions.
+seamsh:OverrideStoreShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:override ;
+    sh:sparql [
+        sh:message "An override binding deploy:connectsTo the same store as the shared binding with its deploy:key; the store cannot change per environment (ADR-0015)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this deploy:override/deploy:configuration/deploy:binding ?ob .
+                ?ob deploy:key ?key .
+                {
+                    ?ob deploy:connectsTo ?value .
+                    FILTER NOT EXISTS {
+                        $this deploy:configuration/deploy:binding ?sb .
+                        ?sb deploy:key ?key ; deploy:connectsTo ?value .
+                    }
+                } UNION {
+                    $this deploy:configuration/deploy:binding ?sb .
+                    ?sb deploy:key ?key ; deploy:connectsTo ?value .
+                    FILTER NOT EXISTS { ?ob deploy:connectsTo ?value }
+                }
+            }""" ;
+    ] .
 
 #################################################################
 # Storage (ADR-0011)

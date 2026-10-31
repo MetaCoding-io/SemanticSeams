@@ -149,7 +149,10 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   `model.shapes`, `model.decisions`, `model.policies`, `model.scenarios` and
   `model.decision_examples` are plain `Many`s.
 - **`model.architecture`** has `systems()`, `containers()`,
-  `deployment_nodes()` and `environments()`.
+  `deployment_nodes()`, `environments()` and `serving_containers()` (each
+  container that `seam:executes` a process or `seam:exposes` an operation an
+  `ifml:Event` `seam:submitsTo`: the ones that serve routes and hold process
+  state).
   - `System.containers` (the `arch:Container`s it `arch:contains`).
   - `Container` has `technology`, `exposes` and `consumes` (a
     `Many[Operation | Channel]`), `executes`, `deployed_to`, `depends_on`
@@ -159,15 +162,31 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     the shapes `seam:storedIn` it, and `connecting_bindings` its `bindings`
     whose `connects_to` is set.
   - Its `deploy:` facts are frozen dataclasses: `artifact` (an `Artifact`
-    with `reference` and `version`, or None), `ports` (`Port`:
+    with `reference`, `version` and `build`, a `Build` with `context` and
+    `dockerfile` when it is built from source, or None), `ports` (`Port`:
     `container_port`, `published_port`), `volumes` (`Volume`: `name`,
     `mount_path`), `healthcheck` (`Healthcheck`: `probe`, `interval`, or
     None), `replicas`, `deploy_depends_on` (start order) and `bindings`
     (`Binding`: `key`, `kinds`, `value`, `secret_ref`, `secret_name`,
-    `service_of`, `connects_to`, by key). `connects_to` is the store
+    `secret_file`, `service_of`, `connects_to`, by key), and `proxies` (the
+    container it `deploy:proxies`, or None). `connects_to` is the store
     container a binding `deploy:connectsTo`; it sits beside the value source
     and is not one of `kinds`. They sit on blank nodes, so a missing or
-    duplicated value raises `ResolutionError(container, predicate)`.
+    duplicated value raises `ResolutionError(container, predicate)`. These
+    are the shared facts.
+  - Environments ([ADR-0015](/adr/0015-environments)): `overrides` lists its
+    `deploy:override`s as `Override`s (`environment`, and `artifact`,
+    `bindings` and `replicas`, each None when the override does not state
+    it), by environment IRI. `for_environment(environment)` applies the
+    override rule and returns a `Deployment` (`environment`, `artifact`,
+    `bindings`, `replicas`): an override's artifact or replicas replace the
+    shared ones whole, its bindings replace the shared binding with the same
+    key or add one, and anything it does not state is shared. An override
+    that is no `deploy:Override`, states another predicate, names no single
+    `arch:Environment`, shares its environment with another, binds a key
+    twice or changes a binding's `deploy:connectsTo` store raises
+    `ResolutionError(container, predicate)`; the shapes report the same
+    faults.
   - `DeploymentNode` has `hosts` and `environments`; `Environment` has
     `nodes`.
 - **`model.operations`** and **`model.channels`**:
@@ -504,6 +523,17 @@ seams.ModelGraph("examples/chat-app/chat-app.trig").store_health()
 seams.ModelGraph("examples/checkout.trig").store_health()
 # [StoreFinding(severity="Violation", subject=:order_api, predicate=deploy:connectsTo, message="cannot resolve ...")]
 ```
+
+`ModelGraph.replica_health()` reports the replica cap of
+[ADR-0015](/adr/0015-environments) in the same `StoreFinding` form, and the
+viewer's health panel shows it beside the store findings. Process instances
+and the live-update stream live in the serving process, so the compose
+generator runs one replica of a serving container until backlog A10. A
+serving container whose `deploy:replicas` is above 1 in some environment
+(under the override rule, or its shared count in a model with no
+environment) is a `Warning` with predicate `deploy:replicas` naming the
+declared counts; facts the override rule cannot resolve are a `Violation`.
+The chat app's `:chat_api` declares 3, so it gets the warning.
 
 ## Operation implementation
 

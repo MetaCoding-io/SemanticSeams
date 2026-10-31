@@ -246,7 +246,9 @@ PORT_MSG = "A deploy:port has exactly one integer deploy:containerPort in 1..655
 PUBLISHED_MSG = "deploy:publishedPort is at most one integer in 1..65535."
 MOUNT_MSG = "A deploy:volume has exactly one absolute deploy:mountPath."
 PROBE_MSG = "A deploy:healthcheck has exactly one string deploy:probe."
-BINDING_MSG = "A deploy:binding takes exactly one of deploy:value, deploy:secretRef or deploy:serviceOf."
+BINDING_MSG = (
+    "A deploy:binding takes exactly one of deploy:value, deploy:secretRef, deploy:secretFile or deploy:serviceOf."
+)
 SECRET_NAME_MSG = (
     "deploy:secretName names the platform secret for a deploy:secretRef binding; "
     "a binding with a secretName must carry a secretRef."

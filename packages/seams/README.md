@@ -35,6 +35,15 @@ sorted list of `StoreFinding` (`severity`, `subject`, `predicate`,
 `message`): a `Violation` for each resolution error, a `Warning` for a store
 container no shape is `seam:storedIn`, and an `Info` when the model declares
 no store and the runtime keeps embedded SQLite.
+`ModelGraph.replica_health()` adds the replica cap (ADR-0015, backlog A10): a
+`Warning` for a serving container that declares more than one
+`deploy:replicas` in some environment.
+
+`Container.for_environment(environment)` applies ADR-0015's override rule to
+a container's `deploy:override`s and returns a `Deployment` (`artifact`,
+`bindings`, `replicas`): an override replaces the shared artifact and replicas
+whole, merges bindings by `deploy:key`, and leaves everything it does not state
+shared. A malformed override raises `ResolutionError(container, predicate)`.
 
 `Operation.errors` lists the error statuses an operation declares (ADR-0013):
 each `hydra:possibleStatus` with a `comm:errorCode`, as a `Status` view

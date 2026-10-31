@@ -12,6 +12,9 @@ The same summary carries the storage health checks of ADR-0011
 (seams.ModelGraph.store_health()): a store the runtime cannot resolve is a
 violation, a declared store no shape is seam:storedIn is a warning, and a model
 that declares no store gets a note that the runtime keeps embedded SQLite.
+The replica cap of ADR-0015 (seams.ModelGraph.replica_health()) joins them: a
+serving container declaring more than one deploy:replicas is a warning, since
+the generator runs one until backlog A10.
 
 Results are cached per Dataset identity: the model is loaded once per process,
 so each dataset is validated at most once.
@@ -73,7 +76,8 @@ def _store_findings(ds: rdflib.Dataset) -> list[dict]:
     is passed). A failure of the check itself is reported as a violation
     rather than taking the page down."""
     try:
-        findings = seams.ModelGraph(ROOT / "viewer.trig", dataset=ds).store_health()
+        model = seams.ModelGraph(ROOT / "viewer.trig", dataset=ds)
+        findings = model.store_health() + model.replica_health()
     except Exception as err:
         return [
             {

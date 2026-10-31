@@ -33,7 +33,8 @@ deploy:Artifact a rdfs:Class ;
     rdfs:comment "A launchable unit: OCI image, package, VM template. Identified by reference + version." .
 
 deploy:artifact a rdf:Property ;
-    rdfs:domain arch:Container ; rdfs:range deploy:Artifact .
+    rdfs:range deploy:Artifact ;
+    rdfs:comment "On an arch:Container (shared) or a deploy:Override (one environment). No rdfs:domain: two would mean both, so shapes/seam-shapes.ttl states the allowed subjects (ADR-0015)." .
 
 deploy:reference a rdf:Property ;
     rdfs:domain deploy:Artifact ;
@@ -42,15 +43,35 @@ deploy:reference a rdf:Property ;
 deploy:version a rdf:Property ;
     rdfs:domain deploy:Artifact .
 
+deploy:Build a rdfs:Class ;
+    rdfs:label "Build" ;
+    rdfs:comment "How to build an artifact from source instead of pulling it: a deploy:context and a deploy:dockerfile (ADR-0015)." .
+
+deploy:build a rdf:Property ;
+    rdfs:label "build" ;
+    rdfs:domain deploy:Artifact ; rdfs:range deploy:Build ;
+    rdfs:comment "Build the artifact from source. Generator rule: an artifact with a build renders as compose 'build' with 'pull_policy: build', one without as a pulled 'image'." .
+
+deploy:context a rdf:Property ;
+    rdfs:label "context" ;
+    rdfs:domain deploy:Build ; rdfs:range xsd:string ;
+    rdfs:comment "The build context directory, relative to the model file's directory (like seam:renderPayload paths)." .
+
+deploy:dockerfile a rdf:Property ;
+    rdfs:label "dockerfile" ;
+    rdfs:domain deploy:Build ; rdfs:range xsd:string ;
+    rdfs:comment "The Dockerfile, relative to the build deploy:context, as in Docker." .
+
 deploy:Configuration a rdfs:Class ;
     rdfs:comment "A set of environment bindings for a container in an environment." .
 
 deploy:configuration a rdf:Property ;
-    rdfs:domain arch:Container ; rdfs:range deploy:Configuration .
+    rdfs:range deploy:Configuration ;
+    rdfs:comment "On an arch:Container (shared) or a deploy:Override (one environment, merged with the shared bindings by deploy:key). No rdfs:domain, as for deploy:artifact (ADR-0015)." .
 
 deploy:binding a rdf:Property ;
     rdfs:domain deploy:Configuration ;
-    rdfs:comment "A key/value pair (blank node with deploy:key, deploy:value or deploy:secretRef)." .
+    rdfs:comment "A key/value pair (blank node with deploy:key and one of deploy:value, deploy:secretRef, deploy:secretFile or deploy:serviceOf)." .
 
 deploy:key a rdf:Property .
 deploy:value a rdf:Property .
@@ -61,10 +82,38 @@ deploy:secretName a rdf:Property ;
     rdfs:label "secret name" ;
     rdfs:comment "Name of the secret in the target platform's secret store (e.g. a compose/swarm external secret), on a binding that carries a deploy:secretRef. The secret value never enters the graph; generators render the name as an external secret source." .
 
+deploy:secretFile a rdf:Property ;
+    rdfs:label "secret file" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "On a binding, instead of deploy:secretRef: the secret is read from this file, not from a platform secret store. The path is relative to the model file's directory; the file's contents never enter the graph. Generators render it as a file secret the host can repoint with <KEY>_FILE (ADR-0015)." .
+
 deploy:serviceOf a rdf:Property ;
     rdfs:label "service of" ;
     rdfs:range arch:Container ;
     rdfs:comment "Derived binding: the binding's value is the in-network URL of the referenced container, rendered as http://<service name>:<deploy:containerPort>. Use instead of a literal deploy:value so the URL follows the target's name and port." .
+
+#################################################################
+# Environments (ADR-0015)
+#################################################################
+
+deploy:Override a rdfs:Class ;
+    rdfs:label "Override" ;
+    rdfs:comment "An environment-scoped set of facts about one container: a qualified relation naming its deploy:environment and carrying replacement deploy:artifact, deploy:configuration or deploy:replicas facts. An override's artifact and replicas replace the shared ones whole; its bindings replace the shared binding with the same deploy:key or add one. Absent means shared, never unset (ADR-0015)." .
+
+deploy:override a rdf:Property ;
+    rdfs:label "override" ;
+    rdfs:domain arch:Container ; rdfs:range deploy:Override ;
+    rdfs:comment "A container's environment-scoped facts. At most one per environment (constraint in shapes/seam-shapes.ttl)." .
+
+deploy:environment a rdf:Property ;
+    rdfs:label "environment" ;
+    rdfs:domain deploy:Override ; rdfs:range arch:Environment ;
+    rdfs:comment "The arch:Environment an override's facts hold in." .
+
+deploy:proxies a rdf:Property ;
+    rdfs:label "proxies" ;
+    rdfs:domain arch:Container ; rdfs:range arch:Container ;
+    rdfs:comment "A code-free reverse proxy and its target: the container forwards every request to the referenced container's single deploy:port (ADR-0015)." .
 
 #################################################################
 # Network, storage, readiness
@@ -157,8 +206,8 @@ deploy:memory a rdf:Property ;
     rdfs:domain arch:Container ; rdfs:comment "Requested memory (e.g. '4Gi')." .
 
 deploy:replicas a rdf:Property ;
-    rdfs:domain arch:Container ; rdfs:range xsd:integer ;
-    rdfs:comment "Requested number of running INSTANCES of the container, not a node count." .
+    rdfs:range xsd:integer ;
+    rdfs:comment "Requested number of running INSTANCES of the container, not a node count. On an arch:Container (shared) or a deploy:Override (one environment); no rdfs:domain, as for deploy:artifact. Until backlog A10 the generator runs the serving container with one replica whatever this says (ADR-0015)." .
 
 deploy:dependsOn a rdf:Property ;
     rdfs:domain arch:Container ; rdfs:range arch:Container ;

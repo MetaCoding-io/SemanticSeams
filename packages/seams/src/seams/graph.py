@@ -205,7 +205,8 @@ STORE_FINDING_SEVERITIES = ("Violation", "Warning", "Info")
 
 @dataclass(frozen=True)
 class StoreFinding:
-    """One storage health finding (ADR-0011), from ``ModelGraph.store_health()``.
+    """One storage health finding (ADR-0011), from ``ModelGraph.store_health()``,
+    or a replica-cap finding (ADR-0015) from ``ModelGraph.replica_health()``.
 
     ``severity`` is a ``STORE_FINDING_SEVERITIES`` member: a Violation is a
     store the runtime cannot resolve (``subject``/``predicate`` name the
@@ -812,6 +813,41 @@ class ModelGraph(Model):
 
         order = {severity: i for i, severity in enumerate(STORE_FINDING_SEVERITIES)}
         return sorted(findings, key=lambda f: (order[f.severity], str(f.subject or "")))
+
+    def replica_health(self) -> list[StoreFinding]:
+        """The replica cap as model-health findings (ADR-0015, backlog A10).
+
+        Process instances and the live-update stream live in the serving
+        process, so one replica of a serving container works: the compose
+        generator caps it at 1. A Warning (predicate deploy:replicas) for each
+        serving container whose deploy:replicas is above 1 in some environment
+        under the override rule (or its shared count, in a model with no
+        environment), naming the declared counts. A Violation when the facts
+        cannot be resolved (as ``ResolutionError`` names them). Sorted by
+        subject. Never raises."""
+        findings: list[StoreFinding] = []
+        try:
+            environments = self.architecture.environments()
+            for c in self.architecture.serving_containers():
+                if environments:
+                    counts = {e.iri: c.for_environment(e).replicas for e in environments}
+                else:
+                    counts = {self.subject: c.replicas}
+                above = {str(where): n for where, n in counts.items() if n is not None and n > 1}
+                if above:
+                    declared = ", ".join(f"{n} in {where}" for where, n in sorted(above.items()))
+                    findings.append(
+                        StoreFinding(
+                            "Warning",
+                            c.iri,
+                            DEPLOY.replicas,
+                            f"{c.iri} declares deploy:replicas {declared}; the generator runs one replica of a "
+                            "serving container until backlog A10, because process state lives in the serving process",
+                        )
+                    )
+        except ResolutionError as err:
+            findings.append(StoreFinding("Violation", URIRef(err.subject), URIRef(err.predicate), str(err)))
+        return sorted(findings, key=lambda f: str(f.subject or ""))
 
     # ── IFML pages ──
 

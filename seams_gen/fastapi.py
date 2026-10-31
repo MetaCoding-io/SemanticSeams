@@ -221,18 +221,10 @@ class RoutesModel:
 
 
 def serving_containers(model: Model) -> Many[Container]:
-    """The arch:Containers that serve routes (D026): each one that
-    seam:executes a proc:Process or seam:exposes a hydra:Operation some
-    ifml:Event seam:submitsTo, by IRI. An operation only a task
-    seam:invokes (the chat app's :completion_op) does not make its container
-    serving."""
-    processes, operations = model.processes, model.operations
-    return model.architecture.containers().where(
-        lambda c: (
-            any(p in processes for p in c.executes)
-            or any(isinstance(e, Operation) and e in operations and e.submitted_by for e in c.exposes)
-        )
-    )
+    """The arch:Containers that serve routes (D026), by IRI:
+    ``model.architecture.serving_containers()``, which the replica-cap
+    health check shares."""
+    return model.architecture.serving_containers()
 
 
 def extract_routes(model: Model) -> RoutesModel:

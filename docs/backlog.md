@@ -170,7 +170,10 @@ Patterns *against the repository. Not yet scheduled.* M010 gave users the
 library and a generator guide; nothing yet registers their generators or packages the
 reference-first method G2 used. The kit items do that. The IDE items refine P2 item 13 (Editing), which
 stays a v1 non-goal until M008/S04 checks it again. K1 and K2 stand alone and are worth
-doing first: today a model can show *Conforms* in the viewer and still fail generation.
+doing first: today a model can show *Conforms* in the viewer and still fail generation. T1 to T5 come from the
+[generation trace note](research/2026-10-31-generation-trace.md): tracing each generated line back to its
+template and model, a view of it, and write-back in tiers. T1 to T3 need no editing, so
+they can ship while editing stays a v1 non-goal.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
@@ -185,6 +188,11 @@ doing first: today a model can show *Conforms* in the viewer and still fail gene
 | I3 | **Live checks and preview**: re-run the shapes and the generators in lenient mode after each save; show the generated page beside the model | M | I2, K3 | none | proposed |
 | I4 | **BPMN and DMN round-trip**: modelers in place of viewers, an ID rename that rewrites the seams graph (ADR-0002), a model-health check that lifted IRIs exist in the XML | M | I1 | none | proposed |
 | I5 | **Domain profiles**: a package of vocabulary, shapes, generators, palette and labels, attached by the reserved `seam:conformsTo`, restricting what the editor offers | L | ADR first, I2, K3 | extends `seam:Profile` | proposed |
+| T1 | **Trace capture**: template origins by sentinel render, model origins through Jinja2 `finalize` with origin-carrying values, a sidecar trace per output, A2 provenance derived from it, and a test comparing traces with golden markers. [Note](research/2026-10-31-generation-trace.md) | M | K3; A2 for storage | none | proposed |
+| T2 | **Logic out of templates**: move the 43 of 213 template expressions that filter, concatenate or branch into `extract`, goldens unchanged; value-level traces need it, and K5 recommends it | S | none | none | proposed |
+| T3 | **Generation view**: model, template and output panes joined by trace lines, a fan-out view, and a "Generated" section in the element inspector ([mockup](research/2026-10-31-generation-trace.md)) | M | T1 | none | proposed |
+| T4 | **Write-back of single-literal values**: edit a label, title or path in the output, apply a one-triple patch after regenerating reproduces the edit, and show effects beyond the page first | M | T1, I1 | none | proposed |
+| T5 | **Structural edit proposals**: drafted model patches accepted only when regeneration reproduces the edit; start with adding and removing form fields | M | T4 | none | proposed |
 
 ## Generation: what is planned, what is not
 

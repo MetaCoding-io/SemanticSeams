@@ -126,6 +126,9 @@ def test_short_message_runs_to_complete(make_store):
     assert [json.loads(f.split("data: ", 1)[1])["seq"] for f in tokens] == [0, 1, 2]
     assert frames[-1].startswith("event: stream.events\n")
     assert frames.index(frames[-1]) == len(tokens)
+    # D046: the deltas went to the channel invoke_llm itself seam:publishesTo
+    assert invoke["tokens"] == len(TOKENS)
+    assert invoke["streamed"] == {"channel": CHAT + "stream_events", "event": "token"}
 
     msgs = rt.query(":MessageShape", conversation="c1")
     assert [(m["data"]["role"], m["data"]["content"]) for m in msgs] == [
@@ -161,6 +164,47 @@ def test_base_url_comes_from_the_deploy_binding_env_var(make_store, monkeypatch)
 
     assert asyncio.run(main())["status"] == "complete"
     assert llm.requests[0][0] == "http://from-env.test/v1/chat/completions"
+
+
+def _without_delta_publish(tmp_path) -> Path:
+    """A copy of the chat app with ``invoke_llm seam:publishesTo
+    :stream_events`` removed (BPMN/DMN copied beside it)."""
+    src = TRIG.parent
+    for name in ("chat_process.bpmn", "routing.dmn"):
+        (tmp_path / name).write_bytes((src / name).read_bytes())
+    text = TRIG.read_text()
+    line = "        seam:publishesTo :stream_events ;\n"
+    head, sep, tail = text.partition("    <https://example.org/chat/chat_bpmn#invoke_llm>\n        seam:invokes")
+    assert sep and tail.count(line) >= 1
+    trig = tmp_path / "chat-app.trig"
+    trig.write_text(head + sep + tail.replace(line, "", 1))
+    return trig
+
+
+def test_undeclared_delta_stream_publishes_no_tokens(make_store, tmp_path):
+    """D046: with no seam:publishesTo on invoke_llm, the reply is still
+    streamed and assembled, but no delta reaches any channel."""
+    trig = _without_delta_publish(tmp_path)
+    llm = FakeLLM()
+    rt = Runtime.load(trig, store=make_store(), llm_transport=llm.transport, llm_base_url="http://llm-gateway.test")
+    assert rt.model.published_channel("invoke_llm") is None
+
+    async def main():
+        sub = rt.subscribe(":stream_events", "c1")
+        result = await (await rt.start_process(PROCESS, SHORT, correlation_key="c1")).wait()
+        frames = await _frames(sub, "stream.events")
+        return result, frames
+
+    result, frames = asyncio.run(main())
+    assert result["status"] == "complete", result["error"]
+    assert not [f for f in frames if f.startswith("event: token\n")]
+    assert len(frames) == 1 and frames[0].startswith("event: stream.events\n")
+    invoke = _row(result, "invoke_llm")
+    assert invoke["tokens"] == len(TOKENS)
+    assert "streamed" not in invoke
+    (_, reply) = rt.query(":MessageShape", conversation="c1")
+    assert reply["data"] == {**reply["data"], "role": "assistant", "content": "".join(TOKENS)}
+    assert reply["status"] == "complete"
 
 
 # ── negative paths ───────────────────────────────────────────────────────────

@@ -187,8 +187,9 @@ The worker (`worker.py`) applies these rules to each BPMN element:
 3. `seam:invokes op`: when the container that `seam:exposes` op also `seam:executes` the
    process, the call is in-process and needs no remote call. Any other container gets an
    OpenAI-compatible streaming POST to op's `comm:path`. Each delta is published on the
-   process's `seam:publishesTo` channel, with the correlation key as scope and the
-   `comm:eventName` as event name. The assembled reply is validated against
+   channel the invoking task itself `seam:publishesTo` (none if it declares none; D046),
+   with the correlation key as scope and the `comm:eventName` as event name, and the trace
+   row records `streamed: {channel, event}` beside `tokens`. The assembled reply is validated against
    `seam:returnsShape`. The request `model` is the most recent decision's single output.
 4. `seam:writes Shape`: persists the current entity of that shape.
 5. After dispatch: the fired transition is applied and its status is persisted.

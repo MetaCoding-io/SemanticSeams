@@ -17,8 +17,10 @@ is completed) and applies these rules to each BPMN element, in this order:
    in-process and needs no remote call (its ``seam:acceptsShape`` was
    validated when the process started). Any other container gets a streaming
    OpenAI-compatible call to op's ``comm:path``. Each delta is published on
-   the process's ``seam:publishesTo`` channel, scoped by the correlation key
-   and named by its ``comm:eventName``. The assembled reply
+   the channel the invoking task itself ``seam:publishesTo`` (none if it
+   declares none; D046), scoped by the correlation key and named by its
+   ``comm:eventName``; the trace row then records ``streamed`` as
+   ``{channel, event}`` beside ``tokens``. The assembled reply
    ``{role: "assistant", content}`` is validated against op's
    ``seam:returnsShape`` and becomes the current entity of that shape.
    The request's ``model`` is the value of the most recent decision when it
@@ -32,12 +34,15 @@ is completed) and applies these rules to each BPMN element, in this order:
    entity of that shape the instance has written.
 6. ``seam:publishesTo`` a comm:Channel from a message throw event: publish a
    completion event named after the channel's ``rdfs:label`` (gaps.md GAP-26).
+   A service task's ``seam:publishesTo`` carries its invoke deltas (rule 3)
+   and publishes no completion event.
    Then ``on_published`` (set by Runtime) starts every channel-started process
    subscribed to that channel (ADR-0010); the trace row records them under
    ``started`` as ``[{process, instance}]``.
 7. Any exception while dispatching: apply ``LifecycleGuard.on_error`` for
    each tracked status that has an "error" exit (status becomes "failed"),
-   record the error as JSON, close the channel scope and mark the instance
+   record the error as JSON, close the correlation key's scope on every
+   channel an element of the process ``seam:publishesTo`` and mark the instance
    failed. The error is not re-raised; ``Instance.wait()`` returns it. When
    Spiff wrapped a model error (a ``ResolutionError`` raised inside a
    business-rule task becomes a ``WorkflowTaskException``), the model error
@@ -239,7 +244,7 @@ class Worker:
         invoked = element.invokes
         op = None if invoked is None else invoked.iri
         if op is not None:
-            await self._invoke(instance, op, row)
+            await self._invoke(instance, iri, op, row)
 
         # 4. writes
         for written in self.model.written_shapes(iri):
@@ -277,7 +282,7 @@ class Worker:
                 return cur["data"]
         return None
 
-    async def _invoke(self, instance: Instance, op, row: dict) -> None:
+    async def _invoke(self, instance: Instance, iri, op, row: dict) -> None:
         st = instance.state
         container = self.model.implementing_container(op, instance.process)
         row.update(invokes=str(op), container=str(container.iri), in_process=container.in_process)
@@ -304,20 +309,24 @@ class Worker:
         else:
             executor = self.model.executing_container(instance.process)
             base = self.llm.resolve_base_url(self.model.service_binding_key(executor.iri, container.iri))
-        channel = self.model.process_channel(instance.process)
+        # only the channel this task itself seam:publishesTo carries its deltas (D046)
+        channel = self.model.published_channel(iri)
         parts: list[str] = []
         async for delta in self.llm.stream_completion(path, messages, model_name, base_url=base):
-            self.bus.publish(
-                channel.iri,
-                instance.correlation_key,
-                channel.event_name,
-                {"instance": instance.id, "seq": len(parts), "content": delta},
-            )
+            if channel is not None:
+                self.bus.publish(
+                    channel.iri,
+                    instance.correlation_key,
+                    channel.event_name,
+                    {"instance": instance.id, "seq": len(parts), "content": delta},
+                )
             parts.append(delta)
         returns = self.model.returned_shape(op)
         reply = validate(self.model, returns, {"role": "assistant", "content": "".join(parts)}, operation=op)
         st["current"][str(returns)] = {"id": None, "data": reply}
         row["tokens"] = len(parts)
+        if channel is not None:
+            row["streamed"] = {"channel": str(channel.iri), "event": channel.event_name}
 
     # ── entities and statuses ──
 
@@ -399,8 +408,8 @@ class Worker:
             except Exception:  # noqa: BLE001 - keep failing closed; the original error is recorded
                 log.exception("instance %s: on_error for %s failed", instance.id, shape)
         try:
-            ch = self.model.process_channel(instance.process)
-            self.bus.close(ch.iri, instance.correlation_key)
+            for ch in self.model.published_channels(instance.process):
+                self.bus.close(ch.iri, instance.correlation_key)
         except ResolutionError:
             pass
         try:

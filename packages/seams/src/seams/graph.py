@@ -538,21 +538,6 @@ class ModelGraph(Model):
             raise ResolutionError(op.iri, SEAM.returnsShape, "operation returns no shape")
         return shape.iri
 
-    def process_channel(self, process: object) -> ChannelBinding:
-        """The comm:Channel that elements of the process's BPMN model
-        seam:publishesTo (there must be exactly one)."""
-        facts = self.process_for(process)
-        typed = self.channels
-        found = {ch.iri: ch for el in self._process(facts.iri).elements() for ch in el.publishes_to if ch in typed}
-        channels = [found[i] for i in sorted(found)]
-        if len(channels) != 1:
-            raise ResolutionError(
-                facts.iri,
-                SEAM.publishesTo,
-                f"expected one channel published to by {facts.model}#*, found {[str(c.iri) for c in channels]}",
-            )
-        return self._channel(channels[0], facts.iri)
-
     def service_binding_key(self, container: object, service_of: object) -> str:
         """The deploy:key of ``container``'s deploy:binding whose
         deploy:serviceOf is ``service_of`` (e.g. LLM_GATEWAY_URL)."""

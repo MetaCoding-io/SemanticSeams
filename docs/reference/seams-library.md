@@ -384,6 +384,12 @@ seams.question_names()  # ["c4-l1-rollup", "impact-of-node", …]
   `seams.question_names()` lists them and `seams.load_question(name)`
   returns the text. An unknown name raises `KeyError` listing the
   available ones; a name is never turned into a path unchecked.
+- The coverage queries in `docs/queries/coverage/` load by folder-qualified
+  name: `model.question("coverage/unfired-transitions")` and
+  `model.question("coverage/policies-without-deny")`, each returning no rows
+  when the model is covered. `seams.question_names("coverage")` lists them;
+  `seams.question_names()` with no folder still lists only the top-level
+  questions. Any folder other than `coverage` raises `KeyError`.
 
 ## The model hash
 

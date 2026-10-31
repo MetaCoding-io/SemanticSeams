@@ -50,3 +50,19 @@ every row as a problem (see [the CLI reference](../reference/seams-cli.md#seams-
 `gates/ungoverned-writes.rq` lists each UI event that can write a data shape with no policy
 governing it; the chat app and expense chapters 7 and 8 run it. Like `complexity/`, the
 gates are kept off the query reference page. `tests/test_gate_queries.py` checks their rows.
+
+`coverage/` holds coverage queries (decision D054): SELECT queries that list the parts of a
+model no test exercises. Like a gate, each returns no rows when the model is covered, so a
+project can list it under `gates`.
+`coverage/unfired-transitions.rq` lists each `state:Transition` that no element `seam:fires`,
+with the lifecycle it is `seam:inModel`. `coverage/policies-without-deny.rq` lists each
+`odrl:permission` the `tests` generator writes no party deny test for: anyone may use it (it
+has no `odrl:assignee`, or its assignee is an `odrl:PartyCollection`), or no `odrl:Party` in
+the model is outside its assignee. Bind `?lifecycle` or `?policy` to check one element. The
+`seams` library bundles them as package data and loads them by folder-qualified name:
+`model.question("coverage/unfired-transitions")`, with `seams.question_names("coverage")`
+listing them. `question_names()` with no folder still returns only the top-level questions, so
+coverage stays off the query reference page. `tests/test_coverage_queries.py` checks their
+rows (none on expense chapter 9; the chat app's two failure transitions and its
+party-collection send policy), that the deny query matches what the generator emits, and that
+the bundled copies are byte-identical to these files.

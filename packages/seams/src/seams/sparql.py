@@ -4,7 +4,9 @@
 pre-declared, so a query needs no PREFIX lines for the seams vocabularies.
 ``question_names`` and ``load_question`` read the canned questions bundled
 as package data in ``seams/queries`` (byte-identical copies of
-``docs/queries/*.rq``; ``tests/test_seams_query.py`` guards the drift).
+``docs/queries/*.rq``; ``tests/test_seams_query.py`` guards the drift). The
+questions in a subfolder listed in ``QUESTION_FOLDERS`` load as
+``"<folder>/<name>"`` (``tests/test_coverage_queries.py`` guards those).
 ``Model.sparql`` and ``Model.question`` wrap these and return rows.
 """
 
@@ -47,7 +49,11 @@ PREFIXES: dict[str, Namespace] = {
 #: A row: variable name -> bound term. Unbound variables are absent.
 Row = dict[str, Node]
 
-_NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
+#: Subfolders of ``seams/queries`` whose questions load as "<folder>/<name>".
+QUESTION_FOLDERS = ("coverage",)
+
+_STEM = r"[a-z0-9][a-z0-9-]*"
+_NAME = re.compile(rf"(?:(?:{'|'.join(QUESTION_FOLDERS)})/)?{_STEM}")
 _PROLOGUE = re.compile(r"\s*(?:#[^\n]*|(?i:PREFIX)\s+[\w.-]*:\s*<[^>]*>|(?i:BASE)\s*<[^>]*>)")
 _UPDATES = {"INSERT", "DELETE", "LOAD", "CLEAR", "DROP", "CREATE", "ADD", "MOVE", "COPY", "WITH"}
 
@@ -117,16 +123,29 @@ def rows(model: Model, query: str, /, **bindings: Any) -> list[Row]:
     return out
 
 
-def question_names() -> list[str]:
-    """The bundled canned questions, by name (the .rq file stem), sorted."""
-    folder = resources.files("seams") / "queries"
-    return sorted(p.name[:-3] for p in folder.iterdir() if p.is_file() and p.name.endswith(".rq"))
+def question_names(folder: str | None = None) -> list[str]:
+    """The bundled canned questions, by name (the .rq file stem), sorted.
+
+    With no ``folder``, the top-level questions. With a ``folder`` from
+    ``QUESTION_FOLDERS``, that folder's questions as "<folder>/<name>"; any
+    other folder raises KeyError."""
+    root = resources.files("seams") / "queries"
+    if folder is None:
+        return sorted(p.name[:-3] for p in root.iterdir() if p.is_file() and p.name.endswith(".rq"))
+    if folder not in QUESTION_FOLDERS:
+        raise KeyError(f"unknown question folder {folder!r}; available: {', '.join(QUESTION_FOLDERS)}")
+    sub = root / folder
+    return sorted(f"{folder}/{p.name[:-3]}" for p in sub.iterdir() if p.is_file() and p.name.endswith(".rq"))
 
 
 def load_question(name: str) -> str:
-    """The SPARQL text of a bundled question. An unknown or malformed name
-    raises KeyError before any path is built from it."""
-    available = question_names()
+    """The SPARQL text of a bundled question: a top-level name, or
+    "<folder>/<name>" for a folder in ``QUESTION_FOLDERS``. An unknown or
+    malformed name raises KeyError before any path is built from it."""
+    folder, _, stem = name.rpartition("/")
+    known = folder in QUESTION_FOLDERS
+    available = question_names(folder) if known else question_names()
     if not _NAME.fullmatch(name) or name not in available:
         raise KeyError(f"unknown question {name!r}; available: {', '.join(available)}")
-    return (resources.files("seams") / "queries" / f"{name}.rq").read_text(encoding="utf-8")
+    root = resources.files("seams") / "queries"
+    return ((root / folder if folder else root) / f"{stem}.rq").read_text(encoding="utf-8")

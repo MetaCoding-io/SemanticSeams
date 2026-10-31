@@ -38,6 +38,7 @@ const decisions = [
   ["0009", "Human tasks", "0009-human-tasks"],
   ["0010", "Channel-started processes", "0010-channel-started-processes"],
   ["0011", "Storage resolution", "0011-storage-resolution"],
+  ["0012", "Operation implementation", "0012-operation-implementation"],
 ] as const;
 
 export default defineConfig({

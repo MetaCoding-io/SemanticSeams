@@ -121,7 +121,8 @@ and explains everything else on the page.
   it with Docker Compose.
 - [The seams CLI](/reference/seams-cli): `seams generate` regenerates a project's outputs and
   `seams check` confirms they are current, in CI and as a pre-commit hook; `seams status`
-  checks that a running stack's containers are on the current model.
+  checks that a running stack's containers are on the current model; `seams sequence`
+  derives an event's sequence diagrams from the model.
 - [Build an expense approval app](/tutorials/expenses/): write a model yourself, one layer
   per chapter, from an empty file to the whole system under `docker compose up`.
 - [Using the viewer](/guide/the-viewer): what each part of the page does, and the URLs

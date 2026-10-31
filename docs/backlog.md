@@ -298,7 +298,12 @@ UI work must not eat M3.*
      M012 landed.*
    - **M013, Derived Sequence Diagrams** (U3, U1, U4): the declared delta stream, the
      as-designed deriver, viewer and docs embedding, and the as-executed sequence with
-     OpenTelemetry spans. Depends on M010 and M011.
+     OpenTelemetry spans. Depends on M010 and M011. *U3 done, M013/S01: `invoke_llm`
+     declares `seam:publishesTo :stream_events`, and the runtime publishes deltas only on
+     declared channels. U1 done, M013/S02: `seams sequence <event>` and
+     `python -m seams_gen.sequence` derive one Mermaid diagram per exclusive-gateway path,
+     with a `%% gap:` line for every arrow the model cannot place; the goldens are in
+     `docs/generation/sequences/`.*
    - **M014, Hand-Written Code and Failure Paths** (U6, U7): an ADR and runtime dispatch for
      operation implementations, a hand-written service task in the expense example, error
      shapes and error boundary events. Depends on M010 and M012, because hand-written code
@@ -310,6 +315,6 @@ UI work must not eat M3.*
      per environment, image build and publish, and a secrets checklist. Depends on M011 and
      M012.
 
-   The `seams` command (`generate`, `check`, `status` and the later subcommands) lives in its
+   The `seams` command (`generate`, `check`, `status`, `sequence` and the later subcommands) lives in its
    own workspace package, so the library keeps only rdflib and lxml as dependencies (D030).
    M008 runs after M016 (D032).

@@ -448,11 +448,11 @@ class Caller:
 
 @dataclass(frozen=True)
 class Check:
-    """A smoke call's verdict: ``ok``, and a ``message`` naming the method,
+    """A smoke call's verdict: ``ok``, and a ``detail`` naming the method,
     URL and status, with pyshacl's report when the body does not conform."""
 
     ok: bool
-    message: str
+    detail: str
 
 
 def smoke_caller(env: dict[str, str] | None = None) -> Caller | None:

@@ -68,5 +68,5 @@ def [[ p.name ]](caller, model):
     if reason:
         pytest.skip(reason)
     check = smoke(model, [[ p.constant ]], caller)
-    assert check.ok, check.message
+    assert check.ok, check.detail
 [% endfor %]

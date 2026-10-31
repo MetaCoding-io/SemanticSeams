@@ -27,6 +27,13 @@ out = "."
 name = "tests"
 out = "generated/tests"
 
+# One pytest per hydra:Operation that calls it on its declared path and checks
+# the answer against seam:returnsShape. The tests skip unless
+# SEAMS_SMOKE_BASE_URL names a running stack (tests/test_expense_e2e.py).
+[[generators]]
+name = "smoke"
+out = "generated/smoke"
+
 [environments.prod]
 
 # The local `docker compose up` stack. The Caddy UI container (employee_portal) on

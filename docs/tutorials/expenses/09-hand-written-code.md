@@ -518,6 +518,26 @@ make Notify Manager fail, so the escalation paths stay uncovered; the reject and
 paths are scenarios you could add. Chapter 9's `seams.toml` leaves the coverage gates
 off for that reason (see [seams coverage](/reference/seams-cli#seams-coverage)).
 
+### Smoke tests against the running stack
+
+The tests above run the model in process. The `smoke` generator checks the deployed
+app instead. It writes `test_smoke.py`, with one test per `hydra:Operation`. Each test calls
+the operation on its `comm:path` and checks the answer against the
+`seam:returnsShape` of the status it got. Add it to `seams.toml` (`name = "smoke"`,
+`out = "generated/smoke"`), run `seams generate`, start the docker compose stack above,
+then call it as the employee:
+
+```sh
+SEAMS_SMOKE_BASE_URL=http://localhost:8080 SEAMS_SMOKE_USER=alice SEAMS_SMOKE_GROUPS=employee pytest -rs examples/expenses/chapter-09/generated/smoke
+```
+
+The three list pages answer. The six operations on `/expenses/{expense}` are skipped,
+because `:expense_train` has no `:id` to fill the path. Once an example fills it, an
+operation whose policy refuses the identity is skipped too, and the reason names that
+policy, for example `:manager_approval_policy`. Without
+`SEAMS_SMOKE_BASE_URL` every test is skipped. `tests/test_expense_e2e.py` runs these tests
+against the stack in CI's `tutorial-e2e` job.
+
 ## Checkpoint
 
 Your files should now match

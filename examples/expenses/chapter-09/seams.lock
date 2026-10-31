@@ -39,6 +39,35 @@
       ]
     },
     {
+      "generator": "smoke",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",
+      "path": "generated/smoke/test_smoke.py",
+      "sha256": "b2e363dc2fa82cdf19425c0c111f5809c12b906b18a47e26db23057bda049180",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/awaiting_approval_op",
+        "https://example.org/expenses/employee",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/expense_train",
+        "https://example.org/expenses/finance",
+        "https://example.org/expenses/finance_approval_policy",
+        "https://example.org/expenses/finance_approve_expense_op",
+        "https://example.org/expenses/finance_payment_policy",
+        "https://example.org/expenses/list_expenses_op",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/manager",
+        "https://example.org/expenses/manager_approval_policy",
+        "https://example.org/expenses/paid_expenses_op",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/submit_expense_op"
+      ]
+    },
+    {
       "generator": "htmx",
       "generator_version": "0.1.0",
       "model_hash": "sha256:91783424a2b1e13c94594de1e39636ba82044b1f8feb7f353b0c381cd67a46e1",

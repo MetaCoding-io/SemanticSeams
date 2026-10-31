@@ -147,7 +147,7 @@ the model.
 | A6 | **`seams status`**: read each container's `/healthz` and compare its model hash with the current model | S | A1 | none | done (M012/S04): `seams status [--env]` reads each runtime container's `/healthz` from the endpoints in `seams.toml` and reports it current, behind, ahead or unreachable against the current model, ordering past hashes by the `seams.lock` git history; the chat app and expense chapter 8 declare a `local` environment |
 | A7 | **Change plans and release notes** from model diffs, for review, changelogs and pre-deploy plans | M | U8 | none | done (M015/S02): `seams plan OLD NEW` writes a Markdown change plan (breaking and compatible changes, then elements added and removed per layer) between model paths or git `REF:PATH` specs; the `seams-plan` action posts it to the job summary on pull requests that change a model |
 | A8 | **Secrets and configuration checklist** per environment, checking existence without reading values, plus an example `.env` | S | A4 | none | planned (M016/S04) |
-| A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | planned (M015/S05) |
+| A9 | **Generated smoke tests**: every operation answers on its path and its response validates against `seam:returnsShape` | S | none | none | done (M015/S05): the `smoke` generator writes one pytest per `hydra:Operation` that calls it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` and validates the answer against `seam:returnsShape`, skipping operations whose policy refuses the identity; CI's `tutorial-e2e` job runs chapter 9's against the compose stack |
 
 A1 to A3 belong together and make the generators usable outside this repository. A4 to
 A6 make deployment work end to end.
@@ -382,7 +382,9 @@ UI work must not eat M3.*
      `tests` generator derives scenario, decision, shape-example and per-role policy tests
      that CI runs. U5 done, M015/S04: coverage reports (`seams coverage`, `seams check` gates and
      viewer Questions) list the BPMN paths no scenario runs, the transitions nothing fires and the
-     permissions without a deny test.*
+     permissions without a deny test. A9 done, M015/S05: the `smoke` generator writes tests that call
+     every operation on its path and validate the answer against `seam:returnsShape`, and the
+     `tutorial-e2e` job runs chapter 9's against the compose stack. All four M015 items are done.*
    - **M016, Deploy from the Model** (A4, A5, A8): an ADR on environments, one compose file
      per environment, image build and publish, and a secrets checklist. Depends on M011 and
      M012.

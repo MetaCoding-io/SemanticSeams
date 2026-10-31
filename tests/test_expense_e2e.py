@@ -13,13 +13,16 @@ the hand-written notify handler (chapter 9, ADR-0012) stores a notification
 for the manager, the manager approves through the generated form route, finance pays, and the
 channel-started payout process (ADR-0010) runs on its own until the finance
 console's /payouts page shows the payment in its final state and the expense
-paid. On any failure the module prints ``docker compose logs``; teardown
+paid. The smoke generator's tests (generated/smoke, M015/S05) then call every
+operation on its declared path against the same stack. On any failure the
+module prints ``docker compose logs``; teardown
 always runs ``docker compose down -v`` and checks no container is left.
 """
 
 import os
 import shutil
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -30,6 +33,8 @@ from seams_cli.__main__ import main as seams_main
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "examples" / "expenses" / "chapter-09"
+SMOKE = APP / "generated" / "smoke"
+SMOKE_TIMEOUT = 120
 FILES = ["-f", str(APP / "compose.yaml"), "-f", str(APP / "compose.override.yaml")]
 PROJECT = "seams-expenses"
 BASE = "http://localhost:8080"
@@ -219,3 +224,30 @@ def test_submit_without_an_identity_is_unauthorised(stack):
     r = stack.post(f"/expenses/anon-{uuid.uuid4().hex[:8]}", data={**EXPENSE, "amount": "250.00"})
     assert r.status_code == 401, r.text
     assert r.json()["detail"]["type"] == "PolicyDenied"
+
+
+def test_generated_smoke_tests_pass_against_the_stack(stack):
+    """The smoke generator's tests call each operation on its comm:path through
+    Caddy as alice (an employee) and check every answer against its
+    seam:returnsShape. SEAMS_E2E=1 is inherited, so an unset base URL fails
+    rather than skips; operations the employee may not call skip by policy."""
+    env = {
+        **os.environ,
+        "SEAMS_SMOKE_BASE_URL": BASE,
+        "SEAMS_SMOKE_USER": "alice",
+        "SEAMS_SMOKE_GROUPS": "employee",
+    }
+    try:
+        run = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-rs", "-p", "no:cacheprovider", str(SMOKE)],
+            cwd=ROOT,
+            env=env,
+            timeout=SMOKE_TIMEOUT,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"the smoke tests did not finish within {SMOKE_TIMEOUT}s:\n{exc.stdout}\n{exc.stderr}")
+    output = f"{run.stdout}\n{run.stderr}"
+    assert run.returncode == 0, f"pytest {SMOKE.relative_to(ROOT)} exited {run.returncode}:\n{output}"
+    assert " passed" in run.stdout, f"no smoke test ran:\n{output}"

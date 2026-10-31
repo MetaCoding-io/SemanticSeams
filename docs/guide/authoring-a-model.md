@@ -334,6 +334,12 @@ decision's inputs. Chapter 9 of the expense tutorial,
 [Say what it should do](/tutorials/expenses/09-hand-written-code#say-what-it-should-do),
 adds three scenarios, five decision examples and a pair of shape examples.
 
+The `smoke` generator (backlog A9) uses the same examples against a running app: it
+writes one test per `hydra:Operation`, filling the path and body from the first
+`verify:validExample` of the operation's shapes, and checks the answer against
+`seam:returnsShape`. An operation with no example to fill it with is skipped, so give
+each accepted shape a valid example.
+
 To get the tests, list the generator in the app's `seams.toml` and run
 `seams generate`:
 

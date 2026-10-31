@@ -95,7 +95,10 @@ deny test, and exits 1 on any; `coverage = ["paths"]` in `seams.toml` and the
 `docs/queries/coverage/` gates make `seams check` fail on them. The `tests` generator turns the
 model's `verify:` scenarios, decision examples and shape examples, and every ODRL
 permission per party, into pytest files under `generated/tests`
-([ADR-0014](docs/adr/0014-scenarios-and-derived-tests.md)). The
+([ADR-0014](docs/adr/0014-scenarios-and-derived-tests.md)). The `smoke` generator writes one
+pytest per operation that calls it on its path against a running app (`SEAMS_SMOKE_BASE_URL`)
+and checks the answer against `seam:returnsShape`; CI's `tutorial-e2e` job runs chapter 9's
+against the compose stack. The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

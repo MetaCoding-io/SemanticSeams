@@ -17,6 +17,8 @@ hash it was generated from.
 | `templates/approve_form.html` | `htmx`: the task form partial the `GET /tasks` inbox renders for `approve_expense` |
 | `templates/finance_approve_form.html` | `htmx`: the task form partial the inbox renders for `finance_approve_expense` |
 | `templates/payment_form.html` | `htmx`: the task form partial the inbox renders for `pay_expense` |
+| `tests/test_scenarios.py`, `tests/test_decisions.py`, `tests/test_shape_examples.py`, `tests/test_policies.py` | `tests`: pytest files for the `verify:` scenarios and examples and the allow/deny test for each ODRL permission and party (ADR-0014) |
+| `smoke/test_smoke.py` | `smoke`: one test per `hydra:Operation`, calling it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` and checking the answer against `seam:returnsShape`; skipped when the variable is unset |
 
 Regenerate from the repository root:
 
@@ -24,7 +26,7 @@ Regenerate from the repository root:
 seams generate --project examples/expenses/chapter-09
 ```
 
-It runs the three generators [`../seams.toml`](../seams.toml) names, writing each output
+It runs the generators [`../seams.toml`](../seams.toml) names, writing each output
 above and the chapter's `../compose.yaml`
 (reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 

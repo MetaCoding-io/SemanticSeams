@@ -134,11 +134,11 @@ def test_the_generated_probes_pass_against_the_app(filled, tmp_path, monkeypatch
     with serve_directory(filled, tmp_path, monkeypatch) as (client, _):
         for probe in (module.SUBMIT_EXPENSE_OP, module.LIST_EXPENSES_OP, module.LIST_PAYMENTS_OP):
             check = smoke(graph, probe, EMPLOYEE, client=client)
-            assert check.ok, check.message
+            assert check.ok, check.detail
         denied = smoke(graph, module.SUBMIT_EXPENSE_OP, MANAGER, client=client)
     assert not denied.ok
-    assert "POST http://testserver/expenses/e-1 as manager" in denied.message
-    assert "answered 403" in denied.message
+    assert "POST http://testserver/expenses/e-1 as manager" in denied.detail
+    assert "answered 403" in denied.detail
 
 
 def _run(path, **env):
@@ -233,9 +233,9 @@ def _client(status, body=None, content_type="application/json", error=None):
 )
 def test_smoke_checks_status_and_body(model, client, ok, says):
     check = smoke(model, JSON_PROBE, EMPLOYEE, client=client)
-    assert check.ok is ok, check.message
-    assert check.message.startswith("GET http://testserver/things as employee (groups: employee)")
-    assert says in check.message
+    assert check.ok is ok, check.detail
+    assert check.detail.startswith("GET http://testserver/things as employee (groups: employee)")
+    assert says in check.detail
 
 
 def test_a_fragment_is_checked_by_status_only(model):

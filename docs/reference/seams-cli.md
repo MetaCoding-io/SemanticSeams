@@ -299,6 +299,7 @@ The generator names are the `python -m seams_gen` subcommands. The
 | `htmx` | the Jinja2/htmx page templates and their partials |
 | `compose` | `compose.yaml`, with bind-mount sources relative to `out` |
 | `tests` | `test_scenarios.py`, `test_decisions.py`, `test_shape_examples.py` and `test_policies.py`, pytest files for the model's `verify:` scenarios and examples and allow/deny tests for each ODRL permission and party ([ADR-0014](/adr/0014-scenarios-and-derived-tests)) |
+| `smoke` | `test_smoke.py`, one pytest per `hydra:Operation` that calls it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` as `SEAMS_SMOKE_USER`/`SEAMS_SMOKE_GROUPS` and checks the answer against `seam:returnsShape`; skipped without a base URL, or when a governing policy refuses the identity |
 
 `python -m seams_gen <generator> <model> --out <dir>` still runs a single
 generator without a project file.

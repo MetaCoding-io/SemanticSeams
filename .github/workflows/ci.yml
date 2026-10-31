@@ -89,6 +89,8 @@ jobs:
 
   # docs/tutorial.md end to end: build and start the compose stack (gateway in
   # stub mode), chat through the generated page and routes, then tear it down.
+  # test_expense_e2e.py does the same for the expense app (chapter 9) and also runs
+  # its generated smoke tests (generated/smoke) against the live stack.
   tutorial-e2e:
     runs-on: ubuntu-latest
     steps:

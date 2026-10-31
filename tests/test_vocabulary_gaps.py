@@ -375,21 +375,48 @@ def test_gap_15_channel_transport(chat_model):
     )
     comm = rdflib.Namespace("https://w3id.org/seams/comm#")
     assert rows == {(CHAT.stream_events, comm.SSE, lit("token"), lit("/conversations/{conversation}/stream"))}
-    # Token-event rule (comm.ttl): a service task whose invoked operation is
-    # exposed by another container than the process's executor streams onto the
-    # channel the same process's throw event publishes to.
+    # Token events are declared (D046): the invoking service task itself
+    # seam:publishesTo the channel, beside the throw event that ends the stream.
     streamed = select(
         chat_model,
         """SELECT ?task ?ch WHERE {
-               ?exec seam:executes ?proc . ?proc seam:detailedBy ?m .
-               ?task a proc:ServiceTask ; seam:invokes ?op ; seam:inModel ?m .
-               ?other seam:exposes ?op FILTER(?other != ?exec)
-               ?throw a proc:MessageThrowEvent ; seam:publishesTo ?ch ; seam:inModel ?m .
+               ?task a proc:ServiceTask ; seam:invokes ?op ; seam:publishesTo ?ch .
+               ?ch a comm:Channel .
            }""",
     )
     bpmn = rdflib.Namespace("https://example.org/chat/chat_bpmn#")
-    # persist_user_msg invokes :chat_api's own :send_message_op, so it does not stream.
+    # persist_user_msg invokes :send_message_op but declares no channel, so it does not stream.
     assert streamed == {(bpmn.invoke_llm, CHAT.stream_events)}
+
+
+PUBLISHES_TO_MSG = "Only a proc:MessageThrowEvent or a proc:ServiceTask seam:publishesTo a channel (D046)."
+PUB_PREFIXES = """
+@prefix :      <https://example.org/bad/> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
+@prefix proc:  <https://w3id.org/seams/proc#> .
+@prefix seam:  <https://w3id.org/seams/seam#> .
+:ch a comm:Channel .
+"""
+
+
+@pytest.mark.parametrize(
+    "facts, messages",
+    [
+        (":t a proc:ServiceTask ; seam:publishesTo :ch .", set()),
+        (":e a proc:MessageThrowEvent ; seam:publishesTo :ch .", set()),
+        (":t a proc:UserTask ; seam:publishesTo :ch .", {PUBLISHES_TO_MSG}),
+        (":t seam:publishesTo :ch .", {PUBLISHES_TO_MSG}),
+    ],
+    ids=["service-task", "throw-event", "user-task", "untyped-element"],
+)
+def test_publishes_to_subject_is_throw_event_or_service_task(facts, messages):
+    """D046: seam:publishesTo's subject is a message throw event or a service
+    task (the delta publisher); anything else fails conformance."""
+    data = rdflib.Graph()
+    for path in ONTOLOGY_FILES:
+        data.parse(path, format="turtle")
+    data.parse(data=f"{PUB_PREFIXES}\n{facts}", format="turtle")
+    assert shacl_messages(data) == messages
 
 
 def test_gap_18_request_encoding(chat_model):

@@ -46,7 +46,8 @@ proc:BusinessRuleTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
     rdfs:comment "Mirrors bpmn:businessRuleTask. The only legal subject of seam:decidedBy." .
 
 proc:MessageThrowEvent a rdfs:Class ;
-    rdfs:comment """Mirrors bpmn:intermediateThrowEvent / endEvent with messageEventDefinition. Subject of seam:publishesTo.
+    rdfs:comment """Mirrors bpmn:intermediateThrowEvent / endEvent with messageEventDefinition. Subject of seam:publishesTo (as is a
+proc:ServiceTask that streams its invoked operation's deltas, D046).
 Message-name rule (gaps.md GAP-26): the event's message name is the rdfs:label of the
 comm:Channel it seam:publishesTo; no messageRef is added to the BPMN payload.""" .
 

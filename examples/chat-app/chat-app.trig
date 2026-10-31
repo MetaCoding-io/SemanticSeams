@@ -336,6 +336,8 @@
 
     <https://example.org/chat/chat_bpmn#invoke_llm>
         seam:invokes :completion_op ;
+        # The LLM delta stream is declared, not inferred (backlog U3, D046).
+        seam:publishesTo :stream_events ;
         seam:reads :MessageShape ;
         seam:fires :t_stream .
 

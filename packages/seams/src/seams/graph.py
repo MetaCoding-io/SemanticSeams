@@ -415,13 +415,33 @@ class ModelGraph(Model):
             raise ResolutionError(channel.iri, COMM.eventName, f"channel of {via}")
         return ChannelBinding(channel.iri, channel.label, event)
 
-    def channel_for_event(self, task: object) -> ChannelBinding:
-        element = self.task_element(task)
+    def published_channel(self, element: object) -> ChannelBinding | None:
+        """The single comm:Channel the element seam:publishesTo, None when it
+        declares none. More than one raises ResolutionError (D046)."""
+        el = self.task_element(element)
         typed = self.channels
-        for ch in element.publishes_to:
-            if ch in typed:
-                return self._channel(ch, element.iri)
-        raise ResolutionError(element.iri, SEAM.publishesTo, "no comm:Channel target")
+        found = {ch.iri: ch for ch in el.publishes_to if ch in typed}
+        if len(found) > 1:
+            raise ResolutionError(
+                el.iri, SEAM.publishesTo, f"expected at most one comm:Channel, found {[str(i) for i in sorted(found)]}"
+            )
+        if not found:
+            return None
+        return self._channel(next(iter(found.values())), el.iri)
+
+    def published_channels(self, process: object) -> list[ChannelBinding]:
+        """The distinct comm:Channels that any element of the process's BPMN
+        model seam:publishesTo, sorted by IRI (none, one or many)."""
+        facts = self.process_for(process)
+        typed = self.channels
+        found = {ch.iri: ch for el in self._process(facts.iri).elements() for ch in el.publishes_to if ch in typed}
+        return [self._channel(found[i], facts.iri) for i in sorted(found)]
+
+    def channel_for_event(self, task: object) -> ChannelBinding:
+        channel = self.published_channel(task)
+        if channel is None:
+            raise ResolutionError(self.task_element(task).iri, SEAM.publishesTo, "no comm:Channel target")
+        return channel
 
     # ── processes, lifecycles, policies, shapes ──
 

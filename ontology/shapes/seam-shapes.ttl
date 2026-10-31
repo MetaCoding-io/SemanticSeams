@@ -241,9 +241,10 @@ seamsh:InvokesShape a sh:NodeShape ;
 
 seamsh:PublishesToShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:publishesTo ;
-    sh:class proc:MessageThrowEvent ;
+    sh:or ( [ sh:class proc:MessageThrowEvent ] [ sh:class proc:ServiceTask ] ) ;
     sh:property [ sh:path seam:publishesTo ; sh:class comm:Channel ;
-        sh:message "seam:publishesTo points at a comm:Channel." ] .
+        sh:message "seam:publishesTo points at a comm:Channel." ] ;
+    sh:message "Only a proc:MessageThrowEvent or a proc:ServiceTask seam:publishesTo a channel (D046)." .
 
 seamsh:SubscribesToShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:subscribesTo ;

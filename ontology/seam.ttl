@@ -204,7 +204,7 @@ seam:invokes a rdf:Property ;
 seam:publishesTo a rdf:Property ;
     seam:reveal seam:Layer ;
     rdfs:label "publishes to" ;
-    rdfs:comment "proc message throw event -> comm:Channel." .
+    rdfs:comment "proc message throw event (completion event, named by the channel's rdfs:label) | proc service task that seam:invokes an operation (each streamed delta of that operation's reply, named by comm:eventName) -> comm:Channel." .
 
 seam:subscribesTo a rdf:Property ;
     seam:reveal seam:Layer ;

@@ -108,7 +108,7 @@ class Link:
 class Stream:
     id: str  # local name of the comm:Channel
     curie: str
-    publisher: str  # curie of the element that seam:publishesTo the channel
+    publisher: str  # curie of the delta publisher: the element that seam:publishesTo the channel and seam:invokes an operation, else its sole publisher
     connect: str  # sse-connect path
     event_name: str  # sse-swap
 
@@ -422,7 +422,12 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
         stream = None
         if streams:
             ch = streams[0]
-            publishers = ch.published_by
+            # The delta publisher is the element that seam:invokes an
+            # operation (invoke_llm, D046); a throw event that also publishes
+            # to the channel only ends the stream.
+            publishers = list(ch.published_by)
+            invoking = [p for p in publishers if model.views.intern(ProcessElement, p.iri).invokes is not None]
+            publishers = invoking or publishers
             if len(publishers) != 1:
                 raise GeneratorError(ch.iri, SEAM.publishesTo, f"expected one publisher, found {len(publishers)}")
             template, _ = _path_template(ch)

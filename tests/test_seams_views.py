@@ -216,7 +216,10 @@ def test_chat_operations_and_channels(chat: seams.Model):
     stream = chat.channels.only()
     assert stream.transport == COMM.SSE and stream.event_name == "token"
     assert stream.exposed_by.only().iri == URIRef(C + "chat_api")
-    assert stream.published_by.only().iri == URIRef(C + "chat_bpmn#stream_complete_event")
+    assert set(stream.published_by.iris()) == {
+        URIRef(C + "chat_bpmn#invoke_llm"),
+        URIRef(C + "chat_bpmn#stream_complete_event"),
+    }
     assert not stream.subscribed_by
 
 

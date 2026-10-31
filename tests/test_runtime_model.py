@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from rdflib import Literal, URIRef
+from rdflib import RDF, Literal, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -22,7 +22,7 @@ from seams_runtime import (  # noqa: E402
     ResolutionError,
     model_hash,
 )
-from seams_runtime.model import DEC, ODRL, SEAM  # noqa: E402
+from seams_runtime.model import COMM, DEC, ODRL, SEAM  # noqa: E402
 
 CHAT_DIR = ROOT / "examples" / "chat-app"
 TRIG = CHAT_DIR / "chat-app.trig"
@@ -163,6 +163,31 @@ def test_process_and_correlation_key(model):
 def test_channel_for_stream_complete_event(model):
     ch = model.channel_for_event("stream_complete_event")
     assert (ch.iri, ch.label, ch.event_name) == (URIRef(CHAT + "stream_events"), "stream.events", "token")
+
+
+def test_published_channel_of_invoke_llm_is_declared(model):
+    ch = model.published_channel("invoke_llm")
+    assert ch is not None
+    assert (ch.iri, ch.event_name) == (URIRef(CHAT + "stream_events"), "token")
+
+
+def test_published_channel_is_none_when_undeclared(model):
+    assert model.published_channel("persist_user_msg") is None
+
+
+def test_published_channels_of_send_message_process(model):
+    assert [c.iri for c in model.published_channels(":send_message_process")] == [URIRef(CHAT + "stream_events")]
+
+
+def test_published_channel_with_two_channels_is_resolution_error(fresh):
+    task, other = fresh.task_iri("invoke_llm"), URIRef(CHAT + "other_events")
+    [g] = {c for _, _, _, c in fresh.ds.quads((task, SEAM.invokes, None, None))}
+    fresh.ds.add((other, RDF.type, COMM.Channel, g))
+    fresh.ds.add((other, COMM.eventName, Literal("other"), g))
+    fresh.ds.add((task, SEAM.publishesTo, other, g))
+    with pytest.raises(ResolutionError) as exc:
+        fresh.published_channel("invoke_llm")
+    assert exc.value.predicate == str(SEAM.publishesTo)
 
 
 def test_lifecycle_for_message_shape(model):

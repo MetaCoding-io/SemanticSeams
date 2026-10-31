@@ -26,13 +26,12 @@ Handler-name rule (no term): the code identifier of an operation or channel is
 its IRI local name with a trailing "_op" removed (:send_message_op ->
 send_message, :stream_events -> stream_events).
 
-Token-stream rule (no term): a service task streams when it seam:invokes an
-operation that a container other than its process's executor seam:exposes (an
-outbound call, such as invoke_llm -> :completion_op on :llm_gateway). The
-runtime worker publishes that task's output, token by token, onto the channel
-that the same process's throw event seam:publishesTo, as events named by the
-channel's comm:eventName; the throw event itself, on the same channel, ends the
-stream (ADR-0007 spike finding 2).""" .
+Token stream (declared, D046): a service task that seam:invokes an operation
+streams that operation's reply onto a channel only when the task itself
+seam:publishesTo the channel (invoke_llm seam:publishesTo :stream_events). Each
+delta is an event named by the channel's comm:eventName; a throw event that
+seam:publishesTo the same channel ends the stream (ADR-0007 spike finding 2).
+The runtime publishes no delta the graph does not state.""" .
 
 comm:Channel a rdfs:Class ;
     rdfs:comment "An async topic/queue/webhook target. Events published here are named-graph payloads whose shape is the channel's seam:acceptsShape." .

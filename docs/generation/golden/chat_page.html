@@ -47,7 +47,7 @@
       </li>  {# [fixed] #}
       {% endfor %}  {# [graph: :message_thread seam:reads :MessageShape] #}
     </ol>  {# [fixed] #}
-    {# token stream: :stream_complete_event seam:publishesTo :stream_events comm:Channel [graph: :chat_bpmn#stream_complete_event seam:publishesTo :stream_events comm:Channel] #}
+    {# token stream: :invoke_llm seam:publishesTo :stream_events comm:Channel [graph: :chat_bpmn#invoke_llm seam:publishesTo :stream_events comm:Channel] #}
     <div id="stream_events"  {# [graph: :stream_events comm:Channel] #}
          hx-ext="sse"  {# [graph: :chat_ui seam:consumes :stream_events comm:transport comm:SSE] #}
          sse-connect="/conversations/{{ conversation }}/stream"  {# [graph: :stream_events comm:path hydra:template hydra:mapping hydra:property :id] #}

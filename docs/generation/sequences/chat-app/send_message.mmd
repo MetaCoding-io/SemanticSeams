@@ -1,0 +1,22 @@
+sequenceDiagram
+    %% derived from https://example.org/chat/send_message
+    %% path: single
+    actor authenticated_user as Authenticated users
+    participant chat_ui as Chat Web Interface
+    participant chat_api as Chat API
+    participant message_db as Message Store
+    participant llm_gateway as LLM Provider Gateway
+    authenticated_user->>chat_ui: send_message (policy: user_send_policy)
+    chat_ui->>chat_api: POST send_message_op [MessageShape]
+    Note over chat_api: start send_message_process
+    chat_api->>message_db: persist_user_msg writes MessageShape
+    Note over chat_api: t_send
+    chat_api-->>chat_ui: message_thread fragment
+    chat_api->>chat_api: route_to_provider (DMN routing_decision)
+    Note over chat_api: t_stream
+    chat_api->>llm_gateway: invoke_llm, completion_op [MessageShape]
+    llm_gateway-->>chat_api: completion_op returns [MessageShape]
+    chat_api-->>chat_ui: stream_events (token deltas)
+    chat_api->>message_db: persist_response writes MessageShape
+    Note over chat_api: t_finish
+    chat_api-->>chat_ui: stream_events (stream.events event)

@@ -58,6 +58,22 @@ The viewer shows the same diagrams per event under [Sequences](/guide/the-viewer
 
 <<< @/generation/sequences/chat-app/send_message.mmd{mermaid}
 
+### As executed
+
+The diagram above is *as designed*: what the model says a send-message does. The same
+lifelines also draw *as executed*, what one run actually did. The runtime's worker
+records a trace row per BPMN element it runs, and `executed` in `seams_gen.sequence`
+turns those rows into a diagram: the decision with the value it returned, the LLM call
+with the number of deltas it streamed, each transition with the status it reached, and,
+for a user task, the identity that completed it as an actor. The two views share the
+actor, UI and API lifelines, so they can be read side by side. A row the graph cannot
+place, such as an element the process does not have or a channel the model does not
+declare, is a `%% gap:` line here too, so a run that drifted from the model shows where.
+Below is a run of the chat app's send-message process, from the golden
+[`docs/generation/sequences/chat-app/send_message.executed.mmd`](../generation/sequences/chat-app/send_message.executed.mmd).
+
+<<< @/generation/sequences/chat-app/send_message.executed.mmd{mermaid}
+
 ## Why one graph pays
 
 Two things fall out of the single graph that no toolchain of separate modelers offers:

@@ -362,6 +362,53 @@ d.name, d.gaps, render(d)   # 'send_message', (), 'sequenceDiagram\n    %% deriv
 The viewer imports the same `derive` and `render` for its `GET /sequence/{event}` route
 and its Sequences section, and the docs site embeds the goldens by snippet import.
 
+### As executed
+
+The diagrams above are *as designed*: every path the model allows. `executed` is the
+*as executed* counterpart (backlog U4): one diagram of one recorded run, drawn from the
+trace rows the runtime's worker records per BPMN element, on the same actor, UI and API
+lifelines as `derive`. The opening arrows (actor, `POST <operation>`, `start <process>`)
+are the same; after them each row adds, in the order the worker ran it:
+
+| Trace row field | Diagram element |
+|---|---|
+| `by` (a user task completed by a person) | `actor by_<id> as <id>`, `by_<id>->>UI: <task> on <form>`, `UI->>API: complete <task>` |
+| `decision`, `outputs` | `API->>API: <task> (DMN <decision>) = <output values>` |
+| `invokes` with `in_process` | `API->>API: <task>, <operation> (in process)` |
+| `invokes` with `container`, `path`, `tokens` | `API->>C: <task>, <operation> <path>` and `C-->>API: <tokens> deltas` |
+| `streamed` | `API-->>X: <channel> (<tokens> <event> deltas)` per `seam:consumes` container |
+| `writes` | `API->>STORE: <task> writes <shape>` per `seam:storedIn` container (entity ids are not drawn) |
+| `fires`, `status` | `Note over API: <transition> → <status>` |
+| `published` | `API-->>X: <channel> (<event> event)` per consumer |
+| `started` | `API->>C: start <process>` on its executing container |
+| an error row (`task` null, `error`) | `Note over API: error <type>, <transition> → <status>` |
+
+The diagram is named `<event>.executed` (file `<event>.executed.mmd`), its header reads
+`%% executed from <event IRI>`, `%% path: <row task ids>` and, when the run is known,
+`%% run: <instance id>`. A row the graph cannot place is a `%% gap:` line and the rest
+of the run is still drawn: an IRI that is not an element of the triggered process, a
+container, channel or started process the model does not have, or a row with no IRI.
+
+`read_trace(source, db=None)` returns `(run id, rows)`. An existing file is JSON: an
+instance result (`{"instance": ..., "trace": [...]}`, as `Instance.wait()` returns) or a
+bare list of rows. Anything else is an instance id in the runtime's SQLite store at `db`
+(default `SEAMS_DB`, else `./seams.sqlite`), read read-only with `sqlite3` from the
+`workflow_state` checkpoint's `data.seams.trace`; seams_gen does not import
+seams_runtime. A missing store or instance, or a file that is not a trace, raises a
+GeneratorError naming it.
+
+```python
+import seams
+from seams_gen.sequence import executed, read_trace, render
+run, rows = read_trace("tests/fixtures/traces/chat_send_message.json")
+d = executed(seams.load("examples/chat-app/chat-app.trig"), ":send_message", rows, run=run)
+d.name, d.gaps   # 'send_message.executed', ()
+```
+
+**Golden.** `docs/generation/sequences/chat-app/send_message.executed.mmd`, rendered
+from the captured run `tests/fixtures/traces/chat_send_message.json`; a live run with a
+mocked LLM renders the same lines (`tests/test_sequence_executed.py`).
+
 ## Tests
 
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines

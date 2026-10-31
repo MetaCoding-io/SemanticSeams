@@ -1,0 +1,66 @@
+{
+  "instance": "run-1",
+  "trace": [
+    {
+      "task": "start",
+      "iri": "https://example.org/chat/chat_bpmn#start"
+    },
+    {
+      "task": "persist_user_msg",
+      "iri": "https://example.org/chat/chat_bpmn#persist_user_msg",
+      "fires": "https://example.org/chat/t_send",
+      "invokes": "https://example.org/chat/send_message_op",
+      "container": "https://example.org/chat/chat_api",
+      "in_process": true,
+      "writes": [
+        "entity-1"
+      ],
+      "status": "sending"
+    },
+    {
+      "task": "route_to_provider",
+      "iri": "https://example.org/chat/chat_bpmn#route_to_provider",
+      "decision": "https://example.org/chat/routing_decision",
+      "outputs": {
+        "provider": "default-provider"
+      }
+    },
+    {
+      "task": "invoke_llm",
+      "iri": "https://example.org/chat/chat_bpmn#invoke_llm",
+      "fires": "https://example.org/chat/t_stream",
+      "invokes": "https://example.org/chat/completion_op",
+      "container": "https://example.org/chat/llm_gateway",
+      "in_process": false,
+      "path": "/v1/chat/completions",
+      "model": "default-provider",
+      "tokens": 3,
+      "streamed": {
+        "channel": "https://example.org/chat/stream_events",
+        "event": "token"
+      },
+      "status": "streaming"
+    },
+    {
+      "task": "persist_response",
+      "iri": "https://example.org/chat/chat_bpmn#persist_response",
+      "fires": "https://example.org/chat/t_finish",
+      "writes": [
+        "entity-1"
+      ],
+      "status": "complete"
+    },
+    {
+      "task": "stream_complete_event",
+      "iri": "https://example.org/chat/chat_bpmn#stream_complete_event",
+      "published": {
+        "channel": "https://example.org/chat/stream_events",
+        "event": "stream.events"
+      }
+    },
+    {
+      "task": "end",
+      "iri": "https://example.org/chat/chat_bpmn#end"
+    }
+  ]
+}

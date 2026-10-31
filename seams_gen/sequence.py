@@ -31,6 +31,21 @@ inclusive gateway is a gap and follows its first flow. Every arrow the
 deriver cannot place (a missing fact) is recorded as a gap and rendered as a
 ``%% gap: <detail>`` line, never dropped.
 
+As executed (backlog U4): ``executed(model, event, rows, run=None)`` draws
+one recorded run from the worker's trace rows (``read_trace`` reads them from
+a JSON file, an instance result or a bare list, or from an instance id in the
+runtime's SQLite store, without importing seams_runtime, D049) on the same
+actor, UI and API lifelines as ``derive``. Each row adds, in the worker's
+order: the ``by`` identity as an actor completing the user task on its form,
+the decision as a self call with its outputs, the invoke (a self call when in
+process, else the call to the row's container and its delta count), the
+streamed deltas and published event to the channel's consumers, the writes to
+each seam:storedIn container, the fired transition and status as a note, and
+the processes it started. An error row is a note. A row whose IRI is not an
+element of the triggered process, an unknown container, channel or process,
+or a row with no IRI is a gap. The diagram is ``<event>.executed`` with path
+= the rows' task ids and a ``%% run: <id>`` header line when the run is known.
+
 Command line: ``python -m seams_gen.sequence <trig> <event> --out DIR``
 writes each diagram as ``DIR/<name>.mmd`` (``write_diagrams``, shared with
 ``seams sequence``), prints each path, and prints ``gap <name>: <detail>`` to
@@ -43,7 +58,12 @@ file that cannot be written exits 1.
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import re
+import sqlite3
 import sys
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -87,6 +107,10 @@ class SequenceDiagram:
     participants: tuple[Participant, ...]
     messages: tuple[Message, ...]
     gaps: tuple[str, ...]
+    #: True for an as-executed diagram (``executed``); its path is the row task ids.
+    executed: bool = False
+    #: The run (instance id) an as-executed diagram was drawn from, when known.
+    run: str | None = None
 
 
 @dataclass
@@ -114,11 +138,11 @@ class _Builder:
         if detail not in self.gaps:
             self.gaps.append(detail)
 
-    def diagram(self, name: str, event: URIRef, path: tuple[str, ...]) -> SequenceDiagram:
+    def diagram(self, name: str, event: URIRef, path: tuple[str, ...], **kw) -> SequenceDiagram:
         # Actors first, then the other lifelines in first-use order.
         ordered = [p for p in self.participants.values() if p.actor]
         ordered += [p for p in self.participants.values() if not p.actor]
-        return SequenceDiagram(name, event, path, tuple(ordered), tuple(self.messages), tuple(self.gaps))
+        return SequenceDiagram(name, event, path, tuple(ordered), tuple(self.messages), tuple(self.gaps), **kw)
 
 
 def _text(label: str) -> str:
@@ -458,8 +482,11 @@ def _user_task(b: _Builder, api: URIRef, node: FlowNode) -> None:
 
 def render(diagram: SequenceDiagram) -> str:
     """The diagram as Mermaid text, ``\\n`` newlines and a trailing newline."""
-    lines = ["sequenceDiagram", f"%% derived from {diagram.event}"]
+    source = "executed from" if diagram.executed else "derived from"
+    lines = ["sequenceDiagram", f"%% {source} {diagram.event}"]
     lines.append(f"%% path: {', '.join(diagram.path) if diagram.path else 'single'}")
+    if diagram.run is not None:
+        lines.append(f"%% run: {diagram.run}")
     lines += [f"%% gap: {g}" for g in diagram.gaps]
     for p in diagram.participants:
         lines.append(f"{'actor' if p.actor else 'participant'} {p.id} as {p.label}")
@@ -469,7 +496,8 @@ def render(diagram: SequenceDiagram) -> str:
 
 def file_name(diagram: SequenceDiagram) -> str:
     """``<name>.mmd``: ``<event local>.mmd`` for a single path,
-    ``<event local>--<flow>[--<flow>].mmd`` otherwise."""
+    ``<event local>--<flow>[--<flow>].mmd`` otherwise, and
+    ``<event local>.executed.mmd`` for an as-executed diagram."""
     return f"{diagram.name}.mmd"
 
 
@@ -485,6 +513,222 @@ def write_diagrams(diagrams: list[SequenceDiagram], out: Path) -> list[Path]:
             fh.write(render(d))
         paths.append(path)
     return paths
+
+
+# ── as executed (backlog U4) ─────────────────────────────────────────────────
+
+
+def executed(model: Model, event: object, rows: list[dict], *, run: str | None = None) -> SequenceDiagram:
+    """The as-executed ``SequenceDiagram`` of one recorded run of the process
+    ``event`` triggers, drawn from the worker's trace ``rows`` (one per BPMN
+    element, in order) on the same lifelines as ``derive``. It is named
+    ``<event>.executed`` and its path is the rows' task ids. A row the graph
+    cannot place (an IRI that is not an element of the process, an unknown
+    container, channel or process, a row with no IRI) is a gap, never dropped."""
+    ev = find_event(model, event)
+    with view_errors():
+        return _executed(model, ev, rows, run)
+
+
+def _executed(model: Model, event: Event, rows: list[dict], run: str | None) -> SequenceDiagram:
+    b = _Builder(model)
+    ev = local_name(event.iri)
+    name = f"{ev}.executed"
+    path = tuple(str(r.get("task") or "error") for r in rows)
+    op = event.submits_to
+    actors = _actors(b, event, op)
+    ui = _ui(b, event)
+    process = event.triggers
+    if op is None:
+        b.gap(f"{ev} has no seam:submitsTo operation")
+    if process is None:
+        b.gap(f"{ev} has no seam:triggers process")
+    api = _api(b, event, op)
+
+    for actor, _ in actors:
+        b.lifeline(actor, actor=True)
+    first = ui if ui is not None else api
+    for actor, policy in actors:
+        if first is not None:
+            b.arrow(actor, first, f"{ev} (policy: {local_name(policy)})", event.iri, policy)
+    if not actors and first is not None:
+        b.arrow(first, first, ev, event.iri)
+    if ui is not None and api is not None and op is not None:
+        method = f"{op.method} " if op.method else ""
+        b.arrow(ui, api, f"{method}{local_name(op.iri)}{_shape(op.accepts)}", op.iri, *_iris(op.accepts))
+    if api is None or process is None:
+        return b.diagram(name, event.iri, path, executed=True, run=run)
+    b.note(api, f"start {local_name(process.iri)}", process.iri)
+
+    nodes = {n.iri: n for n in process.nodes()}
+    containers = {c.iri: c for c in model.architecture.containers()}
+    channels = {c.iri: c for c in model.channels}
+    processes = {p.iri: p for p in model.processes}
+    for i, row in enumerate(rows, 1):
+        _row(b, api, process, nodes, containers, channels, processes, i, row)
+    return b.diagram(name, event.iri, path, executed=True, run=run)
+
+
+def _row(b: _Builder, api: URIRef, process, nodes, containers, channels, processes, i: int, row: dict) -> None:
+    """The statements of trace row ``i``, in the worker's order: the person
+    completing a user task, the decision, the invoke and its deltas, the
+    writes, the transition, the published event and the processes it started."""
+    task = row.get("task")
+    where = f"row {i} {task or 'error'}"
+    error = row.get("error")
+    if task is None and error is not None:
+        transition = row.get("fires")
+        moved = f"{local_name(transition)} → {row.get('status')}" if transition else row.get("status")
+        b.note(api, f"error {error}, {moved}", *([URIRef(transition)] if transition else []))
+        return
+    iri = row.get("iri")
+    node = None
+    if not iri:
+        b.gap(f"{where} has no iri")
+    else:
+        node = nodes.get(URIRef(iri))
+        if node is None:
+            b.gap(f"{where}: {iri} is not an element of {local_name(process.iri)}")
+    el = () if not iri else (URIRef(iri),)
+
+    by = row.get("by")
+    if by is not None:
+        actor = _by(b, str(by))
+        form = None if node is None else node.completed_on
+        ui = None if form is None else _presenter([form])
+        if ui is None:
+            b.gap(f"{where}: completed by {by} on no seam:completedOn form presented by one container")
+            b.arrow(actor, api, f"complete {task}", *el)
+        else:
+            b.arrow(actor, ui, f"{task} on {local_name(form.iri)}", *el, form.iri)
+            b.arrow(ui, api, f"complete {task}", *el)
+
+    decision = row.get("decision")
+    if decision is not None:
+        outputs = ", ".join(_text(str(v)) for v in (row.get("outputs") or {}).values())
+        b.arrow(api, api, f"{task} (DMN {local_name(decision)}) = {outputs}", *el, URIRef(decision))
+
+    op = row.get("invokes")
+    if op is not None:
+        opname = local_name(op)
+        if row.get("in_process"):
+            b.arrow(api, api, f"{task}, {opname} (in process)", *el, URIRef(op))
+        else:
+            container = row.get("container")
+            if container is None or URIRef(container) not in containers:
+                b.gap(f"{where}: container {container} is not an arch:Container")
+            else:
+                c = URIRef(container)
+                path = f" {row['path']}" if row.get("path") else ""
+                b.arrow(api, c, f"{task}, {opname}{path}", *el, URIRef(op))
+                b.arrow(c, api, f"{row.get('tokens', 0)} deltas", URIRef(op), reply=True)
+
+    streamed = row.get("streamed")
+    if streamed is not None:
+        for c in _consumers(b, channels, streamed.get("channel"), where):
+            text = f"{local_name(streamed['channel'])} ({row.get('tokens', 0)} {streamed.get('event')} deltas)"
+            b.arrow(api, c, text, *el, URIRef(streamed["channel"]), reply=True)
+
+    written = row.get("writes") or []
+    if written:
+        shapes = [] if node is None else list(node.writes)
+        if len(shapes) != len(written):
+            b.gap(f"{where} writes {len(written)} entities but its element seam:writes {len(shapes)} shapes")
+        for shape in shapes[: len(written)]:
+            stores = shape.stored_in
+            if not stores:
+                b.gap(f"{local_name(shape.iri)} written by {task} has no seam:storedIn")
+            for store in stores:
+                b.arrow(api, store.iri, f"{task} writes {local_name(shape.iri)}", *el, shape.iri)
+
+    transition = row.get("fires")
+    if transition is not None:
+        status = row.get("status")
+        text = local_name(transition) if status is None else f"{local_name(transition)} → {_text(str(status))}"
+        b.note(api, text, *el, URIRef(transition))
+
+    published = row.get("published")
+    if published is not None:
+        for c in _consumers(b, channels, published.get("channel"), where):
+            text = f"{local_name(published['channel'])} ({_text(str(published.get('event')))} event)"
+            b.arrow(api, c, text, *el, URIRef(published["channel"]), reply=True)
+
+    for started in row.get("started") or []:
+        started_iri = URIRef(str(started.get("process")))
+        found = processes.get(started_iri)
+        executors = [] if found is None else [c.iri for c in found.executed_by]
+        if not executors:
+            b.gap(f"{where}: started process {started_iri} has no seam:executes container")
+        for c in executors:
+            b.arrow(api, c, f"start {local_name(started_iri)}", *el, started_iri)
+
+
+def _consumers(b: _Builder, channels, channel, where: str) -> list[URIRef]:
+    """The containers that seam:consume the channel IRI ``channel``; a gap when it is unknown or has none."""
+    found = None if channel is None else channels.get(URIRef(channel))
+    if found is None:
+        b.gap(f"{where}: channel {channel} is not a comm:Channel")
+        return []
+    consumers = [c.iri for c in found.consumed_by]
+    if not consumers:
+        b.gap(f"{where}: {local_name(found.iri)} has no seam:consumes container")
+    return consumers
+
+
+def _by(b: _Builder, identity: str) -> URIRef:
+    """The actor lifeline of the identity that completed a user task, labelled with its id."""
+    iri = URIRef(f"urn:seams:identity:{identity}")
+    if iri not in b.participants:
+        b.participants[iri] = Participant(iri, "by_" + re.sub(r"\W", "_", identity), _text(identity), True)
+    return iri
+
+
+def default_db() -> Path:
+    """The runtime's embedded store: ``SEAMS_DB``, else ``./seams.sqlite``."""
+    return Path(os.environ.get("SEAMS_DB") or "seams.sqlite")
+
+
+def read_trace(source: object, db: object = None) -> tuple[str | None, list[dict]]:
+    """(run id, trace rows) from ``source``: an existing JSON file holding an
+    instance result (a dict with ``trace``, its ``instance`` the run id) or a
+    bare list of rows; otherwise an instance id in the runtime's SQLite store
+    at ``db`` (``default_db()`` when None), read with sqlite3 from its
+    ``workflow_state`` checkpoint (the Spiff JSON's ``data.seams.trace``).
+    ``GeneratorError`` naming the file, or the store and instance."""
+    path = Path(str(source))
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            raise GeneratorError(str(path), "trace file", f"is not JSON: {exc}") from exc
+        if isinstance(data, dict) and isinstance(data.get("trace"), list):
+            run = data.get("instance")
+            return (None if run is None else str(run)), _rows(data["trace"], str(path))
+        if isinstance(data, list):
+            return None, _rows(data, str(path))
+        raise GeneratorError(str(path), "trace file", "holds neither an instance result with a trace nor a list")
+    store = Path(str(db)) if db is not None else default_db()
+    instance = str(source)
+    if not store.is_file():
+        raise GeneratorError(instance, "trace", f"no such file and no SQLite store {store}")
+    try:
+        with closing(sqlite3.connect(store.resolve().as_uri() + "?mode=ro", uri=True)) as con:
+            found = con.execute("SELECT state FROM workflow_state WHERE instance_id = ?", (instance,)).fetchone()
+    except sqlite3.Error as exc:
+        raise GeneratorError(instance, "trace", f"cannot read workflow_state in {store}: {exc}") from exc
+    if found is None:
+        raise GeneratorError(instance, "trace", f"no workflow_state row for instance {instance} in {store}")
+    try:
+        trace = json.loads(found[0])["data"]["seams"]["trace"]
+    except (TypeError, ValueError, KeyError) as exc:
+        raise GeneratorError(instance, "trace", f"the checkpoint in {store} has no data.seams.trace") from exc
+    return instance, _rows(trace, f"instance {instance} in {store}")
+
+
+def _rows(rows: object, where: str) -> list[dict]:
+    if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+        raise GeneratorError(where, "trace", "is not a list of trace rows")
+    return rows
 
 
 EXIT_OK = 0

@@ -154,13 +154,15 @@ A6 make deployment work end to end.
 
 ## Not yet scheduled
 
-*Added 2026-10-29 while planning M010 to M016.* Two gaps the research notes name but no
-milestone covers.
+*Added 2026-10-29 while planning M010 to M016.* Gaps the research notes and the principles gates name but no
+milestone covers yet.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
 | A10 | **More than one replica**: the chat-app model declares `deploy:replicas 3`, but only one replica works, because process instances and the live-update stream are held in memory. Needs the shared store from U9 and a shared channel for the stream. Until then, M016 caps generated replicas at one. See "Not covered" in the [storage plan](research/2026-10-29-runtime-storage.md) | M | U9, A4 | none expected | proposed |
 | U10 | **Scheduled and background work**: lift BPMN timer start events and run recurring jobs (reminders, cleanups, digests), with a seam to the container that runs the schedule. See section 3.6 of the [UML coverage note](research/2026-10-29-uml-coverage-and-gaps.md) | M | ADR first | a seam to the scheduling container | proposed |
+| A11 | **The build names the generated Dockerfile**: nothing checks that the development `deploy:dockerfile` names the file the `dockerfile` generator writes (`<app dir>/generated/<route module>.Dockerfile`, relative to `deploy:context`). If the path goes stale, compose builds from another file and no error names the fact. A `GeneratorError` or `seams check` finding on `deploy:dockerfile`, with a shape where SHACL can state it. Found by the M016/S03 principles gate; fits M017 (Honest Checks) alongside K1 | S | A5 | none | proposed (candidate for M017) |
+| A12 | **Workspace members in the generated Dockerfile come from the workspace**: `seams_gen/templates/runtime.Dockerfile.j2` lists each uv workspace member's `pyproject.toml` by hand, so adding or moving a member breaks the image build until the template is edited. Read the members from the root `pyproject.toml` in `extract_dockerfile` instead. Found by the M016/S03 principles gate | S | A5 | none | proposed |
 
 ## Generator kit and domain IDE
 

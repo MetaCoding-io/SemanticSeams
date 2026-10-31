@@ -74,6 +74,15 @@ Below is a run of the chat app's send-message process, from the golden
 
 <<< @/generation/sequences/chat-app/send_message.executed.mmd{mermaid}
 
+To draw a run of your own, give `seams sequence <event>` a trace JSON file or an instance
+id from the runtime's SQLite store with `--trace RUN` (see
+[the seams CLI](/reference/seams-cli#as-executed-trace)). The runtime can also emit
+OpenTelemetry spans that carry the same element IRIs, one per instance and one per
+element it runs. They are off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the
+`seams_runtime` `otel` extra is installed (see
+[seams_runtime/README.md](https://github.com/MetaCoding-io/SemanticSeams/blob/main/seams_runtime/README.md#tracing-opentelemetry)).
+The diagram reads the trace rows, not the spans.
+
 ## Why one graph pays
 
 Two things fall out of the single graph that no toolchain of separate modelers offers:

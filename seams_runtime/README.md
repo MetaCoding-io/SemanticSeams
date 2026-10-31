@@ -203,7 +203,8 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    `started: [{process, instance}]`. A subscriber that fails, or cannot start (recorded
    in that row with `instance: null` and its `error`), never fails the publisher.
 7. Exceptions: the lifecycle's `"error"` exit is applied (status becomes `failed`), the
-   error is recorded, the channel scope is closed and the instance is marked failed.
+   error is recorded, the instance's scope is closed on every channel an element of the
+   process `seam:publishesTo` (D046), and the instance is marked failed.
    When Spiff wrapped a model error (a `ResolutionError` raised inside a business-rule
    task arrives as a `WorkflowTaskException`), the model error is the one recorded.
 8. After each element, the workflow is checkpointed into the store (SQLite or

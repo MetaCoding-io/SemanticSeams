@@ -36,7 +36,7 @@ def test_thresholds():
     assert (MIN_MULTI_MODEL_NOTATIONS, MIN_MAX_REACH) == (3, 5)
 
 
-def test_chat_app_scores_0_3_61_and_fails():
+def test_chat_app_scores_0_3_62_and_fails():
     r = measure(load_model(CHAT))
     assert r.models_per_notation == [(SEAM + n, 1) for n in NOTATIONS]
     assert r.multi_model_notations == 0
@@ -44,7 +44,7 @@ def test_chat_app_scores_0_3_61_and_fails():
     assert r.most_reached[:2] == [(chat + "MessageShape", 3), (chat + "send_message_op", 3)]
     assert len(r.most_reached) == 5
     assert r.max_reach == 3
-    assert r.edges == 61
+    assert r.edges == 62  # 61 plus :completion_op seam:implementedBy (ADR-0012)
     assert r.failures == [
         "notations with 2+ models: 0, need at least 3",
         "most models one element is reached from: 3, need at least 5",
@@ -179,7 +179,7 @@ def test_cli_chat_app_fails():
     p = _cli("examples/chat-app/chat-app.trig")
     assert p.returncode == 1, p.stderr
     assert "FAIL" in p.stdout
-    assert "seam edges: 61 (reported, not gated)" in p.stdout
+    assert "seam edges: 62 (reported, not gated)" in p.stdout
     assert "  C4: 1" in p.stdout
     assert "  MessageShape: 3" in p.stdout
     assert "notations with 2+ models: 0, need at least 3" in p.stdout

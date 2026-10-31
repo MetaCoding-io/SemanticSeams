@@ -94,6 +94,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:acceptsShape ,
         seam:returnsShape ,
         seam:mediaKind ,
+        seam:implementedBy ,
         seam:governedBy ,
         seam:conformsTo ,
         seam:realizes ;
@@ -301,6 +302,46 @@ seamsh:MediaKindShape a sh:NodeShape ;
     sh:targetObjectsOf seam:mediaKind ;
     sh:class seam:MediaKind ;
     sh:message "seam:mediaKind takes a seam:MediaKind (seam:UIFragment or seam:Data)." .
+
+#################################################################
+# Operation implementation (ADR-0012)
+#################################################################
+
+seamsh:ImplementedByShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:implementedBy ;
+    sh:class hydra:Operation ;
+    sh:property [ sh:path seam:implementedBy ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "An operation is seam:implementedBy at most one implementation, named by an IRI." ] ;
+    sh:message "Only a hydra:Operation is seam:implementedBy an implementation." .
+
+seamsh:ImplementationKindShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:implementedBy ;
+    sh:property [ sh:path rdf:type ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( comm:LLMCompletion comm:PythonHandler comm:HTTPEndpoint ) ;
+        sh:message "An implementation has exactly one rdf:type, its kind: comm:LLMCompletion, comm:PythonHandler or comm:HTTPEndpoint." ] .
+
+seamsh:PythonHandlerShape a sh:NodeShape ;
+    sh:targetClass comm:PythonHandler ;
+    sh:property [ sh:path comm:handler ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$" ;
+        sh:message "A comm:PythonHandler has exactly one comm:handler, a dotted path of Python identifiers inside the handlers package." ] .
+
+# Separate shape so a model with no implementations at all is still checked: the
+# operation is the target, and the query finds a remote invocation with none.
+seamsh:RemoteImplementationShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:invokes ;
+    sh:sparql [
+        sh:message "An operation invoked across containers (its exposing container does not seam:executes the invoking process) declares a seam:implementedBy (ADR-0012)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?task seam:invokes $this ; seam:inModel ?model .
+                ?process seam:detailedBy ?model .
+                ?container seam:exposes $this .
+                FILTER NOT EXISTS { ?container seam:executes ?process }
+                FILTER NOT EXISTS { $this seam:implementedBy ?implementation }
+            }""" ;
+    ] .
 
 #################################################################
 # Deployment facts the generators read

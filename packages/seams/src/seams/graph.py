@@ -19,11 +19,12 @@ BPMN models; an id in two of them raises) and ``landmark_page`` is
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from rdflib import RDF, Dataset, Graph, URIRef
+from rdflib import RDF, Dataset, Graph, Literal, URIRef
 from rdflib.namespace import SH
 
 from ._xml import elements as _elements
@@ -148,6 +149,28 @@ class PolicyFacts:
     iri: URIRef
     label: str
     permissions: tuple[Permission, ...]
+
+
+#: The implementation kinds of ADR-0012: the rdf:type of a seam:implementedBy node.
+IMPLEMENTATION_KINDS = (COMM.HTTPEndpoint, COMM.LLMCompletion, COMM.PythonHandler)
+
+#: A comm:handler dotted path: Python identifier segments only, so it can name
+#: nothing outside the handlers package (the same pattern as seamsh:PythonHandlerShape).
+HANDLER_PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*")
+
+
+@dataclass(frozen=True)
+class Implementation:
+    """What serves an operation (ADR-0012), from ``ModelGraph.operation_implementation``.
+
+    ``kind`` is an ``IMPLEMENTATION_KINDS`` member. ``handler`` is the
+    comm:handler dotted path of a comm:PythonHandler, relative to the handlers
+    package, and None for the other kinds.
+    """
+
+    iri: URIRef
+    kind: URIRef
+    handler: str | None
 
 
 #: The deploy:StoreKinds the runtime can open (ADR-0011).
@@ -401,6 +424,43 @@ class ModelGraph(Model):
         executes = c.executes.iris()
         in_process = bool(executes) if process is None else self.curie(process) in executes
         return Container(c.iri, c.label, in_process)
+
+    def operation_implementation(self, operation: object) -> Implementation | None:
+        """The implementation the operation is seam:implementedBy (ADR-0012), or
+        None when it declares none. Several, or one that is not an IRI, raise
+        ``ResolutionError(operation, seam:implementedBy)``; no kind, several or
+        one outside ``IMPLEMENTATION_KINDS`` raise ``ResolutionError(implementation,
+        rdf:type)``; a comm:PythonHandler without exactly one comm:handler of
+        identifier segments raises ``ResolutionError(implementation, comm:handler)``."""
+        from .views._base import one_value
+
+        op = self._operation(operation)
+        stated = sorted(set(self.ds.objects(op.iri, SEAM.implementedBy)), key=str)
+        if not stated:
+            return None
+        if len(stated) > 1:
+            raise ResolutionError(
+                op.iri, SEAM.implementedBy, f"expected at most one, found {', '.join(map(str, stated))}"
+            )
+        # A literal or blank node is no implementation: the IRI collection is empty.
+        impl = op.implemented_by.only()
+        kind = one_value(self.ds, impl.iri, RDF.type)
+        if not isinstance(kind, URIRef) or kind not in IMPLEMENTATION_KINDS:
+            raise ResolutionError(
+                impl.iri,
+                RDF.type,
+                f"{kind} is not an implementation kind ({', '.join(map(str, IMPLEMENTATION_KINDS))})",
+            )
+        if kind != COMM.PythonHandler:
+            return Implementation(impl.iri, kind, None)
+        handler = one_value(self.ds, impl.iri, COMM.handler)
+        if not isinstance(handler, Literal) or not HANDLER_PATH.fullmatch(str(handler)):
+            raise ResolutionError(
+                impl.iri,
+                COMM.handler,
+                f"expected a dotted path of Python identifiers inside the handlers package, found {str(handler)!r}",
+            )
+        return Implementation(impl.iri, kind, str(handler))
 
     def operation_path(self, operation: object) -> OperationPath:
         op = self._operation(operation)

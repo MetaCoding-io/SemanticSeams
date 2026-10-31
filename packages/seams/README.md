@@ -35,5 +35,15 @@ sorted list of `StoreFinding` (`severity`, `subject`, `predicate`,
 container no shape is `seam:storedIn`, and an `Info` when the model declares
 no store and the runtime keeps embedded SQLite.
 
+`ModelGraph.operation_implementation(op)` reads what serves an operation
+(ADR-0012) from `seam:implementedBy`, returning an `Implementation` (`iri`,
+`kind`, `handler`) or None when the operation declares none. `kind` is one
+of `IMPLEMENTATION_KINDS` (`comm:LLMCompletion`, `comm:PythonHandler`,
+`comm:HTTPEndpoint`) and `handler` the `comm:handler` dotted path of a
+Python handler. Several implementations, a missing, duplicated or unknown
+kind, or a handler path that is missing, duplicated or has a segment that is
+not a Python identifier raise `ResolutionError` naming the subject and
+predicate. The operation view's `implemented_by` lists the nodes.
+
 The full API, views, SPARQL and model-hash reference is
 [The seams library](../../docs/reference/seams-library.md) on the docs site.

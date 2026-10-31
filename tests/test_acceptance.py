@@ -126,7 +126,10 @@ def test_seam_shapes_have_teeth():
 
 
 def test_every_nonreserved_seam_predicate_is_exercised(dataset):
-    """Verify all declared seam predicates appear in the TriG dataset."""
+    """Verify all declared seam predicates appear in a fixture model. The chat app
+    counts too: its LLM call is the cross-container operation that exercises
+    seam:implementedBy (ADR-0012); checkout and the human-task fixture serve every
+    operation in-process."""
     declared = {
         p for p in load(ROOT / "ontology" / "seam.ttl").subjects(RDF.type, RDF.Property) if str(p).startswith(str(SEAM))
     }
@@ -134,13 +137,16 @@ def test_every_nonreserved_seam_predicate_is_exercised(dataset):
     for _s, p, _o, _g in dataset.quads((None, None, None, None)):
         if str(p).startswith(str(SEAM)):
             used.add(p)
-    human_task = rdflib.Dataset()
-    human_task.parse(HUMAN_TASK_TRIG, format="trig")
-    for _s, p, _o, _g in human_task.quads((None, None, None, None)):
-        if str(p).startswith(str(SEAM)):
-            used.add(p)
+    for trig in (HUMAN_TASK_TRIG, CHAT_APP_TRIG):
+        fixture = rdflib.Dataset()
+        fixture.parse(trig, format="trig")
+        for _s, p, _o, _g in fixture.quads((None, None, None, None)):
+            if str(p).startswith(str(SEAM)):
+                used.add(p)
     missing = declared - RESERVED_PREDICATES - used
-    assert not missing, f"seam predicates never exercised by checkout.trig or the human-task fixture: {sorted(missing)}"
+    assert not missing, (
+        f"seam predicates never exercised by checkout.trig, the human-task fixture or the chat app: {sorted(missing)}"
+    )
 
 
 def test_what_writes_shape(model):

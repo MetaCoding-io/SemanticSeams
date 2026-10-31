@@ -205,6 +205,41 @@ or an output that no condition accepts, fails the instance. Chapter 5 of the exp
 tutorial, [The rules](/tutorials/expenses/05-rules), builds one (checkpoint
 `examples/expenses/chapter-05/`).
 
+### Operation implementation
+
+A `proc:ServiceTask` `seam:invokes` an operation, and the operation says what serves it
+with `seam:implementedBy` ([ADR-0012](/adr/0012-operation-implementation)). The
+implementation node's `rdf:type` is its kind:
+
+| Kind | What runs | Where the operation must be served |
+|---|---|---|
+| `comm:LLMCompletion` | a streamed chat completion from the serving container, at the operation's `comm:path` | in another container, reached through a `deploy:serviceOf` binding |
+| `comm:PythonHandler` | a function in the handlers package, named by `comm:handler` | in-process: the exposing container `seam:executes` the process |
+| `comm:HTTPEndpoint` | a JSON POST to the serving container, at the operation's `comm:path` | in another container, reached through a `deploy:serviceOf` binding |
+
+```turtle
+:completion_op a hydra:Operation ; rdfs:label "LLM Completion" ;
+    seam:implementedBy :completion_impl .
+:completion_impl a comm:LLMCompletion ; rdfs:label "LLM completion" .
+
+:notify_manager_op a hydra:Operation ; rdfs:label "Notify Manager" ;
+    seam:implementedBy :notify_manager_impl .
+:notify_manager_impl a comm:PythonHandler ; rdfs:label "notify manager handler" ;
+    comm:handler "notify.notify_manager" .
+```
+
+Put the `seam:implementedBy` edge in the seams graph. An operation has at most one
+implementation, and the node has exactly one of the three kinds. A
+`comm:PythonHandler`'s `comm:handler` is a dotted path of Python identifiers relative to
+the handlers package (`handlers/` beside the model, or `SEAMS_HANDLERS`):
+`"notify.notify_manager"` is the function `notify_manager` in `handlers/notify.py`. A
+path with a slash, a leading dot or `..` is a violation, so a model cannot point at code
+outside the package. An operation invoked across containers must declare its
+implementation; an in-process operation with none is served by the runtime itself, as
+the chat app's `:send_message_op` is. The shapes in `seam-shapes.ttl` check each of
+these rules, and `ModelGraph.operation_implementation(op)` reads the implementation,
+raising `ResolutionError` naming the fact when one is broken.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

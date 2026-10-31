@@ -418,7 +418,12 @@
         seam:mediaKind seam:Data ;
         comm:requestMediaType "application/json" ;
         comm:path [ a hydra:IriTemplate ;
-                    hydra:template "/v1/chat/completions" ] .
+                    hydra:template "/v1/chat/completions" ] ;
+        # The LLM call is declared, not assumed (ADR-0012): :llm_gateway serves
+        # this operation from another container, so it must name its kind.
+        # :send_message_op is in-process and declares nothing (the runtime serves it).
+        seam:implementedBy :completion_impl .
+    :completion_impl a comm:LLMCompletion ; rdfs:label "LLM completion" .
 
     :stream_events a comm:Channel ; rdfs:label "stream.events" ;
         seam:acceptsShape :MessageShape ;

@@ -43,7 +43,7 @@ The rest group by the layers they join. A few examples:
 | Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo` (a message throw event's completion event, or a service task that streams its invoked operation's deltas onto a channel), `subscribesTo` (a message start event that subscribes to a channel starts its process on each publish, [ADR-0010](/adr/0010-channel-started-processes)), `reads`, `writes` |
 | Data to architecture | `storedIn` (shape to the store container that persists its instances, [ADR-0011](/adr/0011-storage-resolution)) |
 | Data to lifecycle | `lifecycle` (shape to state machine), `fires` (task to transition) |
-| Communication contracts | `acceptsShape`, `returnsShape`, `mediaKind` |
+| Communication contracts | `acceptsShape`, `returnsShape`, `mediaKind`, `implementedBy` (operation to what serves it: an LLM completion, a Python handler or an HTTP endpoint, [ADR-0012](/adr/0012-operation-implementation)) |
 | Authorization | `governedBy`, deliberately attachable to anything |
 
 `reads` and `writes` are the workhorses of impact analysis: a property path through

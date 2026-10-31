@@ -37,7 +37,8 @@ proc:ServiceTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
 Implementation rule (gaps.md GAP-27): the implementation of the invoked operation is
 the arch:Container that seam:exposes it, reached at the operation's comm:path; there
 is no proc:implementation term. A container that also seam:executes the task's
-process serves the operation in-process.""" .
+process serves the operation in-process. What serves the operation is its
+seam:implementedBy (ADR-0012).""" .
 
 proc:UserTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
     rdfs:comment "Mirrors bpmn:userTask. Human work item: the process waits until a person completes it on the ifml:Form it seam:completedOn (ADR-0009). Its seam:governedBy policies, with the task as odrl:target, decide who may complete it." .

@@ -115,6 +115,12 @@ class Operation(_Endpoint):
         return self._many(Event, iris, SEAM.submitsTo)
 
     @property
+    def implemented_by(self) -> Many[Element]:
+        """The implementations it is seam:implementedBy (ADR-0012), by IRI. A
+        model states at most one; ``ModelGraph.operation_implementation`` checks."""
+        return self._related(self._objects(SEAM.implementedBy), SEAM.implementedBy)
+
+    @property
     def request_media_type(self) -> str | None:
         return self._text(COMM.requestMediaType)
 

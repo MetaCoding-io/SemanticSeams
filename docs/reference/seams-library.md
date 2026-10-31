@@ -93,6 +93,8 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `store_plan()` resolves where the runtime keeps its rows (ADR-0011) and
   `store_health()` reports what is wrong with that; see
   [Store resolution](#store-resolution).
+  `operation_implementation(op)` reads what serves an operation (ADR-0012);
+  see [Operation implementation](#operation-implementation).
   `seams_runtime` re-exports it unchanged. Three of its result types share a
   name with a view class (`Container`, `Lifecycle`, `Transition`): import
   those from `seams.graph` (or `seams_runtime.model`); the top-level names
@@ -169,7 +171,7 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `nodes`.
 - **`model.operations`** and **`model.channels`**:
   - `Operation` has `method`, `path`, `accepts`, `returns`, `media_kind`,
-    `request_media_type`, `exposed_by`, `consumed_by`, `governed_by`,
+    `request_media_type`, `implemented_by`, `exposed_by`, `consumed_by`, `governed_by`,
     `renders` (the components it `seam:rendersComponent`) and
     `submitted_by` (the events that `seam:submitsTo` it).
     `path` is a `PathTemplate` (`template`, `mappings`: `PathMapping`s
@@ -417,6 +419,32 @@ seams.ModelGraph("examples/chat-app/chat-app.trig").store_health()
 seams.ModelGraph("examples/checkout.trig").store_health()
 # [StoreFinding(severity="Violation", subject=:order_api, predicate=deploy:connectsTo, message="cannot resolve ...")]
 ```
+
+## Operation implementation
+
+`ModelGraph.operation_implementation(op)` reads the operation's
+`seam:implementedBy` (ADR-0012) and returns a frozen `Implementation(iri,
+kind, handler)`, or None when the operation declares none. `kind` is one of
+`IMPLEMENTATION_KINDS` (`comm:HTTPEndpoint`, `comm:LLMCompletion`,
+`comm:PythonHandler`); `handler` is the `comm:handler` dotted path of a
+Python handler and None for the other kinds. The operation view's
+`implemented_by` lists the implementation nodes.
+
+```python
+seams.ModelGraph("examples/chat-app/chat-app.trig").operation_implementation(":completion_op")
+# Implementation(iri=:completion_impl, kind=comm:LLMCompletion, handler=None)
+```
+
+Each model fault raises `ResolutionError(subject, predicate)`:
+
+| Case | `subject` | `predicate` |
+|---|---|---|
+| more than one `seam:implementedBy`, or one that is not an IRI | the operation | `seam:implementedBy` |
+| no `rdf:type`, several, or one not in `IMPLEMENTATION_KINDS` | the implementation | `rdf:type` |
+| a `comm:PythonHandler` with no `comm:handler`, several, or one with a segment that is not a Python identifier | the implementation | `comm:handler` |
+
+Whether the kind agrees with where the operation is served, and whether a
+handler imports, are the runtime's checks at load, not the library's.
 
 ## Errors
 

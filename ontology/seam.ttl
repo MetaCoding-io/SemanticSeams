@@ -1,6 +1,7 @@
 @prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
@@ -250,6 +251,18 @@ seam:returnsShape a rdf:Property ;
     rdfs:comment """operation -> response payload sh:NodeShape. For operations whose
 seam:mediaKind is seam:UIFragment, this describes the shape of the DATA the fragment
 renders, not the HTTP body (which is HTML). (Constraint in shapes/seam-shapes.ttl.)""" .
+
+seam:implementedBy a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "implemented by" ;
+    rdfs:domain hydra:Operation ;
+    rdfs:comment """operation -> the implementation that serves it (ADR-0012). The
+node's rdf:type is its kind: comm:LLMCompletion, comm:PythonHandler or
+comm:HTTPEndpoint. At most one per operation; every task that invokes the
+operation gets the same implementation. An operation invoked across containers
+must declare one; an in-process operation with none is served by the runtime
+itself. Layer reveal: the implementation is code, not a model the viewer opens.
+(Constraints in shapes/seam-shapes.ttl.)""" .
 
 seam:mediaKind a rdf:Property ;
     seam:reveal seam:Layer ;

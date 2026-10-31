@@ -1,6 +1,7 @@
 @prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 @prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 @prefix comm:  <https://w3id.org/seams/comm#> .
 
@@ -87,3 +88,41 @@ comm:requestMediaType a rdf:Property ;
 "application/x-www-form-urlencoded" for an htmx form post or "application/json"
 for a seam:Data operation. seam:acceptsShape says what the body holds; this says
 how it is encoded.""" .
+
+#################################################################
+# Operation implementation (ADR-0012)
+#################################################################
+
+# What serves an operation is the object of its seam:implementedBy. That node's
+# rdf:type is its kind, exactly one of the three classes below, so SHACL can check
+# it and no kind string or second predicate is needed.
+
+comm:LLMCompletion a rdfs:Class ;
+    rdfs:label "LLM completion" ;
+    rdfs:comment """Implementation kind: chat messages built from the accepted entity, a
+streamed completion from the serving container (the executing container's
+deploy:serviceOf binding) at the operation's comm:path, deltas published on the
+task's seam:publishesTo channel, and the joined reply validated against
+seam:returnsShape.""" .
+
+comm:PythonHandler a rdfs:Class ;
+    rdfs:label "Python handler" ;
+    rdfs:comment """Implementation kind: a hand-written function in the application's
+handlers package, called in the runtime's process with the accepted entity; its
+result is validated against seam:returnsShape. Names the function with
+comm:handler. The operation must be served in-process.""" .
+
+comm:HTTPEndpoint a rdfs:Class ;
+    rdfs:label "HTTP endpoint" ;
+    rdfs:comment """Implementation kind: the accepted entity POSTed as JSON to the serving
+container (base URL from the deploy:serviceOf binding, path from the operation's
+comm:path), the JSON response validated against seam:returnsShape.""" .
+
+comm:handler a rdf:Property ;
+    rdfs:label "handler" ;
+    rdfs:domain comm:PythonHandler ;
+    rdfs:range xsd:string ;
+    rdfs:comment """Dotted path of a comm:PythonHandler's function relative to the
+handlers package, e.g. "notify.notify_manager" (function notify_manager in
+handlers/notify.py). Every segment is a Python identifier, so the path cannot
+name code outside the package.""" .

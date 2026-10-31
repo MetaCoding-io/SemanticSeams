@@ -1,0 +1,168 @@
+# The expense tutorial's data model as an ontology anchored in gist 14.0.0 (the
+# version SemPKM bundles; 14.1.0 is a backward-compatible minor release), with
+# shapes that target its classes. A sketch for the data-centric research note
+# (docs/research/2026-10-31-data-centric-model-and-copilot.md); it is not loaded
+# by the viewer, the generators or the runtime, which know no ontology notation yet.
+#
+# Compare with the shapes-only model in examples/expenses/chapter-08/expenses.trig.
+
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix gist:  <https://w3id.org/semanticarts/ns/ontology/gist/> .
+@prefix gistd: <https://w3id.org/semanticarts/ns/data/gist/> .
+@prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix state: <https://w3id.org/seams/state#> .
+@prefix :      <https://example.org/expenses/> .
+
+#################################################################
+# Ontology: what the things are. Long-lived, shared, app-independent.
+#################################################################
+
+<urn:seams:graph:model:expense_ontology> {
+
+    :expense_ontology a seam:Model , owl:Ontology ;
+        rdfs:label "Expense Ontology" ;
+        owl:versionIRI <https://example.org/expenses/ontology/1.0.0> ;
+        owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
+
+    # Money an employee spent for the company. gist: a transfer of funds.
+    :Expense a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Expense" ;
+        skos:definition "Money an employee spent on the company's behalf and asks to have reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # The company's transfer that reimburses an expense. Also a transaction.
+    :Payment a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Payment" ;
+        skos:definition "Money the company transfers to reimburse an expense." ;
+        seam:inModel :expense_ontology .
+
+    # A manager's or finance's decision on an expense. gist: an event that
+    # establishes a result by evaluating.
+    :Approval a owl:Class ;
+        rdfs:subClassOf gist:Determination ;
+        rdfs:label "Approval" ;
+        skos:definition "An evaluation that establishes whether an expense is reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # States and outcomes are categories, not strings. The lifecycle's own
+    # state IRIs are the members of :ExpenseState (see the lifecycle graph).
+    :ExpenseState a owl:Class ;
+        rdfs:subClassOf gist:Category ;
+        rdfs:label "Expense state" ;
+        seam:inModel :expense_ontology .
+    :ApprovalOutcome a owl:Class ;
+        rdfs:subClassOf gist:Category ;
+        rdfs:label "Approval outcome" ;
+        seam:inModel :expense_ontology .
+    :approved a :ApprovalOutcome ; rdfs:label "approved" ; seam:inModel :expense_ontology .
+    :rejected a :ApprovalOutcome ; rdfs:label "rejected" ; seam:inModel :expense_ontology .
+
+    # Money is a gist magnitude with a unit; gistCore has no currency
+    # individuals, so the model declares the one it uses.
+    :USD a gist:UnitOfMeasure ;
+        rdfs:label "US dollar" ;
+        gist:exponentOfUSDollar 1 ;
+        gist:conversionFactor 1.0 ;
+        seam:inModel :expense_ontology .
+
+    # Not everything has a gist term, and that is fine: gist dates are
+    # xsd:dateTime, and an expense is dated to the day.
+    :incurredOn a owl:DatatypeProperty ;
+        rdfs:label "incurred on" ;
+        rdfs:domain :Expense ;
+        rdfs:range xsd:date ;
+        seam:inModel :expense_ontology .
+    :reference a owl:DatatypeProperty ;
+        rdfs:label "payment reference" ;
+        rdfs:domain :Payment ;
+        rdfs:range xsd:string ;
+        seam:inModel :expense_ontology .
+}
+
+#################################################################
+# Lifecycle: the existing states gain a type, so the shape can use them.
+#################################################################
+
+<urn:seams:graph:model:expense_lifecycle> {
+    :s_draft     a :ExpenseState .
+    :s_submitted a :ExpenseState .
+    :s_approved  a :ExpenseState .
+    :s_rejected  a :ExpenseState .
+    :s_paid      a :ExpenseState .
+}
+
+#################################################################
+# Shapes: what one interface or step needs. Many per class.
+#################################################################
+
+<urn:seams:graph:model:expense_data> {
+
+    # The expense as forms and lists show it. Compare the chapter-8 shape:
+    # same fields, but every path is a declared property, the amount carries
+    # its unit, and status is a state IRI rather than a copied list of strings.
+    :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+        sh:targetClass :Expense ;
+        sh:property [ sh:path gist:description ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ; sh:name "description" ] ;
+        sh:property [ sh:path gist:hasMagnitude ; sh:node :MoneyShape ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 1 ; sh:name "amount" ] ;
+        sh:property [ sh:path :incurredOn ; sh:datatype xsd:date ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 2 ; sh:name "date" ] ;
+        sh:property [ sh:path gist:isCategorizedBy ; sh:class :ExpenseState ;
+                      sh:maxCount 1 ; sh:order 3 ; sh:name "status" ] ;
+        seam:inModel :expense_data .
+
+    :MoneyShape a sh:NodeShape ; rdfs:label "Money" ;
+        sh:class gist:Magnitude ;
+        sh:property [ sh:path gist:numericValue ; sh:datatype xsd:decimal ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:minInclusive 0.01 ] ;
+        sh:property [ sh:path gist:hasUnitOfMeasure ; sh:hasValue :USD ] ;
+        sh:property [ sh:path gist:hasAspect ; sh:hasValue gistd:_Aspect_monetary_value ] ;
+        seam:inModel :expense_data .
+
+    # What the approver enters: a contract for one form. It targets :Approval,
+    # the thing the form creates, and links it to the expense it decides.
+    :ApprovalShape a sh:NodeShape ; rdfs:label "Approval" ;
+        sh:targetClass :Approval ;
+        sh:property [ sh:path gist:isCategorizedBy ; sh:class :ApprovalOutcome ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ; sh:name "decision" ] ;
+        sh:property [ sh:path gist:description ; sh:datatype xsd:string ;
+                      sh:maxCount 1 ; sh:maxLength 500 ; sh:order 1 ; sh:name "comment" ] ;
+        sh:property [ sh:path gist:refersTo ; sh:class :Expense ;
+                      sh:minCount 1 ; sh:maxCount 1 ] ;
+        seam:inModel :expense_data .
+
+    :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
+        sh:targetClass :Payment ;
+        sh:property [ sh:path :reference ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+        sh:property [ sh:path gist:actualEndDate ; sh:datatype xsd:dateTime ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 1 ; sh:name "paid on" ] ;
+        sh:property [ sh:path gist:refersTo ; sh:class :Expense ;
+                      sh:minCount 1 ; sh:maxCount 1 ] ;
+        seam:inModel :expense_data .
+}
+
+#################################################################
+# Instance data, as the runtime would store it in an RDF store such as
+# SemPKM. One named graph per entity is one option; SemPKM materialises
+# current state into one graph and keeps each change as an event graph.
+#################################################################
+
+<urn:example:data:expense:e42> {
+    <https://example.org/expenses/data/e42> a :Expense ;
+        gist:description "Train to the Utrecht client workshop" ;
+        gist:hasMagnitude [ a gist:Magnitude ;
+            gist:numericValue 42.50 ;
+            gist:hasUnitOfMeasure :USD ;
+            gist:hasAspect gistd:_Aspect_monetary_value ] ;
+        :incurredOn "2026-10-28"^^xsd:date ;
+        gist:isCategorizedBy :s_submitted .
+}

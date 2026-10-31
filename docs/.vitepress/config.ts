@@ -135,6 +135,7 @@ export default defineConfig({
         items: [
           { text: "Project outline", link: "/project-outline" },
           { text: "Backlog", link: "/backlog" },
+          { text: "Design and coding principles", link: "/project/principles" },
           {
             text: "Decisions",
             link: "/adr/",

@@ -25,9 +25,8 @@ version so the editor can migrate them. Editing is still a v1 non-goal (backlog 
   generator, constraints and versioning for a car-rental pricing DSL. Page numbers below
   are the printed ones. Everything is paraphrased; nothing is quoted.
 - Terence Parr, *Language Implementation Patterns* (Pragmatic Bookshelf, 2010). Cited by
-  chapter and pattern name from its published table of contents, without page numbers.
-  Its parsing half does not apply to us; its tree, symbol, type and translation chapters
-  do.
+  chapter, pattern and printed page, also paraphrased. Its parsing chapters (2–3) do not
+  apply to us; its tree, symbol, type and translation chapters (4–8, 11–12) do.
 
 ## Boersma's vocabulary, in our terms
 
@@ -132,10 +131,26 @@ such as camel-cased names, to be computed before the template runs (pp. 230–23
 **Where we stand.** G2 was this method: the three chat-app artifacts were written by hand
 first, and the generators had to match them byte for byte before they existed. The
 `extract_*` / `render_*` split in `seams_gen` is the precomputation Boersma describes, and
-it is also what Parr argues for. His translation chapter (ch. 11) builds an output model
-first and emits text from it, so the output order does not have to follow the input
-walk. His template chapter (ch. 12, on StringTemplate) keeps logic out of templates
-altogether. Our rule that templates hold no domain literals is the same idea.
+Parr argues for the same structure:
+
+- **Understand, then map** (p. 291). A translator should analyse an input phrase fully
+  and then pick an output construct for it, rather than swap symbols one for one.
+- **Build an output model first** (section 11.3, pp. 295–297). Walk the input, build a
+  nested tree of output objects, and only then emit text, so the output order does not
+  have to follow the input walk. He also advises against rewriting the input tree as a
+  translation step unless the change is simple (p. 296).
+- **Keep logic out of templates** (p. 323). Of the template engines he lists, only
+  StringTemplate enforces this strictly: computation stays in code and templates hold
+  output text. That is what lets one model drive several templates.
+- **Retarget by swapping templates** (section 12.7, p. 347). One input model and one
+  traversal can produce a different language when given a different template group.
+
+Our templates are close to that but looser. They loop and branch, which StringTemplate
+also allows, but they also join lists, lowercase method names, concatenate strings and
+compare list lengths (`seams_gen/templates/`). Strict separation would move those into
+`extract`. The rule we do enforce, no domain literals in templates, is narrower. The
+generator guide should recommend Parr's stricter form for user generators, because it is
+what makes a template set swappable.
 
 **What follows for users.** The method is teachable, and nothing in the repository
 packages it. A user writing a generator needs:
@@ -276,8 +291,10 @@ triggers. What is missing is everything that writes.
 
 Two prerequisites sit under all four layers:
 
-- **Writing TriG back without losing what people wrote.** rdflib drops comments and
-  reorders triples when it serialises. The examples rely on comments: the chat app has 61
+- **Writing TriG back without losing what people wrote.** Parr lists the need to keep
+  comments and formatting among the things that make a translator hard (p. 290), and
+  writing a model back after an edit is that kind of translation. rdflib drops comments
+  and reorders triples when it serialises. The examples rely on comments: the chat app has 61
   comment lines in 434, and the expense tutorial's chapter 8 has 173 in 799. Options:
   - edit the TriG text in place at the triple level;
   - move the explanation into `rdfs:comment` triples;
@@ -301,7 +318,10 @@ native XML:
 
 ADR-0007 keeps them there, and nothing here argues for lifting them. Two cheap static
 checks still follow, from Boersma's type-checking constraints (section 13.2, p. 355) and
-from Parr's symbol-table and static-typing chapters (ch. 6–8):
+from Parr's chapters on symbols and scopes (ch. 6, pp. 146–161) and static typing
+(ch. 8, Pattern 22, Enforcing Static Type Safety, p. 216). Parr notes that some languages
+check the same rule both before and during execution (p. 196). That is the arrangement
+here: the engine keeps its run-time check, and a static check reports the fault earlier.
 
 - **Type agreement.** A DMN input whose `typeRef` is `number` should read a property
   whose `sh:datatype` is numeric. Today the engine coerces the value at run time and
@@ -342,14 +362,18 @@ enforces.
 
 Parr's tree chapters give the kit two ways to read a model:
 
-- **Two kinds of tree** (ch. 4). A *homogeneous* tree uses one node type for everything;
-  a *heterogeneous* one has a type per construct. The rdflib dataset is homogeneous.
-  L3's typed views per layer are a heterogeneous view over it, and the kit should keep
-  both.
-- **Two ways to walk them** (ch. 5). A *tree pattern matcher* finds things wherever they
-  are; an *external visitor* walks a structure in a fixed order. SPARQL is our pattern
-  matcher, for "find every X with Y". L4's walk of a BPMN process in flow order is a
-  visitor, for "walk this in order". The generator guide should say when to use which.
+- **Two kinds of tree** (ch. 4). A *homogeneous* tree uses one node type for everything
+  (Pattern 9, p. 109); a *normalized heterogeneous* one has a type per construct but
+  keeps a uniform list of children, which keeps generic walkers easy to write
+  (Pattern 10, p. 111). The rdflib dataset is homogeneous. L3's typed views per layer
+  are a heterogeneous view over it, and the kit should keep both.
+- **Two ways to walk them** (ch. 5). Parr separates *how a walk proceeds* from *what it
+  looks for* (section 5.4, p. 125). A *tree pattern matcher* fires on patterns wherever
+  the walk finds them (Pattern 15, p. 138); an *external tree visitor* keeps one task's
+  whole walk in one place, in an order it chooses (Pattern 13, p. 131). SPARQL is our
+  pattern matcher, for "find every X with Y". L4's walk of a BPMN process in flow order
+  is a visitor, for "walk this in order". The generator guide should say when to use
+  which.
 
 ## Proposal
 
@@ -361,7 +385,7 @@ Parr's tree chapters give the kit two ways to read a model:
 | K2 | **Static checks for decisions.** DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s. | none |
 | K3 | **Generator protocol and discovery.** A generator has a name, a version, its precondition shapes, and `extract` and `render` steps. It is registered under a `seams.generators` entry-point group, so `seams generate` runs it and the lockfile records it. A lenient mode collects faults and emits flagged output, for previews only. | L2, A1, A2 |
 | K4 | **Generator test kit.** Golden comparison with the hash placeholder (moved from `seams_gen/golden.py`), a determinism check, output checkers per file type, and the K1 parity helper, all public. | K3 |
-| K5 | **Scaffold and guide.** `seams new-generator` from a reference output: a verbatim template and a passing golden test. The L6 guide is written as Boersma's three-step method. | K3, K4, L6 |
+| K5 | **Scaffold and guide.** `seams new-generator` from a reference output: a verbatim template and a passing golden test. The L6 guide is written as Boersma's three-step method and recommends Parr's logic-free templates. | K3, K4, L6 |
 | K6 | **Vocabulary versions and migrations.** A version IRI per vocabulary, the target version stated in each model, the load check in the shared library, SPARQL Update migrations per step, and deprecations as `owl:deprecated` plus a warning-level shape. ADR first. | L2; shares classification with U8 |
 
 ### Domain IDE (I)

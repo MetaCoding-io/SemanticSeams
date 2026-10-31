@@ -7,7 +7,8 @@ or the generated outputs are not in order, and writes nothing; `seams sequence`
 derives an event's sequence diagrams; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
-as a Markdown change plan. Its distribution name is `semanticseams-cli` and its import name is
+as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
+and policies no scenario or test exercises. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -42,6 +43,7 @@ out = "generated/templates"
 | `[[generators]].name` | string | A generator name from `seams_gen` (see [Generators](#generators)). |
 | `[[generators]].out` | string | The directory the generator writes into. |
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
+| `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
@@ -202,6 +204,12 @@ pre-commit hook (D044):
    for example `gates = ["gates/ungoverned-writes.rq"]`.
 3. **Outputs.** Every generator runs in memory and the result is compared with
    the disk and with `seams.lock`.
+4. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+   start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
+   the process IRI, then the path's flow node IRIs (see
+   [seams coverage](#seams-coverage)). The other two coverage reports are gate
+   queries: add `docs/queries/coverage/unfired-transitions.rq` and
+   `docs/queries/coverage/policies-without-deny.rq` to `gates`.
 
 | Kind | Meaning |
 |---|---|
@@ -212,6 +220,7 @@ pre-commit hook (D044):
 | `hand-edited` | A stale output whose sha256 is not the locked one either: someone edited it. |
 | `orphan` | `seams.lock` lists an output no generator writes any more, and it is still on disk. |
 | `lock-out-of-date` | There is no `seams.lock`, or the lock generate would write differs from it. |
+| `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
 the working directory when they lie below it. A closing count goes to stderr:
@@ -225,8 +234,8 @@ shacl https://example.org/expenses/expense_data https://w3id.org/seams/seam#nota
 seams check: 4 problem(s)
 ```
 
-`seams generate` fixes every output finding. A `shacl` or `gate` finding is
-fixed in the model.
+`seams generate` fixes every output finding. A `shacl`, `gate` or `coverage`
+finding is fixed in the model.
 
 ### Exit codes
 
@@ -234,7 +243,7 @@ fixed in the model.
 |---|---|
 | 0 | No findings. |
 | 1 | At least one finding, or a file could not be read. |
-| 2 | The project file is missing or malformed, a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a generator found a missing or ambiguous graph fact. |
+| 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a generator found a missing or ambiguous graph fact. |
 
 Errors print to stderr as `seams check: <message>`.
 
@@ -694,3 +703,78 @@ as the acceptance job. The checkout needs the base branch's history:
       examples/chat-app
       examples/expenses/chapter-01
 ```
+
+## seams coverage
+
+```sh
+seams coverage                                     # the model of the seams.toml in the working directory
+seams coverage --project examples/chat-app
+seams coverage examples/expenses/chapter-09 --json
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `MODEL` | the project's model | A `.trig` file, or a directory whose TriG files load as one model. With it, no `seams.toml` is read. |
+| `--project` | `.` | `seams.toml` or a directory holding one, used when `MODEL` is not given. |
+| `--json` | off | Print the three lists and their counts as JSON instead of text. |
+
+`seams coverage` lists what the model declares that nothing exercises
+(backlog U5, D054). It answers three questions with
+[`seams.coverage`](/reference/seams-library):
+
+| Kind | Printed as | Meaning |
+|---|---|---|
+| `path` | `path <process> <node>...` | A start-to-end BPMN path no `verify:Scenario` runs. Paths are walked over the BPMN sequence flows (ADR-0007), so this is a Python join, not SPARQL. A path through a boundary event is never exercised. |
+| `transition` | `transition <lifecycle> <transition>` | A `state:Transition` nothing `seam:fires` (`coverage/unfired-transitions.rq`). |
+| `policy` | `policy <policy> <target> <assignee>` | An `odrl:permission` the `tests` generator writes no party deny test for, because no party in the model is outside its assignee (`coverage/policies-without-deny.rq`). `-` stands for an absent target or assignee. |
+
+Every element is a full IRI, so a line can be pasted into the viewer or a
+query. Lines come paths first, then transitions, then policies, each in
+`seams.coverage`'s fixed order. A closing count goes to stderr. The chat app has
+a gap of each kind:
+
+```
+$ seams coverage --project examples/chat-app
+path https://example.org/chat/send_message_process https://example.org/chat/chat_bpmn#start https://example.org/chat/chat_bpmn#persist_user_msg ... https://example.org/chat/chat_bpmn#end
+transition https://example.org/chat/message_lifecycle https://example.org/chat/t_fail_send
+transition https://example.org/chat/message_lifecycle https://example.org/chat/t_fail_stream
+policy https://example.org/chat/user_send_policy https://example.org/chat/send_message_op https://example.org/chat/authenticated_user
+seams coverage: 1 unexercised path(s), 2 unfired transition(s), 1 permission(s) without a deny test
+```
+
+`--json` prints `{"paths": [...], "transitions": [...], "policies": [...],
+"counts": {...}}`: a path has `process`, `nodes` and `end`, a transition
+`lifecycle` and `transition`, a policy `policy`, `target` and `assignee`
+(`null` when absent).
+
+### As gates in seams check
+
+Each report can fail [`seams check`](#seams-check): `coverage = ["paths"]` in
+`seams.toml` turns the paths into `coverage` findings, and the two queries
+under `docs/queries/coverage/` are ordinary gates:
+
+```toml
+gates = [
+  "gates/ungoverned-writes.rq",
+  "coverage/unfired-transitions.rq",
+  "coverage/policies-without-deny.rq",
+]
+coverage = ["paths"]
+```
+
+Expenses chapter 9 does not turn these on. Every transition is fired and every
+permission has a deny test, but its three scenarios run only the auto,
+manager-approve and finance-approve paths of the approval process. The two
+reject paths, the two escalations through the notify-failed boundary event and
+both payout paths have no scenario, so `seams coverage examples/expenses/chapter-09`
+reports six paths and exits 1.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Nothing is uncovered. |
+| 1 | At least one gap; the count of each kind goes to stderr. A file could not be read. |
+| 2 | The project file is missing or malformed, no model was given, or the model cannot be loaded. |
+
+Errors print to stderr as `seams coverage: <message>`.

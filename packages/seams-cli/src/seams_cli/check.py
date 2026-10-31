@@ -1,6 +1,7 @@
 """``seams check``: does a project still hold together? (M012/S03, D044)
 
-Three checks run and every finding is reported; nothing is written.
+Three checks run, and a fourth when the project asks for it; every finding
+is reported and nothing is written.
 
 - ``shacl``: the model, unioned with ``ontology/*.ttl``, is validated against
   ``ontology/shapes/seam-shapes.ttl`` with inference off, as the viewer and
@@ -13,6 +14,9 @@ Three checks run and every finding is reported; nothing is written.
   stale file whose sha256 is not the locked one either. ``orphan``: locked, no
   longer produced, still on disk. ``lock-out-of-date``: no seams.lock, or the
   lock generate would write differs from the one on disk.
+- ``coverage``: with ``coverage = ["paths"]`` in the project file, one finding
+  per BPMN path no verify:Scenario runs (``seams.coverage``, D054): the
+  process IRI, then the path's flow node IRIs.
 
 A model that cannot be loaded, a missing, unparsable or non-SELECT gate, and a
 malformed seams.lock raise ProjectError.
@@ -30,6 +34,7 @@ from rdflib.plugins.sparql import prepareQuery
 
 import seams_gen
 
+from .coverage import path_gaps
 from .generate import generate_project
 from .lockfile import audit, build_lock, locate, lock_path, read_lock, relative, render_lock
 from .project import Project, ProjectError
@@ -119,11 +124,18 @@ def check_outputs(project: Project, model: Path) -> list[Finding]:
     return findings
 
 
+def check_coverage(project: Project, model: Path) -> list[Finding]:
+    """One finding per unexercised BPMN path, when the project lists ``paths`` under ``coverage``."""
+    if "paths" not in project.coverage:
+        return []
+    return [Finding("coverage", " ".join(gap.iris)) for gap in path_gaps(seams.load(model))]
+
+
 def run_check(project: Project, model: Path) -> list[Finding]:
-    """Every finding of the three checks, sorted by kind and detail."""
+    """Every finding of the checks, sorted by kind and detail."""
     graph = model_graph(model)
     findings = check_gates(project, graph) + check_shapes(graph) + check_outputs(project, model)
-    return sorted(findings)
+    return sorted(findings + check_coverage(project, model))
 
 
-__all__ = ["Finding", "check_gates", "check_outputs", "check_shapes", "model_graph", "run_check"]
+__all__ = ["Finding", "check_coverage", "check_gates", "check_outputs", "check_shapes", "model_graph", "run_check"]

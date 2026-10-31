@@ -14,6 +14,7 @@ and the app's environments::
     out = "generated/templates"
 
     gates = ["gates/ungoverned-writes.rq"]
+    coverage = ["paths"]
 
     [environments.dev]
     endpoints = { expense_api = "http://localhost:8080" }
@@ -21,7 +22,9 @@ and the app's environments::
 Relative paths resolve against the directory of the project file, so the
 command gives the same result from any working directory. ``gates`` lists
 SPARQL SELECT queries that ``seams check`` runs over the model; each must
-return no rows (D044). Each ``[environments.<name>]`` may carry an
+return no rows (D044). ``coverage`` lists the coverage reports ``seams check``
+also fails on; the only one is ``paths``, the BPMN paths no scenario runs
+(D054; the transition and policy reports are gate queries). Each ``[environments.<name>]`` may carry an
 ``endpoints`` table, a runtime container's local name to the base URL whose
 /healthz ``seams status`` reads (D045); its other keys are still ignored.
 """
@@ -37,6 +40,7 @@ from pathlib import Path
 from seams.loader import MODEL_ENV
 
 PROJECT_FILE = "seams.toml"
+COVERAGE_CHECKS = ("paths",)
 
 
 class ProjectError(ValueError):
@@ -56,7 +60,7 @@ class Project:
     """A loaded project file. ``path`` is the file, ``root`` its directory;
     ``model``, every ``out`` and every gate are absolute. ``endpoints`` maps an
     environment name to {container local name: base URL}, for the environments
-    that declare any."""
+    that declare any. ``coverage`` names the COVERAGE_CHECKS ``seams check`` runs."""
 
     path: Path
     root: Path
@@ -65,6 +69,7 @@ class Project:
     environments: tuple[str, ...]
     gates: tuple[Path, ...] = ()
     endpoints: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
+    coverage: tuple[str, ...] = ()
 
 
 def _known_generators() -> dict:
@@ -128,6 +133,15 @@ def load_project(path: Path | str) -> Project:
         if not isinstance(gate, str):
             raise ProjectError(f"{path}: `gates[{index}]` must be a string, got {type(gate).__name__}")
 
+    coverage = data.get("coverage", [])
+    if not isinstance(coverage, list):
+        raise ProjectError(f"{path}: `coverage` must be an array of strings, got {type(coverage).__name__}")
+    for index, check in enumerate(coverage):
+        if check not in COVERAGE_CHECKS:
+            raise ProjectError(
+                f"{path}: `coverage[{index}]` is {check!r}; known coverage checks: {', '.join(COVERAGE_CHECKS)}"
+            )
+
     return Project(
         path=path,
         root=root,
@@ -136,6 +150,7 @@ def load_project(path: Path | str) -> Project:
         environments=tuple(environments),
         gates=tuple(root / gate for gate in gates),
         endpoints=endpoints,
+        coverage=tuple(dict.fromkeys(coverage)),
     )
 
 

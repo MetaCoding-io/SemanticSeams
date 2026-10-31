@@ -89,7 +89,10 @@ model versions as compatible or breaking, and exits 1 when any change is breakin
 `seams plan OLD NEW` turns those changes and the elements each layer adds and removes into
 a Markdown change plan (release notes), between paths or git `REF:PATH` specs; on a pull
 request that changes a model, CI's `change-plan` job posts it to the job summary through
-the composite action in `.github/actions/seams-plan`. The `tests` generator turns the
+the composite action in `.github/actions/seams-plan`. `seams coverage` lists, by IRI, the
+BPMN paths no scenario runs, the transitions nothing fires and the permissions without a
+deny test, and exits 1 on any; `coverage = ["paths"]` in `seams.toml` and the
+`docs/queries/coverage/` gates make `seams check` fail on them. The `tests` generator turns the
 model's `verify:` scenarios, decision examples and shape examples, and every ODRL
 permission per party, into pytest files under `generated/tests`
 ([ADR-0014](docs/adr/0014-scenarios-and-derived-tests.md)). The

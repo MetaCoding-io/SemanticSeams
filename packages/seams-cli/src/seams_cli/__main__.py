@@ -1,4 +1,5 @@
-"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``.
+"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+``seams coverage [MODEL | --project PATH]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -20,7 +21,8 @@ SHACL shapes, runs the project's gate queries and compares the outputs
 generate would write with the disk and seams.lock. Each finding prints to
 stdout as ``<kind> <detail>``; with any finding, ``seams check: N problem(s)``
 goes to stderr and the exit code is 1. A model that cannot be loaded, a bad
-gate or a malformed seams.lock exits 2.
+gate or a malformed seams.lock exits 2. With ``coverage = ["paths"]`` in the
+project file, each BPMN path no scenario runs is a ``coverage`` finding too.
 
 ``seams status [--env NAME] [--timeout SECONDS]`` (D045) GETs /healthz from
 each runtime container of the model at the base URL that
@@ -60,6 +62,16 @@ each layer adds and removes, as CURIEs. OLD and NEW are model paths or git
 or to FILE, whose path is then printed. Exit codes and the stderr summary
 (``seams plan: N breaking, M compatible``) are diff's; an unknown ref or a
 failing git exits 2.
+
+``seams coverage [MODEL | --project PATH] [--json]`` (D054) lists what the
+model declares that nothing exercises: each BPMN path no verify:Scenario runs
+(``path <process> <node>...``), each state:Transition nothing seam:fires
+(``transition <lifecycle> <transition>``) and each odrl:permission with no
+party deny test (``policy <policy> <target> <assignee>``), with full IRIs.
+MODEL is a TriG file or a directory; without it the project's model is used.
+``--json`` prints the three lists and their counts instead. With any gap, a
+count of each goes to stderr as ``seams coverage: ...`` and the exit code is
+1; a model that cannot be loaded exits 2.
 """
 
 from __future__ import annotations
@@ -75,6 +87,8 @@ import seams
 from seams_gen import GeneratorError
 
 from .check import FILE_KINDS, run_check
+from .coverage import coverage_report, summary
+from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
 from .generate import apply, generate_project
 from .lockfile import locate
@@ -148,6 +162,19 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("new", help="the new model, in the same forms")
     plan.add_argument("--output", type=Path, help="write the plan to this file instead of stdout")
     plan.set_defaults(run=_plan)
+    coverage = sub.add_parser(
+        "coverage",
+        help="list the BPMN paths, transitions and policies no scenario or test exercises",
+        description="Report unexercised BPMN paths, unfired transitions and permissions without a deny test.",
+    )
+    coverage.add_argument(
+        "model", type=Path, nargs="?", help="the model: a .trig file or a directory (default: the project's model)"
+    )
+    coverage.add_argument(
+        "--project", type=Path, default=Path("."), help="seams.toml or a directory holding one (default: .)"
+    )
+    coverage.add_argument("--json", action="store_true", help="print the three lists and their counts as JSON")
+    coverage.set_defaults(run=_coverage)
     return parser
 
 
@@ -250,6 +277,20 @@ def _plan(args: argparse.Namespace) -> int:
     counts = to_json(changes)["counts"]
     if counts[BREAKING]:
         print(f"seams plan: {counts[BREAKING]} breaking, {counts[COMPATIBLE]} compatible", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _coverage(args: argparse.Namespace) -> int:
+    path = args.model if args.model is not None else resolve_model(load_project(args.project))
+    gaps = coverage_report(load_model(path))
+    if args.json:
+        print(json.dumps(coverage_json(gaps), indent=2))
+    else:
+        for gap in gaps:
+            print(" ".join((gap.kind, *gap.iris)))
+    if gaps:
+        print(f"seams coverage: {summary(gaps)}", file=sys.stderr)
         return 1
     return 0
 

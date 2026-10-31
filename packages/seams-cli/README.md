@@ -31,6 +31,8 @@ out = "generated/templates"
 - `gates` (array of strings, optional): SPARQL SELECT files, relative to the
   project file, that `seams check` runs over the model; each must return no
   rows.
+- `coverage` (array of strings, optional): `["paths"]` makes `seams check`
+  report each BPMN path no scenario runs as a `coverage` finding (D054).
 - `environments` (table of tables, optional): environment names. An
   environment may carry an `endpoints` inline table, container local name to
   base URL, for `seams status`; any other key is ignored.
@@ -89,10 +91,11 @@ It writes nothing (D044, `check.py`). It validates the model, unioned with
 query over the same graph; and runs every generator in memory to compare the
 outputs with the disk and `seams.lock`. Each finding prints to stdout as
 `<kind> <detail>`, with kind one of `shacl`, `gate`, `missing`, `stale`,
-`hand-edited`, `orphan` and `lock-out-of-date`, followed by
+`hand-edited`, `orphan`, `lock-out-of-date` and, with `coverage = ["paths"]`,
+`coverage` (the process IRI and the node IRIs of an unexercised path), followed by
 `seams check: N problem(s)` on stderr. It exits 0 with no findings, 1 with any,
 and 2 for the errors of `seams generate` plus a missing, unparsable or
-non-SELECT gate or a model that cannot be loaded. See
+non-SELECT gate, an unknown `coverage` entry or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-check).
 
 ## seams status
@@ -182,3 +185,23 @@ temporary directory. The plan goes to stdout or to `--output FILE`. Exit codes
 and the stderr summary are `seams diff`'s; a failing git or an unknown ref exits
 2 with a message naming the ref. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-plan).
+
+## seams coverage
+
+```sh
+seams coverage                         # the model of the seams.toml in the working directory
+seams coverage examples/expenses/chapter-09 --json
+```
+
+It lists what the model declares that nothing exercises (D054, `coverage.py`,
+`coverage_report`, over `seams.coverage`): `path <process> <node>...` for each
+start-to-end BPMN path no verify:Scenario runs, `transition <lifecycle>
+<transition>` for each state:Transition nothing seam:fires, and `policy <policy>
+<target> <assignee>` for each odrl:permission the `tests` generator writes no
+party deny test for, all as full IRIs. MODEL is a TriG file or a directory;
+without it, `--project`'s model is used. `--json` prints `to_json`'s three lists
+and counts instead. It exits 0 with no gap, 1 with any, after
+`seams coverage: N unexercised path(s), M unfired transition(s), K permission(s)
+without a deny test` on stderr, and 2 when the project or model cannot be
+loaded. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-coverage).

@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import seams
 from seams_cli import Finding, load_project, run_check
 from seams_cli.__main__ import main
 
@@ -211,3 +212,89 @@ def test_check_writes_nothing(app, tmp_path, capsys):
     before = _hashes(tmp_path)
     assert _check(app, capsys)[0] == 1
     assert _hashes(tmp_path) == before
+
+
+def _set_coverage(app: Path, value: str) -> None:
+    toml = app / "seams.toml"
+    toml.write_text(f"coverage = {value}\n" + toml.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def _chapter_9(tmp_path: Path) -> Path:
+    """A copy of chapter 9 with the docs/queries its gate climbs out of the project to reach."""
+    shutil.copytree(ROOT / "docs" / "queries", tmp_path / "docs" / "queries")
+    return _copy(Path("examples/expenses/chapter-09"), tmp_path)
+
+
+def test_coverage_paths_reports_each_unexercised_path(tmp_path, capsys):
+    """Chapter 9 runs three of its approval paths; the other six (D054, tests/test_seams_coverage.py) are findings."""
+    app = _chapter_9(tmp_path)
+    _set_coverage(app, '["paths"]')
+    code, lines, err = _check(app, capsys)
+    expected = sorted(
+        "coverage " + " ".join((str(p.process.iri), *(str(i) for i in p.iris)))
+        for p in seams.unexercised_paths(seams.load(app / "expenses.trig"))
+    )
+    assert code == 1
+    assert len(expected) == 6
+    assert lines == expected
+    assert err.strip() == "seams check: 6 problem(s)"
+    assert "https://example.org/expenses/approval_bpmn#rejected_end" in lines[0]
+
+
+def test_coverage_unset_adds_no_findings(tmp_path, capsys):
+    app = _chapter_9(tmp_path)
+    assert load_project(app).coverage == ()
+    assert _check(app, capsys) == (0, [], "")
+
+
+def test_coverage_paths_passes_a_model_without_processes(tmp_path, capsys):
+    app = _copy(Path("examples/expenses/chapter-01"), tmp_path)
+    _set_coverage(app, '["paths", "paths"]')
+    assert load_project(app).coverage == ("paths",)
+    assert _check(app, capsys) == (0, [], "")
+
+
+@pytest.mark.parametrize(
+    ("coverage", "message"),
+    [
+        ('"paths"', "`coverage` must be an array of strings"),
+        ('["transitions"]', "`coverage[0]` is 'transitions'; known coverage checks: paths"),
+        ("[1]", "`coverage[0]` is 1"),
+    ],
+    ids=["not-an-array", "unknown", "not-a-string"],
+)
+def test_a_bad_coverage_exits_2(app, capsys, coverage, message):
+    _set_coverage(app, coverage)
+    code, lines, err = _check(app, capsys)
+    assert (code, lines) == (2, [])
+    assert err.startswith("seams check: ") and message in err
+
+
+def _replace_gates(app: Path, up: str) -> None:
+    """Swap the project's gates for the two coverage queries, ``up`` being the climb to the repository root."""
+    toml = app / "seams.toml"
+    kept = [line for line in toml.read_text(encoding="utf-8").splitlines() if not line.startswith("gates =")]
+    gates = f'gates = ["{up}docs/queries/coverage/unfired-transitions.rq", "{up}docs/queries/coverage/policies-without-deny.rq"]'
+    toml.write_text("\n".join([gates, *kept]) + "\n", encoding="utf-8")
+
+
+def test_the_coverage_queries_are_gates(tmp_path, capsys):
+    """Chapter 9 fires every transition and denies every permission to some party, so both gates pass."""
+    app = _chapter_9(tmp_path)
+    _replace_gates(app, "../../../")
+    assert _check(app, capsys) == (0, [], "")
+
+
+def test_the_coverage_gates_report_the_chat_app_gaps(tmp_path, capsys):
+    shutil.copytree(ROOT / "docs" / "queries", tmp_path / "docs" / "queries")
+    app = _copy(Path("examples/chat-app"), tmp_path)
+    _replace_gates(app, "../../")
+    code, lines, _err = _check(app, capsys)
+    chat = "https://example.org/chat/"
+    assert code == 1
+    assert lines == [
+        f"gate ../../docs/queries/coverage/policies-without-deny.rq {chat}user_send_policy "
+        f"{chat}send_message_op {chat}authenticated_user",
+        f"gate ../../docs/queries/coverage/unfired-transitions.rq {chat}message_lifecycle {chat}t_fail_send",
+        f"gate ../../docs/queries/coverage/unfired-transitions.rq {chat}message_lifecycle {chat}t_fail_stream",
+    ]

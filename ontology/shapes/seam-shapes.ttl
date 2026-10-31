@@ -26,7 +26,9 @@ comments were already making; validating a model against this file is what turns
 Validate with the ontology files merged into the data graph: sh:class checks
 subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data.""" ;
     sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] ,
-               [ sh:prefix "ifml" ; sh:namespace "https://w3id.org/seams/ifml#"^^xsd:anyURI ] .
+               [ sh:prefix "ifml" ; sh:namespace "https://w3id.org/seams/ifml#"^^xsd:anyURI ] ,
+               [ sh:prefix "hydra" ; sh:namespace "http://www.w3.org/ns/hydra/core#"^^xsd:anyURI ] ,
+               [ sh:prefix "comm" ; sh:namespace "https://w3id.org/seams/comm#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -95,6 +97,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:returnsShape ,
         seam:mediaKind ,
         seam:implementedBy ,
+        seam:catches ,
         seam:governedBy ,
         seam:conformsTo ,
         seam:realizes ;
@@ -294,9 +297,10 @@ seamsh:AcceptsShapeShape a sh:NodeShape ;
 
 seamsh:ReturnsShapeShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:returnsShape ;
-    sh:class hydra:Operation ;
+    sh:or ( [ sh:class hydra:Operation ] [ sh:class hydra:Status ] ) ;
     sh:property [ sh:path seam:returnsShape ; sh:class sh:NodeShape ;
-        sh:message "seam:returnsShape points at a sh:NodeShape." ] .
+        sh:message "seam:returnsShape points at a sh:NodeShape." ] ;
+    sh:message "Only operations and their hydra:Status responses (ADR-0013) declare seam:returnsShape." .
 
 seamsh:MediaKindShape a sh:NodeShape ;
     sh:targetObjectsOf seam:mediaKind ;
@@ -342,6 +346,66 @@ seamsh:RemoteImplementationShape a sh:NodeShape ;
                 FILTER NOT EXISTS { $this seam:implementedBy ?implementation }
             }""" ;
     ] .
+
+#################################################################
+# Operation errors and error boundaries (ADR-0013)
+#################################################################
+
+seamsh:ErrorStatusShape a sh:NodeShape ;
+    sh:targetSubjectsOf comm:errorCode ;
+    sh:class hydra:Status ;
+    sh:property [ sh:path comm:errorCode ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^[A-Za-z][A-Za-z0-9._-]*$" ;
+        sh:message "An error status has exactly one comm:errorCode: a string of letters, digits, '.', '_' or '-', starting with a letter." ] ;
+    sh:property [ sh:path hydra:statusCode ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 400 ; sh:maxInclusive 599 ;
+        sh:message "An error status has exactly one integer hydra:statusCode in 400..599." ] ;
+    sh:property [ sh:path seam:returnsShape ; sh:minCount 1 ; sh:maxCount 1 ; sh:node seamsh:ProblemShapeShape ;
+        sh:message "An error status seam:returnsShape exactly one error shape over problem+json (comm:title and an integer comm:status)." ] ;
+    sh:property [ sh:path [ sh:inversePath hydra:possibleStatus ] ; sh:minCount 1 ; sh:class hydra:Operation ;
+        sh:message "An error status is the hydra:possibleStatus of a hydra:Operation." ] ;
+    sh:message "Only a hydra:Status carries a comm:errorCode." .
+
+# Not targeted: applied through seamsh:ErrorStatusShape's sh:node to error shapes only.
+seamsh:ProblemShapeShape a sh:NodeShape ;
+    sh:property [ sh:path sh:property ;
+        sh:qualifiedValueShape [
+            sh:property [ sh:path sh:path ; sh:hasValue comm:status ] ;
+            sh:property [ sh:path sh:datatype ; sh:hasValue xsd:integer ] ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "An error shape declares the problem member comm:status with sh:datatype xsd:integer." ] ;
+    sh:property [ sh:path sh:property ;
+        sh:qualifiedValueShape [ sh:property [ sh:path sh:path ; sh:hasValue comm:title ] ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "An error shape declares the problem member comm:title." ] .
+
+seamsh:ErrorCodeUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf hydra:possibleStatus ;
+    sh:sparql [
+        sh:message "An operation's error statuses have distinct comm:errorCodes (ADR-0013)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this hydra:possibleStatus ?a , ?b .
+                ?a comm:errorCode ?value .
+                ?b comm:errorCode ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+seamsh:CatchesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:catches ;
+    sh:class proc:ErrorBoundaryEvent ;
+    sh:property [ sh:path seam:catches ; sh:maxCount 1 ; sh:class hydra:Status ;
+        sh:message "An error boundary event seam:catches at most one hydra:Status." ] ;
+    sh:property [ sh:path ( seam:catches comm:errorCode ) ; sh:minCount 1 ;
+        sh:message "seam:catches points at an error status: a hydra:Status with a comm:errorCode." ] ;
+    sh:message "Only a proc:ErrorBoundaryEvent seam:catches an error." .
+
+seamsh:ErrorBoundaryEventShape a sh:NodeShape ;
+    sh:targetClass proc:ErrorBoundaryEvent ;
+    sh:property [ sh:path seam:catches ; sh:minCount 1 ;
+        sh:message "A lifted error boundary event seam:catches the operation error it routes (ADR-0013)." ] .
 
 #################################################################
 # Deployment facts the generators read

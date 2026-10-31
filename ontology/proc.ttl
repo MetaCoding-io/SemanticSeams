@@ -58,6 +58,14 @@ Channel start rule (ADR-0010): when the event is the bpmn:startEvent of its proc
 channel-started. The runtime starts it whenever a message throw event publishes on the comm:Channel it
 seam:subscribesTo, with the publisher's correlation key and a copy of its entities and statuses.""" .
 
+proc:ErrorBoundaryEvent a rdfs:Class ;
+    rdfs:comment """Mirrors bpmn:boundaryEvent with an errorEventDefinition, attached to a
+proc:ServiceTask that seam:invokes an operation. Subject of seam:catches (ADR-0013).
+Lifting rule: such a boundary is lifted only when it catches one of the invoked
+operation's errors; the attachment (attachedToRef) and the code (the errorCode of the
+bpmn:error its errorRef names) stay in the XML, and the runtime checks at load that
+they agree with the graph. A boundary with no errorRef is not lifted.""" .
+
 #################################################################
 # DMN index types
 #################################################################

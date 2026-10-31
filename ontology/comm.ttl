@@ -126,3 +126,52 @@ comm:handler a rdf:Property ;
 handlers package, e.g. "notify.notify_manager" (function notify_manager in
 handlers/notify.py). Every segment is a Python identifier, so the path cannot
 name code outside the package.""" .
+
+#################################################################
+# Operation errors (ADR-0013)
+#################################################################
+
+# An operation names each error it can raise as a hydra:Status through
+# hydra:possibleStatus, with its HTTP code in hydra:statusCode. comm:errorCode makes
+# the status an error the runtime and a BPMN error boundary can name. The status's
+# seam:returnsShape is its error shape: a SHACL shape over RFC 9457 problem+json whose
+# members are the five properties below, so the shape's field names (sh:path local
+# names) are the JSON member names. Any other property of the shape is an RFC 9457
+# extension member.
+
+comm:errorCode a rdf:Property ;
+    rdfs:label "error code" ;
+    rdfs:domain hydra:Status ;
+    rdfs:range xsd:string ;
+    rdfs:comment """The code of an error an operation can raise, on the hydra:Status the
+operation hydra:possibleStatus (e.g. "notify-failed"). An implementation raises it, and a
+BPMN error boundary event that seam:catches the status names a bpmn:error with the same
+errorCode. Unique among one operation's statuses (ADR-0013).""" .
+
+comm:type a rdf:Property ;
+    rdfs:label "type" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "type" in an error shape: a URI
+reference identifying the problem type ("about:blank" when absent).""" .
+
+comm:title a rdf:Property ;
+    rdfs:label "title" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "title" in an error shape: a short
+summary of the problem type. Required in every error shape; the runtime fills it from
+the status's rdfs:label.""" .
+
+comm:status a rdf:Property ;
+    rdfs:label "status" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "status" in an error shape: the
+HTTP status code, an xsd:integer. Required in every error shape. Its value is never
+stated in the shape; the runtime fills it from the status's hydra:statusCode, so the
+code is stated once.""" .
+
+comm:detail a rdf:Property ;
+    rdfs:label "detail" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "detail" in an error shape: an
+explanation of this occurrence of the problem, supplied by the raised error.""" .
+
+comm:instance a rdf:Property ;
+    rdfs:label "instance" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "instance" in an error shape: a URI
+reference identifying this occurrence of the problem.""" .

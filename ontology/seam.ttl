@@ -250,7 +250,9 @@ seam:returnsShape a rdf:Property ;
     rdfs:label "returns shape" ;
     rdfs:comment """operation -> response payload sh:NodeShape. For operations whose
 seam:mediaKind is seam:UIFragment, this describes the shape of the DATA the fragment
-renders, not the HTTP body (which is HTML). (Constraint in shapes/seam-shapes.ttl.)""" .
+renders, not the HTTP body (which is HTML). On a hydra:Status that an operation
+hydra:possibleStatus (an error with a comm:errorCode), it is the error shape: the
+problem+json body of that response (ADR-0013). (Constraint in shapes/seam-shapes.ttl.)""" .
 
 seam:implementedBy a rdf:Property ;
     seam:reveal seam:Layer ;
@@ -262,6 +264,16 @@ comm:HTTPEndpoint. At most one per operation; every task that invokes the
 operation gets the same implementation. An operation invoked across containers
 must declare one; an in-process operation with none is served by the runtime
 itself. Layer reveal: the implementation is code, not a model the viewer opens.
+(Constraints in shapes/seam-shapes.ttl.)""" .
+
+seam:catches a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "catches" ;
+    rdfs:comment """proc:ErrorBoundaryEvent -> the hydra:Status it catches: one error
+(comm:errorCode) of the operation its task seam:invokes (ADR-0013). When the operation's
+implementation raises that error, the runtime routes the process down the boundary's
+outgoing flow instead of failing the instance. Exactly one per boundary. Layer reveal:
+the status is part of the operation's contract, not a model of its own.
 (Constraints in shapes/seam-shapes.ttl.)""" .
 
 seam:mediaKind a rdf:Property ;

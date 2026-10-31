@@ -18,3 +18,4 @@ supersedes an earlier one instead.
 | [ADR-0010](./0010-channel-started-processes) | Channel-started processes: a message start event that `seam:subscribesTo` a channel starts its process on each publish | Accepted |
 | [ADR-0011](./0011-storage-resolution) | Storage resolution: a shape is `seam:storedIn` a store whose `deploy:storeKind` the runtime supports, reached through a `deploy:connectsTo` binding | Accepted |
 | [ADR-0012](./0012-operation-implementation) | Operation implementation: an operation `seam:implementedBy` an LLM completion, a Python handler in the handlers package, or an HTTP endpoint | Accepted |
+| [ADR-0013](./0013-error-shapes-and-boundaries) | Error shapes and boundaries: an operation's `hydra:possibleStatus` carries a `comm:errorCode` and a problem+json error shape, and a lifted BPMN error boundary event `seam:catches` it | Accepted |

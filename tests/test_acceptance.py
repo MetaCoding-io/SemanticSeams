@@ -42,6 +42,12 @@ HUMAN_TASK_TRIG = ROOT / "tests" / "fixtures" / "human_task" / "approval.trig"
 EXPENSES_CHAPTER_7_TRIG = ROOT / "examples" / "expenses" / "chapter-07" / "expenses.trig"
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
+# Declared ahead of their first example: seam:catches (ADR-0013) is added in M014/S04/T01,
+# and the expense chapter 9 checkpoint gains the first lifted error boundary in
+# M014/S04/T04. test_pending_predicates_are_not_yet_exercised fails once a fixture
+# uses one, as the reminder to drop it from this set.
+PENDING_PREDICATES = {SEAM.catches}
+EXPENSES_CHAPTER_9_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
 
 
 def load(*paths: Path) -> rdflib.Graph:
@@ -133,20 +139,31 @@ def test_every_nonreserved_seam_predicate_is_exercised(dataset):
     declared = {
         p for p in load(ROOT / "ontology" / "seam.ttl").subjects(RDF.type, RDF.Property) if str(p).startswith(str(SEAM))
     }
+    missing = declared - RESERVED_PREDICATES - PENDING_PREDICATES - exercised_seam_predicates(dataset)
+    assert not missing, (
+        "seam predicates never exercised by checkout.trig, the human-task fixture, the chat app "
+        f"or expense chapter 9: {sorted(missing)}"
+    )
+
+
+def test_pending_predicates_are_not_yet_exercised(dataset):
+    """A pending predicate that a fixture now uses must leave PENDING_PREDICATES, so the
+    check above covers it."""
+    assert not PENDING_PREDICATES & exercised_seam_predicates(dataset)
+
+
+def exercised_seam_predicates(dataset) -> set:
     used = set()
     for _s, p, _o, _g in dataset.quads((None, None, None, None)):
         if str(p).startswith(str(SEAM)):
             used.add(p)
-    for trig in (HUMAN_TASK_TRIG, CHAT_APP_TRIG):
+    for trig in (HUMAN_TASK_TRIG, CHAT_APP_TRIG, EXPENSES_CHAPTER_9_TRIG):
         fixture = rdflib.Dataset()
         fixture.parse(trig, format="trig")
         for _s, p, _o, _g in fixture.quads((None, None, None, None)):
             if str(p).startswith(str(SEAM)):
                 used.add(p)
-    missing = declared - RESERVED_PREDICATES - used
-    assert not missing, (
-        f"seam predicates never exercised by checkout.trig, the human-task fixture or the chat app: {sorted(missing)}"
-    )
+    return used
 
 
 def test_what_writes_shape(model):

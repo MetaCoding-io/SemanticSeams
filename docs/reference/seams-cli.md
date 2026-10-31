@@ -33,7 +33,7 @@ out = "generated"
 name = "htmx"
 out = "generated/templates"
 
-[environments.prod]
+[environments.production]
 ```
 
 | Key | Type | Meaning |
@@ -44,7 +44,7 @@ out = "generated/templates"
 | `[[generators]].out` | string | The directory the generator writes into. |
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
-| `[environments.<name>]` | table of tables, optional | The app's environment names. |
+| `[environments.<name>]` | table of tables, optional | The app's environment names. Use the local names of the model's `arch:Environment`s (`development`, `production`), so `seams status --env development` and the generated `compose.development.yaml` name the same environment. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
@@ -84,7 +84,8 @@ directory when it lies below it:
 
 ```
 $ seams generate --project examples/chat-app
-compose.yaml
+compose.development.yaml
+compose.production.yaml
 examples/chat-app/generated/chat_api.py
 examples/chat-app/generated/templates/chat_page.html
 ...
@@ -119,13 +120,14 @@ The `path` is POSIX and relative to the project directory, so it may start with
 {
   "generator": "compose",
   "generator_version": "0.1.0",
-  "model_hash": "sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6",
-  "path": "../../compose.yaml",
-  "sha256": "f1f50c2aeaa06ce79e7f90352db5935c3825d545434fdc7a1fec9884497c7845",
+  "model_hash": "sha256:11d35819c97e7e7599603d0e806ac6f4bdf0a195feb6c2256dbf037bcedc06bd",
+  "path": "../../compose.development.yaml",
+  "sha256": "49d3aafff4e4e369bba0d8e4be7a31db151a356239a9d530dcc350caa2f32b64",
   "sources": [
     "https://example.org/chat/chat_api",
     "https://example.org/chat/chat_system",
     "https://example.org/chat/chat_ui",
+    "https://example.org/chat/development",
     "https://example.org/chat/llm_gateway",
     "https://example.org/chat/message_db"
   ]
@@ -297,7 +299,7 @@ The generator names are the `python -m seams_gen` subcommands. The
 |---|---|
 | `fastapi` | `<container>.py`, the route module of the serving container |
 | `htmx` | the Jinja2/htmx page templates and their partials |
-| `compose` | `compose.yaml`, with bind-mount sources relative to `out` |
+| `compose` | one `compose.<environment>.yaml` per `arch:Environment` (for example `compose.development.yaml` and `compose.production.yaml`), applying each environment's `deploy:override`s ([ADR-0015](/adr/0015-environments)); bind-mount sources and build contexts are relative to `out`, and there is no shared `compose.yaml` |
 | `tests` | `test_scenarios.py`, `test_decisions.py`, `test_shape_examples.py` and `test_policies.py`, pytest files for the model's `verify:` scenarios and examples and allow/deny tests for each ODRL permission and party ([ADR-0014](/adr/0014-scenarios-and-derived-tests)) |
 | `smoke` | `test_smoke.py`, one pytest per `hydra:Operation` that calls it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` as `SEAMS_SMOKE_USER`/`SEAMS_SMOKE_GROUPS` and checks the answer against `seam:returnsShape`; skipped without a base URL, or when a governing policy refuses the identity |
 
@@ -321,19 +323,21 @@ out = "generated"
 name = "htmx"
 out = "generated/templates"
 
-# The repository-root compose.yaml; its bind mounts are relative to the root.
+# One compose.<environment>.yaml per arch:Environment at the repository root
+# (ADR-0015); their bind mounts and build contexts are relative to the root.
 [[generators]]
 name = "compose"
 out = "../.."
 
-[environments.prod]
+[environments.production]
 
-[environments.local]
+[environments.development]
 endpoints = { chat_api = "http://localhost:8080" }
 ```
 
 `seams generate --project examples/chat-app` rewrites
-`examples/chat-app/generated/`, the root `compose.yaml` and
+`examples/chat-app/generated/`, the root `compose.development.yaml` and
+`compose.production.yaml`, and
 `examples/chat-app/seams.lock`. Each chapter of the
 [expense tutorial](/tutorials/expenses/) has its own project file in
 `examples/expenses/chapter-NN/seams.toml`. CI runs `seams check` for the chat app
@@ -344,7 +348,7 @@ finding.
 
 ```sh
 seams status                                      # the seams.toml in the working directory
-seams status --project examples/chat-app --env local
+seams status --project examples/chat-app --env development
 seams status --project examples/expenses/chapter-08 --timeout 2
 ```
 
@@ -367,7 +371,7 @@ come from the project file, because the generated compose file only exposes a
 runtime's port inside the stack and the model holds no URLs yet:
 
 ```toml
-[environments.local]
+[environments.development]
 endpoints = { chat_api = "http://localhost:8080" }
 ```
 
@@ -403,21 +407,21 @@ before the current one is 1 change behind, the next 2, and so on.
 
 One stdout line per runtime container, sorted by name, as
 `<container> <verdict> <reported hash or -> <detail>`, then the current model's
-hash. Against the stack `docker compose up` starts from the repository root:
+hash. Against the stack the generated development file starts from the repository root:
 
 ```
-$ docker compose up -d --wait
-$ seams status --project examples/chat-app --env local
-chat_api current sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6
-current model sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6
+$ docker compose -f compose.development.yaml up -d --wait
+$ seams status --project examples/chat-app --env development
+chat_api current sha256:11d35819c97e7e7599603d0e806ac6f4bdf0a195feb6c2256dbf037bcedc06bd
+current model sha256:11d35819c97e7e7599603d0e806ac6f4bdf0a195feb6c2256dbf037bcedc06bd
 ```
 
 With the stack down, the container is unreachable and the count goes to stderr:
 
 ```
-$ seams status --project examples/chat-app --env local
+$ seams status --project examples/chat-app --env development
 chat_api unreachable - http://localhost:8080/healthz: [Errno 111] Connection refused
-current model sha256:21f7f4bc15f69eb971d28ede8c003d2def8b4331c2b46468ccb17a0792fca1b6
+current model sha256:11d35819c97e7e7599603d0e806ac6f4bdf0a195feb6c2256dbf037bcedc06bd
 seams status: 1 of 1 not current
 ```
 

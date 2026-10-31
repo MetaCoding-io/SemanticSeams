@@ -150,6 +150,73 @@ a test or a quick local check, `SEAMS_STORE_OVERRIDE=sqlite` keeps embedded SQLi
 `SEAMS_DB` whatever the model declares. The runtime logs a warning and `/healthz` reports
 `"override": true`, so the substitution is never silent.
 
+### Environments and overrides
+
+Each place the system runs is an `arch:Environment`: the chat app and expense chapters 8
+and 9 declare `:development` and `:production`
+([ADR-0015](/adr/0015-environments)). State a container's deploy facts once, for every
+environment. Where one environment needs something different, add a `deploy:override`
+that names the environment and carries only the facts that differ:
+
+```turtle
+:expense_api a arch:Container ; rdfs:label "Expense API" ;
+    deploy:artifact [ a deploy:Artifact ;
+                      deploy:reference "ghcr.io/example/expense-api" ;
+                      deploy:version "0.8.0" ] ;
+    deploy:configuration [ a deploy:Configuration ;
+        deploy:binding [ deploy:key "DATABASE_URL" ;
+                         deploy:secretRef <https://secrets.example.org/expenses/prod/database-url> ;
+                         deploy:secretName "expenses-prod-database-url" ;
+                         deploy:connectsTo :expense_db ] ] ;
+    # Development builds the image from this checkout and reads the
+    # connection string from a file. Same store, same key.
+    deploy:override [ a deploy:Override ;
+        deploy:environment :development ;
+        deploy:artifact [ a deploy:Artifact ;
+                          deploy:reference "seams/expense-api" ;
+                          deploy:version "local" ;
+                          deploy:build [ a deploy:Build ;
+                                         deploy:context "../../.." ;
+                                         deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+        deploy:configuration [ a deploy:Configuration ;
+            deploy:binding [ deploy:key "DATABASE_URL" ;
+                             deploy:secretFile "../../../docker/local-secrets/expense_database_url" ;
+                             deploy:connectsTo :expense_db ] ] ] .
+
+:development a arch:Environment ; rdfs:label "Development" .
+:production  a arch:Environment ; rdfs:label "Production" ;
+    arch:contains :app01 .
+```
+
+The rule for an environment:
+
+- `deploy:artifact` and `deploy:replicas` in an override replace the shared fact whole.
+- Bindings merge by `deploy:key`: an override binding replaces the shared binding with
+  the same key, and the other shared bindings stay.
+- A container with no override for the environment, or an override without the
+  predicate, keeps the shared fact.
+
+The SHACL shapes check that an override carries only `deploy:artifact`,
+`deploy:configuration` and `deploy:replicas`; that a container has at most one override
+per environment; that `deploy:environment` names an `arch:Environment`; that an
+override binding with `deploy:connectsTo` names the same store as the shared binding
+with its key (an environment never moves the data); and that a binding has
+`deploy:secretFile` or `deploy:secretRef`, not both.
+
+The compose generator writes one `compose.<local name>.yaml` per environment, sorted by
+IRI, so a local run is `docker compose -f compose.development.yaml up`. An artifact with a
+`deploy:build` becomes a compose `build:`, a `deploy:secretFile` becomes a compose file
+secret, and `deploy:value` keeps an overridable `${KEY:-value}` default in development
+only. Placement constraints appear only in the environment that `arch:contains` the
+node. `deploy:proxies` on a code-free container (the chat UI and the employee portal are
+Caddy) makes it a reverse proxy to the named container. Name the `seams.toml`
+environments after the same local names, so `seams status --env development` reads the
+stack that `compose.development.yaml` starts.
+
+The generated serving container runs one replica until the runtime can share state
+(backlog A10). A larger `deploy:replicas` stays in the model, shows as a warning in the
+viewer's model health, and as a comment in the generated file.
+
 ### Human tasks
 
 A `proc:UserTask` is work a person does while the process waits. Give the task

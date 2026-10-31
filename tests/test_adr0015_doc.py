@@ -126,8 +126,9 @@ def test_adr_is_in_adr_index() -> None:
     assert "0015-environments" in index
 
 
-def test_backlog_a4_cites_adr_and_stays_planned() -> None:
+def test_backlog_a4_cites_adr_and_is_done() -> None:
     backlog = (ROOT / "docs" / "backlog.md").read_text(encoding="utf-8")
     row = next(line for line in backlog.splitlines() if line.startswith("| A4 |"))
     assert "ADR-0015" in row
-    assert "planned (M016/S02)" in row
+    assert "done (M016/S02)" in row
+    assert "planned (M016/S02)" not in row

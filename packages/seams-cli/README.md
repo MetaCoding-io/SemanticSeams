@@ -21,7 +21,7 @@ out = "generated"
 name = "htmx"
 out = "generated/templates"
 
-[environments.dev]
+[environments.development]
 ```
 
 - `model` (string, optional): the TriG file to generate from.
@@ -33,8 +33,9 @@ out = "generated/templates"
   rows.
 - `coverage` (array of strings, optional): `["paths"]` makes `seams check`
   report each BPMN path no scenario runs as a `coverage` finding (D054).
-- `environments` (table of tables, optional): environment names. An
-  environment may carry an `endpoints` inline table, container local name to
+- `environments` (table of tables, optional): environment names, the local
+  names of the model's `arch:Environment`s (the compose generator writes
+  `compose.<name>.yaml` for each, ADR-0015). An environment may carry an `endpoints` inline table, container local name to
   base URL, for `seams status`; any other key is ignored.
 
 Relative paths resolve against the directory of the project file, so the
@@ -102,7 +103,7 @@ non-SELECT gate, an unknown `coverage` entry or a model that cannot be loaded. S
 
 ```sh
 seams status                           # the seams.toml in the working directory
-seams status --project examples/chat-app --env local --timeout 2
+seams status --project examples/chat-app --env development --timeout 2
 ```
 
 It GETs `<url>/healthz` for each runtime container of the model (the ones the

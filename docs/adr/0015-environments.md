@@ -260,3 +260,19 @@ inventory above):
 - Readers of the model can now ask what differs between environments with one query over
   `deploy:override`, and `impact-of-node.rq` stays correct because nodes stay in the
   environment that contains them.
+
+## Implementation Notes
+
+Recorded when S02 landed (M016/S02). They describe how the decision was implemented and
+change nothing above.
+
+- The `seams.toml` environment names equal the model's `arch:Environment` local names
+  (`development`, `production`), so `seams status --env development` and
+  `compose.development.yaml` name the same environment.
+- The development-only `${KEY:-value}` rule keys on the environment whose local name is
+  `development`.
+- Generated relative paths keep a leading `../` rather than `./../`. The expenses compose
+  project name is the generated `expense_system`, which replaced the hand-written
+  `seams-expenses`.
+- Every `compose*.yaml` at a compose target counts as generated, so a leftover
+  `compose.yaml` or `compose.override.yaml` fails `tests/test_generated_outputs_current.py`.

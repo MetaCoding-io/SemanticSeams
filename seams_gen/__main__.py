@@ -1,7 +1,8 @@
 """Command line: ``python -m seams_gen <generator> <trig> --out <dir>``.
 
 Each generator is a subcommand registered in ``GENERATORS``: ``htmx`` (S04),
-``fastapi`` (S05), ``compose`` (S06) and ``tests`` (M015, ADR-0014). A generator is called as
+``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015, ADR-0014) and
+``smoke`` (M015/S05, backlog A9). A generator is called as
 ``generate(trig, out)`` and returns ``{relative file name: text}``; only
 ``compose`` uses ``out``, as the base directory its bind-mount sources are
 relative to (D018). A GeneratorError (a missing or
@@ -21,6 +22,7 @@ from . import GeneratorError
 from .compose import generate_compose
 from .fastapi import route_module
 from .htmx import generate_pages
+from .smoke import generate_smoke
 from .tests import generate_tests
 
 EXIT_GENERATOR_ERROR = 2
@@ -55,12 +57,19 @@ def _tests(trig: Path, out: Path) -> dict[str, str]:
     return generate_tests(trig)
 
 
+def _smoke(trig: Path, out: Path) -> dict[str, str]:
+    """{test_smoke.py: content}: one pytest smoke test per hydra:Operation with
+    a method and a path, calling it on a running app (backlog A9)."""
+    return generate_smoke(trig)
+
+
 # subcommand -> (help, generate(trig, out) -> {relative file name: text})
 GENERATORS = {
     "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
     "fastapi": ("the thin FastAPI route module of the container that executes the process", _fastapi),
     "compose": ("the docker compose file of the arch:System's containers", _compose),
     "tests": ("pytest files for the model's verify: scenarios and examples, and its ODRL permissions", _tests),
+    "smoke": ("a pytest file calling each operation on a running app, checking seam:returnsShape", _smoke),
 }
 
 

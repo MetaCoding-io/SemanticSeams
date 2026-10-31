@@ -1,0 +1,72 @@
+[#- test_smoke.py (seams_gen.smoke, backlog A9): one smoke test per hydra:Operation.
+    Expects `t` (a SmokeModel); every value is a pre-rendered Python literal. -#]
+[% include "tests_header.py.j2" %]
+"""Smoke tests: each hydra:Operation called on its comm:path against a running app.
+
+SEAMS_SMOKE_BASE_URL is the app's base URL; without it every test is skipped,
+or fails under SEAMS_E2E=1. SEAMS_SMOKE_USER and the comma-separated
+SEAMS_SMOKE_GROUPS are the identity the requests carry. A 2xx answer's body
+must conform to the operation's seam:returnsShape (a seam:UIFragment's HTML
+is checked by status only); any other status must be a declared error whose
+body conforms to its seam:returnsShape. A test is skipped when a governing
+policy does not admit the identity, or no example fills its path
+(seams_runtime.verify.smoke and smoke_skip).
+"""
+
+import pytest
+from seams_cli.project import find_project, load_project, resolve_model
+from seams_runtime.verify import (
+    SMOKE_BASE_URL_ENV,
+    Probe,
+    load_model,
+    smoke,
+    smoke_caller,
+    smoke_required,
+    smoke_skip,
+)
+
+[% include "tests_project.py.j2" %]
+
+
+@pytest.fixture(scope="module")
+def caller():
+    found = smoke_caller()
+    if found is None:
+        reason = f"{SMOKE_BASE_URL_ENV} is not set: smoke tests call a running app"
+        if smoke_required():
+            pytest.fail(reason)
+        pytest.skip(reason)
+    return found
+
+
+@pytest.fixture(scope="module")
+def model():
+    return load_model(MODEL, MODEL_HASH)
+[% for p in t.probes %]
+
+
+[% for line in p.comment %]
+# [[ line ]]
+[% endfor %]
+[[ p.constant ]] = Probe(
+    iri=[[ p.iri ]],
+    method=[[ p.method ]],
+    path=[[ p.path ]],
+    data=[[ p.data ]],
+    json=[[ p.json ]],
+    returns=[[ p.returns ]],
+    errors=[[ p.errors ]],
+    policies=[[ p.policies ]],
+    parties=[[ p.parties ]],
+    any_party=[[ p.any_party ]],
+    skip=[[ p.skip ]],
+)
+
+
+def [[ p.name ]](caller, model):
+    reason = smoke_skip([[ p.constant ]], caller)
+    if reason:
+        pytest.skip(reason)
+    check = smoke(model, [[ p.constant ]], caller)
+    assert check.ok, check.message
+[% endfor %]

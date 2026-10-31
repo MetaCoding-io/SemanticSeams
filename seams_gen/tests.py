@@ -184,6 +184,7 @@ class TestsModel:
     decision_examples: tuple[DecisionExampleModel, ...]
     shape_examples: tuple[ShapeExampleModel, ...]
     targets: tuple[TargetModel, ...]
+    generator: str = "tests"  # the name the header gives
 
 
 # ── extraction ──────────────────────────────────────────────────────────────
@@ -323,7 +324,7 @@ def _shape_examples(model: Model, shape: Shape) -> list[ShapeExampleModel]:
     return out
 
 
-def _target_operation(model: Model, policy: Policy, target: Element) -> Operation:
+def target_operation(model: Model, policy: Policy, target: Element) -> Operation:
     """The operation a request to ``target`` goes to: the target itself, or the
     one operation the form a user task is seam:completedOn submits to."""
     if isinstance(target, Operation):
@@ -366,7 +367,7 @@ def _permission_target(
     if permission.target is None:
         raise GeneratorError(policy.iri, ODRL.target, "a permission needs an odrl:target")
     target = model.views.resolve(permission.target)
-    op = _target_operation(model, policy, target)
+    op = target_operation(model, policy, target)
     assignee = permission.assignee
     anyone = assignee is None or ODRL.PartyCollection in permission.assignee_types
     prefix = _name("test_policy", policy.iri, target.iri)
@@ -485,4 +486,12 @@ def tests_sources(trig_path) -> dict[str, tuple[str, ...]]:
     }
 
 
-__all__ = ["FILES", "TestsModel", "extract_tests", "generate_tests", "render_tests", "tests_sources"]
+__all__ = [
+    "FILES",
+    "TestsModel",
+    "extract_tests",
+    "generate_tests",
+    "render_tests",
+    "target_operation",
+    "tests_sources",
+]

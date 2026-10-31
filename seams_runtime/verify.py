@@ -35,6 +35,15 @@ fact it checks (principle 7, the P007 thin-handler rule applied to tests).
   pyshacl: the shape's description (its triples and blank nodes) with an
   added ``sh:targetNode``, and the node's description as the data graph, so
   no other shape in the model takes part.
+- ``response_conforms`` does the same for a JSON response body: each object
+  becomes a node whose keys are the shape's field local names.
+- ``smoke`` is what the smoke generator's tests (``seams_gen.smoke``,
+  backlog A9) call: it sends a ``Probe`` (one operation, its path filled)
+  to a running app as the ``Caller`` the environment configures
+  (``smoke_caller``), and checks the answer's status and body against the
+  operation's seam:returnsShape. ``smoke_skip`` says why a probe is not
+  sent: a governing policy does not admit the caller, or no example fills
+  its path.
 """
 
 from __future__ import annotations
@@ -324,24 +333,223 @@ def _describe(source: Graph, node: Node, into: Graph) -> None:
             _describe(source, o, into)
 
 
-def shape_conforms(model: ModelGraph, shape: str, node: str) -> tuple[bool, str]:
-    """(conforms, pyshacl's report text) of example ``node`` against ``shape`` alone."""
+def _conforms(model: ModelGraph, shape: str, data: Graph, nodes: list[Node]) -> tuple[bool, str]:
+    """(conforms, pyshacl's report text) of ``nodes`` in ``data`` against ``shape`` alone."""
     from pyshacl import validate
 
-    shapes, data = Graph(), Graph()
+    shapes = Graph()
     _describe(model.ds, URIRef(shape), shapes)
-    shapes.add((URIRef(shape), SH.targetNode, URIRef(node)))
-    _describe(model.ds, URIRef(node), data)
+    for node in nodes:
+        shapes.add((URIRef(shape), SH.targetNode, node))
     conforms, _, text = validate(data, shacl_graph=shapes)
     return bool(conforms), str(text)
 
 
+def shape_conforms(model: ModelGraph, shape: str, node: str) -> tuple[bool, str]:
+    """(conforms, pyshacl's report text) of example ``node`` against ``shape`` alone."""
+    data = Graph()
+    _describe(model.ds, URIRef(node), data)
+    return _conforms(model, shape, data, [URIRef(node)])
+
+
+def _literal(value: object, datatype: URIRef | None) -> Literal:
+    """A JSON scalar as the literal a field of ``datatype`` holds: its JSON
+    lexical form with that datatype, or rdflib's mapping without one."""
+    if datatype is None or isinstance(value, bool):
+        return Literal(value)
+    return Literal(str(value), datatype=datatype)
+
+
+def response_conforms(model: ModelGraph, shape: str, data: object) -> tuple[bool, str]:
+    """(conforms, report) of a JSON response body against ``shape`` alone.
+
+    An object is one node; a list is one node per item. Each key that is the
+    local name of one of the shape's field paths becomes a triple on that
+    path (a list value, one per item), typed with the field's sh:datatype.
+    Other keys and null values are left out, so a key the shape does not
+    name is not checked. A body that is neither an object nor a list of
+    objects does not conform."""
+    items = data if isinstance(data, list) else [data]
+    if not all(isinstance(item, dict) for item in items):
+        return False, f"expected a JSON object or a list of objects for {shape}, got {data!r}"
+    fields = {f.name: f for f in model.shape(shape).fields()}
+    graph, nodes = Graph(), []
+    for item in items:
+        node = BNode()
+        nodes.append(node)
+        for key, raw in sorted(item.items()):
+            found = fields.get(key)
+            if found is None:
+                continue
+            for one in raw if isinstance(raw, list) else [raw]:
+                if one is not None:
+                    graph.add((node, found.iri, _literal(one, found.datatype)))
+    return _conforms(model, shape, graph, nodes)
+
+
+# ── smoke tests (backlog A9): each operation called on a running app ─────────
+
+SMOKE_BASE_URL_ENV = "SEAMS_SMOKE_BASE_URL"
+SMOKE_USER_ENV = "SEAMS_SMOKE_USER"
+SMOKE_GROUPS_ENV = "SEAMS_SMOKE_GROUPS"
+E2E_ENV = "SEAMS_E2E"
+JSON_TYPES = ("application/json", "application/problem+json")
+
+
+@dataclass(frozen=True)
+class Probe:
+    """One hydra:Operation a smoke test calls. ``path`` is its comm:path
+    with every variable filled; ``data`` the form fields it sends. A 2xx
+    answer conforms to ``returns`` (when ``json``; a seam:UIFragment's HTML
+    is checked by status only), and an answer with an ``errors`` status
+    (hydra:statusCode, error shape) conforms to that error shape. When
+    ``policies`` govern it, only an identity named by ``parties`` (or any
+    identity, with ``any_party``) is admitted. ``skip`` is why it cannot be
+    called at all (a path variable or body no example gives)."""
+
+    iri: str
+    method: str
+    path: str
+    data: tuple[tuple[str, str], ...] = ()
+    json: bool = True
+    returns: str | None = None
+    errors: tuple[tuple[int, str | None], ...] = ()
+    policies: tuple[str, ...] = ()
+    parties: tuple[str, ...] = ()
+    any_party: bool = False
+    skip: str | None = None
+
+
+@dataclass(frozen=True)
+class Caller:
+    """Who smoke tests call as, and where: the app's ``base_url`` and the
+    identity sent as ``X-Forwarded-User`` (``user``) and
+    ``X-Forwarded-Groups`` (``groups``); no user sends no identity headers."""
+
+    base_url: str
+    user: str | None = None
+    groups: tuple[str, ...] = ()
+
+    @property
+    def headers(self) -> dict[str, str]:
+        if not self.user:
+            return {}
+        headers = {DEFAULT_IDENTITY_HEADER: self.user}
+        if self.groups:
+            headers[DEFAULT_ROLES_HEADER] = ",".join(self.groups)
+        return headers
+
+    @property
+    def who(self) -> str:
+        if not self.user:
+            return "no identity"
+        return f"{self.user} (groups: {', '.join(self.groups) or 'none'})"
+
+
+@dataclass(frozen=True)
+class Check:
+    """A smoke call's verdict: ``ok``, and a ``message`` naming the method,
+    URL and status, with pyshacl's report when the body does not conform."""
+
+    ok: bool
+    message: str
+
+
+def smoke_caller(env: dict[str, str] | None = None) -> Caller | None:
+    """The ``Caller`` the environment configures (SEAMS_SMOKE_BASE_URL,
+    SEAMS_SMOKE_USER, comma-separated SEAMS_SMOKE_GROUPS); None without a base URL."""
+    env = dict(os.environ) if env is None else env
+    base_url = env.get(SMOKE_BASE_URL_ENV, "").strip()
+    if not base_url:
+        return None
+    groups = tuple(g.strip() for g in env.get(SMOKE_GROUPS_ENV, "").split(",") if g.strip())
+    return Caller(base_url.rstrip("/"), env.get(SMOKE_USER_ENV, "").strip() or None, groups)
+
+
+def smoke_required(env: dict[str, str] | None = None) -> bool:
+    """True under SEAMS_E2E=1, where a missing base URL fails rather than skips."""
+    env = dict(os.environ) if env is None else env
+    return env.get(E2E_ENV) == "1"
+
+
+def smoke_skip(probe: Probe, caller: Caller) -> str | None:
+    """Why ``caller`` cannot call ``probe`` (its own skip, or a governing
+    policy that does not admit the identity, named by CURIE); None when it can.
+    Admission is ``RoleEvaluator``'s: the user or a group is a party's IRI or local name."""
+    if probe.skip is not None:
+        return probe.skip
+    if not probe.policies:
+        return None
+    names = {n for n in (caller.user, *caller.groups) if n}
+    if names and (probe.any_party or any(p in names or local_name(p) in names for p in probe.parties)):
+        return None
+    admits = "any authenticated identity" if probe.any_party else ", ".join(local_name(p) for p in probe.parties)
+    return f"{', '.join(probe.policies)} does not admit {caller.who}; it admits {admits}"
+
+
+def _body(response) -> object:
+    content_type = response.headers.get("content-type", "").split(";")[0].strip()
+    if content_type not in JSON_TYPES:
+        raise ValueError(f"the body is {content_type or 'untyped'}, not JSON")
+    return response.json()
+
+
+def smoke(model: ModelGraph, probe: Probe, caller: Caller, timeout: float = DEFAULT_TIMEOUT, client=None) -> Check:
+    """Call ``probe`` on ``caller``'s app and check the answer: a 2xx body
+    conforms to ``returns`` (JSON operations), and any other status is one
+    of ``errors`` whose body conforms to its error shape. No answer (a
+    connection error or timeout) and an undeclared status fail the check.
+    ``client`` (anything with httpx's ``request``, e.g. a ``TestClient``,
+    which brings its own timeout) defaults to a fresh httpx request."""
+    import httpx
+
+    url = caller.base_url + probe.path
+    what = f"{probe.method} {url} as {caller.who}"
+    headers = {**caller.headers, "Accept": "application/json, application/problem+json, text/html"}
+    data = dict(probe.data) or None
+    try:
+        if client is None:
+            response = httpx.request(probe.method, url, data=data, headers=headers, timeout=timeout)
+        else:
+            response = client.request(probe.method, url, data=data, headers=headers)
+    except httpx.HTTPError as err:
+        return Check(False, f"{what}: no answer: {type(err).__name__}: {err}")
+    status = response.status_code
+    answered = f"{what} answered {status}"
+    if 200 <= status < 300:
+        shape = probe.returns if probe.json else None
+        kind = "a seam:UIFragment, checked by status" if not probe.json else "no seam:returnsShape"
+    else:
+        declared = dict(probe.errors)
+        if status not in declared:
+            known = ", ".join(str(code) for code in sorted(declared)) or "none"
+            return Check(False, f"{answered}, not 2xx or a declared error status ({known}): {response.text[:2000]}")
+        shape, kind = declared[status], "a declared error status with no seam:returnsShape"
+    if shape is None:
+        return Check(True, f"{answered} ({kind})")
+    try:
+        body = _body(response)
+    except ValueError as err:
+        return Check(False, f"{answered}: {err}, so it cannot conform to {shape}: {response.text[:2000]}")
+    conforms, report = response_conforms(model, shape, body)
+    if not conforms:
+        return Check(False, f"{answered}; the body does not conform to {shape}:\n{report}")
+    return Check(True, f"{answered}; the body conforms to {shape}")
+
+
 __all__ = [
     "DEFAULT_TIMEOUT",
+    "E2E_ENV",
     "FAILED",
+    "SMOKE_BASE_URL_ENV",
+    "SMOKE_GROUPS_ENV",
+    "SMOKE_USER_ENV",
     "Attempt",
+    "Caller",
+    "Check",
     "Engine",
     "ModelHashMismatch",
+    "Probe",
     "Request",
     "Run",
     "Scenario",
@@ -352,8 +560,13 @@ __all__ = [
     "decide",
     "identity",
     "load_model",
+    "response_conforms",
     "run_scenario",
     "serve",
     "shape_conforms",
+    "smoke",
+    "smoke_caller",
+    "smoke_required",
+    "smoke_skip",
     "value",
 ]

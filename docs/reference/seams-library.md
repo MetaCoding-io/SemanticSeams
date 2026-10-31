@@ -199,6 +199,10 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   - `valid_examples` and `invalid_examples`: the IRIs of the nodes it
     `verify:validExample` or `verify:invalidExample`
     ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
+  - `example_values(node)`: `(Field, Literal)` pairs, one for each literal
+    an example node has on one of the shape's field paths, in `fields()`
+    order (a field's values by lexical form). The smoke generator fills
+    paths and request bodies from them.
 - **`model.lifecycles`**: one `Lifecycle` per `state:StateMachine`.
   `model.lifecycles.transitions()` lists the transitions of all of them.
   - `Lifecycle` has `initial`, `states()`, `finals()`, `transitions()`,

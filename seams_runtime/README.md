@@ -90,6 +90,10 @@ hold the model's data and call these, so they stay thin:
 | `decide(engine, decision, inputs)` | `Engine.decide`: the decision's DMN table evaluated on `inputs` (field local name to lexical value) outside any process, with the same input typing (`evaluate_inputs`) and the same Spiff DMN engine a business-rule task uses. Returns `{DMN output name: value}`. |
 | `value(lexical, datatype)` | The Python value of a literal, to compare an expected output with. |
 | `shape_conforms(model, shape, node)` | `(conforms, report text)`: pyshacl on the node's description against the shape's description with an added `sh:targetNode`, so no other shape takes part. |
+| `response_conforms(model, shape, data)` | `(conforms, report text)` for a JSON body: an object is one node, a list one node per item; each key that is the local name of one of the shape's field paths becomes a triple typed with the field's `sh:datatype` (a list value, one per item). Other keys and nulls are left out. Validated as `shape_conforms` does, against the shape alone; a body that is not an object or a list of objects does not conform. |
+| `smoke(model, probe, caller, timeout=10.0, client=None)` | What the `smoke` generator's tests call (backlog A9). Sends a `Probe` (one operation: method, filled path, form data, the shapes it answers with) to `caller.base_url` with the caller's identity headers, and returns a `Check` (`ok`, `message`). A 2xx passes, and for a JSON operation its body must conform to `returns`; any other status must be one of the probe's declared `errors`, with a body that conforms to that status's shape. No answer (a connection error or timeout), an undeclared status, a non-JSON body where one is checked, or a body that does not conform fails; the message names the method, URL, identity and status, with pyshacl's report. `client` (e.g. a `TestClient`) replaces the httpx request. |
+| `smoke_caller(env=None)` / `smoke_required(env=None)` | The `Caller` from `SEAMS_SMOKE_BASE_URL`, `SEAMS_SMOKE_USER` and comma-separated `SEAMS_SMOKE_GROUPS` (None without a base URL), and whether `SEAMS_E2E=1` makes a missing base URL a failure rather than a skip. |
+| `smoke_skip(probe, caller)` | Why `caller` cannot send `probe`, or None: the probe's own skip (no example fills a path variable or the body), or a governing policy no assignee of which is the caller's user or one of its groups (by IRI or local name, as `RoleEvaluator` admits). The reason names the policy CURIEs. |
 
 ## Store
 
@@ -397,6 +401,8 @@ Any other exception, or any other non-2xx answer, fails the instance unchanged.
 | `SEAMS_ROUTES` | Route module the host serves when `--routes` is not given. The default is `/app/chat_api.py`. |
 | `SEAMS_HANDLERS` | The handlers package directory (ADR-0012). The default is `handlers/` beside the model file. `handlers=` overrides it. |
 | `SEAMS_SEED` | Optional seed JSON the host writes into the store on startup. |
+| `SEAMS_SMOKE_BASE_URL` | Base URL of the running app the generated smoke tests call (`verify.smoke_caller`). Unset, they are skipped, or fail under `SEAMS_E2E=1`. |
+| `SEAMS_SMOKE_USER` / `SEAMS_SMOKE_GROUPS` | The identity the smoke tests send as `X-Forwarded-User` and comma-separated `X-Forwarded-Groups`. Without a user no identity headers are sent. |
 | `LLM_GATEWAY_URL` | Base URL of `:llm_gateway`. The name comes from `:chat_api`'s `deploy:binding` with `deploy:serviceOf :llm_gateway`. `llm_base_url=` overrides it (`http_base_url=` for a `comm:HTTPEndpoint`). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Turns on OpenTelemetry spans (see [Tracing](#tracing-opentelemetry)). Unset or empty, tracing is off. |
 | `OTEL_SERVICE_NAME` | The `service.name` resource of the spans. The default is `seams-runtime`. |

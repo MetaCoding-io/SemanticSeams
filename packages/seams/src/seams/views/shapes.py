@@ -109,6 +109,17 @@ class Shape(Element):
         """The nodes it must reject (verify:invalidExample, ADR-0014), by IRI."""
         return tuple(self._objects(VERIFY.invalidExample))
 
+    def example_values(self, node: URIRef) -> tuple[tuple[Field, Literal], ...]:
+        """(field, value) for each literal ``node`` (one of its examples) has
+        on one of its fields' paths: fields in ``fields()`` order, a field's
+        values by lexical form. The node's other triples are left out."""
+        ds = self.views.ds
+        out: list[tuple[Field, Literal]] = []
+        for f in self.fields():
+            values = sorted((v for v in ds.objects(node, f.iri) if isinstance(v, Literal)), key=str)
+            out.extend((f, v) for v in values)
+        return tuple(out)
+
     @property
     def read_by(self) -> Many[Element]:
         """The elements that seam:read it."""

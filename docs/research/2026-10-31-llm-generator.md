@@ -268,4 +268,6 @@ item that calls a model.
   from example content (p. 231). With K5's scaffold, a reference output and a golden
   test, an LLM could propose a new deterministic generator, accepted only when the
   golden test passes. That is a step up from drafting code: the result is a reusable
-  generator rather than a single file.
+  generator rather than a single file. The
+  [data-centric note](2026-10-31-data-centric-model-and-copilot.md) takes this up as R3,
+  alongside a model copilot (R1, R2).

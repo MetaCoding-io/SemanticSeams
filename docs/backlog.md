@@ -176,7 +176,10 @@ template and model, a view of it, and write-back in tiers. T1 to T3 need no edit
 they can ship while editing stays a v1 non-goal. C1 to C5 come from the
 [LLM generator note](research/2026-10-31-llm-generator.md): code the templates cannot
 write, drafted by an LLM behind a deterministic stub and tests from the model, accepted
-once, then owned and traced by its model context.
+once, then owned and traced by its model context. O1 to O6 and R1 to R3 come from
+the [data-centric note](research/2026-10-31-data-centric-model-and-copilot.md): an ontology
+layer anchored in gist, SemPKM as the default RDF store, and a model copilot. R1 needs
+nothing else and can start now.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
@@ -201,6 +204,15 @@ once, then owned and traced by its model context.
 | C3 | **Context assembly**: per-kind rules narrowed to the facts used, canonical hashing of each element and native file, and a manifest with a context hash; useful as a review report before any LLM is involved | S | none | none | proposed |
 | C4 | **LLM draft generator**: provider-agnostic call, versioned prompt templates, writes only to the U6 location, `seams propose`, accepted only when C2's tests pass; model text quoted as data, binding names but never values, never run in CI | M | C1 to C3, K3, U6 | none | proposed |
 | C5 | **Drafts in the lockfile, `seams check` and the generation view**: an `llm-draft` record, staleness from the context hash, hand-edit detection, and the draft node in T3 ([mockup](research/2026-10-31-llm-generator.md)) | S | A1, A2, T3, C3 | none | proposed |
+| O1 | **Ontology notation**: `seam:Ontology` model graphs, gist imports, a class view in the viewer, and model-health checks for imports and versions. [Note](research/2026-10-31-data-centric-model-and-copilot.md) | M | ADR first; K6 for versions | a notation value | proposed |
+| O2 | **Shapes target classes; states as categories**: `sh:targetClass`, `sh:name` for field names, lifecycle state IRIs as category members replacing copied `sh:in` lists, and form flattening for `sh:node` with fixed values ([gist example](research/examples/expense-gist.trig)) | M | O1 | none; plain SHACL | proposed |
+| O3 | **JSON-LD context generator** for API payloads, from the ontology and shapes | S | O1, O2 | none | proposed |
+| O4 | **SemPKM storage backend** behind U9's interface: validate, then `POST /api/commands`; read through scoped SPARQL; the compose generator adds SemPKM's services when the model names it. Decided in U9's ADR, alongside SQLite and PostgreSQL | M | U9, O2 | a store-kind value | proposed |
+| O5 | **Mental Model generator**: `manifest.yaml`, ontology, shapes, and views from IFML, as a package SemPKM installs | M | O1, O2, K3 | none | proposed |
+| O6 | **SemPKM webhooks as a channel**, so `object.changed` can start a BPMN process through `seam:subscribesTo` | S | O4, ADR-0010 | a channel transport value | proposed |
+| R1 | **Model review checks**: lifecycle labels repeated in `sh:in` (found three times today), `sh:class` pointing at a shape, shapes without a target class, undeclared paths, T2's computing expressions, and literals in drafts that repeat model facts; reported by `seams check` and the health badge | S | none | none | proposed |
+| R2 | **Copilot suggestions**: LLM-proposed model patches (move logic into DMN, merge shapes into a class, gist anchors), each accepted after validation, regeneration and review | M | R1, T5, C4 | none | proposed |
+| R3 | **Generators that write generators**: an LLM drafts a template and `extract` step from a reference output, accepted when the golden test passes | M | K5, C4 | none | proposed |
 
 ## Generation: what is planned, what is not
 

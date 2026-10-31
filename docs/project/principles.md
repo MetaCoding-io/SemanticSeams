@@ -7,7 +7,9 @@ with no check yet names the backlog item that adds one.
 
 **Precedence.** An accepted ADR wins over this page, and this page wins over habit. If
 a principle here conflicts with an ADR, the ADR is right and this page needs fixing.
-If a task seems to need breaking a principle, stop and write the question down, in an
+A package README, such as `seams_gen/README.md`, states the detailed rules for its
+package. It ranks below this page and the ADRs: follow it where it is more specific,
+and where it contradicts them, fix the README. If a task seems to need breaking a principle, stop and write the question down, in an
 ADR draft or a backlog note, before writing the code.
 
 ## Design principles
@@ -19,9 +21,9 @@ and drafts read facts from the model; they never restate them.
 
 - No domain literals in generators, templates or runtime code: no page names, field
   names, status strings or paths that the model already holds.
-- When a value appears in two places, one of them derives from the other. Today three
-  shapes copy their lifecycle's state labels into `sh:in` lists. That is the pattern to
-  avoid, and backlog O2 removes it.
+- When a value appears in two places, one of them derives from the other. A shape that
+  copies its lifecycle's state labels into an `sh:in` list is the pattern to avoid;
+  backlog O2 removes the existing cases.
 - **Check:** golden tests fail on hard-coded output. The generator README's "no domain
   literals in the template" rule. R1 adds a model review for duplicated facts.
 
@@ -31,10 +33,14 @@ BPMN and DMN are executed by the runtime from their native XML; they are not com
 into code ([ADR-0007](/adr/0007-execution-strategy)). Generators produce structure:
 templates, routes and compose files.
 
-- A change to a decision table or a process flow must not require regenerating code.
+- A change to the logic of a decision table or a process flow must not change generated
+  code beyond its model-hash lines. Logic means a rule's conditions and outputs, a
+  threshold, or which existing step a gateway routes to.
+- A structural change does regenerate the parts it touches. A new user task needs a
+  screen, and a new field needs an input, so they change the generated pages and routes.
 - **Check:** `test_changing_the_threshold_moves_only_the_hash_lines` in
-  `tests/test_expense_process_app.py`. Editing a DMN threshold changes only the
-  model-hash lines of the generated code.
+  `tests/test_expense_process_app.py` covers a DMN threshold. Other logic changes have
+  no test yet.
 
 ### 3. Notations stay native; seams join them
 
@@ -66,8 +72,8 @@ generator raise `GeneratorError` is also a shape violation, or is documented as
 generator-only with the reason.
 
 - Invalid models can still be saved, shared and viewed; they are flagged, never refused.
-- **Check:** today, partial. Two known gaps: `ifml:order` and `seam:reads` on lists. K1
-  adds a parity test.
+- **Check:** partial. K1 adds a parity test and records the conditions the shapes do
+  not catch yet.
 
 ### 6. Same model, same bytes
 
@@ -110,16 +116,31 @@ and applications are built on them.
   declared once. Classes are anchored in gist where the fit is honest.
 - Use IRIs for categories such as states, outcomes and kinds, not strings.
 - Do not add a store, column or payload field that bypasses the shapes.
-- RDF storage, with SemPKM as the intended default for deployments, is the direction for
-  instance data (O4).
+- RDF storage is the direction for instance data. Backlog O4 chooses the store.
 - **Check:** R1's model review. Until O1 and O2 land, this is a review rule.
 
-### 10. Read-only until editing is reopened
+### 10. The model is editable, through one write path
 
-The viewer and the `seams` library are read-only. Editing is a v1 non-goal (backlog P2
-item 13). The I-series items are the plan if that changes.
+Editing the model is part of the product from the start, not a later phase. A person
+can change the model in the viewer, through forms built from the shapes or the BPMN and
+DMN modelers, or in a text editor. Both routes leave the same files. Backlog items I1
+to I5 are the plan.
 
-- **Check:** review. The `seams` library has no write API.
+- Every edit is a patch: quads added and removed, or an XML change for BPMN and DMN. It
+  goes through one write path, which supports undo. No other code writes model files.
+- The `seams` library's views stay read-only. Code reads through the views and writes
+  through the write path. The I1 ADR decides where the write path lives.
+- An edit that breaks the shapes is saved and flagged, never refused (principle 5).
+- Writing a model is deterministic (principle 6). The same graph gives the same bytes,
+  so a one-triple edit gives a one-line diff. Hand-written comments in a TriG file
+  survive an edit. rdflib drops them, so the I1 ADR decides how.
+- Renaming a BPMN or DMN element ID rewrites every seam edge that uses it, in the same
+  edit ([ADR-0002](/adr/0002-iri-identity-and-migration)).
+- Edits change the model, never the generated output (principle 8). Write-back from
+  output (T4) turns an edit to the output into a patch to the model.
+- **Check:** none yet. I1 adds a round-trip test: load each example, apply an empty
+  patch, write it out, and compare the bytes with the original. I4 adds a test for ID
+  renames.
 
 ### 11. Decisions are written down
 
@@ -180,7 +201,7 @@ stop and report it.
 | `packages/seams` | Loading, hashing, payload resolution, typed read-only views, joins with native BPMN and DMN | Depend on anything beyond rdflib and lxml; write; execute |
 | `seams_gen` | Generators: `extract` from views, then `render` | Query the graph around the views; hold domain literals |
 | `seams_runtime` | Execution: the engine, worker, store, policy | Re-implement model reading that `seams` provides |
-| `viewer` | Read-only rendering and navigation | Write to the model |
+| `viewer` | Rendering, navigation and editing | Write model files except through the write path (principle 10) |
 
 - Import only public names across packages. A leading underscore means private to its
   module.
@@ -206,7 +227,8 @@ second process, decision and page showed what that costs.
 - Generators are `extract` (graph to a frozen view model) then `render` (view model to
   text). All computation happens in `extract`: names, joins, conditions, formatting.
 - Templates loop over prepared values and emit text. Filters, string concatenation and
-  inline conditions inside a template are a smell. T2 moves the 43 that exist today.
+  inline conditions inside a template are a smell. T2 moves the existing ones into
+  `extract`.
 - Templates use the `[[ ]]` and `[% %]` delimiters, so the Jinja2 they emit stays plain
   text.
 
@@ -288,5 +310,6 @@ A short list to paste into a pull request or a review prompt:
 - [ ] Errors name subject, predicate and detail.
 - [ ] Logic lives in `extract`, not in templates.
 - [ ] Tests added or updated; none skipped; ruff, pyright, pytest and the docs build pass.
+- [ ] Model writes go through the write path; a written model file round-trips byte for byte.
 - [ ] Vocabulary additions have a backlog row or ADR.
 - [ ] Docs and README describe the new behaviour.

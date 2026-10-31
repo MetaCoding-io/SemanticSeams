@@ -108,6 +108,10 @@ The bridging ontology stays **method-neutral**. Juval Löwy's IDesign method (*R
 
 **A read-only, navigable, multi-layer model browser over a hand-authored RDF model of a real system.** No editing, no generation, no execution. The notation-switching descent alone is novel; nothing on the market does it.
 
+> **Revised 2026-10-31.** Editing is no longer a non-goal: the model must be editable from
+> the outset ([principle 10](project/principles.md#_10-the-model-is-editable-through-one-write-path),
+> backlog items I1 to I5).
+
 Dogfood candidates: the GLMX internal tooling stack (nexus/Authentik/Pulp) or SemPKM itself.
 
 Then, in order: editing (embed the modelers read-write), SHACL-driven form generation, IFML→htmx generation, BPMN interpretation, profiles (IDesign first), project-design projection (Gantt).

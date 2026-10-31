@@ -29,9 +29,9 @@ from .architecture import (
 from .decisions import Decision, all_decisions
 from .interfaces import Component, Event, Flow, InteractionModel, Interfaces, Page, Parameter, ParameterBinding
 from .lifecycles import Lifecycle, Lifecycles, State, Transition
-from .operations import Channel, Operation, PathTemplate
+from .operations import Channel, Operation, PathTemplate, Status
 from .policies import Policy
-from .processes import FlowNode, MessageStart, Process, ProcessElement, Processes
+from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes
 from .shapes import Field, Shape
 
 if TYPE_CHECKING:
@@ -48,6 +48,7 @@ __all__ = [
     "DeploymentNode",
     "Element",
     "Environment",
+    "ErrorBoundary",
     "Event",
     "Field",
     "Flow",
@@ -72,6 +73,7 @@ __all__ = [
     "Processes",
     "Shape",
     "State",
+    "Status",
     "System",
     "Transition",
     "Views",

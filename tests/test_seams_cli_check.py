@@ -1,7 +1,7 @@
 """`seams check` fails on SHACL violations, gate rows and drifted outputs, and writes nothing (M012/S03, D044).
 
 Each example is copied into tmp_path at its repository-relative path, so the
-chat app's compose target (``../..``) lands at tmp_path/compose.yaml, as in
+chat app's compose target (``../..``) lands at tmp_path/compose.<environment>.yaml, as in
 tests/test_seams_generate_examples.py. Checking a copy keeps the committed
 outputs untouched while a test breaks them.
 """
@@ -37,8 +37,10 @@ def _copy(rel: Path, tmp_path: Path) -> Path:
     dest = tmp_path / rel
     shutil.copytree(ROOT / rel, dest, ignore=shutil.ignore_patterns("__pycache__"))
     for target in load_project(ROOT / rel).generators:
-        compose = target.out.resolve() / "compose.yaml"
-        if target.name == "compose" and not compose.is_relative_to(ROOT / rel):
+        out = target.out.resolve()
+        if target.name != "compose" or out.is_relative_to(ROOT / rel):
+            continue
+        for compose in out.glob("compose.*.yaml"):
             copied = tmp_path / compose.relative_to(ROOT)
             copied.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(compose, copied)

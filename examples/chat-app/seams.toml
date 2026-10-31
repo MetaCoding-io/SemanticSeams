@@ -17,15 +17,18 @@ out = "generated"
 name = "htmx"
 out = "generated/templates"
 
-# The repository-root compose.yaml; its bind mounts are relative to the root.
+# One compose.<environment>.yaml per arch:Environment at the repository root
+# (ADR-0015); their bind mounts and build contexts are relative to the root.
 [[generators]]
 name = "compose"
 out = "../.."
 
-[environments.prod]
+# The model's arch:Environment :production; compose.production.yaml deploys it.
+[environments.production]
 
-# The local `docker compose up` stack. The Caddy UI container (chat_ui) on
-# port 8080 proxies /healthz to the runtime, so `seams status --env local`
-# reads the running model hash there.
-[environments.local]
+# The model's arch:Environment :development: the local stack that
+# `docker compose -f compose.development.yaml up` runs. The Caddy UI container
+# (chat_ui) on port 8080 proxies /healthz to the runtime, so
+# `seams status --env development` reads the running model hash there.
+[environments.development]
 endpoints = { chat_api = "http://localhost:8080" }

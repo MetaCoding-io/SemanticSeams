@@ -4,13 +4,14 @@ Runs only with SEAMS_E2E=1 (CI's tutorial-e2e job); the normal suite stays
 docker-free. With SEAMS_E2E=1 nothing skips: a missing docker CLI or a stack
 that does not come up healthy is a failure.
 
-The stack is the generated compose.yaml merged with compose.override.yaml,
-with the gateway forced into stub mode (LLM_GATEWAY_STUB=1), so the reply is
+The stack is the generated compose.development.yaml (ADR-0015), with the
+gateway forced into stub mode (LLM_GATEWAY_STUB=1), so the reply is
 the gateway's deterministic "Stub reply to: <content>". The flow is the
 tutorial's "open http://localhost:8080 and chat": load the landmark page,
 post the compose form, read the token stream, see the thread update.
-On any failure the module prints ``docker compose logs``; teardown always
-runs ``docker compose down -v`` and checks no container is left.
+Every command passes ``-f compose.development.yaml``. On any failure the
+module prints ``docker compose logs``; teardown always runs
+``docker compose down -v`` and checks no container is left.
 """
 
 import os
@@ -28,6 +29,7 @@ from seams_cli.__main__ import main as seams_main
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "http://localhost:8080"
 KEY_FILE = ROOT / ".secrets" / "llm_api_key"
+COMPOSE_FILE = "compose.development.yaml"
 UP_TIMEOUT = 300  # seconds: image builds plus healthchecks on a cold runner
 STREAM_TIMEOUT = 30
 POLL_TIMEOUT = 30
@@ -43,7 +45,13 @@ pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1", reason="live
 def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
     env = {**os.environ, "LLM_GATEWAY_STUB": "1"}
     return subprocess.run(
-        ["docker", "compose", *args], cwd=ROOT, env=env, timeout=timeout, check=check, capture_output=True, text=True
+        ["docker", "compose", "-f", COMPOSE_FILE, *args],
+        cwd=ROOT,
+        env=env,
+        timeout=timeout,
+        check=check,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -195,9 +203,9 @@ def test_healthz_reports_the_declared_postgres_store(stack):
 
 
 def test_seams_status_reports_the_runtime_current(stack, capsys):
-    """`seams status --env local` reads /healthz through port 8080 and finds the
+    """`seams status --env development` reads /healthz through port 8080 and finds the
     running chat_api on the model in the working tree (D045)."""
-    code = seams_main(["status", "--project", str(ROOT / "examples" / "chat-app"), "--env", "local"])
+    code = seams_main(["status", "--project", str(ROOT / "examples" / "chat-app"), "--env", "development"])
     out = capsys.readouterr()
     assert code == 0, out.out + out.err
     assert out.out.splitlines()[0].startswith("chat_api current sha256:"), out.out

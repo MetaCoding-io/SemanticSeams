@@ -1,8 +1,8 @@
 """The committed generated outputs equal what the generators produce now.
 
 examples/chat-app/generated/ (route module and templates) and the root
-compose.yaml are committed so the docker images and `docker compose up` use
-stable paths. Each test regenerates through the `python -m seams_gen` entry point and
+compose.<environment>.yaml files (ADR-0015) are committed so the docker images
+and `docker compose -f compose.development.yaml up` use stable paths. Each test regenerates through the `python -m seams_gen` entry point and
 compares against the committed copy: the same set of files (no stale extra
 file survives) and byte-equal contents. A mismatch fails with a unified diff
 naming the committed path and the command that regenerates it
@@ -15,7 +15,7 @@ import difflib
 import shutil
 from pathlib import Path
 
-from seams_gen import generate_compose
+from seams_gen import generate_compose_environments
 from seams_gen.__main__ import main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +23,6 @@ EXAMPLE = ROOT / "examples" / "chat-app"
 TRIG = EXAMPLE / "chat-app.trig"
 GENERATED = EXAMPLE / "generated"
 TEMPLATES = GENERATED / "templates"
-COMPOSE = ROOT / "compose.yaml"
 
 # Every failure hint gives the one command that rewrites all the chat-app
 # outputs from examples/chat-app/seams.toml.
@@ -86,11 +85,14 @@ def test_templates_are_current(tmp_path):
     assert_current(regenerate("htmx", TRIG, tmp_path), committed_files(TEMPLATES), TEMPLATES, COMMANDS["htmx"])
 
 
-def test_compose_file_is_current():
+def test_compose_files_are_current():
     # Bind-mount sources are relative to the output directory, so compare the
-    # repository-root rendering with the committed root compose.yaml.
-    generated = {"compose.yaml": generate_compose(TRIG, base_dir=ROOT)}
-    assert_current(generated, {"compose.yaml": COMPOSE.read_text(encoding="utf-8")}, ROOT, COMMANDS["compose"])
+    # repository-root rendering with the committed root compose files. Every
+    # compose*.yaml at the root counts as committed, so a leftover compose.yaml
+    # or compose.override.yaml fails as "no longer generated".
+    generated = generate_compose_environments(TRIG, base_dir=ROOT)
+    committed = {p.name: p.read_text(encoding="utf-8") for p in ROOT.glob("compose*.yaml")}
+    assert_current(generated, committed, ROOT, COMMANDS["compose"])
 
 
 def test_generated_readme_names_the_regenerate_command():

@@ -15,8 +15,7 @@ up in stub mode and chats with it (`tests/test_tutorial_e2e.py`).
 
 ## 1. Prerequisites
 
-- **Docker** with **Compose 2.24 or later** (`docker compose version`). The local override
-  uses Compose's `!override` merge tag, which older versions reject.
+- **Docker** with the **Compose v2** plugin (`docker compose version`).
 - **[uv](https://docs.astral.sh/uv/)**, only if you want to regenerate the code. It installs
   Python 3.12 from `.python-version` if needed. Running the app needs only Docker.
 
@@ -72,7 +71,9 @@ seams generate --project examples/chat-app
 It reads [`examples/chat-app/seams.toml`](../examples/chat-app/seams.toml), which names the
 three generators and their outputs: the FastAPI route module
 (`examples/chat-app/generated/chat_api.py`), the htmx page and partials
-(`examples/chat-app/generated/templates/`) and the prod-shaped root `compose.yaml`. The
+(`examples/chat-app/generated/templates/`) and one root compose file per environment the
+model declares: `compose.development.yaml` and `compose.production.yaml`
+([ADR-0015](adr/0015-environments.md)). The
 [seams CLI reference](/reference/seams-cli) describes the file. To run a single generator,
 `python -m seams_gen <generator>` still works. It also rewrites
 [`examples/chat-app/seams.lock`](../examples/chat-app/seams.lock), which records the model
@@ -80,7 +81,7 @@ hash, generator version, file hash and source elements of every output. On an un
 model the command produces no diff:
 
 ```
-git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock compose.yaml
+git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock compose.development.yaml compose.production.yaml
 ```
 
 `seams check` confirms the same without writing anything. It also validates the model
@@ -116,23 +117,28 @@ mkdir -p .secrets && printf '%s' "$OPENAI_API_KEY" > .secrets/llm_api_key
 step 5 to point at another server, e.g. Ollama's `http://<host>:11434/v1`. Set
 `LLM_MODEL_OVERRIDE` to the model name the server knows, e.g. `llama3.1:8b`. Ollama
 ignores the key, but the file must not be empty, or the gateway falls back to the stub.
-`LLM_GATEWAY_STUB=1` forces the stub even when a key is present. These knobs are
-documented at the top of `compose.override.yaml`.
+`LLM_GATEWAY_STUB=1` forces the stub even when a key is present. `LLM_API_KEY_FILE` points
+the gateway at a different key file. The model states each of these as a development
+override of `:llm_gateway`, and `compose.development.yaml` reads them from your shell.
 
 ## 5. Start the stack
 
 ```
-docker compose up --build
+docker compose -f compose.development.yaml up --build
 ```
 
-Compose merges the generated `compose.yaml` with the hand-written `compose.override.yaml`,
-builds the runtime and gateway images from this checkout, and starts four services:
+The model declares two environments, `:development` and `:production`, and the generator
+writes one compose file for each. Everything a laptop run needs and production does not is
+a `deploy:override` of a container in `:development`: local image builds, file secrets, the
+dev database password, the dev user and the seed data. No compose file is hand-written.
+Compose builds the runtime and gateway images from this checkout and starts four services:
 `chat_api` (the runtime serving the generated route module), `llm_gateway`, `chat_ui`
 (a reverse proxy on port 8080) and `message_db`. The first build takes a minute or two.
 
 The runtime image bakes in one app's generated route module, templates and seed data,
 chosen by the `SEAMS_APP_DIR` and `SEAMS_ROUTES_FILE` build args (default
-`examples/chat-app` and `chat_api.py`). It does not bake in the model: `compose.yaml`
+`examples/chat-app` and `chat_api.py`; the generator writes them from the model). It does
+not bake in the model: the compose file
 bind-mounts the TriG and its payloads at `/model`, and `SEAMS_MODEL` names the TriG the
 runtime loads (see [seams_runtime/README.md](https://github.com/MetaCoding-io/SemanticSeams/blob/main/seams_runtime/README.md)).
 
@@ -159,7 +165,7 @@ message is a row in the `message_db` container's `chat` database. Send a message
 "hello" in it, then ask PostgreSQL for the shape of every stored entity that mentions it:
 
 ```
-docker compose exec -T message_db psql -U postgres -d chat -tAc "SELECT shape FROM entities WHERE data::text LIKE '%hello%'"
+docker compose -f compose.development.yaml exec -T message_db psql -U postgres -d chat -tAc "SELECT shape FROM entities WHERE data::text LIKE '%hello%'"
 ```
 
 It prints `https://example.org/chat/MessageShape`, one line per stored message that
@@ -174,24 +180,24 @@ The `store` object says `"kind": "postgresql"`, `"declared": "PostgreSQL"`, the
 (`tests/test_tutorial_e2e.py`) runs both checks.
 
 Optionally, ask the seams CLI whether the running `chat_api` is on the model in your
-working tree. `examples/chat-app/seams.toml` declares a `local` environment whose endpoint
-is port 8080:
+working tree. `examples/chat-app/seams.toml` gives the `development` environment an
+endpoint on port 8080:
 
 ```
-seams status --project examples/chat-app --env local
+seams status --project examples/chat-app --env development
 ```
 
 It prints `chat_api current sha256:…` and exits 0. After a model edit it says `behind` or
 `ahead` until the stack is rebuilt ([the seams CLI](/reference/seams-cli#seams-status)).
 
 Stacks started before M011 kept their data in a SQLite file on a `/data` volume. That
-volume is no longer used and nothing migrates it; `docker compose down -v` deletes it
+volume is no longer used and nothing migrates it; `docker compose ... down -v` deletes it
 along with the rest of the stack's data.
 
 When you are done, stop the stack and delete its data:
 
 ```
-docker compose down -v
+docker compose -f compose.development.yaml down -v
 ```
 
 ## 7. Change the model
@@ -204,10 +210,10 @@ Edit the model and watch the app follow. For example, change the chat page's tit
 ```
 
 to `"My chat"@en`, then rerun the three generators from step 3 and restart with
-`docker compose up --build`. The browser tab title changes.
+`docker compose -f compose.development.yaml up --build`. The browser tab title changes.
 
 If you skip regenerating, the app refuses to start. Every generated file records the
-model's content hash (`MODEL_HASH` in `chat_api.py`, `SEAMS_MODEL_HASH` in `compose.yaml`),
+model's content hash (`MODEL_HASH` in `chat_api.py`, `SEAMS_MODEL_HASH` in each compose file),
 and `Runtime.load` compares it with the model that is mounted at `/model`. A mismatch
 raises `ModelHashMismatch` and the `chat_api` container exits instead of serving code
 generated from a different model (ADR-0007 rule 2).
@@ -218,9 +224,9 @@ generated from a different model (ADR-0007 rule 2).
 
 | Part | Files | Edited by hand? |
 |---|---|---|
-| **Generated** from the model | `examples/chat-app/generated/chat_api.py`, `examples/chat-app/generated/templates/*.html`, `compose.yaml` | Never. Regenerate them; CI fails if they drift from the model. |
+| **Generated** from the model | `examples/chat-app/generated/chat_api.py`, `examples/chat-app/generated/templates/*.html`, `compose.development.yaml`, `compose.production.yaml` | Never. Regenerate them; CI fails if they drift from the model. |
 | **Runtime**, generic and model-agnostic | `packages/seams/` (reads the model), `seams_runtime/` (SpiffWorkflow for BPMN/DMN, pySHACL contracts, lifecycle guard, policy hook, SSE bus, host), `seams_gateway/` | Yes. It names no chat-app term; it reads the model at runtime. |
-| **Local override** | `compose.override.yaml`, `docker/*.Dockerfile`, `examples/chat-app/seed.json` | Yes. This is what a laptop run needs and production does not: local image builds, file secrets, a dev Postgres database (`chat`, password and `DB_URL` the runtime connects with), a single replica, the reverse proxy and the seed data. |
+| **Local build inputs** | `docker/*.Dockerfile`, `docker/local-secrets/db_url`, `examples/chat-app/seed.json` | Yes. The images the development environment builds, the dev `DB_URL` the runtime connects with and the seed data. What a laptop run needs and production does not is stated in the model as `:development` overrides, not in a hand-written compose file. |
 
 The generated code holds no business logic. The workflow order lives in the BPMN, the
 routing rules in the DMN, and the validation in the SHACL shapes, and the runtime executes

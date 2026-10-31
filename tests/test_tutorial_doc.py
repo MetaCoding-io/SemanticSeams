@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
-from test_tutorial_e2e import PSQL, landed_sql  # noqa: E402
+from test_tutorial_e2e import COMPOSE_FILE, PSQL, landed_sql  # noqa: E402
 
 TUTORIAL = ROOT / "docs" / "tutorial.md"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
@@ -57,14 +57,15 @@ def test_tutorial_shows_the_ci_check_command():
 
 def test_tutorial_shows_the_compose_lines_the_e2e_job_exercises():
     lines = _code_lines()
-    assert "docker compose up --build" in lines
-    assert "docker compose down -v" in lines
+    # one generated file per environment (ADR-0015); the tutorial runs development
+    assert f"docker compose -f {COMPOSE_FILE} up --build" in lines
+    assert f"docker compose -f {COMPOSE_FILE} down -v" in lines
     assert "mkdir -p .secrets && : > .secrets/llm_api_key" in lines
 
 
 def test_tutorial_shows_the_store_checks_the_e2e_test_runs():
     lines = _code_lines()
-    psql = f'docker compose {" ".join(PSQL)} "{landed_sql("hello")}"'
+    psql = f'docker compose -f {COMPOSE_FILE} {" ".join(PSQL)} "{landed_sql("hello")}"'
     assert psql in lines, f"docs/tutorial.md lacks {psql}"
     assert "curl localhost:8080/healthz" in lines
 

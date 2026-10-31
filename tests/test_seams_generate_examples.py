@@ -2,7 +2,8 @@
 
 Each project under examples/ is copied into tmp_path at its repository-relative
 path, without its outputs, so the chat app's compose target (``../..``, the
-repository-root compose.yaml) lands at tmp_path/compose.yaml. ``seams generate``
+repository-root compose.<environment>.yaml files, ADR-0015) lands at
+tmp_path/compose.<environment>.yaml. ``seams generate``
 then has to write exactly the committed generated files: nothing missing, which
 catches a project file that forgets a generator, and nothing extra. The copy
 keeps the committed seams.lock, which generate rewrites byte for byte (D043).
@@ -19,7 +20,8 @@ from seams_cli.__main__ import main
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
-COMPOSE = "compose.yaml"
+# Every compose file is generated (ADR-0015 removed the hand-written overrides).
+COMPOSE = "compose*.yaml"
 LOCK = "seams.lock"
 
 
@@ -36,19 +38,18 @@ def _copy_without_outputs(rel: Path, tmp_path: Path) -> Path:
 
 def _committed_outputs(rel: Path) -> set[Path]:
     """Repository-relative paths of the committed generated files of the example at ``rel``:
-    everything under generated/ but its README.md, its own compose.yaml, and the
-    compose.yaml of every compose target its project file names."""
+    everything under generated/ but its README.md, its own compose files, and the
+    compose files of every compose target its project file names."""
     app = ROOT / rel
     files = {
         p
         for p in (app / "generated").rglob("*")
         if p.is_file() and p.name != "README.md" and "__pycache__" not in p.parts
     }
-    if (app / COMPOSE).is_file():
-        files.add(app / COMPOSE)
+    files |= set(app.glob(COMPOSE))
     for target in load_project(app).generators:
         if target.name == "compose":
-            files.add((target.out / COMPOSE).resolve())
+            files |= {p.resolve() for p in target.out.resolve().glob(COMPOSE)}
     return {p.relative_to(ROOT) for p in files}
 
 

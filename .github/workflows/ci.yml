@@ -35,7 +35,8 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --all-packages
       - run: uv run pytest -q
-      # The generated code, compose.yaml and each seams.lock are committed; seams check
+      # The generated code, the compose.<environment>.yaml files and each seams.lock are
+      # committed (ADR-0015: no hand-written compose override remains); seams check
       # fails on a stale, missing, hand-edited or orphaned output, a SHACL violation or a
       # gate returning rows. tests/test_tutorial_doc.py reads the projects list below.
       - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
@@ -87,8 +88,8 @@ jobs:
             examples/expenses/chapter-08
             examples/expenses/chapter-09
 
-  # docs/tutorial.md end to end: build and start the compose stack (gateway in
-  # stub mode), chat through the generated page and routes, then tear it down.
+  # docs/tutorial.md end to end: build and start the stack from the generated
+  # compose.development.yaml (gateway in stub mode), chat through the generated page and routes, then tear it down.
   # test_expense_e2e.py does the same for the expense app (chapter 9) and also runs
   # its generated smoke tests (generated/smoke) against the live stack.
   tutorial-e2e:

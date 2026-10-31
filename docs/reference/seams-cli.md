@@ -426,6 +426,7 @@ Errors print to stderr as `seams status: <message>`.
 ```sh
 seams sequence :send_message --project examples/chat-app
 seams sequence :submit_expense --project examples/expenses/chapter-08 --out build/sequences
+seams sequence :send_message --project examples/chat-app --trace tests/fixtures/traces/chat_send_message.json
 ```
 
 | Option | Default | Meaning |
@@ -434,6 +435,8 @@ seams sequence :submit_expense --project examples/expenses/chapter-08 --out buil
 | `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
 | `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
 | `--out DIR` | `<project root>/sequences` | The directory the `.mmd` files are written to. |
+| `--trace RUN` | none | Draw one recorded run as `<event>.executed.mmd`: a trace JSON file, or an instance id in the `--db` store. |
+| `--db PATH` | `SEAMS_DB`, else `<project root>/seams.sqlite` | The runtime's SQLite store to read an instance id from. Only valid with `--trace`. |
 
 `seams sequence` derives the as-designed Mermaid sequence diagrams of an IFML
 event (backlog U1, D047). The arrows come only from graph facts, and their order
@@ -450,6 +453,30 @@ without a project file.
 
 The diagrams are views, so they are not generator outputs: `seams generate` does
 not write them and `seams.lock` does not record them.
+
+### As executed: --trace
+
+`--trace RUN` draws one recorded run instead of the as-designed paths (backlog
+U4). The rows come from the trace the runtime's worker records, one per BPMN
+element it ran. RUN is either a JSON file, holding an instance result (`{"instance":
+..., "trace": [...]}`) or a bare list of rows, or an instance id. An instance id
+is read from the `workflow_state` checkpoint in the runtime's SQLite store:
+`--db PATH`, else `SEAMS_DB`, else `<project root>/seams.sqlite`. The diagram
+is written as `<out>/<event>.executed.mmd` on the same actor, UI and API
+lifelines as the as-designed diagram, and its header names the run
+(`%% run: <id>`):
+
+```
+$ seams sequence :send_message --project examples/chat-app --trace 3f2a... --out build
+build/send_message.executed.mmd
+```
+
+A row the model cannot place (an IRI that is not an element of the triggered
+process, or an unknown container or channel) is a gap, reported as below. An
+instance id missing from the store, or a trace file that is not JSON, exits 2;
+`--db` without `--trace` is a usage error. The committed golden is
+`docs/generation/sequences/chat-app/send_message.executed.mmd`, drawn from
+`tests/fixtures/traces/chat_send_message.json`.
 
 ### Gaps
 
@@ -473,6 +500,6 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 |---|---|
 | 0 | The diagrams were written, with or without gaps. |
 | 1 | A file could not be read or written. |
-| 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or the event is unknown. |
+| 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, the event is unknown, the `--trace` instance is not in the store, the trace file is not JSON, or `--db` was given without `--trace`. |
 
 Errors print to stderr as `seams sequence: <message>`.

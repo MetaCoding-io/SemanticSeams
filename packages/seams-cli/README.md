@@ -130,5 +130,12 @@ local name or full IRI) from the project's model, one per exclusive-gateway path
 `seams generate`. Each written path is printed. Each fact the deriver could not
 place prints to stderr as `seams sequence: gap <name>: <detail>` and the exit
 code stays 0; the diagrams are not recorded in `seams.lock`. A project error, an
-unloadable model or an unknown event exits 2. See
+unloadable model or an unknown event exits 2.
+
+`--trace RUN` draws one recorded run as `<out>/<event>.executed.mmd` from the
+worker's trace rows, on the same lifelines (backlog U4). RUN is a trace JSON
+file (an instance result or a bare list of rows) or an instance id in the
+runtime's SQLite store, `--db PATH`, defaulting to `SEAMS_DB`, else
+`<project root>/seams.sqlite`. An instance missing from the store or a trace
+file that is not JSON exits 2; `--db` without `--trace` is a usage error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-sequence).

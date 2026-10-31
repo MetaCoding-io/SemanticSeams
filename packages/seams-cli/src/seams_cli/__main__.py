@@ -38,6 +38,11 @@ gateway path, writes each as ``<DIR>/<name>.mmd`` (default
 ``<project root>/sequences``) and prints each path. Each fact the deriver
 could not place prints to stderr as ``seams sequence: gap <name>: <detail>``;
 gaps are an audit, and the exit code stays 0. An unknown event exits 2.
+``--trace RUN`` draws one recorded run as ``<DIR>/<event>.executed.mmd`` from
+the worker's trace rows: RUN is a trace JSON file or an instance id in the
+runtime's SQLite store (``--db PATH``, default SEAMS_DB, else
+``<project root>/seams.sqlite``). A missing instance exits 2; ``--db``
+without ``--trace`` is a usage error.
 """
 
 from __future__ import annotations
@@ -95,6 +100,14 @@ def build_parser() -> argparse.ArgumentParser:
     sequence.add_argument("event", help="the IFML event: a CURIE (:send_message), local name or full IRI")
     _project_arguments(sequence)
     sequence.add_argument("--out", type=Path, help="the directory for the .mmd files (default: <project>/sequences)")
+    sequence.add_argument(
+        "--trace",
+        metavar="RUN",
+        help="draw one recorded run as <event>.executed.mmd: a trace JSON file or an instance id in the --db store",
+    )
+    sequence.add_argument(
+        "--db", type=Path, help="the runtime's SQLite store (default: SEAMS_DB, else <project>/seams.sqlite)"
+    )
     sequence.set_defaults(run=_sequence)
     return parser
 
@@ -160,7 +173,7 @@ def _status(args: argparse.Namespace) -> int:
 
 def _sequence(args: argparse.Namespace) -> int:
     project = load_project(args.project)
-    paths, gaps = run_sequence(project, args.model, args.event, args.out)
+    paths, gaps = run_sequence(project, args.model, args.event, args.out, args.trace, args.db)
     for name, gap in gaps:
         print(f"seams sequence: gap {name}: {gap}", file=sys.stderr)
     for path in paths:
@@ -169,7 +182,10 @@ def _sequence(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "sequence" and args.db is not None and args.trace is None:
+        parser.error("sequence: --db needs --trace")
     try:
         return args.run(args)
     except (ProjectError, GeneratorError) as err:

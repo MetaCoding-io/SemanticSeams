@@ -49,7 +49,10 @@ or a row with no IRI is a gap. The diagram is ``<event>.executed`` with path
 Command line: ``python -m seams_gen.sequence <trig> <event> --out DIR``
 writes each diagram as ``DIR/<name>.mmd`` (``write_diagrams``, shared with
 ``seams sequence``), prints each path, and prints ``gap <name>: <detail>`` to
-stderr per gap. Gaps are an audit, not a failure: it exits 0 with them. A
+stderr per gap. ``--trace RUN`` (a trace JSON file or an instance id) with an
+optional ``--db PATH`` (the SQLite store, default ``default_db()``) writes the
+one as-executed ``DIR/<event>.executed.mmd`` instead; ``--db`` without
+``--trace`` is a usage error (exit 2). An unreadable trace exits 2. Gaps are an audit, not a failure: it exits 0 with them. A
 GeneratorError (an unknown event included) or a model that cannot be read or
 parsed exits 2 with ``python -m seams_gen.sequence: <message>`` on stderr; a
 file that cannot be written exits 1.
@@ -744,15 +747,31 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("trig", type=Path, help="the model's TriG file")
     parser.add_argument("event", help="the IFML event: a CURIE (:send_message), local name or full IRI")
     parser.add_argument("--out", type=Path, required=True, help="the directory the .mmd files are written to")
+    parser.add_argument(
+        "--trace",
+        metavar="RUN",
+        help="draw one recorded run as <event>.executed.mmd: a trace JSON file or an instance id in the --db store",
+    )
+    parser.add_argument(
+        "--db", type=Path, help="the runtime's SQLite store for an instance id (default: SEAMS_DB, else ./seams.sqlite)"
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.db is not None and args.trace is None:
+        parser.error("--db needs --trace")
     try:
         if not args.trig.is_file():
             raise FileNotFoundError(f"no such model file: {args.trig}")
-        diagrams = derive(_load(args.trig), args.event)
+        model = _load(args.trig)
+        if args.trace is None:
+            diagrams = derive(model, args.event)
+        else:
+            run, rows = read_trace(args.trace, args.db)
+            diagrams = [executed(model, args.event, rows, run=run)]
     except Exception as exc:  # GeneratorError, OSError, or any rdflib parse error
         print(f"{_PROG}: {exc}", file=sys.stderr)
         return EXIT_ERROR

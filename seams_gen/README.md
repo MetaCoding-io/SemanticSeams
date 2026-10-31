@@ -300,6 +300,9 @@ python -m seams_gen.sequence examples/chat-app/chat-app.trig :send_message --out
 # -> build/sequences/send_message.mmd
 python -m seams_gen.sequence examples/expenses/chapter-08/expenses.trig :submit_expense --out build/sequences
 # -> build/sequences/submit_expense--auto.mmd, submit_expense--manager--approved.mmd, ...
+python -m seams_gen.sequence examples/chat-app/chat-app.trig :send_message --out build/sequences \
+    --trace tests/fixtures/traces/chat_send_message.json
+# -> build/sequences/send_message.executed.mmd (--trace <instance id> --db seams.sqlite reads a stored run)
 ```
 
 `seams_gen.sequence` (backlog U1, R008, D047) derives as-designed Mermaid sequence

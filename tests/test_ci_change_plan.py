@@ -148,6 +148,25 @@ def test_breaking_change_warns_but_does_not_fail(repo):
     assert "### Breaking changes\n\n- " in summary
 
 
+def test_pull_request_adding_a_required_expense_field_shows_a_breaking_plan(repo):
+    """M015 UAT: a PR that adds a required field to ExpenseShape gets a breaking-change plan."""
+    trig = repo / "model" / "expenses.trig"
+    date = "sh:property [ sh:path :date ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;"
+    text = trig.read_text()
+    assert text.count(date) == 1
+    required = (
+        "sh:property [ sh:path :cost_centre ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ] ;\n        "
+    )
+    trig.write_text(text.replace(date, required + date))
+    result, summary = _run(repo, "model")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "::warning::seams plan: model has breaking changes against HEAD" in result.stdout
+    breaking = summary.split("### Breaking changes\n\n", 1)[1].split("\n\n", 1)[0]
+    assert "property-added" in breaking
+    assert "ExpenseShape" in breaking
+    assert "cost_centre minCount 1" in breaking
+
+
 def test_project_absent_at_base_is_reported_as_new(repo):
     shutil.copytree(repo / "model", repo / "other")
     result, summary = _run(repo, "other\nmodel")

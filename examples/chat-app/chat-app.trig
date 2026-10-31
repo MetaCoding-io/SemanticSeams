@@ -42,9 +42,12 @@
     :chat_ui a arch:Container ; rdfs:label "Chat Web Interface" ;
         arch:technology "htmx + server-rendered fragments" ;
         arch:dependsOn :chat_api ;
+        # A code-free reverse proxy: chat_api's host serves the pages, including
+        # the SSE stream, so chat_ui has no image of its own in any environment.
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/chat-ui" ;
-                          deploy:version "latest" ] ;
+                          deploy:reference "caddy" ;
+                          deploy:version "2-alpine" ] ;
+        deploy:proxies :chat_api ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
         deploy:dependsOn :chat_api ;
         seam:inModel :chat_architecture .
@@ -60,16 +63,30 @@
                                                 deploy:secretRef <https://secrets.example.org/chat/prod/db-url> ;
                                                 deploy:secretName "chat-prod-db-url" ;
                                                 deploy:connectsTo :message_db ] ;
-                               deploy:binding [ deploy:key "LLM_API_KEY" ;
-                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ;
-                                                deploy:secretName "chat-prod-llm-key" ] ;
                                deploy:binding [ deploy:key "LLM_GATEWAY_URL" ;
                                                 deploy:serviceOf :llm_gateway ] ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
+        # The production intent; the compose generator caps it at 1 until backlog A10.
         deploy:replicas 3 ;
-        deploy:dependsOn :message_db ;
+        deploy:dependsOn :message_db , :llm_gateway ;
         deploy:placement [ a deploy:PlacementPolicy ;
-                           deploy:targetEnvironment :prod ] ;
+                           deploy:targetEnvironment :production ] ;
+        # Development (ADR-0015): build from this checkout, a static user, seed
+        # data, and the connection string from a file. Same store, same key.
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:artifact [ a deploy:Artifact ;
+                              deploy:reference "seams/chat-api" ;
+                              deploy:version "local" ;
+                              deploy:build [ a deploy:Build ;
+                                             deploy:context "../.." ;
+                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "DB_URL" ;
+                                 deploy:secretFile "../../docker/local-secrets/db_url" ;
+                                 deploy:connectsTo :message_db ] ;
+                deploy:binding [ deploy:key "SEAMS_DEV_USER" ; deploy:value "builder" ] ;
+                deploy:binding [ deploy:key "SEAMS_SEED" ; deploy:value "/app/seed.json" ] ] ] ;
         seam:inModel :chat_architecture .
 
     :llm_gateway a arch:Container ; rdfs:label "LLM Provider Gateway" ;
@@ -79,8 +96,28 @@
                           deploy:version "latest" ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
         deploy:configuration [ a deploy:Configuration ;
+                               deploy:binding [ deploy:key "LLM_API_KEY" ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/llm-key> ;
+                                                deploy:secretName "chat-prod-llm-key" ] ;
                                deploy:binding [ deploy:key "UPSTREAM_BASE_URL" ;
                                                 deploy:value "https://api.openai.com/v1" ] ] ;
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\"" ;
+                             deploy:interval "5s" ] ;
+        # Development: build from this checkout; the key is a file (empty runs
+        # the stub reply), and the stub and model knobs default to empty.
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:artifact [ a deploy:Artifact ;
+                              deploy:reference "seams/llm-gateway" ;
+                              deploy:version "local" ;
+                              deploy:build [ a deploy:Build ;
+                                             deploy:context "../.." ;
+                                             deploy:dockerfile "docker/gateway.Dockerfile" ] ] ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "LLM_API_KEY" ; deploy:secretFile "../../.secrets/llm_api_key" ] ;
+                deploy:binding [ deploy:key "LLM_GATEWAY_STUB" ; deploy:value "" ] ;
+                deploy:binding [ deploy:key "LLM_MODEL_OVERRIDE" ; deploy:value "" ] ] ] ;
         seam:inModel :chat_architecture .
 
     :message_db a arch:Container ; rdfs:label "Message Store" ;
@@ -91,16 +128,29 @@
                           deploy:version "16" ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "POSTGRES_DB" ;
-                                                deploy:value "chat" ] ] ;
+                                                deploy:value "chat" ] ;
+                               deploy:binding [ deploy:key "POSTGRES_PASSWORD" ;
+                                                deploy:secretRef <https://secrets.example.org/chat/prod/postgres-password> ;
+                                                deploy:secretName "chat-prod-postgres-password" ] ] ;
         deploy:volume [ a deploy:Volume ;
                         deploy:volumeName "message_db_data" ;
                         deploy:mountPath "/var/lib/postgresql/data" ] ;
         deploy:healthcheck [ a deploy:Healthcheck ;
                              deploy:probe "pg_isready -U postgres" ;
                              deploy:interval "5s" ] ;
+        # Development: a fixed password, which docker/local-secrets/db_url uses.
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "POSTGRES_PASSWORD" ; deploy:value "seams-dev" ] ] ] ;
         seam:inModel :chat_architecture .
 
-    :prod a arch:Environment ; rdfs:label "Production" ;
+    # ADR-0015: one compose file per environment. Development contains no
+    # nodes, so its file has no placement constraints.
+    :development a arch:Environment ; rdfs:label "Development" ;
+        seam:inModel :chat_architecture .
+
+    :production a arch:Environment ; rdfs:label "Production" ;
         arch:contains :web01 , :app01 , :db01 ;
         seam:inModel :chat_architecture .
 

@@ -14,7 +14,8 @@ read the model, through their own extract functions and the seams views
   completed on it, the shape the form writes and the shape the task reads.
 - ``fastapi``: the serving container, the processes it executes and the
   operation or channel of each endpoint.
-- ``compose``: the arch:System and each of its containers.
+- ``compose``: per environment's file, the arch:Environment, the arch:System
+  and each of its containers.
 - ``tests``: per file, the scenarios with their processes and step tasks,
   the decision examples with their decisions, or the example shapes and nodes.
 - ``smoke``: each operation it calls, the shapes it accepts and returns (and
@@ -31,7 +32,7 @@ from seams import PROC, Model, ProcessElement, load
 from seams import Component as ComponentView
 
 from ._views import only, optional, view_errors
-from .compose import extract_compose
+from .compose import compose_file_name, environments, extract_compose
 from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
 from .smoke import smoke_sources
@@ -88,11 +89,14 @@ def _fastapi(trig: Path, out: Path) -> Sources:
 
 def _compose(trig: Path, out: Path) -> Sources:
     model = load(trig)
-    extract_compose(model, out)  # the generator's checks: one system with containers
-    with view_errors():
-        system = model.architecture.systems()[0]
-        containers = [c.iri for c in system.containers]
-    return {"compose.yaml": _iris(model, [system.iri, *containers])}
+    found: Sources = {}
+    for env in environments(model):
+        extract_compose(model, out, env)  # the generator's checks: one system with containers
+        with view_errors():
+            system = model.architecture.systems()[0]
+            containers = [c.iri for c in system.containers]
+        found[compose_file_name(env)] = _iris(model, [env.iri, system.iri, *containers])
+    return found
 
 
 # generator name -> sources(trig, out) -> {relative file name: full IRIs}

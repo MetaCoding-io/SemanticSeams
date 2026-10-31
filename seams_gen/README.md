@@ -31,7 +31,8 @@ python -m seams_gen htmx examples/chat-app/chat-app.trig --out build/
 python -m seams_gen fastapi examples/chat-app/chat-app.trig --out build/
 # -> build/chat_api.py
 python -m seams_gen compose examples/chat-app/chat-app.trig --out .
-# -> ./compose.yaml   (bind-mount sources are relative to --out, so `docker compose up` works there)
+# -> ./compose.development.yaml ./compose.production.yaml   (one per arch:Environment, ADR-0015;
+#    paths are relative to --out, so `docker compose -f compose.development.yaml up` works there)
 ```
 
 ### From a project file
@@ -49,7 +50,8 @@ The project file and the command are in
 
 **Committed outputs.** The chat-app outputs are committed at stable paths for the
 docker images and `docker compose up`: `examples/chat-app/generated/chat_api.py`,
-`examples/chat-app/generated/templates/*.html` and the root `compose.yaml`
+`examples/chat-app/generated/templates/*.html` and the root `compose.development.yaml` and
+`compose.production.yaml`
 ([generated/README.md](../examples/chat-app/generated/README.md) lists the regenerate
 command). `tests/test_generated_outputs_current.py` regenerates each and requires the
 same file set, byte for byte, failing with a diff and the command to run; CI also runs
@@ -63,8 +65,9 @@ html = generate_page("examples/chat-app/chat-app.trig")
 partials = generate_fragments("examples/chat-app/chat-app.trig")  # {file name: text}
 from seams_gen import generate_routes, extract_routes, render_routes
 routes_py = generate_routes("examples/chat-app/chat-app.trig")    # chat_api.py text
-from seams_gen import generate_compose, extract_compose, render_compose
-compose_yaml = generate_compose("examples/chat-app/chat-app.trig", base_dir=".")
+from seams_gen import generate_compose, generate_compose_environments, extract_compose, render_compose
+files = generate_compose_environments("examples/chat-app/chat-app.trig", base_dir=".")  # {compose.<env>.yaml: text}
+dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", base_dir=".")
 ```
 
 | Generator | Writes | From |
@@ -74,7 +77,7 @@ compose_yaml = generate_compose("examples/chat-app/chat-app.trig", base_dir=".")
 | `htmx` (task forms) | `<out>/<form local name>.html`, one partial per form a user task is completed on, plus the partials its completion route renders on the form's screen | each `ifml:Form` a `proc:UserTask` `seam:completedOn` (ADR-0009, D027) |
 | `htmx` (other served pages) | `<out>/<page local name>.html` and its partials, built like the landmark page but without task forms | each page of `model.interfaces.served_pages()` after the landmark: an `ifml:ViewContainer` with an `ifml:path` that is not the landmark and holds no task form, from any `ifml:InteractionModel` its container `seam:presents`. The expense tutorial's `:payouts_page` (chapter 8) is one. A partial two pages would render differently is a `GeneratorError` |
 | `fastapi` | `<out>/<container local name>.py`, a thin FastAPI route module | the one serving `arch:Container` (it `seam:executes` a `proc:Process`, or `seam:exposes` an operation an `ifml:Event` `seam:submitsTo`), and what it `seam:exposes` |
-| `compose` | `<out>/compose.yaml`, a docker compose file whose bind-mount sources are relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts, `seam:deployedTo` and the serving-container rule |
+| `compose` | `<out>/compose.<environment local name>.yaml`, one docker compose file per `arch:Environment` (ADR-0015), with paths relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts under the override rule for that environment, `seam:deployedTo` and the serving-container rule |
 | `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py`, `<out>/test_shape_examples.py` and `<out>/test_policies.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`, and each `odrl:permission` of `model.policies` with every `odrl:Party`; [Tests rendering rules](#tests-rendering-rules) |
 | `smoke` | `<out>/test_smoke.py`, a pytest file that calls a running app (backlog A9) | each `hydra:Operation` of `model.operations` with a `hydra:method` and a `comm:path`, its `seam:acceptsShape` / `seam:returnsShape`, its error statuses (ADR-0013), the first `verify:validExample` of its shapes and each `odrl:permission` targeting it; [Smoke rendering rules](#smoke-rendering-rules) |
 
@@ -218,31 +221,51 @@ branches only choose a layout from graph facts. Everything is sorted by IRI.
 
 ## Compose rendering rules
 
-`extract_compose(model, base_dir)` builds a frozen `ComposeModel`; `render_compose`
+The generator writes one file per `arch:Environment` of the model
+([ADR-0015](../docs/adr/0015-environments.md)): `generate_compose_environments(trig,
+base_dir=None)` returns `{compose.<environment local name>.yaml: text}` in environment
+IRI order, and the CLI writes exactly those files; there is no `compose.yaml`. A model
+with no `arch:Environment` raises `GeneratorError(<model file>, rdf:type)`, and so do two
+environments with one local name; this is generator-only, not a shape, because models
+without a compose target (the expense chapters 1 to 7) need no environment.
+
+`extract_compose(model, base_dir, environment)` builds a frozen `ComposeModel` for one
+environment, given as the `Environment` view, its IRI or its local name (an unknown one:
+`GeneratorError(<model file>, rdf:type)` naming the declared ones); `render_compose`
 renders it through `templates/compose.yaml.j2` (same environment, no domain literals).
-`generate_compose(trig, base_dir=None)` defaults `base_dir` to the working directory;
-the CLI passes `--out` (D018). The bind-mount sources and `SEAMS_MODEL` follow the TriG
-path it is given, so a model under another path or stem mounts and names that file; the
-runtime reads `SEAMS_MODEL` in preference to the path in the generated route module (see
-[seams_runtime/README.md](../seams_runtime/README.md)). Every value is pre-rendered as a YAML scalar: plain when
-`yaml.safe_load` reads it back as the same string, otherwise JSON double-quoted.
-It reads `model.architecture`: `System.containers` and each `Container`'s `artifact`,
-`ports`, `deploy_depends_on`, `bindings`, `volumes`, `healthcheck`, `replicas` and
-`deployed_to`. Ports, volumes and bindings are blank nodes, so their errors name the
+`generate_compose(trig, environment, base_dir=None)` defaults `base_dir` to the working
+directory; the CLI passes `--out` (D018). The bind-mount sources and `SEAMS_MODEL` follow
+the TriG path it is given, so a model under another path or stem mounts and names that
+file; the runtime reads `SEAMS_MODEL` in preference to the path in the generated route
+module (see [seams_runtime/README.md](../seams_runtime/README.md)). Every value is
+pre-rendered as a YAML scalar: plain when `yaml.safe_load` reads it back as the same
+string, otherwise JSON double-quoted.
+
+It reads `model.architecture`: `System.containers` and each `Container`'s
+`for_environment(env)` (its `artifact`, `bindings` and `replicas` under the override
+rule: an override's artifact or replicas replaces the shared one whole, its bindings
+replace or add by `deploy:key`, and a silent override keeps the shared fact), plus the
+shared `ports`, `deploy_depends_on`, `volumes`, `healthcheck`, `proxies` and
+`deployed_to`. An override that breaks the rule (two for one environment, a store that
+changes, a predicate an override cannot carry) is a `GeneratorError` on the container
+and that predicate. Ports, volumes and bindings are blank nodes, so their errors name the
 container.
 
 | Output | Graph fact |
 |---|---|
-| Header | `# Generated by the seams compose generator from the <trig stem> model. Do not edit.` then `# model-hash: sha256:…` (`seams.model_hash`). |
-| Services | The `arch:Container`s that the one `arch:System` `arch:contains`, by IRI, named by local name (none or several systems: `GeneratorError(<model file>, arch:contains)`). Keys in the order `image`, `ports`, `expose`, `depends_on`, `environment`, `secrets`, `volumes`, `healthcheck`, `deploy`. |
-| `image` | The one `deploy:artifact`: `<deploy:reference>:<deploy:version>` (missing: error on the container and `deploy:artifact`). |
+| Header | `# Generated by the seams compose generator from the <trig stem> model. Do not edit.`, then `# model-hash: sha256:…` (`seams.model_hash`), then `# environment: <environment IRI>`. |
+| `name` | The project name: the `arch:System`'s local name, lower-cased, so two apps never share volumes. |
+| Services | The `arch:Container`s that the one `arch:System` `arch:contains`, by IRI, named by local name (none or several systems: `GeneratorError(<model file>, arch:contains)`). Keys in the order `image`, `build`, `pull_policy`, `command`, `ports`, `expose`, `depends_on`, `environment`, `secrets`, `volumes`, `healthcheck`, `deploy`. |
+| `image` | The environment's `deploy:artifact`: `<deploy:reference>:<deploy:version>` (missing: error on the container and `deploy:artifact`). |
+| `build` / `pull_policy` | An artifact with a `deploy:build`: `build.context` is `deploy:context` (relative to the model file's directory) rewritten relative to `--out`, `build.dockerfile` is `deploy:dockerfile` (relative to the context, as in Docker), and `pull_policy: build`. For the serving container, `build.args` adds `SEAMS_APP_DIR` (the model file's directory relative to the context) and `SEAMS_ROUTES_FILE` (its route module, `fastapi.route_file_name`). An artifact without a build is pulled. |
+| `command` | A container that `deploy:proxies` another: `caddy reverse-proxy --from :<its single deploy:containerPort> --to <target>:<target's single deploy:containerPort>` (not one port, or a target outside the system: error). |
 | `ports` / `expose` | Each `deploy:port`: with `deploy:publishedPort` → `ports: - "pub:cont"`; without → `expose: - "cont"`. |
-| `depends_on` | The `deploy:dependsOn` local names, sorted (not `arch:dependsOn`); a target outside the system is an error. |
-| `environment` | For the serving container (the FastAPI rule above; at most one, else `GeneratorError(<model file>, seam:executes)`), first `SEAMS_MODEL: /model/<trig name>` and `SEAMS_MODEL_HASH`. Then each `deploy:configuration`/`deploy:binding` by `deploy:key`: `deploy:value` → `KEY: value`; `deploy:secretRef` → `KEY_FILE: /run/secrets/<key lower>`; `deploy:serviceOf S` → `KEY: http://<S>:<S's single deploy:containerPort>`. None or several of the three: error on the container and `deploy:binding`, naming the key. |
-| `secrets` | Each `deploy:secretRef` binding adds `<key lower>` to the service and a top-level `<key lower>: {name: <deploy:secretName>, external: true}` (missing `deploy:secretName`: error on the container, naming the key). |
+| `depends_on` | Each `deploy:dependsOn` target by local name (not `arch:dependsOn`), with `condition: service_healthy` when the target has a healthcheck (a `deploy:healthcheck`, or the serving container's probe) and `service_started` otherwise; a target outside the system is an error. |
+| `environment` | For the serving container (the FastAPI rule above; at most one, else `GeneratorError(<model file>, seam:executes)`), first `SEAMS_MODEL: /model/<trig name>` and `SEAMS_MODEL_HASH`. Then each binding of the environment, by `deploy:key`: `deploy:value` → `KEY: value`, or `KEY: ${KEY:-value}` in the environment whose local name is `development`, so a host can override it; `deploy:secretRef` or `deploy:secretFile` → `KEY_FILE: /run/secrets/<key lower>`; `deploy:serviceOf S` → `KEY: http://<S>:<S's single deploy:containerPort>`. None or several kinds: error on the container and `deploy:binding`, naming the key. |
+| `secrets` | Each `deploy:secretRef` binding adds `<key lower>` to the service and a top-level `<key lower>: {name: <deploy:secretName>, external: true}` (missing `deploy:secretName`: error on the container, naming the key). Each `deploy:secretFile` binding adds `<key lower>: {file: ${<KEY>_FILE:-<path relative to --out>}}`, so a host can point elsewhere. One key bound to two sources in one environment is an error. |
 | `volumes` | For the serving container, read-only model binds first: `./<trig relative to --out>:/model/<trig name>:ro`, then each `seam:renderPayload` as `./<payload relative to --out>:/model/<path relative to the trig dir>:ro` and, when an operation that container `seam:exposes` is `seam:implementedBy` a `comm:PythonHandler` ([ADR-0012](../docs/adr/0012-operation-implementation.md)), the handlers package `./<handlers/ beside the trig, relative to --out>:/model/handlers:ro` (the runtime's default handlers directory), all sorted. Then each named `deploy:volume` as `<volumeName>:<mountPath>`, with a top-level `<volumeName>: {}`. |
-| `healthcheck` | `deploy:healthcheck`: `test: ["CMD-SHELL", "<deploy:probe>"]`, `interval: <deploy:interval>`. |
-| `deploy` | `replicas` from `deploy:replicas`; `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node (no label: error on the node and `rdfs:label`). |
+| `healthcheck` | `deploy:healthcheck`: `test: ["CMD-SHELL", "<deploy:probe>"]`, `interval: <deploy:interval>`. The serving container without one gets the runtime's `/healthz` probe on its single `deploy:containerPort` (not one port: error), interval `5s`. Every healthcheck has the fixed `timeout: 5s`, `retries: 12` and `start_period: 5s`. |
+| `deploy` | `replicas` from the environment's `deploy:replicas`; the serving container is capped at 1 (backlog A10: process state lives in the process), with a comment naming the declared count. `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node, only in the environment that `arch:contains` that node (no label there: error on the node and `rdfs:label`). |
 | Top level | `secrets:` and `volumes:` after `services:`, sorted, omitted when empty. |
 
 ## Tests rendering rules
@@ -331,7 +354,7 @@ missing or ambiguous fact raises the generator's `GeneratorError`.
 | `htmx` | fragment partial | the component it renders and each operation that `seam:rendersComponent` it; a partial two pages share lists the union |
 | `htmx` | task form partial | the `ifml:Form`, the `proc:UserTask` `seam:completedOn` it, the shape the form `seam:writes` and the shape the task `seam:reads` (if any) |
 | `fastapi` | `<container>.py` | the serving container, each `proc:Process` it `seam:executes` and the operation or channel of each endpoint |
-| `compose` | `compose.yaml` | the `arch:System` and each `arch:Container` it `arch:contains` |
+| `compose` | `compose.<environment>.yaml` | the `arch:Environment`, the `arch:System` and each `arch:Container` it `arch:contains` |
 | `tests` | `test_scenarios.py` | each `verify:Scenario`, its `proc:Process` and the `proc:UserTask` of each step |
 | `tests` | `test_decisions.py` | each `verify:DecisionExample` and the `dec:Decision` it evaluates |
 | `tests` | `test_shape_examples.py` | each `sh:NodeShape` with examples and each example node |
@@ -575,13 +598,19 @@ and answering 401/403 through `seams_runtime.host`, the task form partial (hx-po
 the key, one field per bound property, `sh:in` as a `<select>`, the task label and
 entity, escaping), the completion partial, determinism, and the key-not-a-path-variable,
 no-process, no-body and two-tasks errors.
-`tests/test_compose_generator.py`: byte equality with the `compose.yaml` golden, the
-hash header and `SEAMS_MODEL_HASH`, determinism, no domain literals in the template,
-the parsed structure (read-only model binds, external secrets), bind sources following
-`base_dir`, replicas/published-port/node-label/`deployedTo`/quoted-value mutations,
-missing artifact, `deploy:secretName` and node label failing through the API and the
-CLI, the CLI writing exactly `compose.yaml`, and `docker compose config -q` accepting
-the output (skipped when docker compose is not installed).
+`tests/test_compose_generator.py`: byte equality with the `compose.development.yaml`
+and `compose.production.yaml` goldens, one file per environment in IRI order, the
+header (hash and environment) and project name, determinism, no domain literals in the
+template, the parsed structure of both files (read-only model binds, external secrets
+in production; builds, secret files, `${KEY:-value}` and no placement in development),
+healthchecks and `depends_on` conditions, the proxy command, the replica cap, paths
+following `base_dir`, replicas/override-replicas/published-port/node-label/`deployedTo`/
+environment-placement/quoted-value/healthcheck/proxy mutations, missing artifact,
+`deploy:secretName`, node label, single ports, unknown or missing environments, two
+environments with one name, override faults and one secret from two sources failing
+through the API (and the first three through the CLI, which then writes no file), the
+CLI writing exactly the two files, and `docker compose config -q` accepting both
+(skipped when docker compose is not installed).
 `tests/test_handler_stubs.py`: byte equality with the stub golden, the runtime loading
 the stub, a second run leaving owned files byte-identical, the missing-function and
 unparseable-module reports, nested packages, `-> None` without a returns shape,

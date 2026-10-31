@@ -6,8 +6,9 @@ deploy:secretFile and deploy:proxies; ontology/shapes/seam-shapes.ttl
 constrains them; ``Container.for_environment`` applies the override rule; and
 ``ModelGraph.replica_health`` reports the replica cap (backlog A10).
 
-Fixtures are the chat app plus inline TriG in its architecture graph, so the
-override rule is tested against the shared facts the real model states.
+Fixtures are the chat app's shared facts (its own overrides and its
+:development environment removed) plus inline TriG in its architecture graph,
+so the override rule is tested against the shared facts the real model states.
 """
 
 from pathlib import Path
@@ -63,10 +64,24 @@ DEV_OVERRIDE = """
 """
 
 
+def _drop(ds: Dataset, node) -> None:
+    """Remove every quad with subject ``node`` and, recursively, its blank-node objects."""
+    for _, _, o, _ in list(ds.quads((node, None, None, None))):
+        if isinstance(o, rdflib.BNode):
+            _drop(ds, o)
+    ds.remove((node, None, None, None))
+
+
 def _dataset(*extra: str) -> Dataset:
-    """The chat app with ``extra`` TriG statements added to its architecture graph."""
+    """The chat app's shared facts with ``extra`` TriG statements added to its
+    architecture graph: the model's own deploy:overrides and :development are
+    removed, so each test states the environment facts it needs."""
     ds = Dataset(default_union=True)
     ds.parse(CHAT, format="trig")
+    for _, _, node, _ in list(ds.quads((None, DEPLOY.override, None, None))):
+        _drop(ds, node)
+    ds.remove((None, DEPLOY.override, None, None))
+    _drop(ds, C.development)
     if extra:
         body = "\n".join(extra)
         ds.parse(data=f"{PREFIXES}\n<urn:seams:graph:model:chat_architecture> {{\n{body}\n}}\n", format="trig")
@@ -91,7 +106,7 @@ def keys(deployment: Deployment) -> list[str]:
 
 def raises(m: ModelGraph, name: str = "chat_api") -> ResolutionError:
     with pytest.raises(ResolutionError) as info:
-        container(m, name).for_environment(env(m, "prod"))
+        container(m, name).for_environment(env(m, "production"))
     return info.value
 
 
@@ -147,7 +162,7 @@ def test_overridable_predicates_have_no_rdfs_domain():
 def test_no_override_falls_back_to_every_shared_fact():
     m = model(DEVELOPMENT, DEV_OVERRIDE)
     api = container(m, "chat_api")
-    prod = api.for_environment(env(m, "prod"))
+    prod = api.for_environment(env(m, "production"))
     assert prod.artifact == api.artifact == Artifact("ghcr.io/example/chat-api", "0.3.1")
     assert prod.bindings == api.bindings
     assert prod.replicas == api.replicas == 3
@@ -172,7 +187,7 @@ def test_override_bindings_merge_by_key():
     m = model(DEVELOPMENT, DEV_OVERRIDE)
     dev = container(m, "chat_api").for_environment(env(m, "development"))
     # DB_URL replaced, SEAMS_DEV_USER and SEAMS_SEED added, the rest kept.
-    assert keys(dev) == ["DB_URL", "LLM_API_KEY", "LLM_GATEWAY_URL", "SEAMS_DEV_USER", "SEAMS_SEED"]
+    assert keys(dev) == ["DB_URL", "LLM_GATEWAY_URL", "SEAMS_DEV_USER", "SEAMS_SEED"]
     db = next(b for b in dev.bindings if b.key == "DB_URL")
     assert (db.kinds, db.secret_file, db.secret_ref, db.secret_name) == (
         (DEPLOY.secretFile,),
@@ -181,8 +196,8 @@ def test_override_bindings_merge_by_key():
         None,
     )
     assert db.connects_to == container(m, "message_db")
-    llm = next(b for b in dev.bindings if b.key == "LLM_API_KEY")
-    assert llm.secret_name == "chat-prod-llm-key"
+    gateway = next(b for b in dev.bindings if b.key == "LLM_GATEWAY_URL")
+    assert gateway.service_of == container(m, "llm_gateway")
 
 
 def test_an_override_silent_on_a_predicate_keeps_the_shared_fact():
@@ -228,7 +243,7 @@ def test_overrides_and_bindings_come_back_in_a_deterministic_order():
     assert orders == {
         (
             (str(C.development), str(C.staging)),
-            ("DB_URL", "LLM_API_KEY", "LLM_GATEWAY_URL", "SEAMS_DEV_USER", "SEAMS_SEED"),
+            ("DB_URL", "LLM_GATEWAY_URL", "SEAMS_DEV_USER", "SEAMS_SEED"),
         )
     }
 
@@ -251,7 +266,7 @@ def test_the_chat_app_with_a_development_override_conforms():
 
 
 OTHER_PREDICATE = (
-    ":chat_api deploy:override [ a deploy:Override ; deploy:environment :prod ;"
+    ":chat_api deploy:override [ a deploy:Override ; deploy:environment :production ;"
     " deploy:port [ a deploy:Port ; deploy:containerPort 9000 ] ] ."
 )
 
@@ -263,8 +278,8 @@ def test_an_override_with_another_predicate_names_it():
 
 
 TWO_FOR_ONE_ENVIRONMENT = """
-    :chat_api deploy:override [ a deploy:Override ; deploy:environment :prod ; deploy:replicas 1 ] ,
-                              [ a deploy:Override ; deploy:environment :prod ; deploy:replicas 2 ] .
+    :chat_api deploy:override [ a deploy:Override ; deploy:environment :production ; deploy:replicas 1 ] ,
+                              [ a deploy:Override ; deploy:environment :production ; deploy:replicas 2 ] .
 """
 
 
@@ -292,7 +307,7 @@ def test_an_override_names_an_environment():
     assert SEAMSH.OverrideShape in violating_shapes(NO_ENVIRONMENT)
 
 
-UNTYPED = ":chat_api deploy:override [ deploy:environment :prod ; deploy:replicas 1 ] ."
+UNTYPED = ":chat_api deploy:override [ deploy:environment :production ; deploy:replicas 1 ] ."
 
 
 def test_an_override_is_a_deploy_override():
@@ -305,7 +320,7 @@ def _store_override(binding: str) -> str:
     return f"""
         :other_db a arch:Container ; rdfs:label "Other" ; deploy:storeKind deploy:PostgreSQL ;
             seam:inModel :chat_architecture .
-        :chat_api deploy:override [ a deploy:Override ; deploy:environment :prod ;
+        :chat_api deploy:override [ a deploy:Override ; deploy:environment :production ;
             deploy:configuration [ a deploy:Configuration ; deploy:binding [ {binding} ] ] ] .
     """
 
@@ -326,13 +341,13 @@ def test_an_override_binding_cannot_change_the_store(extra):
 def test_an_override_binding_that_keeps_the_store_is_fine():
     keeps = _store_override('deploy:key "DB_URL" ; deploy:secretFile "db_url" ; deploy:connectsTo :message_db')
     m = model(keeps)
-    prod = container(m, "chat_api").for_environment(env(m, "prod"))
+    prod = container(m, "chat_api").for_environment(env(m, "production"))
     assert next(b for b in prod.bindings if b.key == "DB_URL").secret_file == "db_url"
     assert violating_shapes(keeps) == set()
 
 
 def test_an_override_binding_a_key_twice():
-    twice = """:chat_api deploy:override [ a deploy:Override ; deploy:environment :prod ;
+    twice = """:chat_api deploy:override [ a deploy:Override ; deploy:environment :production ;
         deploy:configuration [ deploy:binding [ deploy:key "X" ; deploy:value "1" ] ,
                                               [ deploy:key "X" ; deploy:value "2" ] ] ] ."""
     err = raises(model(twice))
@@ -364,7 +379,7 @@ def test_proxies_must_point_at_a_container():
 
 
 def test_a_build_needs_a_context():
-    extra = """:chat_api deploy:override [ a deploy:Override ; deploy:environment :prod ;
+    extra = """:chat_api deploy:override [ a deploy:Override ; deploy:environment :production ;
         deploy:artifact [ deploy:reference "r" ; deploy:version "v" ;
                           deploy:build [ deploy:dockerfile "Dockerfile" ] ] ] ."""
     assert SEAMSH.BuildShape in violating_shapes(extra)
@@ -378,17 +393,17 @@ def test_a_build_needs_a_context():
 def test_chat_app_warns_that_chat_api_replicas_are_capped():
     [finding] = ModelGraph(CHAT).replica_health()
     assert (finding.severity, finding.subject, finding.predicate) == ("Warning", C.chat_api, DEPLOY.replicas)
-    assert f"3 in {C.prod}" in finding.message and "A10" in finding.message
+    assert f"3 in {C.production}" in finding.message and "A10" in finding.message
 
 
 def test_the_warning_names_only_the_environments_above_one():
     [finding] = model(DEVELOPMENT, DEV_OVERRIDE).replica_health()
-    assert f"3 in {C.prod}" in finding.message
+    assert f"3 in {C.production}" in finding.message
     assert str(C.development) not in finding.message
 
 
 def test_no_warning_when_every_environment_runs_one_replica():
-    m = model(":chat_api deploy:override [ a deploy:Override ; deploy:environment :prod ; deploy:replicas 1 ] .")
+    m = model(":chat_api deploy:override [ a deploy:Override ; deploy:environment :production ; deploy:replicas 1 ] .")
     assert m.replica_health() == []
 
 
@@ -399,7 +414,7 @@ def test_containers_without_process_state_are_not_capped():
 
 def test_a_model_without_environments_uses_the_shared_count():
     ds = _dataset()
-    ds.remove((C.prod, None, None, None))
+    ds.remove((C.production, None, None, None))
     [finding] = ModelGraph(CHAT, ds).replica_health()
     assert finding.subject == C.chat_api and "3 in " in finding.message
 

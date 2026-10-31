@@ -4,8 +4,9 @@ Each generator is a subcommand registered in ``GENERATORS``: ``htmx`` (S04),
 ``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015, ADR-0014) and
 ``smoke`` (M015/S05, backlog A9). A generator is called as
 ``generate(trig, out)`` and returns ``{relative file name: text}``; only
-``compose`` uses ``out``, as the base directory its bind-mount sources are
-relative to (D018). A GeneratorError (a missing or
+``compose`` uses ``out``, as the base directory its bind-mount sources, build
+contexts and secret files are relative to (D018). ``compose`` writes one
+``compose.<environment>.yaml`` per arch:Environment (ADR-0015). A GeneratorError (a missing or
 ambiguous graph fact) prints its message, which names the subject IRI and the
 predicate, to stderr and exits 2. A file that cannot be read or written exits 1.
 """
@@ -19,7 +20,7 @@ from pathlib import Path
 from seams import load
 
 from . import GeneratorError
-from .compose import generate_compose
+from .compose import generate_compose_environments
 from .fastapi import route_module
 from .htmx import generate_pages
 from .smoke import generate_smoke
@@ -45,9 +46,10 @@ def _fastapi(trig: Path, out: Path) -> dict[str, str]:
 
 
 def _compose(trig: Path, out: Path) -> dict[str, str]:
-    """{compose.yaml: content}: the docker compose file of the arch:System's
-    containers, with bind-mount sources relative to the output directory."""
-    return {"compose.yaml": generate_compose(trig, base_dir=out)}
+    """{compose.<environment local name>.yaml: content}: the docker compose
+    file of the arch:System's containers for each arch:Environment, in IRI
+    order (ADR-0015), with paths relative to the output directory."""
+    return generate_compose_environments(trig, base_dir=out)
 
 
 def _tests(trig: Path, out: Path) -> dict[str, str]:
@@ -67,7 +69,7 @@ def _smoke(trig: Path, out: Path) -> dict[str, str]:
 GENERATORS = {
     "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
     "fastapi": ("the thin FastAPI route module of the container that executes the process", _fastapi),
-    "compose": ("the docker compose file of the arch:System's containers", _compose),
+    "compose": ("a docker compose file of the arch:System's containers per arch:Environment", _compose),
     "tests": ("pytest files for the model's verify: scenarios and examples, and its ODRL permissions", _tests),
     "smoke": ("a pytest file calling each operation on a running app, checking seam:returnsShape", _smoke),
 }

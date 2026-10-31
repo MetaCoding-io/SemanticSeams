@@ -220,6 +220,12 @@ class RoutesModel:
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
+def route_file_name(container_iri) -> str:
+    """The file name of a serving container's route module: <local name>.py.
+    The compose generator names it in the SEAMS_ROUTES_FILE build argument."""
+    return f"{local_name(container_iri)}.py"
+
+
 def serving_containers(model: Model) -> Many[Container]:
     """The arch:Containers that serve routes (D026), by IRI:
     ``model.architecture.serving_containers()``, which the replica-cap
@@ -256,7 +262,7 @@ def _module(model: Model, container: Container) -> RouteModule:
     exposed = container.exposes
     invoked_only = _invoked_only(model, container, processes)
     return RouteModule(
-        file_name=f"{local_name(container.iri)}.py",
+        file_name=route_file_name(container.iri),
         id=local_name(container.iri),
         curie=model.compact(container.iri),
         system=model.compact(systems[0].iri),
@@ -619,6 +625,7 @@ __all__ = [
     "generate_routes",
     "render_routes",
     "route_module",
+    "route_file_name",
     "serving_containers",
     "TEMPLATE_NAME",
 ]

@@ -24,7 +24,12 @@ class GeneratorError(Exception):
         super().__init__(f"{message}: {detail}" if detail else message)
 
 
-from .compose import extract_compose, generate_compose, render_compose  # noqa: E402
+from .compose import (  # noqa: E402
+    extract_compose,
+    generate_compose,
+    generate_compose_environments,
+    render_compose,
+)
 from .fastapi import extract_routes, generate_routes, render_routes  # noqa: E402
 from .fragments import fragment_for  # noqa: E402  (needs GeneratorError)
 from .htmx import (  # noqa: E402
@@ -44,6 +49,7 @@ __all__ = [
     "extract_routes",
     "fragment_for",
     "generate_compose",
+    "generate_compose_environments",
     "generate_fragments",
     "generate_page",
     "generate_routes",

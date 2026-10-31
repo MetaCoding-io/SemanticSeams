@@ -2,12 +2,14 @@
 
 This directory holds the generator dry run from backlog item **G2**, a
 follow-up to [ADR-0007](../../adr/0007-execution-strategy.md). It contains the
-three artifacts the generators should produce for `examples/chat-app/`,
-written by hand before any generator code exists:
+artifacts the generators should produce for `examples/chat-app/`. The first
+three were written by hand before any generator code existed; the compose file
+became one file per environment with ADR-0015:
 
 | Artifact | Generated from | Target |
 |----------|----------------|--------|
-| [`compose.yaml`](compose.yaml) | `deploy:` / `arch:` on the containers | docker-compose for the whole system |
+| [`compose.development.yaml`](compose.development.yaml) | `deploy:` / `arch:` on the containers, with their `:development` overrides | docker compose for a laptop run |
+| [`compose.production.yaml`](compose.production.yaml) | `deploy:` / `arch:` on the containers, placed on the nodes `:production` contains | docker compose (swarm) for production |
 | [`chat_page.html`](chat_page.html) | `ifml:` on `:chat_page` plus the seams it touches | htmx / Jinja2 page |
 | [`chat_api.py`](chat_api.py) | `seam:exposes` on `:chat_api` plus the hydra/comm contract | thin FastAPI route module |
 
@@ -68,10 +70,11 @@ Counts of non-blank lines per marker, updated as gap rows close. M004 drives the
 
 | Artifact | graph | fixed | gap |
 |----------|------:|------:|----:|
-| compose.yaml | 62 | 7 | 0 |
+| compose.development.yaml | 74 | 18 | 0 |
+| compose.production.yaml | 81 | 18 | 0 |
 | chat_page.html | 61 | 18 | 0 |
 | chat_api.py | 33 | 14 | 0 |
-| **total** | **156** | **39** | **0** |
+| **total** | **249** | **68** | **0** |
 
 **After M004/S02.** All 27 rows are closed: 22 by vocabulary or model
 additions and 5 by documented rules (GAP-04, GAP-16, GAP-21, GAP-26 and
@@ -92,6 +95,18 @@ one `role` line.
 and the thread read passes the Details component's path-variable parameter
 (`conversation=conversation`, from `ifml:hasParameter :conversation`) to
 `render_fragment`. The line counts are unchanged.
+
+**After M016/S02 (ADR-0015).** `compose.yaml` was replaced by one golden per
+`arch:Environment`: `compose.development.yaml` and `compose.production.yaml`.
+Each has an `# environment:` header line and the project `name:` (the
+`arch:System`'s local name). The development file comes from the containers'
+`deploy:override`s: built images (`deploy:build`), secrets read from files
+(`deploy:secretFile`) and values a host can override (`${KEY:-value}`), with
+no placement because `:development` contains no nodes. Both files gain the
+generator rules from ADR-0015's inventory, marked `[fixed]` where no model
+fact is behind them: the healthcheck timings, the serving container's
+`/healthz` probe and the replica-cap comment. No new gap row was needed. The
+earlier compose counts (62 graph, 7 fixed) were for the single file.
 
 ## Feeding M004
 

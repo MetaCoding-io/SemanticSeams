@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 GOLDEN = ROOT / "docs" / "generation" / "golden"
 GAPS = GOLDEN / "gaps.md"
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
-ARTIFACT_NAMES = ("compose.yaml", "chat_page.html", "chat_api.py")
+ARTIFACT_NAMES = ("compose.development.yaml", "compose.production.yaml", "chat_page.html", "chat_api.py")
 ARTIFACTS = [GOLDEN / name for name in ARTIFACT_NAMES if (GOLDEN / name).exists()]
 
 CHAT = "https://example.org/chat/"
@@ -124,7 +124,7 @@ def test_golden_artifacts_present():
     assert ARTIFACTS, f"no golden artifacts under {GOLDEN.relative_to(ROOT)}"
 
 
-def test_all_three_golden_artifacts_exist():
+def test_every_golden_artifact_exists():
     missing = [name for name in ARTIFACT_NAMES if not (GOLDEN / name).exists()]
     assert not missing, f"missing golden artifacts under {GOLDEN.relative_to(ROOT)}: {missing}"
 

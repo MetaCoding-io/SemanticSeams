@@ -16,12 +16,8 @@
 # Handler names: the operation or channel IRI local name minus a trailing _op (gaps.md GAP-21)
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
-[% if m.needs_identity %]
-from seams_runtime import Identity, Runtime
-[% else %]
-from seams_runtime import Runtime
-[% endif %]
+from fastapi.responses import [[ m.response_imports ]]
+from seams_runtime import [[ m.runtime_imports ]]
 
 MODEL_HASH = "[[ r.model_hash ]]"
 
@@ -42,11 +38,26 @@ async def [[ e.name ]]([[ e.arguments|join(", ") ]]) -> StreamingResponse:
 [% if e.complete %]
 # [[ e.complete.task ]] seam:completedOn the form that submits here (ADR-0009); its policies authorize the identity
 [% endif %]
-[% if e.policies %]
+[% if e.multiline_decorator %]
 @router.[[ e.method|lower ]](
     "[[ e.path ]]",
     response_class=HTMLResponse,
+[% if e.policies %]
     dependencies=[[ "[" ]][% for p in e.policies %]Depends(runtime.policy("[[ p ]]"))[[ "" if loop.last else ", " ]][% endfor %]],
+[% endif %]
+[% if e.errors %]
+    responses={
+[% for x in e.errors %]
+[% for f in x.facts %]
+        # [[ f ]]
+[% endfor %]
+        [[ x.code ]]: {
+            "description": [[ x.description_literal ]],
+            "content": [[ x.content ]],
+        },
+[% endfor %]
+    },
+[% endif %]
 )
 [% else %]
 @router.[[ e.method|lower ]]("[[ e.path ]]", response_class=HTMLResponse)
@@ -92,3 +103,18 @@ async def [[ e.name ]]([[ e.arguments|join(", ") ]]) -> HTMLResponse:
 [% endif %]
 [% endif %]
 [% endfor %]
+[% if m.problem_routes %]
+
+
+# ADR-0013: an OperationError raised while serving a route answers with the error its operation
+# declares (hydra:possibleStatus), as application/problem+json validated against the status's seam:returnsShape
+PROBLEM_OPERATIONS = {
+[% for name, curie in m.problem_routes %]
+    "[[ name ]]": "[[ curie ]]",
+[% endfor %]
+}
+
+
+async def problem_handler(request: Request, exc: OperationError) -> JSONResponse:
+    return runtime.problem(PROBLEM_OPERATIONS.get(request.scope["route"].name), exc)
+[% endif %]

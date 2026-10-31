@@ -60,13 +60,13 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from .channels import ChannelBus, Subscription
-from .contracts import _items, shape_contract
+from .contracts import _items, problem_body, shape_contract
 from .contracts import validate as _validate
 from .engine import Engine
-from .errors import ModelHashMismatch, PolicyDenied, ResolutionError, TaskNotOpen
+from .errors import ModelHashMismatch, OperationError, PolicyDenied, ResolutionError, RuntimeModelError, TaskNotOpen
 from .fragments import FragmentRenderer, flatten
 from .handlers import EndpointClient, HandlersPackage, handlers_dir
 from .lifecycle import LifecycleGuard
@@ -87,6 +87,7 @@ STORE_OVERRIDE_ENV = "SEAMS_STORE_OVERRIDE"
 STORE_KINDS = {DEPLOY.SQLite: "sqlite", DEPLOY.PostgreSQL: "postgresql"}  # plan kind -> Store.kind
 TEMPLATES_ENV = "SEAMS_TEMPLATES"
 DEFAULT_TEMPLATES = "templates"
+PROBLEM_JSON = "application/problem+json"  # RFC 9457
 
 
 def _db(db_path) -> Path:
@@ -364,6 +365,27 @@ class Runtime:
         entity = self.store.put_entity(entity_id, shape, data, status=status)
         log.info("wrote %s entity %s (status %s)", shape, entity["id"], status)
         return entity
+
+    def problem(self, operation_curie, error: OperationError) -> JSONResponse:
+        """The problem+json response for ``error`` raised while serving
+        ``operation_curie`` (ADR-0013): the declared status's hydra:statusCode
+        and the body ``problem_body`` built and validated against its error
+        shape. A generated route module's problem handler calls this. A code
+        the operation does not declare (or no operation, None) and a body
+        that violates the error shape are server faults: 500 with
+        ``{"detail": error.to_dict()}``, the error naming the operation or the
+        status."""
+        try:
+            if operation_curie is None:
+                raise ResolutionError(
+                    "(route)", "hydra:possibleStatus", f"{error.code!r} raised by a route that declares no errors"
+                )
+            status, body = problem_body(self.model, operation_curie, error.code, error.detail, error.extensions)
+        except RuntimeModelError as fault:
+            log.error("%s raised %s: no valid problem+json (%s)", operation_curie, error.code, fault)
+            return JSONResponse(status_code=500, content={"detail": fault.to_dict()})
+        log.info("%s raised %s -> %s %s", operation_curie, error.code, status, PROBLEM_JSON)
+        return JSONResponse(body, status_code=status, media_type=PROBLEM_JSON)
 
     # ── processes ──
 

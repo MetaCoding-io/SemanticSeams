@@ -17,16 +17,25 @@ no branching, no domain names. A channel-started process (ADR-0010) gets no
 route: the runtime starts it when its channel is published on. Nor does an
 exposed operation that a task of an executed process ``seam:invokes`` and no
 ``ifml:Event`` ``seam:submitsTo`` (a ``comm:PythonHandler``'s operation,
-ADR-0012): the worker serves it in-process, and the module header says so. Every collection is sorted by IRI, and a missing or ambiguous
+ADR-0012): the worker serves it in-process, and the module header says so.
+An operation that declares error statuses (ADR-0013: each ``hydra:possibleStatus``
+with a ``comm:errorCode``) lists each as an ``application/problem+json``
+response, keyed by its ``hydra:statusCode``, with a JSON Schema derived from
+the status's ``seam:returnsShape``; the module then defines one
+``problem_handler`` that ``seams_runtime.host`` installs for
+``OperationError``, answering with ``Runtime.problem`` for the raising route's
+operation. Every collection is sorted by IRI, and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
 from rdflib import RDF, URIRef
+from rdflib.namespace import XSD
 from seams import (
     ARCH,
     COMM,
@@ -42,6 +51,7 @@ from seams import (
     Process,
     ResolutionError,
     Shape,
+    Status,
     load,
     local_name,
 )
@@ -60,6 +70,9 @@ REQUEST_BODIES = {
     "application/json": ("body", "json"),
 }
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+PROBLEM_JSON = "application/problem+json"  # RFC 9457
+# sh:datatype -> JSON Schema type of an error shape's member; any other datatype is a string
+JSON_TYPES = {XSD.integer: "integer", XSD.decimal: "number", XSD.boolean: "boolean"}
 
 
 # ── the routes model ────────────────────────────────────────────────────────
@@ -115,6 +128,22 @@ class Render:
 
 
 @dataclass(frozen=True)
+class ErrorResponse:
+    """The problem+json response of one hydra:statusCode of an operation:
+    every error status with that code (ADR-0013), sorted by IRI."""
+
+    code: int  # hydra:statusCode, the responses key
+    description: str  # the statuses' rdfs:labels, joined
+    content: str  # the responses entry's "content" value, a Python literal
+    facts: tuple[str, ...]  # one comment per status: its code, error code and error shape
+
+    @property
+    def description_literal(self) -> str:
+        """``description`` as a Python string literal (a label may hold quotes)."""
+        return _literal(self.description)
+
+
+@dataclass(frozen=True)
 class Endpoint:
     curie: str
     name: str  # local name minus a trailing _op (GAP-21)
@@ -132,6 +161,12 @@ class Endpoint:
     render: Render | None = None
     accepts: str | None = None  # a channel's seam:acceptsShape curie
     scope: str | None = None  # a channel's single path variable
+    errors: tuple[ErrorResponse, ...] = ()  # by hydra:statusCode
+
+    @property
+    def multiline_decorator(self) -> bool:
+        """Whether the decorator spreads its arguments over lines (policies or errors)."""
+        return bool(self.policies or self.errors)
 
 
 @dataclass(frozen=True)
@@ -155,6 +190,23 @@ class RouteModule:
     def needs_identity(self) -> bool:
         """Whether a completion handler takes ``identity: Identity``."""
         return any(e.complete is not None for e in self.endpoints)
+
+    @property
+    def problem_routes(self) -> tuple[tuple[str, str], ...]:
+        """(handler name, operation curie) of each endpoint that declares errors."""
+        return tuple((e.name, e.curie) for e in self.endpoints if e.errors)
+
+    @property
+    def runtime_imports(self) -> str:
+        """The names the module imports from seams_runtime."""
+        names = ["Identity"] if self.needs_identity else []
+        names += ["OperationError"] if self.problem_routes else []
+        return ", ".join([*names, "Runtime"])
+
+    @property
+    def response_imports(self) -> str:
+        """The names the module imports from fastapi.responses."""
+        return ", ".join(["HTMLResponse", *(["JSONResponse"] if self.problem_routes else []), "StreamingResponse"])
 
 
 @dataclass(frozen=True)
@@ -450,7 +502,67 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         complete=complete,
         query=query,
         render=render,
+        errors=_errors(model, op),
     )
+
+
+def _errors(model: Model, op: Operation) -> tuple[ErrorResponse, ...]:
+    """The problem+json responses of the operation's error statuses
+    (ADR-0013), one per hydra:statusCode; several statuses sharing a code
+    share a response whose schema is oneOf their shapes'."""
+    with view_errors():
+        statuses = op.errors
+    by_code: dict[int, list[tuple[Status, Shape]]] = {}
+    for status in statuses:
+        with view_errors():
+            code, shape = status.status_code, status.returns
+        code = required(code, status.iri, HYDRA.statusCode)
+        shape = required(shape, status.iri, SEAM.returnsShape)
+        by_code.setdefault(code, []).append((status, shape))
+    out = []
+    for code, pairs in sorted(by_code.items()):
+        schemas = [_problem_schema(shape) for _status, shape in pairs]
+        schema = schemas[0] if len(schemas) == 1 else {"oneOf": schemas}
+        out.append(
+            ErrorResponse(
+                code=code,
+                description="; ".join(label(model, status.iri) for status, _shape in pairs),
+                content=_literal({PROBLEM_JSON: {"schema": schema}}),
+                facts=tuple(
+                    f"{model.compact(status.iri)} hydra:statusCode {code} ; "
+                    f'comm:errorCode "{status.error_code}" ; seam:returnsShape {model.compact(shape.iri)}'
+                    for status, shape in pairs
+                ),
+            )
+        )
+    return tuple(out)
+
+
+def _literal(value) -> str:
+    """``value`` (dicts, lists, str, int, bool) as a Python literal, dict keys
+    sorted and strings double-quoted (JSON escaping is valid Python), so the
+    text is the same on every run."""
+    if isinstance(value, bool):
+        return repr(value)
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{json.dumps(k)}: {_literal(v)}" for k, v in sorted(value.items())) + "}"
+    if isinstance(value, list):
+        return "[" + ", ".join(_literal(v) for v in value) + "]"
+    return json.dumps(value)
+
+
+def _problem_schema(shape: Shape) -> dict:
+    """A JSON Schema for a body of the error shape: one property per field
+    (its sh:path local name, typed from sh:datatype), required when
+    sh:minCount > 0, and closed, as the runtime's validation is."""
+    with view_errors():
+        fields = shape.fields()
+    return {
+        "type": "object",
+        "properties": {f.name: {"type": JSON_TYPES.get(f.datatype, "string")} for f in fields},
+        "required": sorted(f.name for f in fields if f.required),
+        "additionalProperties": False,
+    }
 
 
 def _submitting_forms(op: Operation) -> list[ComponentView]:

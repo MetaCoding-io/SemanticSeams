@@ -177,6 +177,13 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `path` is a `PathTemplate` (`template`, `mappings`: `PathMapping`s
     with `variable`, `property` and `property_iri`, sorted by variable,
     `variables`). `accepts` and `returns` are a `Shape` or None.
+    `errors` is a `Many[Status]`: the error statuses it `hydra:possibleStatus`, each with
+    a `comm:errorCode` ([ADR-0013](/adr/0013-error-shapes-and-boundaries)).
+    `error(code)` is the one with that code, else
+    `ResolutionError(operation, comm:errorCode)`.
+  - `Status` (a `hydra:Status`) has `status_code` (`hydra:statusCode`), `error_code`
+    (`comm:errorCode`), `returns` (the error shape it `seam:returnsShape`, or None)
+    and `operations` (those it is the `hydra:possibleStatus` of).
   - `Channel` has `transport`, `event_name`, `path`, `accepts`,
     `exposed_by`, `consumed_by`, `published_by` and `subscribed_by`.
 - **`model.shapes`**: a `Shape` has these members:

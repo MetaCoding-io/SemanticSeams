@@ -8,6 +8,9 @@ app needs but no generated handler holds:
 
 - a ``RuntimeModelError`` handler answering ``{"detail": exc.to_dict()}``
   with ``exc.http_status``;
+- the module's ``problem_handler`` for ``OperationError``, when the module
+  defines one (it routes an operation that declares error statuses,
+  ADR-0013): the declared problem+json response;
 - ``GET /healthz``: ``{"status": "ok", "model_hash": ..., "runtime_version": ...,
   "store": {...}}``, the version being ``seams_runtime.__version__`` and the store
   ``store_health(runtime)``;
@@ -44,7 +47,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import __version__
 from .contracts import shape_contract
-from .errors import ContractViolation, RuntimeModelError
+from .errors import ContractViolation, OperationError, RuntimeModelError
 from .model import local_name
 
 log = logging.getLogger(__name__)
@@ -175,6 +178,10 @@ def build_app(routes_path) -> FastAPI:
     async def _model_error(request: Request, exc: RuntimeModelError):
         log.warning("%s %s -> %s %s", request.method, request.url.path, exc.http_status, type(exc).__name__)
         return JSONResponse(status_code=exc.http_status, content={"detail": exc.to_dict()})
+
+    problem_handler = getattr(module, "problem_handler", None)
+    if problem_handler is not None:
+        app.add_exception_handler(OperationError, problem_handler)
 
     @app.get("/healthz")
     async def healthz() -> dict:

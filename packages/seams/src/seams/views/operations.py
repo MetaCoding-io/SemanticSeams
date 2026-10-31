@@ -131,6 +131,59 @@ class Operation(_Endpoint):
 
         return self._many(Policy, self._objects(SEAM.governedBy), SEAM.governedBy)
 
+    @property
+    def errors(self) -> Many[Status]:
+        """The error statuses it hydra:possibleStatus (ADR-0013): each a
+        hydra:Status with a comm:errorCode, by IRI. A status without a code is
+        not an error the runtime can raise, so it is left out."""
+        ds = self.views.ds
+        iris = [s for s in self._objects(HYDRA.possibleStatus) if (s, COMM.errorCode, None) in ds]
+        return self._many(Status, iris, HYDRA.possibleStatus)
+
+    def error(self, code: str) -> Status:
+        """The error status whose comm:errorCode is ``code``;
+        ``ResolutionError(self, comm:errorCode)`` when none (or several) has it."""
+        found = self.errors.where(lambda s: s.error_code == code)
+        if len(found) != 1:
+            raise ResolutionError(
+                self.iri,
+                COMM.errorCode,
+                f"expected one hydra:possibleStatus with comm:errorCode {code!r}, found {[str(i) for i in found.iris()]}"
+                f" (declared: {sorted(str(s.error_code) for s in self.errors)})",
+            )
+        return found[0]
+
+
+@element_type(HYDRA.Status)
+@dataclass(frozen=True, eq=False)
+class Status(Element):
+    """A hydra:Status: one response an operation hydra:possibleStatus. With a
+    comm:errorCode it is an error the operation declares (ADR-0013), and its
+    seam:returnsShape is the error shape its problem+json body conforms to."""
+
+    @property
+    def status_code(self) -> int | None:
+        """hydra:statusCode, the HTTP status of the response."""
+        return self._int(HYDRA.statusCode)
+
+    @property
+    def error_code(self) -> str | None:
+        """comm:errorCode, the code an implementation raises and a bpmn:error matches."""
+        value = self._optional_value(COMM.errorCode)
+        return None if value is None else str(value)
+
+    @property
+    def returns(self) -> Shape | None:
+        """The error shape it seam:returnsShape."""
+        from .shapes import Shape
+
+        return optional(self._many(Shape, self._objects(SEAM.returnsShape), SEAM.returnsShape))
+
+    @property
+    def operations(self) -> Many[Operation]:
+        """The operations it is the hydra:possibleStatus of, by IRI."""
+        return self._many(Operation, self._subjects(HYDRA.possibleStatus), HYDRA.possibleStatus)
+
 
 @element_type(COMM.Channel)
 @dataclass(frozen=True, eq=False)

@@ -35,6 +35,12 @@ sorted list of `StoreFinding` (`severity`, `subject`, `predicate`,
 container no shape is `seam:storedIn`, and an `Info` when the model declares
 no store and the runtime keeps embedded SQLite.
 
+`Operation.errors` lists the error statuses an operation declares (ADR-0013):
+each `hydra:possibleStatus` with a `comm:errorCode`, as a `Status` view
+(`status_code` from `hydra:statusCode`, `error_code`, `returns`, the error
+shape it `seam:returnsShape`, and `operations`). `Operation.error(code)` is the
+one status with that code, else `ResolutionError(operation, comm:errorCode)`.
+
 `ModelGraph.operation_implementation(op)` reads what serves an operation
 (ADR-0012) from `seam:implementedBy`, returning an `Implementation` (`iri`,
 `kind`, `handler`) or None when the operation declares none. `kind` is one

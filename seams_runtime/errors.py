@@ -14,6 +14,7 @@ __all__ = [
     "ContractViolation",
     "LifecycleViolation",
     "ModelHashMismatch",
+    "OperationError",
     "PolicyDenied",
     "ResolutionError",
     "RuntimeModelError",
@@ -124,3 +125,28 @@ class TaskNotOpen(RuntimeModelError):
 
     def _fields(self) -> dict:
         return {"task": self.task, "correlation_key": self.correlation_key}
+
+
+# RFC 9457 members the model states (rdfs:label and hydra:statusCode of the
+# status), so a raiser cannot set them.
+MODEL_MEMBERS = ("title", "status")
+
+
+class OperationError(Exception):
+    """An error an operation declares, raised by code serving it (ADR-0013).
+
+    ``code`` is one of the operation's ``comm:errorCode``s; ``detail`` and
+    ``extensions`` become problem+json members. The status, its title and
+    the error shape come from the model, so ``title`` and ``status`` cannot
+    be passed. Not a ``RuntimeModelError``: the model is not at fault, and a
+    generated route's problem handler answers it with the declared status.
+    """
+
+    def __init__(self, code: str, detail: str | None = None, **extensions):
+        reserved = sorted(set(extensions) & set(MODEL_MEMBERS))
+        if reserved:
+            raise ValueError(f"OperationError {code!r}: {reserved} come from the model's hydra:Status, not the raiser")
+        self.code = str(code)
+        self.detail = detail
+        self.extensions = dict(extensions)
+        super().__init__(f"{self.code}: {detail}" if detail is not None else self.code)

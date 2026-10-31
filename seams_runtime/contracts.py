@@ -10,6 +10,11 @@ The boundary is closed-world: a key that names no ``sh:path`` of the shape
 is an "unknown-field" violation, not silently dropped. A field the payload
 omits takes its property's ``sh:defaultValue``, if it has one, before
 validation; nothing else is filled in.
+
+``problem_body`` builds and validates the RFC 9457 problem+json body of an
+error an operation declares (ADR-0013): ``title`` from the status's
+rdfs:label, ``status`` from its hydra:statusCode, ``detail`` and extension
+members from the raiser, checked against the status's seam:returnsShape.
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ from rdflib import RDF, BNode, Graph, Literal, URIRef
 from rdflib.namespace import SH, XSD
 
 from .errors import ContractViolation, ResolutionError
-from .model import ModelGraph, local_name
+from .model import HYDRA, SEAM, ModelGraph, local_name
 
 # Echoed values in results are capped so a 16001-char payload is not mirrored
 # back whole in a 422 body.
@@ -244,3 +249,29 @@ def validate(model: ModelGraph, shape, payload: Mapping, operation=None) -> dict
     if not conforms:
         raise ContractViolation(contract.shape, _results(results, contract.shape), focus=focus, operation=operation)
     return normalised
+
+
+def problem_body(model: ModelGraph, operation, code: str, detail=None, extensions=None) -> tuple[int, dict]:
+    """(HTTP status, validated problem+json body) for the error ``code`` of
+    ``operation`` (CURIE or IRI), ADR-0013.
+
+    Raises ``ResolutionError`` when the operation declares no
+    hydra:possibleStatus with that comm:errorCode (subject the operation,
+    predicate comm:errorCode) or the status lacks its hydra:statusCode or
+    seam:returnsShape, and ``ContractViolation`` naming the status (as its
+    ``operation``) when the body does not conform to the error shape: an
+    extension member the shape has no sh:path for, a value of the wrong
+    datatype, a missing required member."""
+    op = model.operations.by_iri(model.curie(operation))
+    status = op.error(code)
+    status_code = status.status_code
+    if status_code is None:
+        raise ResolutionError(status.iri, HYDRA.statusCode, "an error status needs its HTTP status code")
+    shape = status.returns
+    if shape is None:
+        raise ResolutionError(status.iri, SEAM.returnsShape, "an error status needs an error shape")
+    body: dict = {"title": model.label(status.iri), "status": status_code}
+    if detail is not None:
+        body["detail"] = detail
+    body.update(extensions or {})
+    return status_code, validate(model, shape.iri, body, operation=status.iri)

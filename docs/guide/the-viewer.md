@@ -116,7 +116,15 @@ reached from more than one parent. Each crumb is a link back.
 
 **Questions.** The canned queries that apply to the focused element's type, as buttons.
 Results appear inline with each value linked. The catalog is on the
-[query reference](/reference/queries).
+[query reference](/reference/queries). A model view also offers the questions of each
+element `seam:detailedBy` it, with the element's name in the button, because a click on
+such an element lands on its model. The coverage questions work this way: a statechart
+asks **Which transitions does nothing fire?**, an ODRL policy **Which permissions have
+no deny test?**, and a BPMN view **Which paths does no scenario run? (Expense
+Approval)** for its process. That last one lists each start-to-end path as its start,
+its end and the BPMN ids in between, from
+[`seams.coverage`](/reference/seams-library) rather than SPARQL, since sequence flows
+live only in the BPMN XML.
 
 **Sequences.** Beside Questions, links to the
 [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams)

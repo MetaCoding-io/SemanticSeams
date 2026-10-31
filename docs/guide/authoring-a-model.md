@@ -355,6 +355,15 @@ reaches it, so give each governed operation and user task a scenario. Run them w
 `pytest generated/tests`. The [seams_gen README](../../seams_gen/README.md#tests-rendering-rules)
 gives the rules.
 
+To see what the scenarios leave out, run
+[`seams coverage`](/reference/seams-cli#seams-coverage). It lists, by IRI, every
+start-to-end BPMN path no scenario runs, every transition nothing `seam:fires` and every
+permission with no deny test; the viewer asks the same three under **Questions** on a
+BPMN view, a statechart and a policy. A scenario runs a path when its steps are exactly
+the path's user tasks, in order, up to what it expects. Put `coverage = ["paths"]` and
+the two `docs/queries/coverage/` gates in `seams.toml` to make `seams check` fail on a
+gap.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container

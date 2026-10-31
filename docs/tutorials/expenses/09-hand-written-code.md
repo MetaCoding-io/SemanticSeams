@@ -501,6 +501,23 @@ permission's assignee may act and every other party is refused. Add it to `seams
 [Scenarios and examples](/guide/authoring-a-model#scenarios-and-examples) in
 the authoring guide lists the terms.
 
+### What the scenarios leave out
+
+Ask the model what no scenario covers:
+
+```sh
+seams coverage examples/expenses/chapter-09
+```
+
+Every transition is fired and every permission gets a deny test, but six paths have no
+scenario: the manager and finance reject paths, the two escalations through the
+notify-failed boundary event, and both payout paths. The command lists each by IRI and
+exits 1. In the viewer, open the Expense Approval process and ask **Which paths does no
+scenario run?** under Questions for the same paths of that process. A scenario cannot
+make Notify Manager fail, so the escalation paths stay uncovered; the reject and payout
+paths are scenarios you could add. Chapter 9's `seams.toml` leaves the coverage gates
+off for that reason (see [seams coverage](/reference/seams-cli#seams-coverage)).
+
 ## Checkpoint
 
 Your files should now match

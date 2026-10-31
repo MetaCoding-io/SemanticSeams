@@ -821,7 +821,7 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
         raise HTTPException(status_code=404, detail=f"unknown canned query: {query_name}")
     # Non-applicable or unknown focus IRIs are not errors: an empty result set
     # (resultCount 0) is meaningful feedback, so execute unconditionally.
-    result = canned_queries.execute_query(get_graph(), query_name, focus)
+    result = canned_queries.execute_query(get_graph(), query_name, focus, model=get_model())
     wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
     if not wants_html:
         return JSONResponse(result)
@@ -888,6 +888,30 @@ def relation_groups(outgoing: list[dict], incoming: list[dict]) -> list[dict]:
         if edges:
             groups.append({"mode": mode, "title": title, "hint": hint, "edges": edges})
     return groups
+
+
+def applicable_queries(focus: str) -> list[dict]:
+    """The canned questions the Questions catalog offers on a view.
+
+    Those whose focus type the focused element has, then, when the focus is a
+    model, those for each element seam:detailedBy it (by IRI). Such an element
+    auto-navigates into its model (a proc:Process into its BPMN), so its own
+    questions would otherwise never get a button; theirs name the element.
+    """
+    graph = get_graph()
+    subjects = [focus]
+    if is_model(focus):
+        subjects += sorted(str(s) for s in set(graph.subjects(SEAM.detailedBy, URIRef(focus))) if str(s) != focus)
+    return [
+        {
+            "name": q.name,
+            "label": q.label if subject == focus else f"{q.label} ({label(subject)})",
+            "href": f"/queries/{q.name}/{quote(subject, safe='')}?format=html",
+        }
+        for subject in subjects
+        for q in canned_queries.QUERIES.values()
+        if canned_queries.is_applicable(graph, subject, q)
+    ]
 
 
 @app.get("/view/{iri:path}")
@@ -962,15 +986,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         ],
         "root_href": href_for(root, [], carried_level),
         "next_path_qs": quote(",".join(outgoing_trail), safe=""),
-        "applicable_queries": [
-            {
-                "name": q.name,
-                "label": q.label,
-                "href": f"/queries/{q.name}/{quote(focus, safe='')}?format=html",
-            }
-            for q in canned_queries.QUERIES.values()
-            if canned_queries.is_applicable(get_graph(), focus, q)
-        ],
+        "applicable_queries": applicable_queries(focus),
         # Template-only (M013/S03): the /view JSON contract is unchanged.
         "sequence_events": sequence_events(focus),
     }

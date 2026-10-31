@@ -19,6 +19,25 @@ asking about, and the viewer binds it to whatever you are looking at.
 The [query catalog](/reference/queries) shows each one in full, generated from
 [`docs/queries/`](../queries/).
 
+### Coverage questions
+
+Three more ask what the model declares that nothing exercises
+([ADR-0014](/adr/0014-scenarios-and-derived-tests)'s scenarios and the tests derived
+from them):
+
+| Question | Focus | Answered by |
+|---|---|---|
+| Which transitions of this lifecycle does no process task fire? | a `state:StateMachine` | `docs/queries/coverage/unfired-transitions.rq` |
+| Which permissions of this policy get no party deny test? | an `odrl:Policy` | `docs/queries/coverage/policies-without-deny.rq` |
+| Which start-to-end paths through this process does no scenario exercise? | a `proc:Process` | `seams.coverage.unexercised_paths` |
+
+The first two are SPARQL and return no rows when everything is covered, so `seams check`
+can run them as gates. The third cannot be SPARQL: sequence flows live only in the BPMN
+XML ([ADR-0007](/adr/0007-execution-strategy)), so `seams.coverage` walks
+them in Python and joins the paths with the scenarios. The viewer offers all three as
+Questions, and [`seams coverage`](/reference/seams-cli#seams-coverage) prints them for a
+whole model.
+
 ## How they work
 
 The queries are SPARQL 1.1 property paths through the [seams](/concepts/the-seams). The

@@ -30,10 +30,13 @@ EXPECTED_NAMES = [
     "impact-of-node",
     "what-moves-state",
     "screens-by-role-writing-shape",
+    "unfired-transitions",
+    "policies-without-deny",
+    "unexercised-paths",
 ]
 
 
-def test_catalog_has_four_queries():
+def test_catalog_lists_every_query():
     assert list(queries.QUERIES) == EXPECTED_NAMES
     for name, q in queries.QUERIES.items():
         assert q.name == name
@@ -289,3 +292,142 @@ def test_focus_types_match_model_declarations():
     }
     for iri, focus_type in expected.items():
         assert (URIRef(iri), RDF.type, focus_type) in graph
+
+
+# --- M015/S04 T04: coverage questions --------------------------------------
+
+MESSAGE_LIFECYCLE = CHAT + "message_lifecycle"
+USER_SEND_POLICY = CHAT + "user_send_policy"
+SEND_MESSAGE_PROCESS = CHAT + "send_message_process"
+CHAT_BPMN = CHAT + "chat_bpmn"
+EXPENSES = "https://example.org/expenses/"
+CHAPTER_09 = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
+
+
+def _model():
+    from viewer.app import get_model
+
+    return get_model()
+
+
+def test_coverage_focus_types_match_model_declarations():
+    graph = get_graph()
+    applicability = {
+        focus: [name for name, q in queries.QUERIES.items() if queries.is_applicable(graph, focus, q)]
+        for focus in (MESSAGE_LIFECYCLE, USER_SEND_POLICY, SEND_MESSAGE_PROCESS)
+    }
+    assert applicability == {
+        MESSAGE_LIFECYCLE: ["unfired-transitions"],
+        USER_SEND_POLICY: ["policies-without-deny"],
+        SEND_MESSAGE_PROCESS: ["unexercised-paths"],
+    }
+
+
+def test_coverage_sparql_queries_load_from_coverage_bundle():
+    import seams
+
+    assert queries.load_query("unfired-transitions") == seams.load_question("coverage/unfired-transitions")
+    assert queries.load_query("policies-without-deny") == seams.load_question("coverage/policies-without-deny")
+    # unexercised-paths is answered by seams.coverage: there is no SPARQL to load.
+    with pytest.raises(KeyError):
+        queries.load_query("unexercised-paths")
+
+
+def test_execute_unfired_transitions_chat_app():
+    result = queries.execute_query(get_graph(), "unfired-transitions", MESSAGE_LIFECYCLE)
+    assert result["bindings"] == {"lifecycle": MESSAGE_LIFECYCLE}
+    assert result["columns"] == ["lifecycle", "transition"]
+    assert [r["transition"] for r in result["rows"]] == [CHAT + "t_fail_send", CHAT + "t_fail_stream"]
+
+
+def test_unfired_transitions_bound_to_other_lifecycle_is_empty():
+    # The binding filters by seam:inModel: a non-lifecycle focus lists nothing.
+    result = queries.execute_query(get_graph(), "unfired-transitions", S_COMPOSING)
+    assert result["rows"] == []
+
+
+def test_execute_policies_without_deny_chat_app():
+    result = queries.execute_query(get_graph(), "policies-without-deny", USER_SEND_POLICY)
+    assert result["bindings"] == {"policy": USER_SEND_POLICY}
+    assert result["columns"] == ["policy", "target", "assignee"]
+    assert result["rows"] == [
+        {"policy": USER_SEND_POLICY, "target": CHAT + "send_message_op", "assignee": CHAT + "authenticated_user"}
+    ]
+
+
+def test_execute_unexercised_paths_chat_app():
+    # The chat app has no verify:Scenario, so its one path is unexercised.
+    result = queries.execute_query(get_graph(), "unexercised-paths", SEND_MESSAGE_PROCESS, model=_model())
+    assert result["queryName"] == "unexercised-paths"
+    assert result["bindings"] == {"process": SEND_MESSAGE_PROCESS}
+    assert result["columns"] == ["start", "end", "path"]
+    assert result["rows"] == [
+        {
+            "start": CHAT_BPMN + "#start",
+            "end": CHAT_BPMN + "#end",
+            "path": "start → persist_user_msg → route_to_provider → invoke_llm → persist_response"
+            " → stream_complete_event → end",
+        }
+    ]
+    assert result["resultCount"] == 1
+
+
+def test_execute_unexercised_paths_chapter_09():
+    import seams
+
+    model = seams.load(CHAPTER_09)
+    approval = queries.execute_query(model.ds, "unexercised-paths", EXPENSES + "approval_process", model=model)
+    payout = queries.execute_query(model.ds, "unexercised-paths", EXPENSES + "payout_process", model=model)
+    # Same answer as seams.coverage (tests/test_seams_coverage.py pins the six paths).
+    expected = seams.unexercised_paths(model)
+    assert approval["resultCount"] + payout["resultCount"] == len(expected) == 6
+    assert [r["end"] for r in approval["rows"] + payout["rows"]] == [str(p.end.iri) for p in expected]
+
+
+def test_unexercised_paths_non_process_focus_is_empty():
+    result = queries.execute_query(get_graph(), "unexercised-paths", MESSAGE_SHAPE, model=_model())
+    assert result["rows"] == []
+    assert result["resultCount"] == 0
+    assert "truncated" not in result
+
+
+def test_unexercised_paths_needs_the_model():
+    with pytest.raises(ValueError, match="needs the loaded model"):
+        queries.execute_query(get_graph(), "unexercised-paths", SEND_MESSAGE_PROCESS)
+
+
+def test_query_endpoint_unexercised_paths_json_and_html():
+    url = _query_url("unexercised-paths", SEND_MESSAGE_PROCESS)
+    body = _client().get(url).json()
+    assert body["resultCount"] == 1
+    assert body["rows"][0]["end"] == CHAT_BPMN + "#end"
+    html = _client().get(url, headers={"hx-request": "true"}).text
+    assert 'id="query-results-table"' in html
+    assert "<th>path</th>" in html
+    # The path is plain text; the start and end nodes are links into /view/.
+    assert "start → persist_user_msg" in html
+    assert f'href="/view/{quote(CHAT_BPMN + "#end", safe="")}"' in html
+
+
+def test_query_endpoint_coverage_sparql():
+    body = _client().get(_query_url("unfired-transitions", MESSAGE_LIFECYCLE)).json()
+    assert body["resultCount"] == 2
+    body = _client().get(_query_url("policies-without-deny", USER_SEND_POLICY)).json()
+    assert body["resultCount"] == 1
+
+
+def test_fragment_shows_coverage_buttons():
+    html = _view_fragment(MESSAGE_LIFECYCLE).text
+    assert 'data-query-name="unfired-transitions"' in html
+    html = _view_fragment(USER_SEND_POLICY).text
+    assert 'data-query-name="policies-without-deny"' in html
+
+
+def test_fragment_offers_process_questions_on_its_bpmn_model():
+    # A proc:Process with seam:detailedBy auto-navigates into its BPMN model
+    # (ADR-0005), so the BPMN view carries the process's question, naming it.
+    html = _view_fragment(SEND_MESSAGE_PROCESS).text
+    href = f"/queries/unexercised-paths/{quote(SEND_MESSAGE_PROCESS, safe='')}?format=html"
+    assert 'data-query-name="unexercised-paths"' in html
+    assert f'href="{href}"' in html
+    assert "Which paths does no scenario run? (Send Message Process)" in html

@@ -84,7 +84,7 @@ def closed_url() -> str:
 def app(tmp_path: Path) -> Path:
     dest = tmp_path / "app"
     shutil.copytree(CHAPTER, dest, ignore=shutil.ignore_patterns("__pycache__"))
-    _environments(dest, "[environments.prod]\n")  # drop chapter 8's own [environments.local]
+    _environments(dest, "[environments.production]\n")  # drop chapter 8's own development endpoints
     return dest
 
 
@@ -128,10 +128,12 @@ def _environments(app: Path, block: str) -> None:
 
 
 def _local(app: Path, url: str) -> None:
-    _environments(app, f'[environments.prod]\n\n[environments.local]\nendpoints = {{ expense_api = "{url}" }}\n')
+    _environments(
+        app, f'[environments.production]\n\n[environments.development]\nendpoints = {{ expense_api = "{url}" }}\n'
+    )
 
 
-def _status(app: Path, env: str | None = "local", timeout: float = 5) -> list[Status]:
+def _status(app: Path, env: str | None = "development", timeout: float = 5) -> list[Status]:
     return run_status(load_project(app), app / MODEL, env, timeout)
 
 
@@ -147,7 +149,7 @@ def _main(app: Path, capsys, *extra: str) -> tuple[int, list[str], str]:
 def test_the_runtime_containers_are_the_ones_compose_gives_the_model_hash():
     assert runtime_containers(CHAPTER / MODEL) == ("expense_api",)
     assert runtime_containers(ROOT / "examples/chat-app/chat-app.trig") == ("chat_api",)
-    compose = (CHAPTER / "compose.yaml").read_text(encoding="utf-8")
+    compose = (CHAPTER / "compose.development.yaml").read_text(encoding="utf-8")
     assert compose.count("SEAMS_MODEL_HASH") == 1
 
 
@@ -172,7 +174,7 @@ def test_lock_history_outside_git_is_empty(app):
 def test_current(repo, server, current, capsys):
     server.body = {"status": "ok", "model_hash": current}
     _local(repo, server.url)
-    assert _main(repo, capsys, "--env", "local") == (
+    assert _main(repo, capsys, "--env", "development") == (
         0,
         [f"expense_api current {current}", f"current model {current}"],
         "",
@@ -184,7 +186,7 @@ def test_current(repo, server, current, capsys):
 def test_behind_counts_distinct_model_hashes(repo, server, current, capsys, reported, back):
     server.body = {"model_hash": reported}
     _local(repo, server.url)
-    code, lines, err = _main(repo, capsys, "--env", "local")
+    code, lines, err = _main(repo, capsys, "--env", "development")
     assert (code, lines, err) == (
         1,
         [f"expense_api behind {reported} {back}", f"current model {current}"],
@@ -242,9 +244,9 @@ def test_a_slow_server_times_out(app, server):
 
 
 def test_a_container_with_no_endpoint_is_unreachable(app, current, capsys):
-    _environments(app, "[environments.prod]\n\n[environments.local]\nendpoints = {}\n")
-    code, lines, err = _main(app, capsys, "--env", "local", "--timeout", "0.5")
-    assert lines == ["expense_api unreachable - no endpoint in environments.local", f"current model {current}"]
+    _environments(app, "[environments.production]\n\n[environments.development]\nendpoints = {}\n")
+    code, lines, err = _main(app, capsys, "--env", "development", "--timeout", "0.5")
+    assert lines == ["expense_api unreachable - no endpoint in environments.development", f"current model {current}"]
     assert (code, err) == (1, "seams status: 1 of 1 not current\n")
 
 
@@ -261,38 +263,40 @@ def test_two_environments_with_endpoints_need_env(app, server, capsys):
     url = server.url
     _environments(
         app,
-        f'[environments.local]\nendpoints = {{ expense_api = "{url}" }}\n\n'
-        f'[environments.prod]\nendpoints = {{ expense_api = "{url}" }}\n',
+        f'[environments.development]\nendpoints = {{ expense_api = "{url}" }}\n\n'
+        f'[environments.production]\nendpoints = {{ expense_api = "{url}" }}\n',
     )
     code, lines, err = _main(app, capsys)
     assert (code, lines) == (2, [])
-    assert "pass --env; local, prod have `endpoints`" in err
+    assert "pass --env; development, production have `endpoints`" in err
 
 
 def test_no_environment_with_endpoints_needs_env(app, capsys):
     code, _, err = _main(app, capsys)
     assert code == 2
-    assert "pass --env; none has `endpoints` (environments: prod)" in err
+    assert "pass --env; none has `endpoints` (environments: production)" in err
 
 
 def test_an_unknown_env_exits_2(app, server, capsys):
     _local(app, server.url)
     code, lines, err = _main(app, capsys, "--env", "staging")
     assert (code, lines) == (2, [])
-    assert "no environment 'staging'; environments: prod, local" in err
+    assert "no environment 'staging'; environments: production, development" in err
 
 
 def test_an_endpoint_that_is_not_a_runtime_container_exits_2(app, server, capsys):
-    _environments(app, f'[environments.local]\nendpoints = {{ expense_api = "{server.url}", expense_ui = "x" }}\n')
-    code, lines, err = _main(app, capsys, "--env", "local")
+    _environments(
+        app, f'[environments.development]\nendpoints = {{ expense_api = "{server.url}", expense_ui = "x" }}\n'
+    )
+    code, lines, err = _main(app, capsys, "--env", "development")
     assert (code, lines) == (2, [])
     assert "names expense_ui, not a runtime container; runtime containers: expense_api" in err
 
 
 @pytest.mark.parametrize("value", ['"http://x"', "{ expense_api = 8080 }", '["http://x"]'])
 def test_a_malformed_endpoints_table_is_a_project_error(app, value):
-    _environments(app, f"[environments.local]\nendpoints = {value}\n")
-    with pytest.raises(ProjectError, match=r"`environments\.local\.endpoints` must be a table of strings"):
+    _environments(app, f"[environments.development]\nendpoints = {value}\n")
+    with pytest.raises(ProjectError, match=r"`environments\.development\.endpoints` must be a table of strings"):
         load_project(app)
 
 
@@ -300,5 +304,5 @@ def test_endpoints_are_parsed_and_default_to_empty(app):
     assert load_project(app).endpoints == {}
     _local(app, "http://localhost:8080")
     project = load_project(app)
-    assert project.environments == ("prod", "local")
-    assert project.endpoints == {"local": {"expense_api": "http://localhost:8080"}}
+    assert project.environments == ("production", "development")
+    assert project.endpoints == {"development": {"expense_api": "http://localhost:8080"}}

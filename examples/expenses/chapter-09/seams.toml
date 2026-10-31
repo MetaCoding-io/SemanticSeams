@@ -17,6 +17,8 @@ out = "generated"
 name = "htmx"
 out = "generated/templates"
 
+# One compose.<environment>.yaml per arch:Environment beside this file
+# (ADR-0015).
 [[generators]]
 name = "compose"
 out = "."
@@ -34,10 +36,13 @@ out = "generated/tests"
 name = "smoke"
 out = "generated/smoke"
 
-[environments.prod]
+# The model's arch:Environment :production; compose.production.yaml deploys it.
+[environments.production]
 
-# The local `docker compose up` stack. The Caddy UI container (employee_portal) on
-# port 8080 proxies /healthz to the runtime, so `seams status --env local`
-# reads the running model hash there.
-[environments.local]
+# The model's arch:Environment :development: the local stack that
+# `docker compose -f examples/expenses/chapter-09/compose.development.yaml up`
+# runs. The Caddy UI container (employee_portal) on port 8080 proxies /healthz
+# to the runtime, so `seams status --env development` reads the running model
+# hash there.
+[environments.development]
 endpoints = { expense_api = "http://localhost:8080" }

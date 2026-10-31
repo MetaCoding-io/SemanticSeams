@@ -304,26 +304,33 @@ container runs. Add the deploy prefix:
 ```
 
 Then give each container an image, its ports and its start order. The portal publishes
-port 8080 on the host and starts after the API:
+port 8080 on the host and starts after the API. It has no code of its own: the API's
+host serves the pages, including the event streams, so the portal runs the stock
+`caddy` image, and `deploy:proxies` names the container it forwards every request to.
+The compose generator turns that fact into Caddy's `reverse-proxy` command. Its
+`deploy:healthcheck` probes the API's `/healthz` through the proxy:
 
 ```trig
     :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
         arch:technology "htmx + server-rendered fragments" ;
         arch:dependsOn :expense_api ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/expense-portal" ;
-                          deploy:version "latest" ] ;
+                          deploy:reference "caddy" ;
+                          deploy:version "2-alpine" ] ;
+        deploy:proxies :expense_api ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
         deploy:dependsOn :expense_api ;
-        seam:inModel :expense_architecture .
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "wget -q -O /dev/null http://127.0.0.1:8000/healthz" ;
+                             deploy:interval "5s" ] ;
 ```
 
 The API gets an image and a port too, but publishes nothing, so it is only reachable
-from inside the stack. It runs in the one environment, `:prod`:
+from inside the stack. Its placement names the `:production` environment:
 
 ```trig
         deploy:placement [ a deploy:PlacementPolicy ;
-                           deploy:targetEnvironment :prod ] ;
+                           deploy:targetEnvironment :production ] ;
 ```
 
 The `seam:deployedTo` edges you saw above put the portal on `:web01` and the API on
@@ -337,7 +344,9 @@ from [ADR-0011](/adr/0011-storage-resolution) put the store in the model.
 
 First, the store is a container like any other. `deploy:storeKind` says what kind of
 store it is, one of `deploy:PostgreSQL` and `deploy:SQLite`. It runs the `postgres:16`
-image, keeps its data on a named volume and reports ready through `pg_isready`:
+image, keeps its data on a named volume and reports ready through `pg_isready`. The
+`postgres` image refuses to start without a password, so the store's password is a
+secret binding too:
 
 ```trig
     # Where the data lives: a PostgreSQL store with its own volume.
@@ -349,20 +358,23 @@ image, keeps its data on a named volume and reports ready through `pg_isready`:
                           deploy:version "16" ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "POSTGRES_DB" ;
-                                                deploy:value "expenses" ] ] ;
+                                                deploy:value "expenses" ] ;
+                               deploy:binding [ deploy:key "POSTGRES_PASSWORD" ;
+                                                deploy:secretRef <https://secrets.example.org/expenses/prod/postgres-password> ;
+                                                deploy:secretName "expenses-prod-postgres-password" ] ] ;
         deploy:volume [ a deploy:Volume ;
                         deploy:volumeName "expense_db_data" ;
                         deploy:mountPath "/var/lib/postgresql/data" ] ;
         deploy:healthcheck [ a deploy:Healthcheck ;
                              deploy:probe "pg_isready -U postgres" ;
                              deploy:interval "5s" ] ;
-        seam:inModel :expense_architecture .
 ```
 
-Add it to `:expense_system`'s `arch:contains`, and give it a node of its own in `:prod`:
+Add it to `:expense_system`'s `arch:contains`, and give it a node of its own in
+`:production`:
 
 ```trig
-    :prod a arch:Environment ; rdfs:label "Production" ;
+    :production a arch:Environment ; rdfs:label "Production" ;
         arch:contains :web01 , :app01 , :db01 ;
         seam:inModel :expense_architecture .
 ```
@@ -416,6 +428,53 @@ reports `"kind": "postgresql"`. Drop one of the facts, say the `seam:storedIn` o
 `:PaymentShape`, and the host refuses to start with a `ResolutionError` naming
 `:PaymentShape` and `seam:storedIn`.
 
+## Two environments
+
+Everything so far describes production: images from a registry, secrets from a secret
+store, containers placed on named nodes. A laptop has none of those. Rather than keep a
+hand-written compose file for it, the model declares a second environment
+([ADR-0015](/adr/0015-environments)). It contains no nodes, so nothing is placed:
+
+```trig
+    :development a arch:Environment ; rdfs:label "Development" ;
+        seam:inModel :expense_architecture .
+```
+
+A container says what differs in one environment with a `deploy:override`. The override
+names its `deploy:environment` and carries replacement facts with the same predicates.
+In development the API builds its image from this checkout, and reads the connection
+string from a committed file instead of a secret store. A replaced `deploy:artifact`
+replaces the whole artifact; bindings merge by `deploy:key`, so the override restates
+`DATABASE_URL` with a `deploy:secretFile`. It must still `deploy:connectsTo` the same
+store, which SHACL checks:
+
+```trig
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:artifact [ a deploy:Artifact ;
+                              deploy:reference "seams/expense-api" ;
+                              deploy:version "local" ;
+                              deploy:build [ a deploy:Build ;
+                                             deploy:context "../../.." ;
+                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "DATABASE_URL" ;
+                                 deploy:secretFile "../../../docker/local-secrets/expense_database_url" ;
+                                 deploy:connectsTo :expense_db ] ] ] ;
+```
+
+The store gets a fixed development password, the one that committed URL uses:
+
+```trig
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "POSTGRES_PASSWORD" ; deploy:value "seams-dev" ] ] ] ;
+```
+
+Paths in the model are relative to the model file. A container with no override for an
+environment uses its shared facts there, so the portal is the same Caddy proxy in both.
+
 ## Generate the app
 
 Run the generators the chapter 8 checkpoint's `seams.toml` names:
@@ -431,9 +490,11 @@ the way it serves the landmark page, because it has an `ifml:path` and holds no 
 form. The full list is in the
 [generated README](../../../examples/expenses/chapter-08/generated/README.md).
 
-The same command also writes the chapter's `compose.yaml` from the deploy facts, because
-chapter 8's [`seams.toml`](../../../examples/expenses/chapter-08/seams.toml) names a third
-generator, `compose`, with `out = "."`.
+The same command also writes one compose file per environment from the deploy facts,
+`compose.development.yaml` and `compose.production.yaml`, because chapter 8's
+[`seams.toml`](../../../examples/expenses/chapter-08/seams.toml) names a third
+generator, `compose`, with `out = "."`. Each file's header names its environment and
+the model hash.
 
 ## Run it in process
 
@@ -489,21 +550,21 @@ expenses they pay.
 
 ## Run it with docker compose
 
-`compose.yaml` is generated, so it holds only what the model says. The repository keeps
-a hand-written
-[`compose.override.yaml`](../../../examples/expenses/chapter-08/compose.override.yaml)
-beside it. The override builds the runtime image with the chapter 8 code, makes the
-portal a Caddy reverse proxy in front of the API and names the project
-`seams-expenses`. The generated file also has an `expense_db` service from the store's
-deploy facts. The override gives it a dev-only `POSTGRES_PASSWORD`, makes the API wait
-until the database is healthy, and points the `database_url` secret at a committed dev
-URL, `docker/local-secrets/expense_database_url`, because the generated secret is a
-swarm secret that plain compose cannot create. The API reads that secret through
-`DATABASE_URL_FILE` and keeps its data in `expense_db`, so no SQLite volume is needed.
-Pass both files from the repository root:
+[`compose.development.yaml`](../../../examples/expenses/chapter-08/compose.development.yaml)
+is the development environment, generated, with nothing written by hand. It builds the
+runtime image with the chapter 8 code (the generator adds the `SEAMS_APP_DIR` and
+`SEAMS_ROUTES_FILE` build args), runs the portal as a Caddy reverse proxy in front of
+the API, and names the project `expense_system` after the `arch:System`, so it never
+shares volumes with the chat app. Every container with a healthcheck makes the
+containers that depend on it wait until it is healthy, so the API starts once the
+database accepts connections. The `database_url` secret is the committed dev URL,
+`docker/local-secrets/expense_database_url` (set `DATABASE_URL_FILE` on the host to use
+another file). The API reads that secret through `DATABASE_URL_FILE` inside the
+container and keeps its data in `expense_db`, so no SQLite volume is needed. Run it from
+the repository root:
 
 ```sh
-docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml up --build
+docker compose -f examples/expenses/chapter-08/compose.development.yaml up --build
 ```
 
 The portal is now at <http://localhost:8080>. There is no static dev user in the stack,
@@ -517,7 +578,7 @@ To see where the data landed, ask `expense_db` for the shape of every entity sto
 the `hotel` correlation key:
 
 ```sh
-docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml exec -T expense_db psql -U postgres -d expenses -tAc "SELECT shape FROM entities WHERE correlation_key = 'hotel'"
+docker compose -f examples/expenses/chapter-08/compose.development.yaml exec -T expense_db psql -U postgres -d expenses -tAc "SELECT shape FROM entities WHERE correlation_key = 'hotel'"
 ```
 
 It lists `https://example.org/expenses/ExpenseShape` along with the approval and
@@ -525,11 +586,15 @@ payment rows, and `curl http://localhost:8080/healthz` reports the store as
 `"kind": "postgresql"`, `"declared": "PostgreSQL"` and `"override": false`.
 `tests/test_expense_e2e.py` runs both checks against chapter 9's stack, which is this one
 with a hand-written handler added. Optionally,
-`seams status --project examples/expenses/chapter-08 --env local` reads the same
-`/healthz` through the `local` environment in `seams.toml` and prints
+`seams status --project examples/expenses/chapter-08 --env development` reads the same
+`/healthz` through the `development` environment in `seams.toml` and prints
 `expense_api current` when the running API is on this chapter's model
 ([seams status](/reference/seams-cli#seams-status)). Stop the stack with
-`docker compose -f examples/expenses/chapter-08/compose.yaml -f examples/expenses/chapter-08/compose.override.yaml down -v`.
+`docker compose -f examples/expenses/chapter-08/compose.development.yaml down -v`.
+
+`compose.production.yaml` is the same system as production runs it: the registry
+images, external swarm secrets for the connection string and the store's password, and
+placement constraints for `web01`, `app01` and `db01`.
 
 ## Measure it
 
@@ -599,15 +664,16 @@ The rest are in [`docs/generation/sequences/expenses`](../../generation/sequence
 - **The bus is in process.** The approval instance and the payout instance run in the
   same runtime, so the payout cannot move to a separate worker container yet.
   [ADR-0010](/adr/0010-channel-started-processes) defers a cross-container broker.
-- **One environment.** The compose generator places containers by `seam:deployedTo` and
-  has no notion of a second environment, so the model has `:prod` and no staging.
+- **The production images do not exist.** `ghcr.io/example/expense-api` is a
+  placeholder, so only the development file runs here. Publishing images tagged with the
+  model hash is planned.
 - **No timer starts.** A process can start from a UI event or a channel, but not on a
   schedule. A nightly payout batch would need one. There are no intermediate message
   catch events either.
 
 CI checks every step of this chapter. `tests/test_expense_payout.py` runs both processes
 in process on both payout paths, `tests/test_expense_compose.py` checks that the
-committed `compose.yaml` is current, `tests/test_expense_e2e.py` runs the same docker compose
+committed compose files are current and that the development file needs no override, `tests/test_expense_e2e.py` runs the same docker compose
 stack, with chapter 9's handler, in CI's `tutorial-e2e` job, and `tests/test_complexity.py` pins the measurement.
 
 ## Checkpoint

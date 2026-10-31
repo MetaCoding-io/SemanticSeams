@@ -176,7 +176,9 @@ def _scalar(text: str) -> str:
 
 
 def _posix_relpath(path: Path, base_dir: Path) -> str:
-    return "./" + Path(os.path.relpath(Path(path).resolve(), Path(base_dir).resolve())).as_posix()
+    """``path`` relative to ``base_dir``, starting with ./ or ../ so compose reads it as a path."""
+    rel = Path(os.path.relpath(Path(path).resolve(), Path(base_dir).resolve())).as_posix()
+    return rel if rel.startswith("../") or rel == ".." else "./" + rel
 
 
 def _model_path(model: Model, path: str, base_dir: Path) -> str:

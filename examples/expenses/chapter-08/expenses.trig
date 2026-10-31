@@ -17,10 +17,11 @@
 # passes python -m seams_gen.complexity.
 #
 # The architecture graph also carries deploy facts (images, ports, start
-# order and one environment), so python -m seams_gen compose writes this
-# directory's compose.yaml. There is one environment: the compose generator
-# places containers by seam:deployedTo and has no notion of a second
-# (staging) environment.
+# order, healthchecks and two environments), so python -m seams_gen compose
+# writes this directory's compose.development.yaml and compose.production.yaml
+# (ADR-0015). A container states what differs in development through a
+# deploy:override: build the image from this checkout, read the connection
+# string from a file, and give PostgreSQL a fixed password.
 #
 # The architecture also says where the data lives (ADR-0011): a PostgreSQL
 # :expense_db container on its own :db01 node, a DATABASE_URL binding on
@@ -64,14 +65,21 @@
 
     # Deploy facts: the image each container runs, its ports and start
     # order. The portal publishes 8080 on the host; the API is internal.
+    # The portal is a code-free reverse proxy: expense_api's host serves the
+    # pages, including the SSE streams, so it has no image of its own in any
+    # environment.
     :employee_portal a arch:Container ; rdfs:label "Employee Portal" ;
         arch:technology "htmx + server-rendered fragments" ;
         arch:dependsOn :expense_api ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/expense-portal" ;
-                          deploy:version "latest" ] ;
+                          deploy:reference "caddy" ;
+                          deploy:version "2-alpine" ] ;
+        deploy:proxies :expense_api ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ; deploy:publishedPort 8080 ] ;
         deploy:dependsOn :expense_api ;
+        deploy:healthcheck [ a deploy:Healthcheck ;
+                             deploy:probe "wget -q -O /dev/null http://127.0.0.1:8000/healthz" ;
+                             deploy:interval "5s" ] ;
         seam:inModel :expense_architecture .
 
     :expense_api a arch:Container ; rdfs:label "Expense API" ;
@@ -90,7 +98,22 @@
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
         deploy:dependsOn :expense_db ;
         deploy:placement [ a deploy:PlacementPolicy ;
-                           deploy:targetEnvironment :prod ] ;
+                           deploy:targetEnvironment :production ] ;
+        # Development (ADR-0015): build the runtime image from this checkout
+        # with this chapter's generated code baked in, and read the connection
+        # string from a file. Same store, same key.
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:artifact [ a deploy:Artifact ;
+                              deploy:reference "seams/expense-api" ;
+                              deploy:version "local" ;
+                              deploy:build [ a deploy:Build ;
+                                             deploy:context "../../.." ;
+                                             deploy:dockerfile "docker/runtime.Dockerfile" ] ] ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "DATABASE_URL" ;
+                                 deploy:secretFile "../../../docker/local-secrets/expense_database_url" ;
+                                 deploy:connectsTo :expense_db ] ] ] ;
         seam:inModel :expense_architecture .
 
     # Where the data lives: a PostgreSQL store with its own volume.
@@ -102,18 +125,31 @@
                           deploy:version "16" ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "POSTGRES_DB" ;
-                                                deploy:value "expenses" ] ] ;
+                                                deploy:value "expenses" ] ;
+                               deploy:binding [ deploy:key "POSTGRES_PASSWORD" ;
+                                                deploy:secretRef <https://secrets.example.org/expenses/prod/postgres-password> ;
+                                                deploy:secretName "expenses-prod-postgres-password" ] ] ;
         deploy:volume [ a deploy:Volume ;
                         deploy:volumeName "expense_db_data" ;
                         deploy:mountPath "/var/lib/postgresql/data" ] ;
         deploy:healthcheck [ a deploy:Healthcheck ;
                              deploy:probe "pg_isready -U postgres" ;
                              deploy:interval "5s" ] ;
+        # Development: a fixed password, which
+        # docker/local-secrets/expense_database_url uses.
+        deploy:override [ a deploy:Override ;
+            deploy:environment :development ;
+            deploy:configuration [ a deploy:Configuration ;
+                deploy:binding [ deploy:key "POSTGRES_PASSWORD" ; deploy:value "seams-dev" ] ] ] ;
         seam:inModel :expense_architecture .
 
-    # One environment with a node for each container (seam:deployedTo, in
-    # the seams graph, places them).
-    :prod a arch:Environment ; rdfs:label "Production" ;
+    # Two environments (ADR-0015). Production has a node for each container
+    # (seam:deployedTo, in the seams graph, places them); development
+    # contains no nodes, so its compose file has no placement constraints.
+    :development a arch:Environment ; rdfs:label "Development" ;
+        seam:inModel :expense_architecture .
+
+    :production a arch:Environment ; rdfs:label "Production" ;
         arch:contains :web01 , :app01 , :db01 ;
         seam:inModel :expense_architecture .
 

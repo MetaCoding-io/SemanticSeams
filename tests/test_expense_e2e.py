@@ -4,9 +4,9 @@ Runs only with SEAMS_E2E=1 (CI's tutorial-e2e job); the normal suite stays
 docker-free. With SEAMS_E2E=1 nothing skips: a missing docker CLI or a stack
 that does not come up healthy is a failure.
 
-The stack is examples/expenses/chapter-09's generated compose.yaml merged with
-its hand-written compose.override.yaml (project seams-expenses, so it never
-collides with the chat app's stack). Caddy passes X-Forwarded-User and
+The stack is examples/expenses/chapter-09's generated compose.development.yaml
+(ADR-0015; its project name, expense_system, comes from the model's
+arch:System, so it never collides with the chat app's stack). Caddy passes X-Forwarded-User and
 X-Forwarded-Groups through to the runtime's HeaderAuthenticator, so each
 request says who makes it. The flow is the tutorial's: the employee submits,
 the hand-written notify handler (chapter 9, ADR-0012) stores a notification
@@ -29,14 +29,16 @@ from pathlib import Path
 
 import httpx
 import pytest
+import yaml
 from seams_cli.__main__ import main as seams_main
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "examples" / "expenses" / "chapter-09"
 SMOKE = APP / "generated" / "smoke"
 SMOKE_TIMEOUT = 120
-FILES = ["-f", str(APP / "compose.yaml"), "-f", str(APP / "compose.override.yaml")]
-PROJECT = "seams-expenses"
+COMPOSE_FILE = APP / "compose.development.yaml"
+FILES = ["-f", str(COMPOSE_FILE)]
+PROJECT = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))["name"]
 BASE = "http://localhost:8080"
 UP_TIMEOUT = 300  # seconds: image build plus healthchecks on a cold runner
 POLL_TIMEOUT = 30
@@ -206,9 +208,9 @@ def test_healthz_reports_the_declared_postgres_store(stack):
 
 
 def test_seams_status_reports_the_runtime_current(stack, capsys):
-    """`seams status --env local` reads /healthz through port 8080 and finds the
+    """`seams status --env development` reads /healthz through port 8080 and finds the
     running expense_api on the model in the working tree (D045)."""
-    code = seams_main(["status", "--project", str(APP), "--env", "local"])
+    code = seams_main(["status", "--project", str(APP), "--env", "development"])
     out = capsys.readouterr()
     assert code == 0, out.out + out.err
     assert out.out.splitlines()[0].startswith("expense_api current sha256:"), out.out

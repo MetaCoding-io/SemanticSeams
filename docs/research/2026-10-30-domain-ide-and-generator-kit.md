@@ -2,7 +2,8 @@
 
 *Status: proposal, 2026-10-30. Not yet scheduled. Linked from the
 [backlog](../backlog.md) ("Generator kit and domain IDE" section). Written against `main`
-at `f80503b`, after M010 to M016 were planned. It builds on the
+at `f80503b`, after M010 to M016 were planned; revised 2026-10-31 after M010 (L1 to L6)
+merged. It builds on the
 [library note](2026-10-29-seams-python-library.md) (L1 to L6) and the
 [artifact management note](2026-10-29-artifact-management.md) (A1 to A9) and does not
 repeat them.*
@@ -11,8 +12,9 @@ repeat them.*
 
 Can we help users write their own generators, and can we go further and give them a
 domain IDE: an editor in which someone who is not a developer changes the model and sees
-the application change? **Yes to both, in that order.** The generator side is mostly
-packaging of what M004 to M009 already do. The IDE side is four layers on top of the
+the application change? **Yes to both, in that order.** M010 has since shipped
+the `seams` library and a "Write your own generator" guide, so the generator side is the
+rest of the packaging: registration, a test kit and a scaffold. The IDE side is four layers on top of the
 viewer, and the books identify two things that have to come before any of them: every
 fault a generator can hit must be a shape violation first, and models need a vocabulary
 version so the editor can migrate them. Editing is still a v1 non-goal (backlog P2 item
@@ -82,8 +84,8 @@ edited, and an invalid model still has to be shareable in a bug report (p. 236).
 
 **Where we stand.** The generators fail fast: a missing or ambiguous fact raises
 `GeneratorError(subject, predicate, detail)` and nothing is written
-([`seams_gen/README.md`](../../seams_gen/README.md)). There are about 70 raise sites
-across `htmx.py`, `fastapi.py`, `compose.py`, `facts.py` and `fragments.py`. The shapes
+([`seams_gen/README.md`](../../seams_gen/README.md)). There are about 75 raise sites
+across `htmx.py`, `fastapi.py`, `compose.py`, `_views.py` and `fragments.py`. The shapes
 file has 40 node shapes, none with a severity other than the default. Nobody has checked
 which generator faults the shapes catch first, and at least two they do not:
 
@@ -152,8 +154,12 @@ compare list lengths (`seams_gen/templates/`). Strict separation would move thos
 generator guide should recommend Parr's stricter form for user generators, because it is
 what makes a template set swappable.
 
-**What follows for users.** The method is teachable, and nothing in the repository
-packages it. A user writing a generator needs:
+**What follows for users.** M010 gave users the reading side: the `seams` library and
+the [Write your own generator](../guide/write-your-own-generator.md) guide, whose example
+generator runs in CI. The guide covers loading, walking the views, joining BPMN and DMN,
+and deterministic output. It does not yet teach the reference-first method, golden tests
+or keeping logic out of templates, and nothing registers a user's generator. A user
+writing a generator still needs:
 
 - a way to register a generator so `seams generate` (A1) finds it and the lockfile (A2)
   records its name and version;
@@ -163,7 +169,7 @@ packages it. A user writing a generator needs:
   templates parse);
 - a scaffold that starts from a reference output, as in step 2: a template that returns
   the file verbatim and a golden test that passes on day one;
-- the "Write your own generator" guide planned as L6, written as that three-step method.
+- a section in that guide on the three-step method and Parr's logic-free templates.
 
 Fan-out is also the argument for A2 recording source elements per output: when one fact
 touches ten files, a reviewer needs the reverse index.
@@ -200,8 +206,8 @@ first rename will.
 
 - A version IRI on each vocabulary, and a statement in each model of the version it
   targets.
-- The load check above in the shared library (L2), so the viewer, runtime, generators
-  and IDE all refuse or migrate the same way.
+- The load check above in `seams.load`, so the viewer, runtime, generators and IDE all
+  refuse or migrate the same way.
 - Migrations as SPARQL Update files, one per version step, run by a `seams migrate`
   command.
 - Deprecations as `owl:deprecated` on the term, plus a shape at `sh:Warning` that later
@@ -365,14 +371,15 @@ Parr's tree chapters give the kit two ways to read a model:
 - **Two kinds of tree** (ch. 4). A *homogeneous* tree uses one node type for everything
   (Pattern 9, p. 109); a *normalized heterogeneous* one has a type per construct but
   keeps a uniform list of children, which keeps generic walkers easy to write
-  (Pattern 10, p. 111). The rdflib dataset is homogeneous. L3's typed views per layer
-  are a heterogeneous view over it, and the kit should keep both.
+  (Pattern 10, p. 111). The rdflib dataset behind `seams.load` is homogeneous. The
+  typed views M010 added per layer are a heterogeneous view over it, and the kit should
+  keep both.
 - **Two ways to walk them** (ch. 5). Parr separates *how a walk proceeds* from *what it
   looks for* (section 5.4, p. 125). A *tree pattern matcher* fires on patterns wherever
   the walk finds them (Pattern 15, p. 138); an *external tree visitor* keeps one task's
   whole walk in one place, in an order it chooses (Pattern 13, p. 131). SPARQL is our
-  pattern matcher, for "find every X with Y". L4's walk of a BPMN process in flow order
-  is a visitor, for "walk this in order". The generator guide should say when to use
+  pattern matcher, for "find every X with Y". The views' walk of a BPMN process in flow
+  order (`tasks()`) is a visitor, for "walk this in order". The generator guide should say when to use
   which.
 
 ## Proposal
@@ -385,7 +392,7 @@ Parr's tree chapters give the kit two ways to read a model:
 | K2 | **Static checks for decisions.** DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s. | none |
 | K3 | **Generator protocol and discovery.** A generator has a name, a version, its precondition shapes, and `extract` and `render` steps. It is registered under a `seams.generators` entry-point group, so `seams generate` runs it and the lockfile records it. A lenient mode collects faults and emits flagged output, for previews only. | L2, A1, A2 |
 | K4 | **Generator test kit.** Golden comparison with the hash placeholder (moved from `seams_gen/golden.py`), a determinism check, output checkers per file type, and the K1 parity helper, all public. | K3 |
-| K5 | **Scaffold and guide.** `seams new-generator` from a reference output: a verbatim template and a passing golden test. The L6 guide is written as Boersma's three-step method and recommends Parr's logic-free templates. | K3, K4, L6 |
+| K5 | **Scaffold and guide.** `seams new-generator` from a reference output: a verbatim template and a passing golden test. The L6 guide gains a section on Boersma's three-step method and Parr's logic-free templates. | K3, K4, L6 |
 | K6 | **Vocabulary versions and migrations.** A version IRI per vocabulary, the target version stated in each model, the load check in the shared library, SPARQL Update migrations per step, and deprecations as `owl:deprecated` plus a warning-level shape. ADR first. | L2; shares classification with U8 |
 
 ### Domain IDE (I)
@@ -398,8 +405,8 @@ Parr's tree chapters give the kit two ways to read a model:
 | I4 | **BPMN and DMN round-trip.** Modelers in place of viewers, an ID rename that rewrites the seams graph, and a model-health check that lifted IRIs exist in the XML. | I1 |
 | I5 | **Domain profiles.** A profile package (vocabulary, shapes, generators, palette, labels) attached by `seam:conformsTo`, which restricts what the editor offers. ADR first. | I2, K3 |
 
-K1 and K2 stand alone and make the existing tools more honest today. K3 to K5 fit after
-M010 and M012, which deliver the library and the CLI they extend. K6 should land before
+K1 and K2 stand alone and make the existing tools more honest today. K3 to K5 build on
+M010, now done, and M012, which delivers the CLI and lockfile they extend. K6 should land before
 the first vocabulary change that is not widening.
 
 The I items refine backlog P2 item 13, **Editing**. That item is parked because editing

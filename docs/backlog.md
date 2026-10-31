@@ -166,9 +166,9 @@ milestone covers.
 
 *Added 2026-10-30 from the [generator kit and domain IDE note](research/2026-10-30-domain-ide-and-generator-kit.md),
 which reads Boersma's* Building User-Friendly DSLs *and Parr's* Language Implementation
-Patterns *against the repository. Not yet scheduled.* Users can write their own
-generators once the library (L) and the CLI (A1, A2) exist, but nothing packages the
-method G2 used. The kit items do that. The IDE items refine P2 item 13 (Editing), which
+Patterns *against the repository. Not yet scheduled.* M010 gave users the
+library and a generator guide; nothing yet registers their generators or packages the
+reference-first method G2 used. The kit items do that. The IDE items refine P2 item 13 (Editing), which
 stays a v1 non-goal until M008/S04 checks it again. K1 and K2 stand alone and are worth
 doing first: today a model can show *Conforms* in the viewer and still fail generation.
 
@@ -178,7 +178,7 @@ doing first: today a model can show *Conforms* in the viewer and still fail gene
 | K2 | **Static checks for decisions**: DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s | S | none | shapes or SPARQL checks only | proposed |
 | K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | proposed |
 | K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | proposed |
-| K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); the L6 guide written as the reference-first method, with logic kept out of templates | S | K3, K4, L6 | none | proposed |
+| K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | proposed |
 | K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | proposed |
 | I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | proposed |
 | I2 | **Forms from shapes**: edit one element through a form derived from the shapes that target its class; save invalid models and flag them | M | I1, K1 | none | proposed |

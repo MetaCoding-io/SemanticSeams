@@ -51,32 +51,12 @@ flows. There is one diagram per path through the process's exclusive gateways ra
 than one diagram with `alt` blocks. An arrow the deriver cannot place is written into
 the diagram as a `%% gap:` line, so the diagram doubles as an audit of the model: a
 gap names the fact that is missing. See [the seams CLI](/reference/seams-cli#seams-sequence).
-The chat app's send-message event derives to:
+The chat app's send-message event derives to the diagram below, embedded from the
+golden file the generator tests pin,
+[`docs/generation/sequences/chat-app/send_message.mmd`](../generation/sequences/chat-app/send_message.mmd).
+The viewer shows the same diagrams per event under [Sequences](/guide/the-viewer).
 
-```
-sequenceDiagram
-    %% derived from https://example.org/chat/send_message
-    %% path: single
-    actor authenticated_user as Authenticated users
-    participant chat_ui as Chat Web Interface
-    participant chat_api as Chat API
-    participant message_db as Message Store
-    participant llm_gateway as LLM Provider Gateway
-    authenticated_user->>chat_ui: send_message (policy: user_send_policy)
-    chat_ui->>chat_api: POST send_message_op [MessageShape]
-    Note over chat_api: start send_message_process
-    chat_api->>message_db: persist_user_msg writes MessageShape
-    Note over chat_api: t_send
-    chat_api-->>chat_ui: message_thread fragment
-    chat_api->>chat_api: route_to_provider (DMN routing_decision)
-    Note over chat_api: t_stream
-    chat_api->>llm_gateway: invoke_llm, completion_op [MessageShape]
-    llm_gateway-->>chat_api: completion_op returns [MessageShape]
-    chat_api-->>chat_ui: stream_events (token deltas)
-    chat_api->>message_db: persist_response writes MessageShape
-    Note over chat_api: t_finish
-    chat_api-->>chat_ui: stream_events (stream.events event)
-```
+<<< @/generation/sequences/chat-app/send_message.mmd{mermaid}
 
 ## Why one graph pays
 

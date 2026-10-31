@@ -77,3 +77,6 @@
 @media (min-width: 1600px) {
   html:root { --vp-layout-max-width: 1760px; }
 }
+
+/* Mermaid diagrams (derived sequence diagrams): no code background, scroll when wide. */
+.vp-doc pre.mermaid { overflow-x: auto; background: none; margin: 16px 0; }

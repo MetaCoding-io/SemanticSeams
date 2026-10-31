@@ -79,6 +79,8 @@ output. CI runs it for every example through the composite action in
 behind, ahead or unreachable compared with the current model.
 `seams sequence <event>` derives an IFML event's Mermaid sequence diagrams from the graph,
 one per gateway path, with a `%% gap:` line for every arrow the model cannot place.
+The viewer shows them per event (its Sequences section and `GET /sequence/{event}`), and
+the docs embed the golden diagrams, rendered with Mermaid.
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 

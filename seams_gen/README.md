@@ -359,6 +359,9 @@ from seams_gen.sequence import derive, render
 d.name, d.gaps, render(d)   # 'send_message', (), 'sequenceDiagram\n    %% derived from ...'
 ```
 
+The viewer imports the same `derive` and `render` for its `GET /sequence/{event}` route
+and its Sequences section, and the docs site embeds the goldens by snippet import.
+
 ## Tests
 
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines

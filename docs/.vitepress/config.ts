@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitepress";
@@ -176,6 +177,19 @@ export default defineConfig({
           }
         }
         return fallback(tokens, idx, options, env, self);
+      };
+      // A ```mermaid fence, or a snippet import of a .mmd file (`<<< @/path.mmd{mermaid}`),
+      // becomes a <pre class="mermaid"> the theme renders in the browser. A snippet token
+      // still has empty content here (VitePress fills it in its own, inner, fence rule), so
+      // the file is read from token.src. Its info is `mermaid[file.mmd]`: the lang, then a title.
+      const fence = md.renderer.rules.fence!;
+      md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+        const token = tokens[idx]!;
+        if (/^mermaid(?![\w-])/.exec(token.info.trim()) === null) return fence(tokens, idx, options, env, self);
+        const src: string | undefined = (token as { src?: string[] }).src?.[0];
+        if (src) env?.includes?.push(src);
+        const content = token.content || (src ? fs.readFileSync(src, "utf8").replace(/\r\n/g, "\n") : "");
+        return `<pre class="mermaid" v-pre>${md.utils.escapeHtml(content)}</pre>\n`;
       };
     },
   },

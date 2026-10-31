@@ -580,6 +580,19 @@ lifecycle. Each one is a separate view. Questions like this are what layer mode,
 in the [backlog](/backlog) and slice M008/S03, is for. That slice opens by running the
 complexity check above on this model.
 
+### One diagram per path
+
+The approval process has exclusive gateways, so `seams sequence :submit_expense` derives
+one sequence diagram per path rather than one diagram with `alt` blocks: five here. The
+viewer's Sequences section on the Submit Expense event lists all five, each with its
+gaps. Two of them, the automatic approval and the manager's approval:
+
+<<< @/generation/sequences/expenses/submit_expense--auto.mmd{mermaid}
+
+<<< @/generation/sequences/expenses/submit_expense--manager--approved.mmd{mermaid}
+
+The rest are in [`docs/generation/sequences/expenses`](../../generation/sequences/expenses).
+
 ## Known limitations
 
 - **The bus is in process.** The approval instance and the payout instance run in the

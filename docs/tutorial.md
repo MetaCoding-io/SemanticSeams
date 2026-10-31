@@ -42,6 +42,16 @@ Optionally, browse the same graph in the read-only viewer (see "v1: the viewer" 
 [README](../README.md)): click from the architecture into the chat page, from the compose
 form's event into the BPMN process, and from its business-rule task into the DMN table.
 
+### The send-message sequence
+
+Nobody drew a sequence diagram for the chat app; the graph has enough to derive one.
+`seams sequence :send_message` walks from the compose form's event through the policy,
+the API operation, the BPMN steps, the store and the LLM gateway, and writes the result
+as Mermaid. The viewer shows the same diagram in the Sequences section of the chat page
+and the send-message process ([Using the viewer](/guide/the-viewer)):
+
+<<< @/generation/sequences/chat-app/send_message.mmd{mermaid}
+
 ## 3. Regenerate the code
 
 The generated code is committed, so this step is optional. It shows that the

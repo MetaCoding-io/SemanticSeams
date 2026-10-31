@@ -126,7 +126,8 @@ and explains everything else on the page.
 - [Build an expense approval app](/tutorials/expenses/): write a model yourself, one layer
   per chapter, from an empty file to the whole system under `docker compose up`.
 - [Using the viewer](/guide/the-viewer): what each part of the page does, and the URLs
-  behind it.
+  behind it, including the Sequences section that renders an event's derived sequence
+  diagrams.
 - [Diagrams are views](/concepts/diagrams-are-views): the idea the project rests on.
 - [Authoring a model](/guide/authoring-a-model): the conventions a model must follow to
   be navigable and to pass the shapes.

@@ -114,7 +114,7 @@ derivation exposed, or that a builder meets after launch.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
-| U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | landed (M013/S02): `seams sequence <event>` and `python -m seams_gen.sequence`, one diagram per gateway path with `%% gap:` lines; goldens in `docs/generation/sequences/` |
+| U1 | **Derived sequence diagram, as designed**: a function from an IFML event to Mermaid, reading the graph and the BPMN XML for step order. Golden test on the chat app's send-message flow | S | none (U2 and U3 make its output complete) | none; control flow stays in the XML | landed (M013/S02): `seams sequence <event>` and `python -m seams_gen.sequence`, one diagram per gateway path with `%% gap:` lines; goldens in `docs/generation/sequences/`; viewer `/sequence/{event}` and docs embedding (M013/S03) |
 | U2 | **Shape-to-store seam**, so the storage lifeline and data-loss impact are derivable; extend `impact-of-node.rq` to reach shapes | S | none | one seam predicate, earned by "which data is lost if this node goes away" | vocabulary and impact query landed (M011/S02): `seam:storedIn` and the `deploy:` store facts, and `impact-of-node.rq` reaches stored shapes; the runtime reads them since S03. Predicate fixed by [ADR-0011](adr/0011-storage-resolution.md) |
 | U3 | **Declare the LLM delta stream** in the chat app, so the runtime infers no publish the graph does not state | S | none | none; `seam:publishesTo` subject widened to `proc:ServiceTask` (D046) | landed (M013/S01): `invoke_llm seam:publishesTo :stream_events`, and the runtime publishes only declared channels; `process_channel` removed |
 | U4 | **As-executed sequence diagram** from the worker's trace rows, then OpenTelemetry spans carrying element IRIs | M | U1 | none for the diagram; an as-observed named graph later | planned (M013/S04) |
@@ -303,7 +303,9 @@ UI work must not eat M3.*
      declared channels. U1 done, M013/S02: `seams sequence <event>` and
      `python -m seams_gen.sequence` derive one Mermaid diagram per exclusive-gateway path,
      with a `%% gap:` line for every arrow the model cannot place; the goldens are in
-     `docs/generation/sequences/`.*
+     `docs/generation/sequences/`. S03 landed: the viewer's `GET /sequence/{event}` and its
+     Sequences section render them with Mermaid, and the concept page, the tutorial and
+     expenses chapter 8 embed the goldens by snippet import.*
    - **M014, Hand-Written Code and Failure Paths** (U6, U7): an ADR and runtime dispatch for
      operation implementations, a hand-written service task in the expense example, error
      shapes and error boundary events. Depends on M010 and M012, because hand-written code

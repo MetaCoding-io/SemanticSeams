@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|status|sequence [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+"""Command line: ``seams generate|check|status|sequence|secrets [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams coverage [MODEL | --project PATH]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
@@ -72,6 +72,23 @@ MODEL is a TriG file or a directory; without it the project's model is used.
 ``--json`` prints the three lists and their counts instead. With any gap, a
 count of each goes to stderr as ``seams coverage: ...`` and the exit code is
 1; a model that cannot be loaded exits 2.
+
+``seams secrets [--env NAME] [--write-example] [--json]`` (M016/S04) lists
+every configuration key of each arch:Environment's containers, as
+``Container.for_environment`` merges them, and prints
+``<env> <container> <key> <kind> <verdict> <source or ->`` per binding. A kind
+is value, secret-ref, secret-file or service; a source is a secret name, a
+secret file path relative to the project root or a service container, never
+a value. Values and services are present; a secret file is present when its
+path exists (it is never opened); a key named in ``<project root>/.env`` is
+present (only key names are read); a secret-ref name is checked against
+``docker secret ls``, and is unchecked, with the reason on stderr, when docker
+is missing or fails. ``--json`` prints the rows and counts instead. With any
+missing row, ``seams secrets: N missing`` goes to stderr and the exit code is 1.
+``--write-example`` writes ``<project root>/.env.example`` for ``--env``, else
+development, else the first environment: keys sorted, plain values with their
+model literal, secrets blank under a ``# secret: <kind> <source>`` comment. An
+unknown environment or a model fault (ResolutionError) exits 2.
 """
 
 from __future__ import annotations
@@ -94,6 +111,7 @@ from .generate import apply, generate_project
 from .lockfile import locate
 from .plan import render, resolve
 from .project import ProjectError, load_project, resolve_model
+from .secrets import EXAMPLE, example_environment, render_example, run_secrets
 from .sequence import run_sequence
 from .status import run_status
 
@@ -127,6 +145,20 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--env", help="the [environments.<name>] to read (default: the only one with endpoints)")
     status.add_argument("--timeout", type=float, default=5.0, help="seconds to wait for each /healthz (default: 5)")
     status.set_defaults(run=_status)
+    secrets = sub.add_parser(
+        "secrets",
+        help="check that each environment's configuration keys and secrets exist, without reading values",
+        description="List every configuration binding per environment and check that its secret exists.",
+    )
+    _project_arguments(secrets)
+    secrets.add_argument("--env", help="the arch:Environment to check, by local name (default: all)")
+    secrets.add_argument(
+        "--write-example",
+        action="store_true",
+        help="write <project>/.env.example for --env (default: development, else the first environment)",
+    )
+    secrets.add_argument("--json", action="store_true", help="print the rows and verdict counts as JSON")
+    secrets.set_defaults(run=_secrets)
     sequence = sub.add_parser(
         "sequence",
         help="derive the Mermaid sequence diagrams of an IFML event, one per gateway path",
@@ -237,6 +269,28 @@ def _status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _secrets(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    model, rows, problems = run_secrets(project, resolve_model(project, args.model), args.env)
+    if args.json:
+        counts = {v: sum(r.verdict == v for r in rows) for v in ("present", "missing", "unchecked")}
+        print(json.dumps({"rows": [r.to_json() for r in rows], "counts": counts}, indent=2))
+    else:
+        for r in rows:
+            print(f"{r.environment} {r.container} {r.key} {r.kind} {r.verdict} {r.source or '-'}")
+    for problem in problems:
+        print(f"seams secrets: unchecked: {problem}", file=sys.stderr)
+    if args.write_example:
+        target = project.root / EXAMPLE
+        target.write_text(render_example(rows, example_environment(model, args.env)), encoding="utf-8")
+        print(_display(target.resolve()))
+    missing = sum(r.verdict == "missing" for r in rows)
+    if missing:
+        print(f"seams secrets: {missing} missing", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _sequence(args: argparse.Namespace) -> int:
     project = load_project(args.project)
     paths, gaps = run_sequence(project, args.model, args.event, args.out, args.trace, args.db)
@@ -302,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("sequence: --db needs --trace")
     try:
         return args.run(args)
-    except (ProjectError, GeneratorError) as err:
+    except (ProjectError, GeneratorError, seams.ResolutionError) as err:
         print(f"seams {args.command}: {err}", file=sys.stderr)
         return EXIT_PROJECT_ERROR
     except OSError as err:

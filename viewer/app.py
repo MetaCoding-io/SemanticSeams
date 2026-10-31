@@ -24,6 +24,8 @@ from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
 
+from seams_gen import GeneratorError
+from seams_gen.sequence import derive, render
 from viewer import ifml, legend, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
@@ -421,6 +423,29 @@ def model_members(model_iri: str) -> list[str]:
     return [str(s) for s in get_graph().subjects(SEAM.inModel, URIRef(model_iri))]
 
 
+def sequence_events(focus: str) -> list[dict]:
+    """Template-only: the ifml:Events whose derived sequence (M013/S03, D048)
+    the view links to. The focus itself when it is an event, the events of a
+    focused IFML model, and the events whose seam:triggers target sits in the
+    focused model (the BPMN view /view/{event} lands on, ADR-0005)."""
+    graph = get_graph()
+    events = {str(e) for e in graph.subjects(RDF.type, IFML.Event)}
+    found: set[str] = set()
+    if focus in events:
+        found.add(focus)
+    if is_model(focus) and notation_of(focus) == "ifml":
+        found.update(m for m in model_members(focus) if m in events)
+    model = focused_model(focus)
+    if model is not None:
+        for ev, target in graph.subject_objects(SEAM.triggers):
+            if str(ev) in events and focused_model(str(target)) == model:
+                found.add(str(ev))
+    return [
+        {"iri": e, "label": label(e), "href": f"/sequence/{quote(e, safe='')}?format=html"}
+        for e in sorted(found, key=lambda e: (label(e), e))
+    ]
+
+
 def payload_element_map(model_iri: str) -> dict:
     """Maps native element ids inside a payload diagram (BPMN/DMN element @id,
     which mirrors the fragment/path segment of the model member's own IRI) back
@@ -811,6 +836,30 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
     return templates.TemplateResponse(request, "query-results.html", ctx)
 
 
+@app.get("/sequence/{event_iri:path}")
+def sequence_endpoint(request: Request, event_iri: str):
+    """The derived sequence diagrams (M013/S03, D048) of one ifml:Event: one
+    per gateway path, with its gaps and Mermaid text. JSON by default, the
+    sequence.html fragment for htmx or ?format=html (as query_endpoint)."""
+    iri = unquote(event_iri)
+    try:
+        diagrams = derive(get_model(), URIRef(iri))
+    except GeneratorError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    result = {
+        "event": iri,
+        "label": label(iri),
+        "diagrams": [
+            {"name": d.name, "path": list(d.path), "gaps": list(d.gaps), "mermaid": render(d)} for d in diagrams
+        ],
+    }
+    wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
+    if not wants_html:
+        return JSONResponse(result)
+    ctx = {"request": request, **result, "json_href": f"/sequence/{quote(iri, safe='')}"}
+    return templates.TemplateResponse(request, "sequence.html", ctx)
+
+
 # Relations panel (M007/S02): the focused element's seam edges grouped by
 # reveal mode. Hints follow docs/research/2026-10-15-reveal-modes.md section 2.
 RELATION_GROUPS = (
@@ -922,6 +971,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
             for q in canned_queries.QUERIES.values()
             if canned_queries.is_applicable(get_graph(), focus, q)
         ],
+        # Template-only (M013/S03): the /view JSON contract is unchanged.
+        "sequence_events": sequence_events(focus),
     }
 
     if render_kind == "c4":

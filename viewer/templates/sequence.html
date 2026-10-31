@@ -1,0 +1,16 @@
+{# Derived sequence diagrams (M013/S03, D048): one per gateway path of the
+   event's process, drawn by Mermaid in page.html after the htmx swap. The
+   %% gap: facts are listed under each diagram so missing seams stay visible. #}
+<div class="sequence-results" data-event="{{ event }}">
+  <h3>Sequence: {{ label }}</h3>
+  {% for d in diagrams %}
+    <h4>{% if d.path %}{{ d.path | join(" → ") }}{% else %}single{% endif %}</h4>
+    <pre class="mermaid" data-sequence="{{ d.name }}">{{ d.mermaid }}</pre>
+    {% if d.gaps %}
+    <ul class="sequence-gaps">
+      {% for g in d.gaps %}<li>{{ g }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  {% endfor %}
+  <p><a class="sequence-json" href="{{ json_href }}">JSON</a></p>
+</div>

@@ -481,6 +481,21 @@
     };
     window.seamsIfmlResolve();
   </script>
+  <script type="module" onerror="console.error('sequence render failed: Mermaid did not load')">
+    // Derived sequence diagrams (M013/S03, D048): Mermaid is loaded once here,
+    // and each htmx swap draws the pre.mermaid blocks it brought in.
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
+    window.seamsMermaid = mermaid;
+    document.body.addEventListener("htmx:afterSwap", function (ev) {
+      ev.detail.target.querySelectorAll("pre.mermaid:not([data-processed])").forEach(function (node) {
+        const name = node.dataset.sequence || "diagram";
+        mermaid.run({ nodes: [node] }).catch(function (err) {
+          console.error("sequence render failed: " + name, err);
+        });
+      });
+    });
+  </script>
   <header>SemanticSeams Viewer</header>
   <div class="health-panel" data-conforms="{{ 'true' if model_conformance.conforms else 'false' }}">
     {% if model_conformance.conforms %}

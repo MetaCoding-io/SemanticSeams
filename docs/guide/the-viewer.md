@@ -118,6 +118,15 @@ reached from more than one parent. Each crumb is a link back.
 Results appear inline with each value linked. The catalog is on the
 [query reference](/reference/queries).
 
+**Sequences.** Beside Questions, links to the
+[derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams)
+of the IFML events the view is about. An IFML model lists its events. The BPMN process
+view that a click on an event lands on lists that event, e.g. Send Message on the
+Message Processing view. An event that opens in the inspector lists itself under
+Details. A link draws one Mermaid diagram per path through the process's exclusive
+gateways, headed by the flows it takes (*single* when there is no choice). Each
+diagram's gaps, the seams the model does not declare yet, are listed under it.
+
 **Details.** The inspector: the element's IRI, its types, its native element ID and
 payload where it has them, and its outgoing and incoming seam edges with readable
 predicate labels. Edges along a navigational predicate are links. A data shape that
@@ -163,6 +172,7 @@ the diagram comes back drawn and clickable.
 | `/view/{iri}?path=…` | The page for an element. `path` carries the breadcrumb trail. Add `format=json`, or send `Accept: application/json`, for the [view response contract](/adr/0004-view-response-contract) as JSON. |
 | `/queries` | The canned-query catalog as JSON. |
 | `/queries/{name}/{focus_iri}` | One query's rows for one focus element. |
+| `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
 
 ## Current limits

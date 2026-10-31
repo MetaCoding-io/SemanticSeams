@@ -323,6 +323,18 @@
     <div id="query-results"></div>
   {% endif %}
 
+  {% if sequence_events %}
+    {# Derived sequences (M013/S03, D048): per-view UI, since the events
+       depend on the focus (MEM009). Mermaid draws them in page.html. #}
+    <section id="sequence-catalog">
+      <h3>Sequences</h3>
+      {% for e in sequence_events %}
+        <a class="sequence-link" data-event="{{ e.iri }}" href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#sequence-view">{{ e.label }}</a>
+      {% endfor %}
+    </section>
+    <div id="sequence-view"></div>
+  {% endif %}
+
   </div>
 
   <aside class="inspector">
@@ -331,6 +343,9 @@
     <p><strong>Type:</strong> {{ types_str }}</p>
     {% if native_element_id %}<p><strong>Native ID:</strong> {{ native_element_id }}</p>{% endif %}
     {% if render_payload %}<p><strong>Payload:</strong> <code>{{ render_payload }}</code></p>{% endif %}
+    {% for e in sequence_events if e.iri == focus_iri %}
+    <p><strong>Sequence:</strong> <a class="sequence-link" data-event="{{ e.iri }}" href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#sequence-view">{{ e.label }}</a></p>
+    {% endfor %}
 
     {% if outgoing %}
       <h4>Outgoing seam edges</h4>

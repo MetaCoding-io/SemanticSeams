@@ -11,7 +11,11 @@ serving container (``seams_gen.fastapi.serving_containers``: it
 ``seam:executes`` a process or exposes an operation a UI event submits to,
 D026) also gets the TriG and every
 ``seam:renderPayload`` bind-mounted read-only under /model, with
-SEAMS_MODEL/SEAMS_MODEL_HASH pointing the runtime at them (D018). Bind
+SEAMS_MODEL/SEAMS_MODEL_HASH pointing the runtime at them (D018). When an
+operation that container exposes is ``seam:implementedBy`` a
+``comm:PythonHandler`` (ADR-0012), the handlers package beside the TriG is
+bind-mounted read-only at /model/handlers too, where the runtime's default
+looks for it. Bind
 sources are relative to ``base_dir``, the directory the compose file is
 written to. Every collection is sorted by IRI or key, and a missing or
 ambiguous required fact raises ``GeneratorError`` naming the subject IRI and
@@ -28,12 +32,25 @@ from pathlib import Path
 
 import yaml
 from rdflib import RDFS
-from seams import ARCH, DEPLOY, SEAM, Binding, Container, Model, ResolutionError, load, local_name
+from seams import (
+    ARCH,
+    COMM,
+    DEPLOY,
+    SEAM,
+    Binding,
+    Container,
+    Model,
+    ModelGraph,
+    ResolutionError,
+    load,
+    local_name,
+)
 
 from . import GeneratorError
 from ._views import optional, required, view_errors
 from .fastapi import serving_containers
 from .htmx import _environment
+from .stubs import DEFAULT_HANDLERS
 
 TEMPLATE_NAME = "compose.yaml.j2"
 
@@ -108,7 +125,7 @@ def extract_compose(model: Model, base_dir) -> ComposeModel:
         raise GeneratorError(systems[0].iri, ARCH.contains, "the arch:System contains no arch:Container")
 
     executing = _executing(model)
-    mounts = _model_mounts(model, base_dir) if executing else ()
+    mounts = _model_mounts(model, base_dir, executing) if executing else ()
     with view_errors():
         model_hash = model.hash
 
@@ -145,14 +162,32 @@ def runtime_containers(model: Model) -> tuple[str, ...]:
     return tuple(sorted(local_name(c.iri) for c in _executing(model)))
 
 
-def _model_mounts(model: Model, base_dir) -> tuple[str, ...]:
-    """The TriG then every seam:renderPayload, bind-mounted read-only."""
+def _model_mounts(model: Model, base_dir, executing) -> tuple[str, ...]:
+    """The TriG then every seam:renderPayload and, when a comm:PythonHandler
+    needs it, the handlers package, bind-mounted read-only."""
     base_dir = Path(base_dir)
     trig = f"{_posix_relpath(model.path, base_dir)}:{MODEL_MOUNT}/{model.path.name}:ro"
     with view_errors():
         payloads = model.payloads()
-    binds = sorted(f"{_posix_relpath(path, base_dir)}:{MODEL_MOUNT}/{rel}:ro" for rel, path in payloads)
-    return tuple(_scalar(m) for m in [trig, *binds])
+    binds = [f"{_posix_relpath(path, base_dir)}:{MODEL_MOUNT}/{rel}:ro" for rel, path in payloads]
+    if _runs_handlers(model, executing):
+        handlers = model.path.parent / DEFAULT_HANDLERS
+        binds.append(f"{_posix_relpath(handlers, base_dir)}:{MODEL_MOUNT}/{DEFAULT_HANDLERS}:ro")
+    return tuple(_scalar(m) for m in [trig, *sorted(binds)])
+
+
+def _runs_handlers(model: Model, executing) -> bool:
+    """True when an operation an executing container seam:exposes is
+    seam:implementedBy a comm:PythonHandler (ADR-0012)."""
+    graph = model if isinstance(model, ModelGraph) else ModelGraph(model.path, model.ds)
+    with view_errors():
+        for op in graph.operations:
+            if not any(c in executing for c in op.exposed_by):
+                continue
+            impl = graph.operation_implementation(op.iri)
+            if impl is not None and impl.kind == COMM.PythonHandler:
+                return True
+    return False
 
 
 def _service(model: Model, c: Container, services: set, mounts, secrets: dict, volumes: set) -> Service:

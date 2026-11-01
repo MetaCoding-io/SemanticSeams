@@ -510,18 +510,36 @@ def generate_compose_environments(trig_path, base_dir=None) -> dict[str, str]:
     of the model, in IRI order (ADR-0015). A model without one, or two
     environments with one local name, raises GeneratorError."""
     base_dir = Path.cwd() if base_dir is None else Path(base_dir)
-    model = load(trig_path)
-    files: dict[str, str] = {}
+    return render_compose_environments(extract_compose_environments(load(trig_path), base_dir))
+
+
+@dataclass(frozen=True)
+class ComposeFile:
+    name: str  # compose.<environment local name>.yaml
+    compose: ComposeModel
+
+
+def extract_compose_environments(model: Model, base_dir) -> tuple[ComposeFile, ...]:
+    """The compose model of every arch:Environment of the model, in IRI order,
+    with its file name; paths are relative to ``base_dir``. Two environments
+    with one local name are a GeneratorError."""
+    files: dict[str, ComposeFile] = {}
     for env in environments(model):
         name = compose_file_name(env)
         if name in files:
             raise GeneratorError(env.iri, RDF.type, f"another arch:Environment is also named {local_name(env.iri)!r}")
-        files[name] = render_compose(extract_compose(model, base_dir, env))
-    return files
+        files[name] = ComposeFile(name, extract_compose(model, Path(base_dir), env))
+    return tuple(files.values())
+
+
+def render_compose_environments(files: tuple[ComposeFile, ...]) -> dict[str, str]:
+    """{compose.<environment local name>.yaml: text}, one per compose model."""
+    return {f.name: render_compose(f.compose) for f in files}
 
 
 __all__ = [
     "Build",
+    "ComposeFile",
     "ComposeModel",
     "Dependency",
     "Service",
@@ -530,8 +548,10 @@ __all__ = [
     "compose_file_name",
     "environments",
     "extract_compose",
+    "extract_compose_environments",
     "generate_compose",
     "generate_compose_environments",
     "render_compose",
+    "render_compose_environments",
     "TEMPLATE_NAME",
 ]

@@ -41,10 +41,9 @@ from .dockerfile import dockerfile_name, extract_dockerfile
 from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
 from .ifmledit import ifmledit_sources
+from .protocol import Sources
 from .smoke import smoke_sources
 from .tests import tests_sources
-
-Sources = dict[str, tuple[str, ...]]
 
 
 def _iris(model: Model, terms: Iterable[object]) -> tuple[str, ...]:

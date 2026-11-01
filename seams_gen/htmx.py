@@ -893,24 +893,44 @@ def render_task_forms(page: PageModel) -> dict[str, str]:
     return {tf.name: template.render(page=page, t=tf) for tf in page.task_forms}
 
 
-def generate_pages(model: Model) -> dict[str, str]:
-    """{file name: text}: each page of ``model.interfaces.served_pages()`` as
-    <page local name>.html with its partials (the landmark first, with its task
-    form partials, then the others by IRI). Two pages naming the same partial
-    must render it identically."""
-    files: dict[str, str] = {}
+@dataclass(frozen=True)
+class ServedPage:
+    iri: str  # the page's full IRI, which a GeneratorError names
+    page: PageModel
+
+
+def extract_pages(model: Model) -> tuple[ServedPage, ...]:
+    """The PageModel of each page of ``model.interfaces.served_pages()``: the
+    landmark first, then the others by IRI."""
     _landmark(model)  # no single landmark: GeneratorError on the interaction model
-    for page in (extract_page(model, p.iri) for p in model.interfaces.served_pages()):
+    pages = (extract_page(model, p.iri) for p in model.interfaces.served_pages())
+    return tuple(ServedPage(str(model.curie(page.curie)), page) for page in pages)
+
+
+def render_pages(pages: tuple[ServedPage, ...]) -> dict[str, str]:
+    """{file name: text}: each page as <page local name>.html with its
+    partials, and the landmark's task form partials. Two pages naming the same
+    partial must render it identically."""
+    files: dict[str, str] = {}
+    for served in pages:
+        page = served.page
         rendered = {f"{page.id}.html": render_page(page), **render_fragments(page)}
         if page.landmark:
             rendered.update(render_task_forms(page))
         for name, text in rendered.items():
             if files.get(name, text) != text:
                 raise GeneratorError(
-                    model.curie(page.curie), IFML.contains, f"{name} would be generated twice with different content"
+                    served.iri, IFML.contains, f"{name} would be generated twice with different content"
                 )
             files[name] = text
     return files
+
+
+def generate_pages(model: Model) -> dict[str, str]:
+    """{file name: text}: each page of ``model.interfaces.served_pages()`` as
+    <page local name>.html with its partials (the landmark first, with its task
+    form partials, then the others by IRI)."""
+    return render_pages(extract_pages(model))
 
 
 def generate_page(trig_path) -> str:

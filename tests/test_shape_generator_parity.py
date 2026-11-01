@@ -908,7 +908,7 @@ GENERATOR_ONLY: dict[Site, str] = {
         "Finding a task's process uses the IRI rule of ADR-0002 (<model>#<id>) as well as seam:inModel, "
         "then counts the processes seam:detailedBy that model; left to the generator."
     ),
-    Site("htmx", "generate_pages", "IFML.contains"): (
+    Site("htmx", "render_pages", "IFML.contains"): (
         "Two served pages rendering one partial differently is a comparison of rendered text across pages, "
         "not a graph condition."
     ),
@@ -934,9 +934,9 @@ GENERATOR_ONLY: dict[Site, str] = {
         "A model with no container serving routes is valid (a data, process-only or UI sketch model); "
         "only route generation needs one."
     ),
-    Site("fastapi", "route_module", "SEAM.executes"): (
+    Site("fastapi", "extract_route_module", "SEAM.executes"): (
         "Several serving containers are a valid architecture, and extract_routes renders a module for each. "
-        "route_module, which the CLI, the tests generator and seams_gen.sources use, takes one: "
+        "extract_route_module, behind route_module, which the CLI, the tests generator and seams_gen.sources use, takes one: "
         f"{_LIMIT}."
     ),
     Site("fastapi", "_triggered", "SEAM.subscribesTo", "several"): (
@@ -1004,7 +1004,7 @@ GENERATOR_ONLY: dict[Site, str] = {
         "containers of one environment. Stating it needs each container's bindings in that environment "
         "after ADR-0015's override merge, compared case-insensitively across containers; left to the generator."
     ),
-    Site("compose", "generate_compose_environments", "RDF.type"): f"Two compose files named alike: {_NAMES}.",
+    Site("compose", "extract_compose_environments", "RDF.type"): f"Two compose files named alike: {_NAMES}.",
     Site("dockerfile", "extract_dockerfile", "SEAM.executes"): (
         "A model with no container serving routes is valid; only the runtime image's Dockerfile needs one."
     ),

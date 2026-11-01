@@ -628,15 +628,20 @@ def render_routes(routes: RoutesModel) -> dict[str, str]:
     return {m.file_name: template.render(r=routes, m=m) for m in routes.modules}
 
 
-def route_module(trig_path) -> tuple[str, str]:
-    """(file name, text) of the model's one route module; no or several
+def extract_route_module(model: Model) -> RoutesModel:
+    """The routes model of the model's one serving container; no or several
     serving containers are a GeneratorError(model, seam:executes)."""
-    model = load(trig_path)
     routes = extract_routes(model)
     if len(routes.modules) != 1:
         raise GeneratorError(
             model.subject, SEAM.executes, f"expected one serving container, found {[m.curie for m in routes.modules]}"
         )
+    return routes
+
+
+def route_module(trig_path) -> tuple[str, str]:
+    """(file name, text) of the model's one route module (``extract_route_module``)."""
+    routes = extract_route_module(load(trig_path))
     name = routes.modules[0].file_name
     return name, render_routes(routes)[name]
 
@@ -651,6 +656,7 @@ __all__ = [
     "RoutesModel",
     "RouteModule",
     "Endpoint",
+    "extract_route_module",
     "extract_routes",
     "generate_routes",
     "render_routes",

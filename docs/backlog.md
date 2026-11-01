@@ -59,7 +59,7 @@ updated reason.
 | 11 | **Layer mode** (stacked planes, hover tracing). | Reveal 4 | Legible only as an overview; the mock proved the idea, the product needs 2 and 7 first. Revisit when there is a second worked example large enough to need it. That example now exists: the expense-approval build-along tutorial's final checkpoint (E1, done in M009/S07) passes the complexity check (E3), and the slice opens by running that check; see the [build-along note](research/2026-10-29-build-along-tutorial.md) | planned (M008/S03) |
 | 12 | **IFMLEdit JSON exporter** as a conformance check. | IFML 5 | Valuable but orthogonal to the persona; do it when the vocabulary's correspondence claims are challenged, or as a weekend item. `python -m seams_gen ifmledit` writes `ifmledit.json` from `model.interfaces`; the `ifml:` terms with no IFMLEdit counterpart are GAP-29 to GAP-35 in [gaps.md](generation/golden/gaps.md) | done (M008/S01) |
 | 13 | **Editing** (diagram-js modeling module, embed modelers read-write). | IFML 6 · project outline roadmap | Unparked 2026-10-31: editing is in scope from the outset, replacing the product brief's v1 non-goal ([principle 10](project/principles.md#_10-the-model-is-editable-through-one-write-path)). I1 to I5 are the plan ([note](research/2026-10-30-domain-ide-and-generator-kit.md)); planned as M019, which replaces M008/S04 | planned (M019) |
-| 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need | planned (M008/S02) |
+| 14 | **Levels for IFML** (container › component › event). | Levels open question 2 | Generalise from C4 only when the IFML view needs it; proper notation (3) removes most of the need. Checked again in M008/S02 (D055): the IFML view now draws real notation on diagram-js with pan and zoom (3, 10), and the largest example IFML model (`examples/expenses/chapter-09/expenses.trig`) has 3 containers and 4 events, so container, component and event levels would draw nearly the same picture. Revisit when a model is too big to read at one zoom (roughly 10+ containers or 30+ events), or when editing (M019) needs a coarser view | re-parked (M008/S02) |
 
 Resolved open questions from the Levels note: L4 is a preset of reveal
 choices, not a separate level (item 7, delivered in M007/S02: L4 applies nest
@@ -298,7 +298,7 @@ UI work must not eat M3.*
    brought into scope on 2026-10-31, and S04 was skipped in favour of M019. *Item 12 done,
    M008/S01: `python -m seams_gen ifmledit` exports the IFML layer as IFMLEdit.org JSON,
    and the seven `ifml:` term groups IFMLEdit cannot hold are deferred rows GAP-29 to
-   GAP-35.* *Next:* levels for IFML (S02), then layer mode (S03), which opens by running the E3 complexity
+   GAP-35.* *Item 14 re-parked, M008/S02 (D055): the largest example IFML model has 3 containers and 4 events, so levels would draw nearly the same picture; revisit at roughly 10+ containers or 30+ events, or when editing (M019) needs a coarser view.* *Next:* layer mode (S03), which opens by running the E3 complexity
    measurement on the finished expense app,
    `python -m seams_gen.complexity examples/expenses/chapter-08/expenses.trig`.
 8. The library, model-gap and artifact items as M010 to M016, planned 2026-10-29. Each

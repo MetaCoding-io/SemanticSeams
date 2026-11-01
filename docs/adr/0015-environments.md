@@ -292,3 +292,11 @@ Recorded when S03 landed (M016/S03):
   a matrix job. The short model hash in the `sha-` tag is the first 12 hex digits of the
   model hash; the image also carries `org.opencontainers.image.revision`,
   `io.semanticseams.model-hash` and `io.semanticseams.container` labels.
+
+## Revision notes
+
+- 2026-10-31 (backlog A13): `python -m seams_gen.images` also lists every non-serving
+  container whose development `deploy:artifact` has a `deploy:build`, building the
+  Dockerfile its `deploy:dockerfile` names, so every image the production compose file
+  names is one the publish workflow produces. The chat app's LLM gateway is published
+  as `ghcr.io/metacoding-io/llm-gateway`.

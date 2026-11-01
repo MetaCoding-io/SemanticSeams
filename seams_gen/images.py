@@ -8,7 +8,11 @@ deploy:reference and deploy:version of the container's deploy:artifact in the
 ``production`` arch:Environment, through ``Container.for_environment``. Each
 image is tagged ``<reference>:<version>`` and ``<reference>:sha-<short hash>``,
 the short hash being the first ``SHORT_HASH`` hex digits of ``model.hash``,
-so a published image names the model it serves. The publish workflow
+so a published image names the model it serves. Every other arch:Container
+whose development deploy:artifact has a deploy:build (a hand-written
+Dockerfile, such as the chat app's LLM gateway) is listed too, with the
+Dockerfile its deploy:dockerfile names, so every image the production compose
+file names is one the workflow produces. The publish workflow
 (.github/workflows/publish-images.yml) builds and pushes these.
 
 Command line: ``python -m seams_gen.images PROJECT...`` prints the images of
@@ -30,7 +34,7 @@ import tomllib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from seams import DEPLOY, load
+from seams import DEPLOY, Model, load
 
 from . import GeneratorError
 from ._views import required, view_errors
@@ -133,6 +137,41 @@ def list_images(project, cwd=None) -> list[Image]:
                 version=artifact.version,
                 model_hash=d.model_hash,
                 tags=tags,
+            )
+        )
+    images.extend(_built_images(model, env, container, cwd))
+    return images
+
+
+def _built_images(model: Model, production, serving, cwd: Path) -> list[Image]:
+    """The images of the other containers with a development deploy:build, by IRI."""
+    development = _resolve_environment(model, "development")
+    with view_errors():
+        model_hash = model.hash
+        others = sorted((c for c in model.architecture.containers() if c != serving), key=lambda c: str(c.iri))
+    images = []
+    for c in others:
+        with view_errors():
+            build = c.for_environment(development).artifact
+            build = build.build if build is not None else None
+            if build is None:
+                continue
+            artifact = c.for_environment(production).artifact
+        artifact = required(artifact, str(c.iri), DEPLOY.artifact, f"in the {PRODUCTION} environment")
+        context = (model.path.parent / build.context).resolve()
+        dockerfile = context / build.dockerfile
+        if not dockerfile.is_file():
+            raise ProjectError(f"{model.path}: {dockerfile}, the deploy:dockerfile of {c.iri}, is missing")
+        images.append(
+            Image(
+                container=str(c.iri),
+                context=_relative(context, cwd),
+                dockerfile=_relative(dockerfile, cwd),
+                reference=artifact.reference,
+                registry=registry(artifact.reference),
+                version=artifact.version,
+                model_hash=model_hash,
+                tags=(f"{artifact.reference}:{artifact.version}", f"{artifact.reference}:sha-{short_hash(model_hash)}"),
             )
         )
     return images

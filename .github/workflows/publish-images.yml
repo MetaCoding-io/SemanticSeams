@@ -1,7 +1,8 @@
 name: Publish images
 
 # Builds the runtime image of each project's serving container from its generated
-# Dockerfile (seams_gen dockerfile, M016/S03) and tags it with the production
+# Dockerfile (seams_gen dockerfile, M016/S03), and of every other container whose
+# development deploy:build names a hand-written Dockerfile, and tags it with the production
 # deploy:artifact's reference and version, plus sha-<model hash>, so the production
 # compose file names an image this workflow produces. Gated (ADR-0015, backlog A5):
 # it runs only by hand or on a v* tag, never on a push to main or a pull request,

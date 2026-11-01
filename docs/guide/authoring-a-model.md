@@ -225,7 +225,8 @@ the context; compose passes no build args.
 
 Production names images by `deploy:reference` and `deploy:version`. The gated
 `.github/workflows/publish-images.yml` workflow builds each project's generated
-Dockerfile and tags the image `<reference>:<version>` and `<reference>:sha-<model hash>`
+Dockerfile, and the hand-written Dockerfile of any other container whose development
+`deploy:artifact` has a `deploy:build` (the chat app's LLM gateway), and tags the image `<reference>:<version>` and `<reference>:sha-<model hash>`
 (the first 12 hex digits). It runs only by hand (`workflow_dispatch`, which pushes only
 when its `push` input is set) or on a `v*` tag, never on a push to main or a pull
 request. `python -m seams_gen.images PROJECT...` prints the list it builds, as JSON.

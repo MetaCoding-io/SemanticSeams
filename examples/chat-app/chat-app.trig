@@ -92,8 +92,8 @@
     :llm_gateway a arch:Container ; rdfs:label "LLM Provider Gateway" ;
         arch:technology "OpenAI-compatible API proxy" ;
         deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/example/llm-gateway" ;
-                          deploy:version "latest" ] ;
+                          deploy:reference "ghcr.io/metacoding-io/llm-gateway" ;
+                          deploy:version "0.3.1" ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "LLM_API_KEY" ;

@@ -46,6 +46,14 @@ def _production_artifact(project: str):
     return container, container.for_environment(_resolve_environment(model, "production")).artifact
 
 
+def _serving_image(project, cwd):
+    """The serving container's image, which the list puts first."""
+    (container,) = _executing(load(Path(project) / _model_name(str(project))))
+    image = list_images(project, cwd=cwd)[0]
+    assert image.container == str(container.iri)
+    return image
+
+
 def _model_name(project: str) -> str:
     return tomllib.loads((ROOT / project / "seams.toml").read_text())["model"]
 
@@ -108,7 +116,7 @@ def test_the_list_job_syncs_and_lists_the_named_projects():
 @pytest.mark.parametrize("project", ["examples/chat-app", "examples/expenses/chapter-09"])
 def test_each_listed_reference_is_the_production_artifact_reference(project):
     container, artifact = _production_artifact(project)
-    (image,) = list_images(ROOT / project, cwd=ROOT)
+    image = _serving_image(ROOT / project, cwd=ROOT)
     assert image.container == str(container.iri)
     assert image.reference == artifact.reference
     assert image.version == artifact.version
@@ -120,7 +128,7 @@ def test_each_listed_reference_is_the_production_artifact_reference(project):
 
 @pytest.mark.parametrize("project", ["examples/chat-app", "examples/expenses/chapter-09"])
 def test_the_listed_dockerfile_is_generated_for_the_listed_model_hash(project):
-    (image,) = list_images(ROOT / project, cwd=ROOT)
+    image = _serving_image(ROOT / project, cwd=ROOT)
     assert image.context == "."
     assert image.dockerfile.startswith(f"{project}/generated/") and image.dockerfile.endswith(".Dockerfile")
     text = (ROOT / image.dockerfile).read_text()
@@ -130,13 +138,13 @@ def test_the_listed_dockerfile_is_generated_for_the_listed_model_hash(project):
 
 
 def test_the_chat_app_reference_matches_the_model_literal():
-    (image,) = list_images(ROOT / "examples/chat-app", cwd=ROOT)
+    image = _serving_image(ROOT / "examples/chat-app", cwd=ROOT)
     assert image.reference == "ghcr.io/metacoding-io/chat-api"
     assert image.registry == "ghcr.io"
 
 
 def test_paths_are_relative_to_the_working_directory():
-    (image,) = list_images(ROOT / "examples/chat-app", cwd=ROOT / "examples")
+    image = _serving_image(ROOT / "examples/chat-app", cwd=ROOT / "examples")
     assert image.context == ".."
     assert image.dockerfile == "chat-app/generated/chat_api.Dockerfile"
 
@@ -159,7 +167,11 @@ def test_cli_prints_one_json_array_for_every_project():
     )
     assert result.returncode == 0, result.stderr
     images = json.loads(result.stdout)
-    assert [i["reference"] for i in images] == ["ghcr.io/metacoding-io/chat-api", "ghcr.io/metacoding-io/expense-api"]
+    assert [i["reference"] for i in images] == [
+        "ghcr.io/metacoding-io/chat-api",
+        "ghcr.io/metacoding-io/llm-gateway",
+        "ghcr.io/metacoding-io/expense-api",
+    ]
     assert set(images[0]) == {
         "container",
         "context",
@@ -222,3 +234,24 @@ def test_cli_exit_codes(tmp_path):
     trig.write_text(trig.read_text().replace(":production a arch:Environment", ":staging a arch:Environment"))
     model_error = run(str(project))
     assert model_error.returncode == 2 and "rdf-syntax-ns#type" in model_error.stderr
+
+
+def test_a_hand_built_container_is_listed_with_its_production_reference():
+    # The chat app's LLM gateway builds from a hand-written Dockerfile in development;
+    # its production image must be one the workflow publishes.
+    model = load(ROOT / "examples/chat-app" / _model_name("examples/chat-app"))
+    images = {i.container: i for i in list_images(ROOT / "examples/chat-app", cwd=ROOT)}
+    (serving,) = _executing(model)
+    production = _resolve_environment(model, "production")
+    others = [
+        c
+        for c in model.architecture.containers()
+        if c != serving and c.for_environment(_resolve_environment(model, "development")).artifact.build is not None
+    ]
+    assert others
+    for c in others:
+        image = images[str(c.iri)]
+        artifact = c.for_environment(production).artifact
+        assert image.tags[0] == f"{artifact.reference}:{artifact.version}"
+        assert (ROOT / image.dockerfile).is_file()
+        assert "example/" not in artifact.reference

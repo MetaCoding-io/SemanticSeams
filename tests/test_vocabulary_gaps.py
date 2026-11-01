@@ -112,7 +112,7 @@ def test_gap_01_images(chat_model):
         # ADR-0015: chat_ui is a code-free reverse proxy (deploy:proxies :chat_api).
         (CHAT.chat_ui, lit("caddy"), lit("2-alpine")),
         (CHAT.chat_api, lit("ghcr.io/metacoding-io/chat-api"), lit("0.3.1")),
-        (CHAT.llm_gateway, lit("ghcr.io/example/llm-gateway"), lit("latest")),
+        (CHAT.llm_gateway, lit("ghcr.io/metacoding-io/llm-gateway"), lit("0.3.1")),
         (CHAT.message_db, lit("postgres"), lit("16")),
     }
 

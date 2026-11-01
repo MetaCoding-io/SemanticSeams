@@ -2,7 +2,9 @@
 
 Function-level: generate_project, apply, render_lock and read_lock on a copy of
 examples/expenses/chapter-03 in tmp_path, with third-party generators from the
-``generator_dist`` fixture.
+``generator_dist`` fixture. CLI-level: in-process ``seams generate --lenient``
+and ``seams check`` on the same copy, with a precondition generator and a
+raising generator registered through a monkeypatched ``discover``.
 """
 
 import json
@@ -13,10 +15,13 @@ from pathlib import Path
 import pytest
 from rdflib import Graph
 from seams_cli import Fault, Lock, LockError, load_project, read_lock, render_lock
-from seams_cli.check import SHAPES_FILE
+from seams_cli.__main__ import main
+from seams_cli.check import FILE_KINDS, SHAPES_FILE
 from seams_cli.generate import apply, generate_project, shape_results
 
+import seams_gen.registry
 from seams_gen import GeneratorError
+from seams_gen.protocol import Generator
 from seams_gen.registry import discover
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -217,3 +222,124 @@ def test_a_malformed_faults_entry_raises_lock_error(app, faults, key):
     path.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(LockError, match=re.escape(f"{path}: {key}")):
         read_lock(project)
+
+
+# ── seams generate --lenient and seams check (CLI) ─────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_model(monkeypatch):
+    monkeypatch.delenv("SEAMS_MODEL", raising=False)
+
+
+def _cli(*argv: str) -> int:
+    return main(list(argv))
+
+
+def _summary(n: int) -> str:
+    return f"seams generate: {n} fault(s); output is flagged\n"
+
+
+def _line(fault: Fault) -> str:
+    return f"seams generate: fault {fault.generator}: {fault.focus}: {fault.shape}: {fault.message}\n"
+
+
+def _check_lines(app: Path, capsys) -> list[str]:
+    assert _cli("check", "--project", str(app)) == 1
+    out, err = capsys.readouterr()
+    assert err.startswith("seams check: ") and "problem(s)" in err
+    return out.splitlines()
+
+
+def test_cli_lenient_precondition_fault_writes_flagged_output(app, capsys):
+    _break(app, BROKEN)
+    _project(app, BUILTIN + STRICT)
+    assert _cli("generate", "--project", str(app), "--lenient") == 0
+    out, err = capsys.readouterr()
+    assert err == _line(PRECONDITION_FAULT) + _summary(1)
+    assert out.splitlines()[-1] == str(app / "seams.lock")
+    assert (app / "generated/strict/strict.txt").read_text(encoding="utf-8") == "ok\n"
+    assert (app / "generated/expense_api.py").is_file()
+    project = load_project(app)
+    assert read_lock(project).faults == (PRECONDITION_FAULT,)
+
+    lines = _check_lines(app, capsys)
+    assert f"flagged {app / 'seams.lock'} 1 fault(s)" in lines
+    # The lock matches what lenient generation writes: no output or lock finding.
+    assert not {line.split(" ", 1)[0] for line in lines} & FILE_KINDS
+
+    before = _tree(app)
+    assert _cli("generate", "--project", str(app)) == 2
+    assert capsys.readouterr().err == f"seams generate: {BROKEN}: {MODEL_SHAPE}: {REQUIRES}{NOTATION}\n"
+    assert _tree(app) == before
+
+
+def _raise_on_broken(trig: Path, out: Path):
+    if "broken_model" in trig.read_text(encoding="utf-8"):
+        raise GeneratorError(BROKEN, "seam:notation", "cannot render a model without a notation")
+    return None
+
+
+RAISER = Generator(
+    name="raiser",
+    version="2.0.0",
+    help="raises on a broken model",
+    extract=_raise_on_broken,
+    render=lambda view: {"raiser.txt": "rendered\n"},
+    sources=lambda trig, out: {"raiser.txt": ()},
+)
+RAISER_FAULT = Fault("raiser", "seam:notation", BROKEN, "cannot render a model without a notation")
+
+
+@pytest.fixture
+def raiser(monkeypatch):
+    registry = {**discover(), "raiser": RAISER}
+    monkeypatch.setattr(seams_gen.registry, "discover", lambda: registry)
+
+
+def test_cli_lenient_generator_error_keeps_its_locked_output(app, raiser, capsys):
+    _project(app, BUILTIN + '[[generators]]\nname = "raiser"\nout = "generated/raiser"\n')
+    assert _cli("generate", "--project", str(app)) == 0
+    capsys.readouterr()
+    output = app / "generated/raiser/raiser.txt"
+    entry = next(o for o in read_lock(load_project(app)).outputs if o.generator == "raiser")
+
+    _break(app, BROKEN)
+    assert _cli("generate", "--project", str(app), "--lenient") == 0
+    out, err = capsys.readouterr()
+    assert err == _line(RAISER_FAULT) + _summary(1)
+    assert "removed" not in out
+    assert output.read_text(encoding="utf-8") == "rendered\n"
+    lock = read_lock(load_project(app))
+    assert lock.faults == (RAISER_FAULT,)
+    assert entry in lock.outputs
+
+    lines = _check_lines(app, capsys)
+    assert f"flagged {app / 'seams.lock'} 1 fault(s)" in lines
+    # The carried output is neither an orphan nor a reason for lock-out-of-date.
+    assert not {line.split(" ", 1)[0] for line in lines} & FILE_KINDS
+
+    before = _tree(app)
+    assert _cli("generate", "--project", str(app)) == 2
+    assert (
+        capsys.readouterr().err
+        == f"seams generate: {BROKEN}: seam:notation: cannot render a model without a notation\n"
+    )
+    assert _tree(app) == before
+
+
+def test_check_reports_a_fault_the_lock_does_not_record_as_lock_out_of_date(app, raiser, capsys):
+    _project(app, BUILTIN + '[[generators]]\nname = "raiser"\nout = "generated/raiser"\n')
+    assert _cli("generate", "--project", str(app)) == 0
+    _break(app, BROKEN)
+    capsys.readouterr()
+    lines = _check_lines(app, capsys)
+    assert f"lock-out-of-date {app / 'seams.lock'}" in lines
+    assert not any(line.startswith("flagged ") for line in lines)
+
+
+def test_a_clean_lenient_run_prints_no_faults_and_checks_clean(app, capsys):
+    _project(app, BUILTIN)
+    assert _cli("generate", "--project", str(app), "--lenient") == 0
+    assert capsys.readouterr().err == ""
+    assert _cli("check", "--project", str(app)) == 0

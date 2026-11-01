@@ -38,6 +38,7 @@ from seams_gen import GeneratorError
 from .lockfile import (
     Audit,
     Fault,
+    Lock,
     Output,
     audit,
     build_lock,
@@ -117,6 +118,18 @@ def _write(path: Path, text: str) -> None:
         fh.write(text)
 
 
+def next_lock(project: Project, model: Path, generated: Generated, old: Lock | None, report: Audit) -> Lock:
+    """The lock ``apply`` writes: the generated outputs and faults, plus the old
+    entry of every orphan whose generator faulted this run."""
+    lock = build_lock(project, model, generated.files, generated.faults)
+    faulted = {fault.generator for fault in generated.faults}
+    entries = {entry.path: entry for entry in old.outputs} if old else {}
+    carried = [entries[rel] for rel in report.orphans if entries[rel].generator in faulted]
+    if carried:
+        lock = replace(lock, outputs=tuple(sorted((*lock.outputs, *carried), key=lambda o: o.path)))
+    return lock
+
+
 @dataclass(frozen=True)
 class Applied:
     """What ``apply`` did. ``removed`` and ``kept`` are absolute orphan paths;
@@ -134,13 +147,10 @@ def apply(project: Project, model: Path, generated: Generated) -> Applied:
     files = generated.files
     old = read_lock(project)
     report = audit(project, old, {path: out.text for path, out in files.items()})
-    lock = build_lock(project, model, files, generated.faults)
+    lock = next_lock(project, model, generated, old, report)
     write_outputs(files)
     entries = {entry.path: entry for entry in old.outputs} if old else {}
     faulted = {fault.generator for fault in generated.faults}
-    carried = [entries[rel] for rel in report.orphans if entries[rel].generator in faulted]
-    if carried:
-        lock = replace(lock, outputs=tuple(sorted((*lock.outputs, *carried), key=lambda o: o.path)))
     locked = {rel: entry.sha256 for rel, entry in entries.items()}
     removed, kept = [], []
     for rel in report.orphans:

@@ -1,6 +1,6 @@
 """``seams check``: does a project still hold together? (M012/S03, D044)
 
-Five checks run, and a sixth when the project asks for it; every finding
+Six checks run, and a seventh when the project asks for it; every finding
 is reported and nothing is written.
 
 - ``shacl``: the model, unioned with ``ontology/*.ttl``, is validated against
@@ -13,7 +13,14 @@ is reported and nothing is written.
   ``stale``: on disk but different from the produced text. ``hand-edited``: a
   stale file whose sha256 is not the locked one either. ``orphan``: locked, no
   longer produced, still on disk. ``lock-out-of-date``: no seams.lock, or the
-  lock generate would write differs from the one on disk.
+  lock generate would write differs from the one on disk. Generation here is
+  lenient (D057): a generator fault does not stop the check, its outputs and
+  orphans are compared as ``seams generate --lenient`` would leave them, and a
+  fault the on-disk lock does not record makes the lock out of date.
+- ``flagged``: the on-disk seams.lock records faults, so its outputs came from
+  ``seams generate --lenient`` (D057). The detail is the lock path and the
+  fault count. It is a problem, not advisory, which is how CI rejects a
+  flagged lock.
 - ``decision``: one finding per fault ``seams.decision_findings`` reports
   (backlog K2, M017/S02): a DMN input whose typeRef disagrees with the
   sh:datatype of its dec:fromPath, or a gateway condition reading a variable
@@ -46,8 +53,8 @@ from rdflib.plugins.sparql import prepareQuery
 import seams_gen
 
 from .coverage import path_gaps
-from .generate import generate_project
-from .lockfile import audit, build_lock, locate, lock_path, read_lock, relative, render_lock
+from .generate import generate_project, next_lock
+from .lockfile import audit, locate, lock_path, read_lock, relative, render_lock
 from .project import Project, ProjectError
 
 ONTOLOGY_DIR = Path(seams_gen.__file__).resolve().parents[1] / "ontology"
@@ -118,9 +125,11 @@ def check_gates(project: Project, graph: rdflib.Graph) -> list[Finding]:
 def check_outputs(project: Project, model: Path) -> list[Finding]:
     """Compare the outputs produced now with the disk and with seams.lock. Writes nothing."""
     old = read_lock(project)
-    outputs = generate_project(project, model).files
-    files = {path: out.text for path, out in outputs.items()}
+    generated = generate_project(project, model, lenient=True)
+    files = {path: out.text for path, out in generated.files.items()}
     report = audit(project, old, files)
+    faulted = {fault.generator for fault in generated.faults}
+    generators = {entry.path: entry.generator for entry in old.outputs} if old else {}
     edited = {locate(project, rel) for rel in report.edited}
     findings = []
     for path, text in files.items():
@@ -129,12 +138,18 @@ def check_outputs(project: Project, model: Path) -> list[Finding]:
         elif path.read_bytes() != text.encode("utf-8"):
             findings.append(Finding("hand-edited" if path in edited else "stale", str(path)))
     for rel in report.orphans:
+        if generators[rel] in faulted:
+            continue
         path = locate(project, rel)
         if path.exists() or path.is_symlink():
             findings.append(Finding("orphan", str(path)))
     target = lock_path(project)
-    if old is None or target.read_text(encoding="utf-8") != render_lock(build_lock(project, model, outputs)):
+    if old is None or target.read_text(encoding="utf-8") != render_lock(
+        next_lock(project, model, generated, old, report)
+    ):
         findings.append(Finding("lock-out-of-date", str(target)))
+    if old is not None and old.faults:
+        findings.append(Finding("flagged", f"{target} {len(old.faults)} fault(s)"))
     return findings
 
 

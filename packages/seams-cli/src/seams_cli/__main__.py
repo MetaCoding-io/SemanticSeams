@@ -15,6 +15,11 @@ rewritten and the exit code stays 0. A malformed seams.lock exits 2 before
 anything is written.
 A ProjectError or GeneratorError prints ``seams generate: <message>`` to
 stderr and exits 2; a file that cannot be read or written exits 1.
+``seams generate --lenient`` (D057) does not stop on a violated generator
+precondition or a GeneratorError: it writes what the generators produced,
+records the faults in seams.lock, prints each to stderr as
+``seams generate: fault <generator>: <focus>: <shape>: <message>``, then
+``seams generate: N fault(s); output is flagged``, and exits 0.
 
 ``seams check`` (D044) writes nothing. It validates the model against the
 SHACL shapes, runs the project's gate queries and compares the outputs
@@ -25,6 +30,8 @@ only those goes to stderr and the exit code is 1. With review findings only,
 ``seams check: N review warning(s)`` goes to stderr and the exit code is 0. A model that cannot be loaded, a bad
 gate or a malformed seams.lock exits 2. With ``coverage = ["paths"]`` in the
 project file, each BPMN path no scenario runs is a ``coverage`` finding too.
+A seams.lock that records faults is a ``flagged`` finding, a problem; check
+runs the generators leniently, so a generator fault is never an exit 2 here.
 
 ``seams status [--env NAME] [--timeout SECONDS]`` (D045) GETs /healthz from
 each runtime container of the model at the base URL that
@@ -130,6 +137,11 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run every generator of the project file and write its outputs.",
     )
     _project_arguments(gen)
+    gen.add_argument(
+        "--lenient",
+        action="store_true",
+        help="record precondition and generator faults in seams.lock instead of failing; the output is flagged",
+    )
     gen.set_defaults(run=_generate)
     check = sub.add_parser(
         "check",
@@ -229,8 +241,12 @@ def _display(path: Path) -> str:
 def _generate(args: argparse.Namespace) -> int:
     project = load_project(args.project)
     model = resolve_model(project, args.model)
-    generated = generate_project(project, model)
+    generated = generate_project(project, model, lenient=args.lenient)
     applied = apply(project, model, generated)
+    for fault in generated.faults:
+        print(
+            f"seams generate: fault {fault.generator}: {fault.focus}: {fault.shape}: {fault.message}", file=sys.stderr
+        )
     report = applied.audit
     for kind, paths in (("overwrote hand-edited", report.edited), ("restored deleted", report.missing)):
         for rel in paths:
@@ -242,6 +258,8 @@ def _generate(args: argparse.Namespace) -> int:
     for path in applied.removed:
         print(f"removed {_display(path)}")
     print(_display(applied.lock))
+    if generated.faults:
+        print(f"seams generate: {len(generated.faults)} fault(s); output is flagged", file=sys.stderr)
     return 0
 
 

@@ -55,3 +55,6 @@ docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 docs/generated/
+
+# ── GSD baseline (auto-generated) ──
+coverage/

@@ -28,7 +28,7 @@ from rdflib.namespace import SH
 
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import ifml, legend, validation
+from viewer import ifml, layers, legend, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.shapegraph import shapegraph_graph_data
@@ -778,6 +778,13 @@ def toggled(hidden: list[str], type_qname: str) -> list[str]:
 @app.get("/")
 def index() -> RedirectResponse:
     return RedirectResponse(url=f"/view/{quote(root_iri(), safe='')}")
+
+
+@app.get("/layers")
+def layers_endpoint(request: Request) -> JSONResponse:
+    """Layer mode (M008/S03): the model as six layers plus the seams between
+    them, built by viewer/layers.py."""
+    return JSONResponse(layers.build_layers())
 
 
 @app.get("/payload/{iri:path}")

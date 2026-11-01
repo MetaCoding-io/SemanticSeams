@@ -77,9 +77,12 @@ through the `seams.generators` entry-point group, so one from another package ru
 way, may name SHACL shapes the model must pass first, and is locked with its own version
 ([ADR-0016](docs/adr/0016-generator-protocol.md),
 [write your own](docs/guide/write-your-own-generator.md#register-it-with-seams-generate)).
+`seams generate --lenient` previews a model that still breaks a generator: it writes what
+the generators produce and records each precondition or generator fault in a `faults`
+list in `seams.lock`, which flags the lock (D057).
 `seams check` writes nothing: it validates the model against the SHACL shapes,
 runs the project's gate queries, checks decisions statically and fails on any stale,
-missing, hand-edited or orphaned output; model review findings (lifecycle labels copied
+missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied
 into `sh:in`, shapes without a target class, undeclared paths) print as `review` warnings
 and do not fail it. CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.

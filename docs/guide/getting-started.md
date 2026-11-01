@@ -142,8 +142,10 @@ and explains everything else on the page.
 
 - [Quick start: the chat app](/tutorial): regenerate the chat app from its model and run
   it with Docker Compose.
-- [The seams CLI](/reference/seams-cli): `seams generate` regenerates a project's outputs and
-  `seams check` confirms they are current, in CI and as a pre-commit hook; `seams status`
+- [The seams CLI](/reference/seams-cli): `seams generate` regenerates a project's outputs
+  (`seams generate --lenient` previews a model that still breaks a generator's
+  preconditions, writing what it can and flagging the lock) and `seams check` confirms
+  they are current and unflagged, in CI and as a pre-commit hook; `seams status`
   checks that a running stack's containers are on the current model; `seams secrets`
   checks that each environment's configuration keys and secrets exist before
   `docker compose -f compose.development.yaml up`, and `--write-example` writes the

@@ -107,7 +107,11 @@ and three functions:
 `ontology/shapes` and raises `GeneratorError` (subject the focus node, predicate the shape
 IRI, naming the generator) on a result of a precondition shape or one of its
 `sh:property` shapes. `seams generate` calls it before running anything (strict mode);
-`seams_gen` itself does not depend on pyshacl. Lenient mode is M018/S02.
+`seams_gen` itself does not depend on pyshacl. `precondition_faults(results, shapes)`
+returns every such error, sorted by (shape, focus, message), and `check_preconditions`
+raises the first. `seams generate --lenient` (D057) uses the list: it records each fault,
+and each `GeneratorError` a generator raises, in the `faults` key of `seams.lock` instead
+of stopping, and `seams check` reports that lock as `flagged`.
 
 The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke` (M015/S05),
 `dockerfile` (M016/S03) and `ifmledit` (M008/S01) are the objects of `builtin.py`. Each

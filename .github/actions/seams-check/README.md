@@ -3,7 +3,9 @@
 A composite action that runs [`seams check`](../../../docs/reference/seams-cli.md#seams-check)
 for each listed project. It validates the model against the SHACL shapes, runs the
 project's `gates` queries, and fails on any stale, missing, hand-edited or orphaned
-output or an out-of-date `seams.lock`. It writes nothing.
+output, an out-of-date `seams.lock`, or a `flagged` one: a lock that records faults
+from `seams generate --lenient` (D057) fails the step, so preview output cannot be
+merged. It writes nothing.
 
 Every project runs, each in its own log group, before the step fails; it exits 1 if
 any project had a finding or an error. `review` lines are warnings: they print in the

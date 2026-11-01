@@ -32,12 +32,12 @@ from seams_gen import (  # noqa: E402
     extract_compose,
     generate_compose,
     generate_compose_environments,
-    golden_target,
     render_compose,
 )
 from seams_gen.compose import TEMPLATE_NAME  # noqa: E402
 from seams_gen.fastapi import ARCH  # noqa: E402
 from seams_gen.htmx import TEMPLATE_DIR  # noqa: E402
+from seams_gen.testing import golden_target  # noqa: E402
 from seams_runtime import ModelGraph, model_hash  # noqa: E402
 from seams_runtime.model import DEPLOY, SEAM  # noqa: E402
 

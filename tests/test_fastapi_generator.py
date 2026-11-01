@@ -21,9 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from seams_gen import GeneratorError, extract_routes, generate_routes, golden_target, render_routes  # noqa: E402
+from seams_gen import GeneratorError, extract_routes, generate_routes, render_routes  # noqa: E402
 from seams_gen.fastapi import TEMPLATE_NAME  # noqa: E402
 from seams_gen.htmx import TEMPLATE_DIR  # noqa: E402
+from seams_gen.testing import golden_target  # noqa: E402
 from seams_runtime import ModelGraph, Runtime, model_hash  # noqa: E402
 from seams_runtime.model import COMM, HYDRA, PROC, SEAM  # noqa: E402
 

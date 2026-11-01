@@ -1,4 +1,4 @@
-"""The golden-target rule (D016): seams_gen.golden strips producibility markers
+"""The golden-target rule (D016): seams_gen.testing strips producibility markers
 from a golden artifact so a generator's output can be compared byte for byte.
 Synthetic lines cover the three comment syntaxes; the real goldens check that
 the stripped text has no markers left and still parses.
@@ -18,8 +18,7 @@ if str(ROOT) not in sys.path:
 
 from test_golden_outputs import MARKER as LINT_MARKER  # noqa: E402
 
-from seams_gen import golden_target, strip_markers  # noqa: E402
-from seams_gen.golden import MARKER  # noqa: E402
+from seams_gen.testing import MARKER, golden_target, strip_markers  # noqa: E402
 
 GOLDEN = ROOT / "docs" / "generation" / "golden"
 HASH = "sha256:" + "0123456789abcdef" * 4

@@ -17,8 +17,8 @@ from pathlib import Path
 import httpx
 from seams import model_hash
 
-from seams_gen import golden_target
 from seams_gen.stubs import main
+from seams_gen.testing import golden_target
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAT_DIR = ROOT / "examples" / "chat-app"

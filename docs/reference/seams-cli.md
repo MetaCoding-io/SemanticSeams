@@ -303,6 +303,8 @@ The generator names are the `python -m seams_gen` subcommands. The
 | `compose` | one `compose.<environment>.yaml` per `arch:Environment` (for example `compose.development.yaml` and `compose.production.yaml`), applying each environment's `deploy:override`s ([ADR-0015](/adr/0015-environments)); bind-mount sources and build contexts are relative to `out`, and there is no shared `compose.yaml` |
 | `tests` | `test_scenarios.py`, `test_decisions.py`, `test_shape_examples.py` and `test_policies.py`, pytest files for the model's `verify:` scenarios and examples and allow/deny tests for each ODRL permission and party ([ADR-0014](/adr/0014-scenarios-and-derived-tests)) |
 | `smoke` | `test_smoke.py`, one pytest per `hydra:Operation` that calls it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` as `SEAMS_SMOKE_USER`/`SEAMS_SMOKE_GROUPS` and checks the answer against `seam:returnsShape`; skipped without a base URL, or when a governing policy refuses the identity |
+| `dockerfile` | `<route module stem>.Dockerfile` (for example `chat_api.Dockerfile`), the serving container's runtime image build file |
+| `ifmledit` | `ifmledit.json`, the IFML layer as [IFMLEdit.org](https://github.com/B3rn475/IFMLEdit.org) JSON, a conformance check of the `ifml:` vocabulary (backlog 12); the `ifml:` terms with no IFMLEdit counterpart are named on stderr and listed as GAP-29 to GAP-35 in the gap register |
 
 `python -m seams_gen <generator> <model> --out <dir>` still runs a single
 generator without a project file.

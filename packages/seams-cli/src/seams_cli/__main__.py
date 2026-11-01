@@ -229,15 +229,15 @@ def _display(path: Path) -> str:
 def _generate(args: argparse.Namespace) -> int:
     project = load_project(args.project)
     model = resolve_model(project, args.model)
-    files = generate_project(project, model)
-    applied = apply(project, model, files)
+    generated = generate_project(project, model)
+    applied = apply(project, model, generated)
     report = applied.audit
     for kind, paths in (("overwrote hand-edited", report.edited), ("restored deleted", report.missing)):
         for rel in paths:
             print(f"seams generate: {kind} {_display(locate(project, rel))}", file=sys.stderr)
     for path in applied.kept:
         print(f"seams generate: kept hand-edited orphan {_display(path)}", file=sys.stderr)
-    for path in sorted(files):
+    for path in sorted(generated.files):
         print(_display(path))
     for path in applied.removed:
         print(f"removed {_display(path)}")

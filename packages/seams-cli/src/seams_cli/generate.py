@@ -10,44 +10,90 @@ unioned with ``ontology/*.ttl``, is validated against ontology/shapes once, and
 a result of one of its shapes raises GeneratorError naming the generator, the
 shape and the focus node (strict mode, M018/S01).
 
+With ``lenient=True`` (D057) nothing raises. Every precondition result becomes
+a ``Fault`` and its generator still runs; a generator that raises
+GeneratorError contributes no files and one ``Fault``. ``generate_project``
+returns the files and the sorted faults as ``Generated``, and ``apply`` records
+the faults in seams.lock, which flags it.
+
 ``apply`` then reconciles the project with its seams.lock (D043): it reads the
 old lock before writing anything (a malformed one raises LockError), writes the
 outputs, deletes each orphan the old lock still knows byte for byte, and writes
 the new lock last. An orphan that is a symlink, not a regular file, or no longer
 matches its locked sha256 is kept, so a lockfile can only delete content it
-already holds the hash of.
+already holds the hash of. An orphan whose generator faulted this run is not
+deleted either: its locked entry is carried into the new lock unchanged, so the
+file stays tracked until that generator runs cleanly again.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from rdflib import Graph
 
-from .lockfile import Audit, Output, audit, build_lock, locate, lock_path, read_lock, render_lock, sha256_file
+from seams_gen import GeneratorError
+
+from .lockfile import (
+    Audit,
+    Fault,
+    Output,
+    audit,
+    build_lock,
+    locate,
+    lock_path,
+    read_lock,
+    render_lock,
+    sha256_file,
+)
 from .project import Project
 
 
-def generate_project(project: Project, model: Path) -> dict[Path, Output]:
-    """{absolute output path: Output} for every generator target of ``project``."""
+@dataclass(frozen=True)
+class Generated:
+    """What ``generate_project`` produced: {absolute output path: Output}, and
+    the faults lenient mode collected, sorted (always empty in strict mode)."""
+
+    files: dict[Path, Output]
+    faults: tuple[Fault, ...] = ()
+
+
+def _fault(generator: str, err: GeneratorError) -> Fault:
+    return Fault(generator, err.predicate, err.subject, err.detail)
+
+
+def generate_project(project: Project, model: Path, *, lenient: bool = False) -> Generated:
+    """Every generator target of ``project`` run on ``model``. Strict mode raises
+    the first GeneratorError; ``lenient`` collects them as faults."""
     from seams_gen.registry import discover
 
     registry = discover()
     generators = [(registry[target.name], target.out) for target in project.generators]
+    faults: list[Fault] = []
     if any(gen.preconditions for gen, _out in generators):
         from .check import SHAPES_FILE
 
         shapes = Graph().parse(SHAPES_FILE, format="turtle")
         results = shape_results(model, shapes)
         for gen, _out in generators:
-            gen.check_preconditions(results, shapes)
+            if lenient:
+                faults += (_fault(gen.name, err) for err in gen.precondition_faults(results, shapes))
+            else:
+                gen.check_preconditions(results, shapes)
     files: dict[Path, Output] = {}
     for gen, out in generators:
-        sources = gen.sources(model, out)
-        for name, text in gen.generate(model, out).items():
+        try:
+            sources = gen.sources(model, out)
+            produced = gen.generate(model, out)
+        except GeneratorError as err:
+            if not lenient:
+                raise
+            faults.append(_fault(gen.name, err))
+            continue
+        for name, text in produced.items():
             files[(out / name).resolve()] = Output(gen.name, gen.version, text, sources[name])
-    return files
+    return Generated(files, tuple(sorted(faults)))
 
 
 def shape_results(model: Path, shapes: Graph) -> Graph:
@@ -82,15 +128,24 @@ class Applied:
     lock: Path
 
 
-def apply(project: Project, model: Path, files: dict[Path, Output]) -> Applied:
-    """Write ``files``, delete unchanged orphans of the old lock, then write the new lock."""
+def apply(project: Project, model: Path, generated: Generated) -> Applied:
+    """Write the generated files, delete unchanged orphans of the old lock, then
+    write the new lock with the faults. Orphans of a faulted generator are carried."""
+    files = generated.files
     old = read_lock(project)
     report = audit(project, old, {path: out.text for path, out in files.items()})
-    lock = build_lock(project, model, files)
+    lock = build_lock(project, model, files, generated.faults)
     write_outputs(files)
-    locked = {entry.path: entry.sha256 for entry in old.outputs} if old else {}
+    entries = {entry.path: entry for entry in old.outputs} if old else {}
+    faulted = {fault.generator for fault in generated.faults}
+    carried = [entries[rel] for rel in report.orphans if entries[rel].generator in faulted]
+    if carried:
+        lock = replace(lock, outputs=tuple(sorted((*lock.outputs, *carried), key=lambda o: o.path)))
+    locked = {rel: entry.sha256 for rel, entry in entries.items()}
     removed, kept = [], []
     for rel in report.orphans:
+        if entries[rel].generator in faulted:
+            continue
         path = locate(project, rel)
         if not path.exists() and not path.is_symlink():
             continue

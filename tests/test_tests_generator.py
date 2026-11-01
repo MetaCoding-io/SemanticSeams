@@ -134,7 +134,7 @@ def test_names_and_header_come_from_the_model():
 def test_a_wrong_expected_state_fails_its_generated_test(tmp_path):
     copy = copy_chapter(tmp_path, MANAGER_EXPECTS, MANAGER_EXPECTS.replace(":s_approved", ":s_rejected"))
     project = load_project(copy)
-    write_outputs(generate_project(project, project.model))
+    write_outputs(generate_project(project, project.model).files)
 
     code, outcomes = run_generated(copy / "generated" / "tests" / "test_scenarios.py")
     assert code == pytest.ExitCode.TESTS_FAILED
@@ -201,7 +201,7 @@ def test_an_unenforced_permission_fails_its_denials(tmp_path):
     # the policy still names :manager, but nothing governs approve_expense any more
     copy = copy_chapter(tmp_path, APPROVE_GOVERNED, "")
     project = load_project(copy)
-    write_outputs(generate_project(project, project.model))
+    write_outputs(generate_project(project, project.model).files)
 
     code, outcomes = run_generated(copy / "generated" / "tests" / "test_policies.py")
     assert code == pytest.ExitCode.TESTS_FAILED
@@ -219,7 +219,7 @@ def test_a_target_no_scenario_reaches_is_probed(tmp_path):
     block = text[text.index(start) : text.index(end)]
     copy = copy_chapter(tmp_path, block, "")
     project = load_project(copy)
-    write_outputs(generate_project(project, project.model))
+    write_outputs(generate_project(project, project.model).files)
 
     tests = extract_tests(load(copy / "expenses.trig"))
     [target] = [g for g in tests.targets if g.policy_curie == ":manager_approval_policy"]

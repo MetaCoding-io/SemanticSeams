@@ -19,6 +19,12 @@ timestamps, so regenerating an unchanged project rewrites it byte for byte::
       ]
     }
 
+A lenient ``seams generate`` (D057) adds a top-level ``faults`` list, sorted,
+of ``{"focus", "generator", "message", "shape"}`` objects: each precondition
+result and GeneratorError it collected instead of raising. A lock with faults
+is flagged; without faults the key is absent, so the bytes are those of a
+strict run.
+
 Paths are posix and relative to the project root; a target outside it (the
 chat app's ``../..``) gives paths starting with ``../``. ``audit`` compares a
 lock, the files on disk and the files produced now; ``seams generate`` uses it
@@ -31,7 +37,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
@@ -59,6 +65,17 @@ class Output(NamedTuple):
     sources: tuple[str, ...]
 
 
+class Fault(NamedTuple):
+    """A fault lenient generation collected: the generator, the shape IRI or
+    predicate, the focus node or subject, and the message (a GeneratorError's
+    predicate, subject and detail)."""
+
+    generator: str
+    shape: str
+    focus: str
+    message: str
+
+
 @dataclass(frozen=True)
 class LockedOutput:
     path: str
@@ -74,6 +91,7 @@ class Lock:
     model: str
     model_hash: str
     outputs: tuple[LockedOutput, ...]
+    faults: tuple[Fault, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -133,6 +151,12 @@ def _output(path: Path, index: int, entry: object) -> LockedOutput:
     return LockedOutput(sources=tuple(sources), **fields)
 
 
+def _fault(path: Path, index: int, entry: object) -> Fault:
+    key = f"faults[{index}]"
+    _require(path, entry, key, dict)
+    return Fault(**{name: _require(path, entry.get(name), f"{key}.{name}", str) for name in Fault._fields})
+
+
 def read_lock(project: Project) -> Lock | None:
     """The project's seams.lock, or None when there is none. Raises LockError when malformed."""
     path = lock_path(project)
@@ -148,12 +172,15 @@ def read_lock(project: Project) -> Lock | None:
     model = _require(path, data.get("model"), "model", str)
     model_hash = _require(path, data.get("model_hash"), "model_hash", str)
     entries = _require(path, data.get("outputs"), "outputs", list)
-    return Lock(model, model_hash, tuple(_output(path, i, entry) for i, entry in enumerate(entries)))
+    outputs = tuple(_output(path, i, entry) for i, entry in enumerate(entries))
+    faults = _require(path, data.get("faults", []), "faults", list)
+    return Lock(model, model_hash, outputs, tuple(_fault(path, i, entry) for i, entry in enumerate(faults)))
 
 
-def build_lock(project: Project, model: Path, outputs: Mapping[Path, Output]) -> Lock:
-    """The lock for ``outputs`` ({absolute path: Output}) generated from ``model``.
-    Each output records the version of its own generator."""
+def build_lock(project: Project, model: Path, outputs: Mapping[Path, Output], faults: Iterable[Fault] = ()) -> Lock:
+    """The lock for ``outputs`` ({absolute path: Output}) generated from ``model``,
+    with the ``faults`` lenient generation collected. Each output records the
+    version of its own generator."""
     digest = hash_model(model)
     locked = [
         LockedOutput(
@@ -161,7 +188,12 @@ def build_lock(project: Project, model: Path, outputs: Mapping[Path, Output]) ->
         )
         for path, out in outputs.items()
     ]
-    return Lock(relative(project, Path(model).resolve()), digest, tuple(sorted(locked, key=lambda o: o.path)))
+    return Lock(
+        relative(project, Path(model).resolve()),
+        digest,
+        tuple(sorted(locked, key=lambda o: o.path)),
+        tuple(sorted(faults)),
+    )
 
 
 def render_lock(lock: Lock) -> str:
@@ -181,6 +213,8 @@ def render_lock(lock: Lock) -> str:
             for o in sorted(lock.outputs, key=lambda o: o.path)
         ],
     }
+    if lock.faults:
+        data["faults"] = [f._asdict() for f in sorted(lock.faults)]
     return json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
@@ -206,6 +240,7 @@ def audit(project: Project, lock: Lock | None, files: Mapping[Path, str]) -> Aud
 __all__ = [
     "LOCK_FILE",
     "Audit",
+    "Fault",
     "Lock",
     "LockError",
     "LockedOutput",

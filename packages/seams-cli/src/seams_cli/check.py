@@ -118,7 +118,7 @@ def check_gates(project: Project, graph: rdflib.Graph) -> list[Finding]:
 def check_outputs(project: Project, model: Path) -> list[Finding]:
     """Compare the outputs produced now with the disk and with seams.lock. Writes nothing."""
     old = read_lock(project)
-    outputs = generate_project(project, model)
+    outputs = generate_project(project, model).files
     files = {path: out.text for path, out in outputs.items()}
     report = audit(project, old, files)
     edited = {locate(project, rel) for rel in report.edited}

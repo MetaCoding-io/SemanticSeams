@@ -305,6 +305,8 @@ def test_deploy_shapes_accept_chat_app(chat_model):
         ('deploy:healthcheck [ a deploy:Healthcheck ; deploy:interval "5s" ]', PROBE_MSG),
         ('deploy:configuration [ deploy:binding [ deploy:key "K" ] ]', BINDING_MSG),
         (
+            # :svc is the deploy:serviceOf target, so it carries the one port SinglePortShape asks for.
+            "deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ; "
             'deploy:configuration [ deploy:binding [ deploy:key "K" ; deploy:value "x" ; deploy:serviceOf :svc ] ]',
             BINDING_MSG,
         ),

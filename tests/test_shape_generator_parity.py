@@ -64,6 +64,7 @@ EXP = Namespace("https://example.org/expenses/")
 APPROVAL = Namespace("https://example.org/expenses/approval_bpmn#")
 PAYOUT = Namespace("https://example.org/expenses/payout_bpmn#")
 
+
 class Site(NamedTuple):
     """One ``raise GeneratorError`` in seams_gen: its module, the innermost function
     around it, and its predicate argument as written. ``note`` tells apart two raises
@@ -743,7 +744,6 @@ CASES = [
         CHAT.user_send_policy,
         ODRL.permission,
     ),
-
     Case(
         "system-without-containers",
         Site("compose", "extract_compose", "ARCH.contains", "no container"),

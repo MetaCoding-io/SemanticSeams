@@ -1,5 +1,5 @@
-# Runs `seams check` for each listed project and fails if any has a finding
-# (docs/reference/seams-cli.md, D044). The seams CLI is not published, so the
+# Runs `seams check` for each listed project and fails if any exits non-zero:
+# any finding but a `review` warning (docs/reference/seams-cli.md, D044). The seams CLI is not published, so the
 # caller must put `seams` on PATH first. This repository's acceptance job does:
 #
 #   - run: uv sync --locked --all-packages

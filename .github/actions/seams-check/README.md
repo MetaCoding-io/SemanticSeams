@@ -6,7 +6,8 @@ project's `gates` queries, and fails on any stale, missing, hand-edited or orpha
 output or an out-of-date `seams.lock`. It writes nothing.
 
 Every project runs, each in its own log group, before the step fails; it exits 1 if
-any project had a finding or an error.
+any project had a finding or an error. `review` lines are warnings: they print in the
+log but do not fail the step.
 
 ## Usage
 

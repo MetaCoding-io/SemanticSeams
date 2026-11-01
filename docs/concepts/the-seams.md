@@ -75,7 +75,8 @@ in the ontology. The mode tells the viewer what to do with the edge's target:
 - **Nest** draws the target inside its source: `presents` and `executes`. This is what
   the C4 view's L4 level shows.
 - **Layer** overlays the target on the current view. This applies to every other seam.
-  Until layer mode is built, these edges appear only in the inspector.
+  In the per-element view these edges are inspector rows; [layer mode](/guide/the-viewer#layer-mode)
+  draws them as lines between stacked layer planes.
 
 Open and nest seams navigate on click. A model graph can override a predicate's mode
 with its own `seam:reveal` triple. The mode is an annotation on the predicate, not a new

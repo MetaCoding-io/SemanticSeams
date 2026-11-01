@@ -25,7 +25,7 @@ _Amended 2026-10-29 (M007/S02, decision D020). The original boolean `seam:naviga
 1. **Every seam predicate declares a reveal mode in the ontology.** `seam:reveal` is an `owl:AnnotationProperty` on the predicate itself, never on individual edges. Its value is one `seam:RevealMode`:
    - `seam:Open`: the view is replaced by the target's model in its own notation, and a breadcrumb records the hop.
    - `seam:Nest`: the target's model is drawn inside the source's card. The C4 renderer shows this at level L4.
-   - `seam:Layer`: the seam is drawn as a line between stacked layer planes. Until layer mode ships (M008/S03) a layer predicate is inspector-only.
+   - `seam:Layer`: the seam is drawn as a line between stacked layer planes. Until layer mode ships (M008/S03) a layer predicate is inspector-only. _(Layer mode shipped in M008/S03: `GET /layers`; in the per-element view a layer predicate is still an inspector row.)_
 
    The administrative predicates `seam:inModel`, `seam:notation` and `seam:renderPayload` drive rendering and dispatch, not navigation, so they declare none. `seamsh:RevealShape` in `ontology/shapes/seam-shapes.ttl` checks that every other seam predicate has exactly one mode, and that it is one of the three.
 
@@ -37,7 +37,7 @@ _Amended 2026-10-29 (M007/S02, decision D020). The original boolean `seam:naviga
    | open | `seam:detailedBy`, `seam:triggers`, `seam:decidedBy`, `seam:lifecycle` |
    | layer | every other seam predicate (`exposes`, `consumes`, `deployedTo`, `visibleWhen`, `submitsTo`, `rendersComponent`, `invokes`, `publishesTo`, `subscribesTo`, `reads`, `writes`, `fires`, `acceptsShape`, `returnsShape`, `mediaKind`, `governedBy`, `conformsTo`, `realizes`) |
 
-   **Navigation follows open and nest predicates; layer predicates stay inspector-only** until layer mode exists. A nest predicate navigates like an open one in every view that does not draw nesting. Compared with the original v1 set (`detailedBy`, `triggers`, `presents`, `decidedBy`), `seam:executes` and `seam:lifecycle` are now navigational: clicking a container that executes a process opens the process's BPMN, and clicking a shape with a lifecycle opens its statechart.
+   **Navigation follows open and nest predicates; layer predicates stay inspector-only** until layer mode exists. _(It exists since M008/S03; layer predicates do not navigate on click and are drawn on the `/layers` page.)_ A nest predicate navigates like an open one in every view that does not draw nesting. Compared with the original v1 set (`detailedBy`, `triggers`, `presents`, `decidedBy`), `seam:executes` and `seam:lifecycle` are now navigational: clicking a container that executes a process opens the process's BPMN, and clicking a shape with a lifecycle opens its statechart.
 
    The viewer reads the modes from `ontology/*.ttl` through a side lookup, as it does labels. Ontology triples never enter the model store. A `seam:reveal` triple in the model graph overrides the ontology default for that predicate, and a predicate with no mode at all counts as layer. Per-user overrides carried in the URL are deferred.
 

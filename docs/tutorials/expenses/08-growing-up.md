@@ -670,9 +670,9 @@ The descent still works, but it now has choices to make. The portal presents two
 models, the API runs two processes, and `ExpenseShape` is reached from six models. Follow
 the hotel's path from the Submit Expense event to the batched payment and you cross the
 approval process, the channel, the payout process, its decision and the payment
-lifecycle. Each one is a separate view. Questions like this are what layer mode, item 11
-in the [backlog](/backlog) and slice M008/S03, is for. That slice opens by running the
-complexity check above on this model.
+lifecycle. Each one is a separate view. Questions like this are what [layer mode](/guide/the-viewer#layer-mode)
+is for: this model passed the complexity check above, and `/layers` draws all six layers
+as stacked planes, tracing an element's seams on hover.
 
 ### One diagram per path
 

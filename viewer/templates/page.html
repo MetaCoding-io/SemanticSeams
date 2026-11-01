@@ -33,7 +33,10 @@
       --layer-other: #9ca3af;
     }
     body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a; }
-    header { padding: 0.75rem 1.5rem; background: #14213d; color: #fff; font-weight: 600; }
+    header { display: flex; align-items: center; gap: 1.5rem; padding: 0.75rem 1.5rem; background: #14213d; color: #fff; font-weight: 600; }
+    header a { color: #fff; text-decoration: none; }
+    header a:hover { text-decoration: underline; }
+    .header-nav { font-weight: normal; font-size: 0.9rem; }
     .breadcrumbs { padding: 0.75rem 1.5rem; background: #f4f5f7; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
     .breadcrumbs a { color: #14213d; text-decoration: none; }
     .breadcrumbs a:hover { text-decoration: underline; }
@@ -496,7 +499,7 @@
       });
     });
   </script>
-  <header>SemanticSeams Viewer</header>
+  <header><a class="header-home" href="/">SemanticSeams Viewer</a><nav class="header-nav"><a class="header-layers" href="/layers">Layers</a></nav></header>
   <div class="health-panel" data-conforms="{{ 'true' if model_conformance.conforms else 'false' }}">
     {% if model_conformance.conforms %}
     <span class="health-badge">&#10003; Conforms</span>
@@ -531,7 +534,7 @@
     {% endif %}
   </div>
   <div id="view-content">
-    {% include "fragment.html" %}
+    {% include content_template | default("fragment.html") %}
   </div>
 </body>
 </html>

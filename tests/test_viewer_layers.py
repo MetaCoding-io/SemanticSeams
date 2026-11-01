@@ -5,8 +5,10 @@ no layer instead of dropping them. GET /layers serves the same JSON.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -152,3 +154,71 @@ def test_layers_route_serves_the_json():
     assert resp.headers["content-type"].startswith("application/json")
     assert resp.json() == json.loads(json.dumps(layers.build_layers()))
     assert client.get("/layers?format=json").json()["layers"][0]["id"] == "architecture"
+
+
+# --- Stacked-plane page (T02) ---------------------------------------------
+
+
+def _layers_page() -> str:
+    resp = TestClient(viewer_app.app).get("/layers", headers={"accept": "text/html"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    return resp.text
+
+
+def test_layers_page_draws_six_planes_in_order():
+    html = _layers_page()
+    found = re.findall(r'<g class="layer-plane" data-layer="([a-z]+)"', html)
+    assert found == SIX
+
+
+def test_layers_page_draws_every_seam_with_its_ends():
+    html = _layers_page()
+    data = layers.build_layers()
+    lines = re.findall(
+        r'<line class="layer-seam" data-source="([^"]+)" data-target="([^"]+)"[^>]*data-reveal="([a-z]+)"', html
+    )
+    assert lines == [(s["source"], s["target"], s["reveal"]) for s in data["seams"]]
+    # Every seam end is drawn, as an element card or a model link in a plane title.
+    drawn = set(re.findall(r'class="layer-(?:node|plane-model)" href="[^"]+" data-iri="([^"]+)"', html))
+    assert {iri for s, t, _ in lines for iri in (s, t)} <= drawn
+
+
+def test_layers_page_plane_titles_open_the_first_model_flat():
+    html = _layers_page()
+    for lay in layers.build_layers()["layers"]:
+        title = re.search(
+            r'<g class="layer-plane" data-layer="'
+            + lay["id"]
+            + r'">.*?<g class="layer-plane-title">\s*<a href="([^"]+)">',
+            html,
+            re.S,
+        )
+        assert title, lay["id"]
+        assert title.group(1) == lay["models"][0]["href"]
+
+
+def test_layers_page_lists_every_model_of_a_layer():
+    viewer_app.configure(CHAPTER_08)
+    html = _layers_page()
+    plane = html.split('<g class="layer-plane" data-layer="interaction">', 1)[1].split('<g class="layer-edges">', 1)[0]
+    hrefs = re.findall(r'class="layer-plane-model" href="([^"]+)"', plane)
+    assert hrefs == [
+        "/view/https%3A%2F%2Fexample.org%2Fexpenses%2Fexpense_ifml",
+        "/view/https%3A%2F%2Fexample.org%2Fexpenses%2Ffinance_console",
+    ]
+
+
+def test_layers_page_lists_elements_in_no_layer():
+    html = _layers_page()
+    warned = re.findall(r'<li data-iri="([^"]+)">', html.split('class="warning layers-warnings"', 1)[1])
+    assert warned == [w["iri"] for w in layers.build_layers()["warnings"]]
+    assert "https://example.org/chat/send_message_op" in warned
+
+
+def test_page_header_links_to_layer_mode():
+    client = TestClient(viewer_app.app)
+    for url in ("/layers", f"/view/{quote(viewer_app.root_iri(), safe='')}"):
+        html = client.get(url).text
+        header = html.split("<header>", 1)[1].split("</header>", 1)[0]
+        assert 'href="/layers"' in header, url

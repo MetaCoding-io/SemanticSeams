@@ -1,0 +1,269 @@
+{# Layer mode (M008/S03, backlog item 11): the whole model as six stacked
+   oblique planes, one per layer, top to bottom in layers.LAYER_ORDER. The
+   server writes every plane, node and seam; the script below only lays each
+   plane's graph out with ELK, projects it and moves the elements into place.
+   Hovering an element (or a model link) traces all of its seams and lights
+   their far ends. Included into page.html's #view-content by GET /layers. #}
+<style>
+  .layers-view { padding: 1rem 1.5rem; }
+  .layers-view h2 { margin: 0 0 0.25rem 0; }
+  .layers-hint { margin: 0 0 0.75rem 0; color: #555; font-size: 0.9rem; }
+  .layers-reveal { display: inline-flex; gap: 1rem; border: 1px solid #c7ccd4; border-radius: 6px; padding: 0.3rem 0.75rem; margin: 0 0 0.75rem 0; font-size: 0.85rem; }
+  .layers-reveal legend { padding: 0 0.25rem; color: #555; }
+  .layers-canvas { border: 1px solid #ccc; background: #fff; }
+  .layers-canvas svg { display: block; width: 100%; height: auto; }
+  .layers-error { color: #b71c1c; padding: 0.5rem 0.75rem; }
+  .layer-plane-bg { stroke-width: 1.5; fill-opacity: 0.07; pointer-events: none; }
+  .layer-plane-name { font: 700 16px system-ui, sans-serif; }
+  .layer-plane-model text { font: 12px system-ui, sans-serif; fill: #444; }
+  .layer-plane-title a:hover text { text-decoration: underline; }
+  .layer-edge { stroke: #9aa0a8; stroke-width: 1; }
+  .layer-node { cursor: pointer; }
+  .layer-node rect { fill: #fff; stroke-width: 1.5; }
+  .layer-node text { font: 600 11px system-ui, sans-serif; fill: #1a1a1a; }
+  .layer-seam { fill: none; stroke-width: 1.5; stroke-opacity: 0.55; }
+  .layer-seam[data-reveal="open"] { stroke-dasharray: 6 4; }
+  .layer-seam[data-reveal="nest"] { stroke-dasharray: 2 3; }
+  .layers-canvas .hide-open .layer-seam[data-reveal="open"]:not(.lit),
+  .layers-canvas .hide-nest .layer-seam[data-reveal="nest"]:not(.lit),
+  .layers-canvas .hide-layer .layer-seam[data-reveal="layer"]:not(.lit) { display: none; }
+  .tracing .layer-node:not(.lit), .tracing .layer-edge { opacity: 0.2; }
+  .tracing .layer-seam:not(.lit) { stroke-opacity: 0.06; }
+  .layer-seam.lit { stroke-opacity: 1; stroke-width: 3; }
+  .layer-node.lit rect { stroke-width: 3; }
+  .layer-node.lit.far rect { stroke-dasharray: 4 2; }
+  .layer-plane-model.lit text { font-weight: 700; fill: #1a1a1a; }
+  [data-layer="architecture"] > .layer-plane-bg, .layer-node[data-layer="architecture"] rect { stroke: var(--layer-architecture); fill: var(--layer-architecture); }
+  [data-layer="interaction"] > .layer-plane-bg, .layer-node[data-layer="interaction"] rect { stroke: var(--layer-interaction); fill: var(--layer-interaction); }
+  [data-layer="process"] > .layer-plane-bg, .layer-node[data-layer="process"] rect { stroke: var(--layer-process); fill: var(--layer-process); }
+  [data-layer="decision"] > .layer-plane-bg, .layer-node[data-layer="decision"] rect { stroke: var(--layer-decision); fill: var(--layer-decision); }
+  [data-layer="data"] > .layer-plane-bg, .layer-node[data-layer="data"] rect { stroke: var(--layer-data); fill: var(--layer-data); }
+  [data-layer="lifecycle"] > .layer-plane-bg, .layer-node[data-layer="lifecycle"] rect { stroke: var(--layer-lifecycle); fill: var(--layer-lifecycle); }
+  .layer-node rect { fill-opacity: 0.1; }
+  .layer-plane[data-layer="architecture"] .layer-plane-name { fill: var(--layer-architecture); }
+  .layer-plane[data-layer="interaction"] .layer-plane-name { fill: var(--layer-interaction); }
+  .layer-plane[data-layer="process"] .layer-plane-name { fill: var(--layer-process); }
+  .layer-plane[data-layer="decision"] .layer-plane-name { fill: var(--layer-decision); }
+  .layer-plane[data-layer="data"] .layer-plane-name { fill: var(--layer-data); }
+  .layer-plane[data-layer="lifecycle"] .layer-plane-name { fill: var(--layer-lifecycle); }
+  .layer-seam[data-source-layer="architecture"] { stroke: var(--layer-architecture); }
+  .layer-seam[data-source-layer="interaction"] { stroke: var(--layer-interaction); }
+  .layer-seam[data-source-layer="process"] { stroke: var(--layer-process); }
+  .layer-seam[data-source-layer="decision"] { stroke: var(--layer-decision); }
+  .layer-seam[data-source-layer="data"] { stroke: var(--layer-data); }
+  .layer-seam[data-source-layer="lifecycle"] { stroke: var(--layer-lifecycle); }
+</style>
+<div class="layers-view">
+  <h2>Layers</h2>
+  <p class="layers-hint">Each plane is one layer of the model. Lines between planes are the seams that cross layers, coloured by the layer they start in. Hover an element to trace all of its seams; click a plane title to open that layer flat.</p>
+  {% if layer_warnings %}
+  <div class="warning layers-warnings">
+    <details>
+      <summary>{{ layer_warnings | length }} element(s) in no layer are not drawn</summary>
+      <ul>
+        {% for w in layer_warnings %}
+        <li data-iri="{{ w.iri }}">{{ w.message }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+  {% endif %}
+  <fieldset class="layers-reveal">
+    <legend>Seams shown</legend>
+    {% for mode, title in reveal_modes %}
+    <label><input type="checkbox" data-reveal="{{ mode }}"{% if mode == "layer" %} checked{% endif %}> {{ title }}</label>
+    {% endfor %}
+  </fieldset>
+  <div class="layers-canvas" id="layers-canvas">
+    <svg aria-label="Layer mode diagram" class="hide-open hide-nest">
+      {# Seams first, so cards sit on top and keep the pointer. #}
+      <g class="layer-seams">
+        {% for s in seams %}
+        <line class="layer-seam" data-source="{{ s.source }}" data-target="{{ s.target }}" data-predicate="{{ s.predicate }}" data-reveal="{{ s.reveal }}" data-source-layer="{{ s.sourceLayer }}" data-target-layer="{{ s.targetLayer }}"><title>{{ s.title }}</title></line>
+        {% endfor %}
+      </g>
+      {% for p in planes %}
+      <g class="layer-plane" data-layer="{{ p.id }}">
+        <polygon class="layer-plane-bg"></polygon>
+        <g class="layer-plane-title">
+          {% if p.href %}<a href="{{ p.href }}"><text class="layer-plane-name">{{ p.label }}</text></a>{% else %}<text class="layer-plane-name">{{ p.label }}</text>{% endif %}
+          {% for m in p.models %}
+          <a class="layer-plane-model" href="{{ m.href }}" data-iri="{{ m.iri }}"><text>{{ m.label }}</text></a>
+          {% endfor %}
+        </g>
+        <g class="layer-edges">
+          {% for e in p.edges %}
+          <line class="layer-edge" data-from="{{ e.from }}" data-to="{{ e.to }}"><title>{{ e.label }}</title></line>
+          {% endfor %}
+        </g>
+        {% for n in p.nodes %}
+        <a class="layer-node" href="{{ n.href }}" data-iri="{{ n.iri }}" data-layer="{{ p.id }}">
+          <title>{{ n.label }} ({{ n.type }})</title>
+          <rect rx="4"></rect>
+          <text dominant-baseline="middle">{{ n.label }}</text>
+        </a>
+        {% endfor %}
+      </g>
+      {% endfor %}
+    </svg>
+  </div>
+</div>
+<script>
+  (function () {
+    var container = document.getElementById("layers-canvas");
+    var svg = container.querySelector("svg");
+    // Cheap oblique projection: plane y is squashed and sheared to the right,
+    // so each plane reads as a floor seen from above. Cards stay upright.
+    var SQUASH = 0.45, SHEAR = 0.5, CARD_H = 24, CARD_MIN = 70, CARD_MAX = 170, TEXT_PAD = 8;
+    var TITLE_H = 30, PLANE_GAP = 46, MARGIN = 20;
+    var measureCtx = document.createElement("canvas").getContext("2d");
+    measureCtx.font = "600 11px system-ui, sans-serif";
+    function ellipsize(text, maxWidth) {
+      if (measureCtx.measureText(text).width <= maxWidth) return text;
+      var lo = 0, hi = text.length;
+      while (lo < hi) {
+        var mid = Math.ceil((lo + hi) / 2);
+        if (measureCtx.measureText(text.slice(0, mid) + "…").width <= maxWidth) lo = mid; else hi = mid - 1;
+      }
+      return text.slice(0, lo) + "…";
+    }
+    function attrs(e, a) { Object.keys(a).forEach(function (k) { e.setAttribute(k, a[k]); }); }
+
+    var planes = Array.prototype.map.call(svg.querySelectorAll(".layer-plane"), function (g) {
+      var nodes = Array.prototype.map.call(g.querySelectorAll(".layer-node"), function (a) {
+        var t = a.querySelector("text");
+        t.textContent = ellipsize(t.textContent, CARD_MAX - 2 * TEXT_PAD);
+        var w = Math.max(CARD_MIN, Math.min(CARD_MAX, measureCtx.measureText(t.textContent).width + 2 * TEXT_PAD));
+        return { el: a, id: a.getAttribute("data-iri"), width: w };
+      });
+      var edges = Array.prototype.map.call(g.querySelectorAll(".layer-edge"), function (l) {
+        return { el: l, from: l.getAttribute("data-from"), to: l.getAttribute("data-to") };
+      });
+      return { el: g, nodes: nodes, edges: edges };
+    });
+
+    function layoutPlane(p) {
+      // Node height is unsquashed so cards do not overlap after projection.
+      return new ELK().layout({
+        id: "root",
+        layoutOptions: {
+          "elk.algorithm": "layered",
+          "elk.direction": "RIGHT",
+          "elk.randomSeed": "1",
+          "elk.spacing.nodeNode": "24",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "50",
+          "elk.padding": "[top=20,left=30,bottom=20,right=30]",
+        },
+        children: p.nodes.map(function (n) { return { id: n.id, width: n.width, height: CARD_H / SQUASH }; }),
+        edges: p.edges.map(function (e, i) { return { id: "e" + i, sources: [e.from], targets: [e.to] }; }),
+      });
+    }
+
+    // Diagnostic hook: projected centre of every drawn element and model link.
+    var centres = {};
+    function draw(layouts) {
+      var planeW = Math.max.apply(null, layouts.map(function (l) { return l.width; }));
+      var oy = MARGIN, maxRight = 0;
+      planes.forEach(function (p, i) {
+        var lay = layouts[i], h = Math.max(lay.height, 60);
+        var ox = MARGIN + (planeW - lay.width) / 2;
+        var top = oy + TITLE_H;
+        function project(x, y) { return { x: MARGIN + x + y * SHEAR, y: top + y * SQUASH }; }
+        var corners = [project(0, 0), project(planeW, 0), project(planeW, h), project(0, h)];
+        attrs(p.el.querySelector(".layer-plane-bg"), { points: corners.map(function (c) { return c.x + "," + c.y; }).join(" ") });
+        maxRight = Math.max(maxRight, corners[2].x);
+        // Title row: layer name, then each model's link (the first is the title's target).
+        var tx = MARGIN;
+        p.el.querySelectorAll(".layer-plane-title text").forEach(function (t, k) {
+          attrs(t, { x: tx, y: oy + TITLE_H - 10 });
+          var w = t.getComputedTextLength();
+          if (k > 0) {
+            var iri = t.parentNode.getAttribute("data-iri");
+            centres[iri] = { x: tx + w / 2, y: oy + TITLE_H - 6 };
+          }
+          tx += w + 14;
+        });
+        var byId = {};
+        (lay.children || []).forEach(function (c) { byId[c.id] = c; });
+        p.nodes.forEach(function (n) {
+          var c = byId[n.id];
+          var pc = project(ox - MARGIN + c.x + c.width / 2, c.y + c.height / 2);
+          centres[n.id] = pc;
+          attrs(n.el, { transform: "translate(" + (pc.x - n.width / 2) + "," + (pc.y - CARD_H / 2) + ")" });
+          attrs(n.el.querySelector("rect"), { width: n.width, height: CARD_H });
+          attrs(n.el.querySelector("text"), { x: TEXT_PAD, y: CARD_H / 2 });
+        });
+        p.edges.forEach(function (e) {
+          var a = centres[e.from], b = centres[e.to];
+          attrs(e.el, { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+        });
+        oy = top + h * SQUASH + PLANE_GAP;
+      });
+      svg.querySelectorAll(".layer-seam").forEach(function (l) {
+        var a = centres[l.getAttribute("data-source")], b = centres[l.getAttribute("data-target")];
+        if (!a || !b) {
+          console.error("layer mode: seam end not drawn", l.getAttribute("data-source"), l.getAttribute("data-target"));
+          return;
+        }
+        attrs(l, { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+      });
+      attrs(svg, { viewBox: "0 0 " + (maxRight + MARGIN) + " " + (oy - PLANE_GAP + MARGIN) });
+      container.seamsPositions = centres;
+    }
+
+    // Hover tracing: the element, every seam it is an end of, and the far ends.
+    var lit = [];
+    function clear() {
+      lit.forEach(function (e) { e.classList.remove("lit", "far"); });
+      lit = [];
+      svg.classList.remove("tracing");
+    }
+    function light(e, far) {
+      e.classList.add("lit");
+      if (far) e.classList.add("far");
+      lit.push(e);
+    }
+    function ends(iri) {
+      return svg.querySelectorAll('.layer-node[data-iri="' + CSS.escape(iri) + '"], .layer-plane-model[data-iri="' + CSS.escape(iri) + '"]');
+    }
+    function trace(iri) {
+      clear();
+      svg.classList.add("tracing");
+      ends(iri).forEach(function (e) { light(e, false); });
+      svg.querySelectorAll(".layer-seam").forEach(function (l) {
+        var src = l.getAttribute("data-source"), dst = l.getAttribute("data-target");
+        if (src !== iri && dst !== iri) return;
+        light(l, false);
+        ends(src === iri ? dst : src).forEach(function (e) { light(e, true); });
+      });
+    }
+    svg.addEventListener("mouseover", function (ev) {
+      var target = ev.target.closest(".layer-node, .layer-plane-model");
+      if (target) trace(target.getAttribute("data-iri"));
+    });
+    svg.addEventListener("mouseout", function (ev) {
+      var from = ev.target.closest(".layer-node, .layer-plane-model");
+      if (from && !from.contains(ev.relatedTarget)) clear();
+    });
+    container.parentNode.querySelectorAll(".layers-reveal input").forEach(function (box) {
+      box.addEventListener("change", function () {
+        svg.classList.toggle("hide-" + box.getAttribute("data-reveal"), !box.checked);
+      });
+    });
+
+    function fail(message, err) {
+      console.error(message, err || "");
+      var p = document.createElement("p");
+      p.className = "layers-error";
+      p.textContent = message;
+      container.insertBefore(p, svg);
+    }
+    if (typeof ELK === "undefined") {
+      fail("layer mode render failed: elkjs did not load");
+      return;
+    }
+    Promise.all(planes.map(layoutPlane)).then(draw).catch(function (err) {
+      fail("layer mode render failed", err);
+    });
+  })();
+</script>

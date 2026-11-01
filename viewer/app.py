@@ -781,10 +781,39 @@ def index() -> RedirectResponse:
 
 
 @app.get("/layers")
-def layers_endpoint(request: Request) -> JSONResponse:
+def layers_endpoint(request: Request):
     """Layer mode (M008/S03): the model as six layers plus the seams between
-    them, built by viewer/layers.py."""
-    return JSONResponse(layers.build_layers())
+    them, built by viewer/layers.py. JSON on request, otherwise the stacked
+    planes of layers.html inside the page shell."""
+    data = layers.build_layers()
+    if wants_json(request):
+        return JSONResponse(data)
+    # Open-mode seams may end at a model, drawn at its link in the plane title.
+    labels = {e["iri"]: e["label"] for lay in data["layers"] for e in lay["nodes"] + lay["models"]}
+    planes = [
+        {
+            **lay,
+            # A plane title opens its layer's first model flat; the rest are listed beside it.
+            "href": lay["models"][0]["href"] if lay["models"] else None,
+            "nodes": [{**n, "href": f"/view/{quote(n['iri'], safe='')}"} for n in lay["nodes"]],
+        }
+        for lay in data["layers"]
+    ]
+    seams = [
+        {**s, "title": f"{labels[s['source']]} — {s['predicateLabel']} → {labels[s['target']]} ({s['reveal']})"}
+        for s in data["seams"]
+    ]
+    ctx = {
+        "request": request,
+        "label": "Layers",
+        "model_conformance": get_model_conformance(get_graph()),
+        "content_template": "layers.html",
+        "planes": planes,
+        "seams": seams,
+        "layer_warnings": data["warnings"],
+        "reveal_modes": [(mode, title) for mode, title, _hint in RELATION_GROUPS],
+    }
+    return templates.TemplateResponse(request, "page.html", ctx)
 
 
 @app.get("/payload/{iri:path}")

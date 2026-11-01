@@ -58,8 +58,10 @@ def test_the_example_conditions_are_checked_not_skipped() -> None:
 def test_dmn_type_ref_disagreeing_with_the_datatype_is_a_finding(tmp_path: Path) -> None:
     model = ch09(
         tmp_path,
-        approval_dmn=('<inputExpression id="input_amount_expr" typeRef="number">',
-                      '<inputExpression id="input_amount_expr" typeRef="string">'),
+        approval_dmn=(
+            '<inputExpression id="input_amount_expr" typeRef="number">',
+            '<inputExpression id="input_amount_expr" typeRef="string">',
+        ),
     )
     assert decision_findings(model) == [
         DecisionFinding(
@@ -103,8 +105,10 @@ def test_integer_datatype_satisfies_a_number_type_ref(tmp_path: Path) -> None:
 def test_missing_type_ref_is_no_finding(tmp_path: Path) -> None:
     model = ch09(
         tmp_path,
-        approval_dmn=('<inputExpression id="input_amount_expr" typeRef="number">',
-                      '<inputExpression id="input_amount_expr">'),
+        approval_dmn=(
+            '<inputExpression id="input_amount_expr" typeRef="number">',
+            '<inputExpression id="input_amount_expr">',
+        ),
         expenses_trig=("sh:path :amount ; sh:datatype xsd:decimal", "sh:path :amount ; sh:datatype xsd:string"),
     )
     assert [f.subject for f in type_ref_findings(model)] == [f"{EX}payout_method"]
@@ -115,8 +119,12 @@ def test_length_measure_needs_a_number_type_ref(tmp_path: Path) -> None:
         CHAT_DIR,
         tmp_path,
         "chat-app.trig",
-        {"routing.dmn": ('<inputExpression id="input_length_expr" typeRef="number">',
-                         '<inputExpression id="input_length_expr" typeRef="string">')},
+        {
+            "routing.dmn": (
+                '<inputExpression id="input_length_expr" typeRef="number">',
+                '<inputExpression id="input_length_expr" typeRef="string">',
+            )
+        },
     )
     assert decision_findings(model) == [
         DecisionFinding(
@@ -154,9 +162,7 @@ def test_condition_before_the_user_task_that_sets_it_is_a_finding(tmp_path: Path
     """``decision`` is an ApprovalShape field, set only after the approval
     user tasks, so the route gateway cannot read it."""
     model = ch09(tmp_path, approval_bpmn=('route == "manager"', 'decision == "manager"'))
-    assert [(f.subject, f.fact) for f in condition_findings(model)] == [
-        (f"{EX}approval_bpmn#flow_manager", "decision")
-    ]
+    assert [(f.subject, f.fact) for f in condition_findings(model)] == [(f"{EX}approval_bpmn#flow_manager", "decision")]
 
 
 def test_condition_reading_another_process_variable_is_a_finding(tmp_path: Path) -> None:

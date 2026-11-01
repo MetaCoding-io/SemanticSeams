@@ -61,8 +61,9 @@ Each gap row has a `Status`: `open`, `closed (vocabulary)`, `closed (rule)` or
 `[graph: ...]` markers and the row stays in the table as history. The doc-lint
 checks that no golden marker cites a closed row, that every open or deferred
 row for a golden file is still cited, and that a deferred row gives a reason.
-Rows whose Artifact starts with `runtime` (the ADR-0007 spike gaps) belong to
-no golden file and are exempt from the citation check.
+Rows whose Artifact starts with `runtime` (the ADR-0007 spike gaps) or is
+`ifmledit.json` (the IFMLEdit export's unmapped terms, GAP-29 to GAP-35) belong
+to no golden file and are exempt from the citation check.
 
 ## Producibility summary
 
@@ -112,7 +113,9 @@ earlier compose counts (62 graph, 7 fixed) were for the single file.
 
 The 28 gaps in [`gaps.md`](gaps.md): GAP-01..GAP-22 from the golden dry run,
 GAP-23..GAP-27 from the ADR-0007 spike and GAP-28 from the S04 htmx generator. M004 closes them row by row and
-records the outcome in the `Status` column. Grouped by the vocabulary namespace
+records the outcome in the `Status` column. GAP-29..GAP-35, the `ifml:` terms
+IFMLEdit JSON cannot hold, came later (M008/S01) and are deferred; they are not
+in the groups below. Grouped by the vocabulary namespace
 that would close them (a gap that spans two layers is listed under both):
 
 - **`deploy:`**: container images (GAP-01), ports (GAP-02), volumes (GAP-03),

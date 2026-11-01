@@ -4,7 +4,8 @@ marker, every `[graph: ...]` claim cites model terms that resolve in
 examples/chat-app/chat-app.trig, every `[gap: GAP-NN]` names a gaps.md row,
 and each artifact still parses in its own syntax. The gaps.md Status column is
 linted too: closed rows must not be cited, open or deferred golden rows must be,
-and `runtime (ADR-0007)` rows are exempt from citation.
+and `runtime (ADR-0007)` and `ifmledit.json` rows (no golden file) are exempt
+from citation.
 """
 
 import ast
@@ -54,6 +55,9 @@ GAP_ROW = re.compile(r"^\|\s*(GAP-\d{2})\s*\|", re.MULTILINE)
 COMMENT_END = {".yaml": "#", ".py": "#", ".html": "{#"}
 # ID | Artifact | What the graph cannot say | Proposed addition | Layer | Status
 GAP_COLUMNS = 6
+# Artifact cells of gap rows that belong to no golden file: the ADR-0007 spike
+# and the IFMLEdit export's unmapped terms (M008/S01).
+NON_GOLDEN_ARTIFACTS = ("runtime", "ifmledit.json")
 STATUS_FORMS = ("open", "closed (vocabulary)", "closed (rule)", "deferred: <reason>")
 STATUS = re.compile(r"^(open|closed \((vocabulary|rule)\)|deferred:.*)$")
 
@@ -249,7 +253,7 @@ def test_open_gap_rows_for_golden_files_are_cited():
     orphans = [
         gap
         for gap, (artifact, status) in gap_rows().items()
-        if not artifact.startswith("runtime") and not status.startswith("closed") and gap not in cited
+        if not artifact.startswith(NON_GOLDEN_ARTIFACTS) and not status.startswith("closed") and gap not in cited
     ]
     assert not orphans, f"gaps.md: open/deferred rows not referenced by any golden artifact line: {orphans}"
 
@@ -263,9 +267,9 @@ def test_no_gap_row_is_open():
 
 def test_gap_rows_name_a_golden_file_or_runtime():
     problems = [
-        f"{gap}: Artifact {artifact!r} is neither a golden file nor runtime"
+        f"{gap}: Artifact {artifact!r} is neither a golden file nor one of {NON_GOLDEN_ARTIFACTS}"
         for gap, (artifact, _) in gap_rows().items()
-        if artifact not in ARTIFACT_NAMES and not artifact.startswith("runtime")
+        if artifact not in ARTIFACT_NAMES and not artifact.startswith(NON_GOLDEN_ARTIFACTS)
     ]
     assert not problems, "gaps.md:\n" + "\n".join(problems)
 

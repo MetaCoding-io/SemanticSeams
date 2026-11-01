@@ -218,6 +218,9 @@ user tasks' forms, the routing and payout decision tables and the gateway paths.
 - The generators in [`seams_gen`](../../seams_gen/README.md) are larger worked examples
   of the same pattern: `seams_gen/htmx.py` writes templates from `model.interfaces`,
   and `seams_gen/_views.py` shows how they turn a `ResolutionError` into their own error.
+  `seams_gen/ifmledit.py` (`python -m seams_gen ifmledit`) is a small one: it exports the
+  IFML layer as IFMLEdit.org JSON and lists the terms the target format cannot hold in a
+  module constant, `UNMAPPED`, instead of guessing.
 - A generator that writes into owned code must never overwrite it. `seams_gen/stubs.py`
   writes a handler stub only where the file is absent and reports what it would have
   changed instead ([ADR-0012](/adr/0012-operation-implementation)'s regeneration rule).

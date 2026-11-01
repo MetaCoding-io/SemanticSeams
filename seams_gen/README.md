@@ -33,6 +33,9 @@ python -m seams_gen fastapi examples/chat-app/chat-app.trig --out build/
 python -m seams_gen compose examples/chat-app/chat-app.trig --out .
 # -> ./compose.development.yaml ./compose.production.yaml   (one per arch:Environment, ADR-0015;
 #    paths are relative to --out, so `docker compose -f compose.development.yaml up` works there)
+python -m seams_gen ifmledit examples/chat-app/chat-app.trig --out build/
+# -> build/ifmledit.json   (the IFML layer as IFMLEdit.org JSON; the ifml: terms with no
+#    IFMLEdit counterpart are named on stderr)
 ```
 
 ### From a project file
@@ -80,11 +83,12 @@ dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", ba
 | `compose` | `<out>/compose.<environment local name>.yaml`, one docker compose file per `arch:Environment` (ADR-0015), with paths relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts under the override rule for that environment, `seam:deployedTo` and the serving-container rule |
 | `dockerfile` | `<out>/<route module stem>.Dockerfile` (`chat_api.Dockerfile`), the runtime image build file, with every path literal and relative to the build context; header and `io.semanticseams.model-hash` / `io.semanticseams.container` labels name the model hash and the container | the serving `arch:Container` and the `deploy:build` of its `deploy:artifact` in the `development` `arch:Environment` (ADR-0015); no serving container, or no development build, is a `GeneratorError` naming `seam:executes` or `deploy:build` |
 | `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py`, `<out>/test_shape_examples.py` and `<out>/test_policies.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`, and each `odrl:permission` of `model.policies` with every `odrl:Party`; [Tests rendering rules](#tests-rendering-rules) |
+| `ifmledit` | `<out>/ifmledit.json`, the model's IFML layer as [IFMLEdit.org](https://github.com/B3rn475/IFMLEdit.org) JSON (backlog 12, a conformance check of the `ifml:` vocabulary): `elements` (`ifml.ViewContainer`, `ifml.ViewComponent` with stereotype `list` / `details` / `form`, `ifml.Event`, `ifml.NavigationFlow`, `ifml.DataFlow`) and `hierarchy` / `source` / `target` `relations`, ids the IRI local names, everything sorted, with a deterministic `metadata.graphics` layout the IFMLEdit loader requires. The `ifml:` terms with no IFMLEdit counterpart (`ifmledit.UNMAPPED`: `ifml:swap` and its strategies, `trigger`, `path`, `title`, `boundTo`, `order`, `InteractionModel`) are left out, printed on stderr and listed in [gaps.md](../docs/generation/golden/gaps.md) (GAP-29 to GAP-35) | `model.interfaces`; no `ifml:InteractionModel`, a component that is not exactly one of List, Details and Form, an element in several containers, an event without one exported owner, a flow with an unexported end or two elements with one local name is a `GeneratorError` |
 | `smoke` | `<out>/test_smoke.py`, a pytest file that calls a running app (backlog A9) | each `hydra:Operation` of `model.operations` with a `hydra:method` and a `comm:path`, its `seam:acceptsShape` / `seam:returnsShape`, its error statuses (ADR-0013), the first `verify:validExample` of its shapes and each `odrl:permission` targeting it; [Smoke rendering rules](#smoke-rendering-rules) |
 
 Each generator is one subcommand in `GENERATORS` in `__main__.py`, called as
 `generate(trig, out)`; `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke`
-(M015/S05) and `dockerfile` (M016/S03) are registered the same way, and only `compose` uses `out`.
+(M015/S05), `dockerfile` (M016/S03) and `ifmledit` (M008/S01) are registered the same way, and only `compose` uses `out`.
 
 **Images.** `python -m seams_gen.images PROJECT...` (`images.py`) is not a generator: it
 prints, as JSON, each Dockerfile a project's `dockerfile` generator writes, its build

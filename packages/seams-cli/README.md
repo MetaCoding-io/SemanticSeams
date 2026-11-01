@@ -60,7 +60,14 @@ mode): the model, unioned with `ontology/*.ttl`, is validated against
 `ontology/shapes` once, and a result of one of those shapes fails the command
 with exit 2, naming the focus node, the shape and the generator, and writes
 nothing. Projects that use only the built-ins skip the validation: they declare
-no preconditions. Each written
+no preconditions.
+
+With `--lenient` (D057) it collects faults instead of stopping: a precondition
+result becomes a fault and the generator still runs, and a generator that
+raises `GeneratorError` writes nothing and adds a fault, its previously locked
+outputs kept rather than deleted as orphans. Each fault prints to stderr as
+`seams generate: fault <generator>: <focus>: <shape>: <message>`, then
+`seams generate: N fault(s); output is flagged`, and the exit code is 0. Each written
 path is printed, relative to the working directory when it lies below it.
 Files are written as UTF-8 with `\n` newlines, byte-for-byte what
 `python -m seams_gen` writes.
@@ -72,7 +79,10 @@ generator's own `version` (`seams_gen.__version__` for the built-ins), the model
 generator writes any more is deleted (`removed <path>` on stdout) when it is a
 regular file still matching its locked hash; otherwise it is kept. Hand-edited,
 deleted and kept outputs are reported on stderr. Commit the lock with the
-outputs. See [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#the-lockfile).
+outputs. A lenient run with faults adds a sorted top-level `faults` list of
+`{focus, generator, message, shape}` to the lock, which flags it; without faults
+the key is absent and the bytes are those of a strict run (`lockfile_version`
+stays 1). See [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#the-lockfile).
 
 The model is, in order of precedence: `--model`, the project's `model`, then
 the `SEAMS_MODEL` environment variable when it is non-empty. As with
@@ -83,7 +93,7 @@ three, the command fails.
 
 | Code | Meaning |
 |---|---|
-| 0 | every output was written |
+| 0 | every output was written (with `--lenient`, also when there were faults) |
 | 1 | a file could not be read or written |
 | 2 | the project file is missing or malformed, `seams.lock` is malformed, no model was given, a generator found a missing or ambiguous graph fact, the model breaks a generator's precondition shape, or a `seams.generators` entry point cannot be registered |
 
@@ -104,9 +114,10 @@ against its input's `sh:datatype`, gateway conditions against the variables set
 upstream); reviews the model (`seams.review_findings`: lifecycle state labels
 copied into `sh:in`, `sh:class` pointing at a shape, a shape without
 `sh:targetClass`, a `sh:path` nothing declares); and runs every generator in
-memory to compare the outputs with the disk and `seams.lock`. Each finding prints to stdout as
+memory, leniently, to compare the outputs with the disk and `seams.lock`. Each finding prints to stdout as
 `<kind> <detail>`, with kind one of `shacl`, `gate`, `missing`, `stale`,
-`hand-edited`, `orphan`, `lock-out-of-date`, `decision` (the decision or
+`hand-edited`, `orphan`, `lock-out-of-date`, `flagged` (the lock records
+faults from `seams generate --lenient`; the lock path and `N fault(s)`), `decision` (the decision or
 sequence flow IRI, the fact and a message), `review` (the shape or path IRI,
 the fact and a message) and, with `coverage = ["paths"]`,
 `coverage` (the process IRI and the node IRIs of an unexercised path), followed by
@@ -114,7 +125,8 @@ the fact and a message) and, with `coverage = ["paths"]`,
 (`ADVISORY_KINDS`): they print but are not counted, and when they are the only
 findings stderr says `seams check: N review warning(s)` and the exit code is 0.
 It exits 0 with no problems, 1 with any,
-and 2 for the errors of `seams generate` plus a missing, unparsable or
+and 2 for the errors of `seams generate` except a generator fault, which the
+lenient outputs check turns into a finding, plus a missing, unparsable or
 non-SELECT gate, an unknown `coverage` entry or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-check).
 

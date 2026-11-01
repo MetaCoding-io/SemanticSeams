@@ -306,6 +306,30 @@ What goes wrong is reported before anything is written:
 - A name in `seams.toml` that no installed distribution registers is a project error. It
   lists the known generators.
 
+## Preview a broken model with --lenient
+
+While a model is still being written, a broken precondition stops every generator.
+`seams generate --lenient` writes what it can instead and flags the result
+([ADR-0016](/adr/0016-generator-protocol), D057):
+
+- A precondition the model breaks becomes a fault, and the generator still runs.
+- A generator whose `extract` or `render` raises `GeneratorError` writes nothing and adds
+  a fault. The files it wrote last time are kept and stay in `seams.lock`.
+
+Each fault goes to stderr as one line, followed by a summary, and the command exits 0:
+
+```text
+seams generate: fault <generator>: <focus>: <shape>: <message>
+seams generate: N fault(s); output is flagged
+```
+
+For a raised `GeneratorError`, `<shape>` is the error's predicate and `<focus>`
+its subject, so raise errors that name the model element and the fact that is missing.
+
+`seams.lock` keeps the faults in a sorted `faults` list. While it has any, `seams check`
+reports a `flagged` finding and exits 1, so flagged output cannot pass CI. Fix the model
+and run `seams generate` again without `--lenient`: a clean run drops the `faults` key.
+
 ## Where to go next
 
 - [The seams library](/reference/seams-library): every view, property and error.

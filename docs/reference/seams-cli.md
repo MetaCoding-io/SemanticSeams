@@ -69,12 +69,14 @@ of the three, `seams generate` and `seams check` fail with exit code 2.
 seams generate                                    # the seams.toml in the working directory
 seams generate --project examples/expenses/chapter-03
 seams generate --project path/to/seams.toml --model other.trig
+seams generate --lenient                          # preview a broken model; flags seams.lock
 ```
 
 | Option | Default | Meaning |
 |---|---|---|
 | `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
 | `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `--lenient` | off | Collect precondition and generator faults instead of stopping, write what the generators produce and record the faults in `seams.lock` (see [Lenient mode](#lenient-mode)). |
 
 Every generator runs in memory first. The files are written only when all of
 them succeed, so a failing generator leaves every output untouched. Each output
@@ -109,6 +111,7 @@ level holds:
 | `model` | The model path, relative to the project directory. |
 | `model_hash` | `seams.model_hash` of the model, `sha256:<hex>`. |
 | `outputs` | One entry per generated file, sorted by `path`. |
+| `faults` | Only after `seams generate --lenient` found faults: one `{focus, generator, message, shape}` object per fault, sorted. A lock with this key is flagged. |
 
 Each output entry records the generator, its version, the model hash, the
 file's sha256 and the full IRIs of the model elements the file came from
@@ -173,7 +176,7 @@ was edited by hand.
 |---|---|
 | 0 | Every output was written. |
 | 1 | A file could not be read or written. |
-| 2 | The project file is missing or malformed, `seams.lock` is malformed, no model was given, a generator found a missing or ambiguous graph fact, the model breaks a generator's precondition shape, or a `seams.generators` entry point cannot be registered. |
+| 2 | The project file is missing or malformed, `seams.lock` is malformed, no model was given, a generator found a missing or ambiguous graph fact, the model breaks a generator's precondition shape, or a `seams.generators` entry point cannot be registered. With `--lenient`, generator facts and preconditions are faults instead (exit 0). |
 
 Errors print to stderr as `seams generate: <message>`. A project-file error
 names the file by its absolute path and the offending key, for example
@@ -184,6 +187,26 @@ focus node, the shape and the generator, and nothing is written:
 ```text
 seams generate: https://example.org/expenses/broken_model: https://w3id.org/seams/shapes#ModelShape: generator 'strict-gen' requires the model to conform to this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
 ```
+
+### Lenient mode
+
+`seams generate --lenient` is for previewing a model that is still broken
+(D057, [ADR-0016](/adr/0016-generator-protocol)). A precondition the model
+breaks becomes a fault and the generator still runs. A generator that raises
+`GeneratorError` writes nothing and adds a fault, and the files it wrote last
+time are kept and stay in the lock instead of being deleted as orphans. Each
+fault prints to stderr, then a summary, and the exit code is 0:
+
+```text
+seams generate: fault strict-gen: https://example.org/expenses/broken_model: https://w3id.org/seams/shapes#ModelShape: generator 'strict-gen' requires the model to conform to this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
+seams generate: 1 fault(s); output is flagged
+```
+
+The line is `fault <generator>: <focus>: <shape>: <message>`; for a raised
+`GeneratorError`, `<shape>` is the error's predicate. The faults go into the
+lock's `faults` key, so [`seams check`](#seams-check) reports a `flagged`
+finding and CI rejects the output until a strict run on a fixed model writes a
+lock without them. Project-file, lockfile and registry errors still exit 2.
 
 ## seams check
 
@@ -210,8 +233,10 @@ pre-commit hook (D044):
    7 and 8 reach it with a path that climbs out of the project into `docs/`;
    a project outside this repository keeps its gates next to its `seams.toml`,
    for example `gates = ["gates/ungoverned-writes.rq"]`.
-3. **Outputs.** Every generator runs in memory and the result is compared with
-   the disk and with `seams.lock`.
+3. **Outputs.** Every generator runs in memory, leniently, and the result is
+   compared with the disk and with `seams.lock`. A lock that records faults is a
+   `flagged` finding; a generator fault the lock does not record makes the lock
+   `lock-out-of-date`.
 4. **Decisions.** Faults the runtime would hit in a decision, found without
    running it (backlog K2). A DMN input whose `typeRef` disagrees with the
    `sh:datatype` of its `dec:fromPath` (`number` takes the numeric XSD types,
@@ -244,6 +269,7 @@ pre-commit hook (D044):
 | `hand-edited` | A stale output whose sha256 is not the locked one either: someone edited it. |
 | `orphan` | `seams.lock` lists an output no generator writes any more, and it is still on disk. |
 | `lock-out-of-date` | There is no `seams.lock`, or the lock generate would write differs from it. |
+| `flagged` | `seams.lock` records faults from `seams generate --lenient`; the detail is the lock path and `N fault(s)`. |
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
 | `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
@@ -266,7 +292,8 @@ seams check: 4 problem(s)
 When the only findings are `review` findings, stderr says
 `seams check: N review warning(s)` instead and the exit code is 0.
 
-`seams generate` fixes every output finding. A `shacl`, `gate`, `decision`,
+`seams generate` fixes every output finding except `flagged`, which needs the
+model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
 `review` or `coverage` finding is fixed in the model.
 
 ### Exit codes
@@ -275,7 +302,7 @@ When the only findings are `review` findings, stderr says
 |---|---|
 | 0 | No findings, or only `review` warnings. |
 | 1 | At least one finding other than `review`, or a file could not be read. |
-| 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a generator found a missing or ambiguous graph fact. |
+| 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a `seams.generators` entry point cannot be registered. A generator fault is never exit 2 here: the outputs check runs leniently. |
 
 Errors print to stderr as `seams check: <message>`.
 

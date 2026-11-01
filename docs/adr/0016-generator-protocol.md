@@ -4,7 +4,7 @@
 
 **Date:** 2026-11-01
 
-**Source:** milestone M018/S01; backlog K3; decision D056
+**Source:** milestone M018/S01 and S02; backlog K3; decisions D056 and D057
 
 ## Context
 
@@ -119,10 +119,35 @@ parity inventory (`tests/test_shape_generator_parity.py`) lists it as `GENERATOR
 (the check *is* the shapes). Results of shapes that are not preconditions are ignored
 here; `seams check` still reports them.
 
-### Lenient mode is deferred
+### Lenient mode flags the lock (D057)
 
-This ADR covers strict mode only. A lenient mode, which runs a generator on a model that
-fails its preconditions and flags the output for previews (backlog K3, I3), is M018/S02.
+Strict mode is the default and is unchanged. `seams generate --lenient` is for previews
+of a model that is still broken (backlog K3, I3): it collects faults instead of raising.
+
+- Each precondition result becomes a fault, and the generator still runs.
+- A generator that raises `GeneratorError` is caught. It writes nothing, adds a fault,
+  and the files it wrote last time are kept and stay in the lock rather than being
+  deleted as orphans, so a later clean run can still remove them safely.
+
+Each fault is `{generator, shape, focus, message}`. For a raised `GeneratorError`,
+`shape` is the error's predicate and `focus` its subject. The CLI prints one line per
+fault to stderr, then a summary, and exits 0:
+
+```text
+seams generate: fault strict-gen: https://example.org/expenses/broken_model: https://w3id.org/seams/shapes#ModelShape: generator 'strict-gen' requires the model to conform to this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
+seams generate: 1 fault(s); output is flagged
+```
+
+`seams.lock` records the faults as a sorted top-level `faults` list. A lock with faults
+is flagged: `seams check` reports a `flagged` finding (`<lock path> N fault(s)`), which
+is a problem and exits 1, so the CI action rejects flagged output. `seams check` itself
+generates leniently, so a generator fault shows up as `flagged` when the lock records
+it, or as `lock-out-of-date` when it does not; it never exits 2.
+
+The flag lives in the one artifact that `seams check` and CI already read, so generated
+files stay deterministic and carry no markers, and principle 5 (flag invalid models,
+never refuse them) holds for previews. `lockfile_version` stays 1: a lock with no faults
+has no `faults` key and is byte for byte what a strict run writes.
 
 ## Alternatives Considered
 

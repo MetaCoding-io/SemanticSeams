@@ -188,7 +188,7 @@ nothing else and can start now.
 |---|---|---|---|---|---|
 | K1 | **Shapes catch every generator fault first**: a parity test with one minimal broken model per `GeneratorError` condition; each fault gets a shape or is listed as generator-only with the reason. Starts with `ifml:order` on page components and `seam:reads` on `ifml:List`, which the generator requires and the shapes do not | S | none | shapes only | done (M017/S01) |
 | K2 | **Static checks for decisions**: DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s | S | none | shapes or SPARQL checks only | done (M017/S02) |
-| K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | partly done (M018/S01; lenient mode M018/S02) |
+| K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | done (M018/S01 and S02) |
 | K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | planned (M018/S03) |
 | K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | planned (M018/S04) |
 | K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | planned (M023/S01, S02) |
@@ -433,13 +433,16 @@ UI work must not eat M3.*
      that repeat model facts are not built yet.*
    - **M018, Generator Kit** (K3, K4, K5): the generator protocol and entry points, lenient
      mode, the public test kit, and `seams new-generator`. Depends on M012 and M017.
-     *K3 partly done, M018/S01 ([ADR-0016](adr/0016-generator-protocol.md)): a generator
+     *K3 done, M018/S01 and S02 ([ADR-0016](adr/0016-generator-protocol.md)): a generator
      is a `seams_gen.protocol.Generator` (name, version, help, precondition shapes,
      `extract`, `render`, `sources`), found through the `seams.generators` entry-point
      group; the seven built-ins are registered there from `semanticseams-cli` (D056).
      `seams generate` runs a generator from another distribution, checks precondition
      shapes strictly (exit 2, nothing written) and records each output's own generator
-     version in `seams.lock`. Lenient mode is M018/S02.*
+     version in `seams.lock`. `seams generate --lenient` (S02, D057) collects
+     precondition and generator faults instead of raising, writes what it can and records
+     the faults in a `faults` list in `seams.lock`; `seams check` reports such a lock as
+     `flagged` (exit 1), so CI rejects it. Strict mode stays the default.*
    - **M019, Editing the Model** (I1 to I6): an ADR on the write path and comments, the
      write path with a round-trip test, forms from shapes, the BPMN and DMN modelers with
      ID renames, live checks and preview, domain profiles, and IFML editing on its diagram. Depends on M017 (K1) and

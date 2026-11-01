@@ -9,7 +9,7 @@ read-only; the viewer, the CLI and any later tool that edits the model call
 
 ## Boundary
 
-- Owns the patch value, the TriG text writer and (M019/S02) file apply and undo. The XML
+- Owns the patch value, the TriG text writer, and file apply and undo. The XML
   payload writer for BPMN and DMN comes with backlog I4.
 - Writes model files only through the writer below; nothing else in the repository
   writes them.
@@ -70,6 +70,39 @@ edited text refuses an inverse that names an existing `[ ]` node by its old labe
 edit inside a blank node). It fails loudly rather than attach triples to the wrong node.
 Undo restores the changed spans directly, so it does not need the inverse.
 
+## Applying to files, and undo
+
+```python
+import seams
+from seams_edit import apply, undo
+
+record = apply(seams.load("examples/chat-app").files, patch)  # or explicit TriG paths
+redo = undo(record)
+```
+
+- `apply(paths, patch)`: reads every TriG file named, and sends each quad to the one
+  file that declares its graph (`GRAPH g { }` or `g { }`). A default-graph quad being
+  removed goes to the one file that states it; an added quad whose graph no file
+  declares goes to the only file of a one-file model. Each file's share goes through
+  `apply_text` with the file's URI as base, as `seams.load` reads it. Only when every
+  file has succeeded are they written, each through a temporary file and a rename; if
+  writing one fails, the files already written get their old bytes back. An empty
+  patch writes nothing.
+- `EditRecord(patch, files)`: a frozen value. Each `FileEdit(path, patch, start,
+  before, after)` is one file's share of the patch and the one byte span it changed:
+  at `start`, `before` became `after`.
+- `undo(record)`: when every file still holds `after` at its span, puts `before` back,
+  keeping the rest of the file as it is now (so a later hand edit after the span
+  stays). Otherwise, after a hand edit inside or before a span, applies each file's
+  share of `patch.inverse()` to that file through the writer, and raises if the file
+  no longer holds what the patch added. It returns the record of the undo, so undoing
+  that redoes the edit.
+
+The record is the session's history: it lives in memory, and nothing about an edit is
+written anywhere but the model files. The inverse fallback has the writer's blank node
+limit (above): it cannot remove a `[ ]` node the patch added, since its label changed
+with the text.
+
 ## Errors
 
 `PatchError(subject, predicate, detail)` names the quad and the reason, and the writer
@@ -81,7 +114,10 @@ returns nothing:
 - a new blank node that no added quad has as its object, or a second reference to an
   unlabelled blank node of the text;
 - an invalid IRI, or text the writer cannot read (the detail names the line);
-- an edit that does not re-parse to the patched model.
+- an edit that does not re-parse to the patched model;
+- from `apply` and `undo`: a graph declared in more than one model file, an added quad
+  whose graph no file declares in a model of several files, a removed quad no file (or
+  more than one) states, a model file that is not UTF-8. Nothing is written.
 
 These are writer faults, not shape faults. An edit that only breaks the shapes is
 applied and flagged (principle 5).

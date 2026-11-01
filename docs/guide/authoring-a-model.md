@@ -52,6 +52,13 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
    `ifml:ViewContainer` with an `ifml:path`) has exactly one `ifml:order`, and every
    `ifml:List` names the shape it shows with `seam:reads`. The generators need both, and
    the shapes flag a missing one in `seams check` and the viewer's SHACL health panel.
+8. **Decisions agree with their data.** A DMN input's `typeRef` matches the
+   `sh:datatype` of the shape property its `dec:fromPath` names (`number` for the
+   numeric XSD types, `string`, `boolean`, `date`), and every variable a BPMN gateway
+   condition reads is set upstream in the same process: a `dec:processVariable` or
+   `dec:variable` of an upstream business-rule task's decision, or a field of the shape
+   an upstream user task writes. `seams check` reports a break as a `decision` finding
+   naming the decision or sequence flow and the fact.
 
 ::: tip Adding a seam predicate
 A model only uses the seam predicates that already exist. If you extend

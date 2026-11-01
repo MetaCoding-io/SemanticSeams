@@ -89,10 +89,13 @@ seams check --project examples/expenses/chapter-08
 
 It writes nothing (D044, `check.py`). It validates the model, unioned with
 `ontology/*.ttl`, against `ontology/shapes/seam-shapes.ttl`; runs each gate
-query over the same graph; and runs every generator in memory to compare the
+query over the same graph; checks each decision statically (a DMN `typeRef`
+against its input's `sh:datatype`, gateway conditions against the variables set
+upstream); and runs every generator in memory to compare the
 outputs with the disk and `seams.lock`. Each finding prints to stdout as
 `<kind> <detail>`, with kind one of `shacl`, `gate`, `missing`, `stale`,
-`hand-edited`, `orphan`, `lock-out-of-date` and, with `coverage = ["paths"]`,
+`hand-edited`, `orphan`, `lock-out-of-date`, `decision` (the decision or
+sequence flow IRI, the fact and a message) and, with `coverage = ["paths"]`,
 `coverage` (the process IRI and the node IRIs of an unexercised path), followed by
 `seams check: N problem(s)` on stderr. It exits 0 with no findings, 1 with any,
 and 2 for the errors of `seams generate` plus a missing, unparsable or

@@ -243,6 +243,38 @@ def test_coverage_paths_reports_each_unexercised_path(tmp_path, capsys):
     assert "https://example.org/expenses/approval_bpmn#rejected_end" in lines[0]
 
 
+def test_a_type_ref_disagreeing_with_the_datatype_is_a_decision_finding(tmp_path, capsys):
+    """Backlog K2 (seams.decision_findings, tests/test_decision_static_checks.py) through ``seams check``."""
+    app = _chapter_9(tmp_path)
+    dmn = app / "approval.dmn"
+    old = '<inputExpression id="input_amount_expr" typeRef="number">'
+    text = dmn.read_text(encoding="utf-8")
+    assert old in text
+    dmn.write_text(text.replace(old, old.replace("number", "string")), encoding="utf-8")
+    code, lines, err = _check(app, capsys)
+    assert code == 1
+    assert [line for line in lines if line.startswith("decision ")] == [
+        "decision https://example.org/expenses/approval_routing https://example.org/expenses/amount "
+        "input 'amount' of 'approval_routing' in approval.dmn is typeRef string, "
+        "but ExpenseShape gives 'amount' sh:datatype xsd:decimal"
+    ]
+    assert err.strip().startswith("seams check: ")
+
+
+def test_a_condition_reading_an_unset_variable_is_a_decision_finding(tmp_path, capsys):
+    app = _chapter_9(tmp_path)
+    bpmn = app / "approval.bpmn"
+    text = bpmn.read_text(encoding="utf-8")
+    assert "route ==" in text
+    bpmn.write_text(text.replace("route ==", "routing ==", 1), encoding="utf-8")
+    code, lines, _err = _check(app, capsys)
+    decision = [line for line in lines if line.startswith("decision ")]
+    assert code == 1
+    assert len(decision) == 1
+    assert decision[0].startswith("decision https://example.org/expenses/approval_bpmn#")
+    assert " routing " in decision[0]
+
+
 def test_coverage_unset_adds_no_findings(tmp_path, capsys):
     app = _chapter_9(tmp_path)
     assert load_project(app).coverage == ()

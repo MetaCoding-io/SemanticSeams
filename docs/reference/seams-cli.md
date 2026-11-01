@@ -188,7 +188,7 @@ seams check --project examples/expenses/chapter-08
 seams check --project path/to/seams.toml --model other.trig
 ```
 
-The options are those of `seams generate`. The command runs three checks,
+The options are those of `seams generate`. The command runs four checks,
 reports every finding and writes nothing, so it is safe in CI and in a
 pre-commit hook (D044):
 
@@ -207,7 +207,15 @@ pre-commit hook (D044):
    for example `gates = ["gates/ungoverned-writes.rq"]`.
 3. **Outputs.** Every generator runs in memory and the result is compared with
    the disk and with `seams.lock`.
-4. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+4. **Decisions.** Faults the runtime would hit in a decision, found without
+   running it (backlog K2). A DMN input whose `typeRef` disagrees with the
+   `sh:datatype` of its `dec:fromPath` (`number` takes the numeric XSD types,
+   `string`, `boolean` and `date` their own), and a gateway
+   `conditionExpression` that reads a variable no upstream business-rule task
+   or user task puts in the task data, are `decision` findings: the subject IRI
+   (the decision, or the sequence flow as `<bpmn model>#<flow id>`), the fact
+   (the property, or the variable name) and a message.
+5. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
    start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
    the process IRI, then the path's flow node IRIs (see
    [seams coverage](#seams-coverage)). The other two coverage reports are gate
@@ -223,6 +231,7 @@ pre-commit hook (D044):
 | `hand-edited` | A stale output whose sha256 is not the locked one either: someone edited it. |
 | `orphan` | `seams.lock` lists an output no generator writes any more, and it is still on disk. |
 | `lock-out-of-date` | There is no `seams.lock`, or the lock generate would write differs from it. |
+| `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
@@ -237,8 +246,8 @@ shacl https://example.org/expenses/expense_data https://w3id.org/seams/seam#nota
 seams check: 4 problem(s)
 ```
 
-`seams generate` fixes every output finding. A `shacl`, `gate` or `coverage`
-finding is fixed in the model.
+`seams generate` fixes every output finding. A `shacl`, `gate`, `decision` or
+`coverage` finding is fixed in the model.
 
 ### Exit codes
 

@@ -83,6 +83,8 @@ list in `seams.lock`, which flags the lock (D057).
 Such a generator's tests import `seams_gen.testing`, the kit the built-ins use: golden
 comparison, a determinism check, output checkers per file type and the shape parity check
 ([test it](docs/guide/write-your-own-generator.md#test-it)).
+`seams new-generator NAME --reference FILE` starts one from a hand-written output file, with a
+golden test that passes as generated ([start from a reference output](docs/guide/write-your-own-generator.md#start-from-a-reference-output)).
 `seams check` writes nothing: it validates the model against the SHACL shapes,
 runs the project's gate queries, checks decisions statically and fails on any stale,
 missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied

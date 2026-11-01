@@ -196,6 +196,9 @@ for name, text in files.items():
 `tests/test_generator_kit_third_party.py` tests a generator defined in the test with
 nothing but this module, `seams` and `seams_gen.protocol`; the
 [guide](../docs/guide/write-your-own-generator.md#test-it) walks through it.
+`seams new-generator NAME --reference FILE` scaffolds a generator package whose test uses
+this kit, from a reference output
+([start from a reference output](../docs/guide/write-your-own-generator.md#start-from-a-reference-output)).
 
 `tests/test_generator_testing.py` covers each function's pass and failure messages.
 

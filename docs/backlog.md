@@ -190,7 +190,7 @@ nothing else and can start now.
 | K2 | **Static checks for decisions**: DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s | S | none | shapes or SPARQL checks only | done (M017/S02) |
 | K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | done (M018/S01 and S02) |
 | K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | done (M018/S03) |
-| K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | planned (M018/S04) |
+| K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | done (M018/S04) |
 | K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | planned (M023/S01, S02) |
 | I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | planned (M019/S01, S02) |
 | I2 | **Forms from shapes**: edit one element through a form derived from the shapes that target its class; save invalid models and flag them | M | I1, K1 | none | planned (M019/S03) |
@@ -447,7 +447,13 @@ UI work must not eat M3.*
      comparison and its `sha256:<model-hash>` placeholder, `assert_deterministic`,
      `check_output` per file type and the K1 parity helper `assert_shapes_catch`; the
      built-in and parity tests use it, and `tests/test_generator_kit_third_party.py`
-     tests a generator defined in the test with it alone.*
+     tests a generator defined in the test with it alone.
+     K5 done, M018/S04: `seams new-generator NAME --reference FILE` turns a reference
+     output into a generator package (entry point, `Generator`, the reference verbatim as
+     its template, a golden marked `[fixed]` line by line and a kit-based test that passes
+     as generated), and the generator guide's "Start from a reference output" section
+     walks the loop from literal to view-model field with logic-free templates; the guide
+     test runs that walkthrough as written. M018 is done.*
    - **M019, Editing the Model** (I1 to I6): an ADR on the write path and comments, the
      write path with a round-trip test, forms from shapes, the BPMN and DMN modelers with
      ID renames, live checks and preview, domain profiles, and IFML editing on its diagram. Depends on M017 (K1) and

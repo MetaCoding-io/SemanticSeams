@@ -409,6 +409,111 @@ its subject, so raise errors that name the model element and the fact that is mi
 reports a `flagged` finding and exits 1, so flagged output cannot pass CI. Fix the model
 and run `seams generate` again without `--lenient`: a clean run drops the `faults` key.
 
+## Start from a reference output
+
+The checklist above was written code first. The other way round is often quicker: write
+by hand one file exactly as the generator should emit it for a model you know, then turn
+it into a generator a line at a time, with a golden test that passes at every step. Start
+with a reference output for the chat-app model, `processes.yaml`:
+
+```yaml
+title: "Process review"
+processes:
+  - "Send Message Process"
+```
+
+`seams new-generator` turns it into a generator package
+([the seams CLI](/reference/seams-cli#seams-new-generator)):
+
+```sh
+seams new-generator processes --reference processes.yaml
+```
+
+It writes `./seams-processes` (`--out` picks another directory, which must not exist or be
+empty) and prints each file it wrote:
+
+```text
+seams-processes/pyproject.toml
+seams-processes/seams_processes/__init__.py
+seams-processes/seams_processes/templates/processes.yaml
+seams-processes/tests/golden/processes.yaml
+seams-processes/tests/test_processes.py
+```
+
+- `pyproject.toml` registers `processes = "seams_processes:generator"` in the
+  `seams.generators` entry-point group, so once installed `seams generate` runs it like
+  [any other](#register-it-with-seams-generate).
+- `seams_processes/__init__.py` is the `Generator`. `extract` loads the model and returns
+  the view model, a dict that holds only `model_hash` so far. `render` substitutes the view
+  model into the template with the `[[ ]]` and `[% %]` delimiters the built-ins use.
+- `seams_processes/templates/processes.yaml` is the reference, verbatim.
+- `tests/golden/processes.yaml` is the reference with `# [fixed]` on every non-blank line:
+  every line is still a constant of the template.
+- `tests/test_processes.py` runs the [test kit](#test-it) on the model `SEAMS_MODEL` names,
+  else `examples/chat-app/chat-app.trig` beside `seams_gen`.
+
+The test passes as generated. Install the package (`pip install -e seams-processes`) and run
+`python -m pytest seams-processes/tests`. The scaffold refuses a reference it could not
+make a passing test from: one that does not parse as its file type, or with a line that
+already carries a marker, holds `[[`, `[%` or `[#`, or ends in whitespace. A line inside a
+multi-line string or a YAML block scalar gets its marker comment like any other, so leave
+such lines out of the reference or move the marker by hand.
+
+Then repeat one loop until no line the model knows is still `[fixed]`:
+
+1. Pick a literal in the template that the model holds, here `Send Message Process`.
+2. Add the fact to `extract`, formatted as the template will output it.
+3. Replace the literal in the template with the view-model field.
+4. Change the golden line's marker from `[fixed]` to `[graph: ...]`, naming the triple
+   the line comes from.
+5. Run the test again.
+
+After one pass, `extract` reads every process and quotes its label:
+
+```python
+def extract(trig: Path, out: Path) -> dict:
+    """The view model: every value the template outputs, read from the model at ``trig``."""
+    model = seams.load(trig)
+    return {
+        "model_hash": model.hash,
+        "processes": [json.dumps(p.label) for p in sorted(model.processes, key=lambda p: p.label)],
+    }
+```
+
+(with `import json` beside the other imports), the template loops over the prepared
+values:
+
+```yaml
+title: "Process review"
+processes:
+[% for label in processes %]
+  - [[ label ]]
+[% endfor %]
+```
+
+and the golden says where the line comes from:
+
+```yaml
+title: "Process review"  # [fixed]
+processes:  # [fixed]
+  - "Send Message Process"  # [graph: :send_message_process proc:Process rdfs:label]
+```
+
+The golden still holds the chat-app output, and the test passes on it. Running it with
+`SEAMS_MODEL=examples/expenses/chapter-08` fails with a diff that names the expenses
+processes: the template no longer holds a process name. For the model hash, write
+`[[ model_hash ]]` in the template and the `sha256:<model-hash>` placeholder in the golden.
+Once the template reads model elements, return their IRIs from `sources` too, so
+`seams.lock` records where each output came from.
+
+Keep the template free of logic. The quoting, the sort and the choice of processes
+happen in `extract`. The template only outputs prepared values and loops over them:
+no filters, no string concatenation, no comparisons or compound conditions
+([templates hold text, not logic](/project/principles#templates-hold-text-not-logic)).
+A value computed in the template is a value the view model, and so a trace of where the
+output came from, cannot see, and a literal left in it restates a model fact
+([principle 1](/project/principles#_1-the-model-is-the-source-of-truth)).
+
 ## Where to go next
 
 - [The seams library](/reference/seams-library): every view, property and error.

@@ -458,6 +458,10 @@ UI work must not eat M3.*
      write path with a round-trip test, forms from shapes, the BPMN and DMN modelers with
      ID renames, live checks and preview, domain profiles, and IFML editing on its diagram. Depends on M017 (K1) and
      M018 (K3 for the preview).
+     *I1's ADR done, M019/S01 ([ADR-0017](adr/0017-write-path-and-editor.md)): a patch
+     edits the source TriG text at the triple level so comments and layout survive, the
+     write path is a new `seams_edit` package outside the read-only `seams` library, and
+     editing is a viewer mode that is off by default. The writer is next (M019/S02).*
    - **M020, Generation Trace** (T1, T3): trace capture and the generation view. Depends
      on M018.
    - **M021, Write-Back from Output** (T4, T5). Depends on M019 and M020.

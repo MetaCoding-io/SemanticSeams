@@ -131,7 +131,8 @@ to I5 are the plan.
 - Every edit is a patch: quads added and removed, or an XML change for BPMN and DMN. It
   goes through one write path, which supports undo. No other code writes model files.
 - The `seams` library's views stay read-only. Code reads through the views and writes
-  through the write path. The I1 ADR decides where the write path lives.
+  through the write path, which lives in the `seams_edit` package
+  ([ADR-0017](../adr/0017-write-path-and-editor.md)).
 - An edit that breaks the shapes is saved and flagged, never refused (principle 5).
 - Writing a model is deterministic (principle 6). The same graph gives the same bytes,
   so a one-triple edit gives a one-line diff. Hand-written comments in a TriG file

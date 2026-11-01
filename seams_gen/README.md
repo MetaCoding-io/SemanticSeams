@@ -162,13 +162,36 @@ module and fail on an unlisted or stale one.
 
 ## The golden-target rule
 
-`golden_target(path, model_hash)` (`golden.py`) is the expected output: the golden with
+`golden_target(path, model_hash)` (`seams_gen.testing`) is the expected output: the golden with
 every trailing `[graph: …]`, `[fixed]` or `[gap: GAP-NN]` marker removed (a comment
 that held only a marker is dropped with the whitespace before it), each line
 right-stripped, and `sha256:<model-hash>` replaced by the real hash. The marker
 conventions are in [docs/generation/golden/README.md](../docs/generation/golden/README.md).
 `tests/test_htmx_generator.py` asserts `generate_page(trig) == golden_target(golden, hash)`
 and prints a unified diff on mismatch.
+
+## Test kit
+
+`seams_gen.testing` is the public test kit (backlog K4) a generator's tests import,
+built-in or third-party:
+
+| Function | Asserts | On failure |
+|---|---|---|
+| `golden_target(path, model_hash)`, `strip_markers(text, suffix)` | (returns) the golden-target rule above | `ValueError` for a marker outside a trailing comment or an unknown suffix |
+| `assert_matches_golden(text, golden_path, model_hash)` | `text == golden_target(golden_path, model_hash)` | `AssertionError` naming the golden file and first differing line, then a unified diff |
+| `assert_deterministic(generator, model_path, out=Path("generated"))` | two `generator.generate(model_path, out)` runs return the same `{file name: text}` | `AssertionError` naming the generator and the first (sorted) file name that differs or is produced by one run only |
+| `check_output(path, text)` | `text` parses as its type: `.py` `ast.parse`, `.yaml`/`.yml` `yaml.safe_load_all`, `.json` `json.loads`, `.html` a Jinja2 parse | `AssertionError` `<path>:<line>: <parse error>`; an unknown suffix is a `ValueError` |
+
+```python
+from seams_gen.testing import assert_deterministic, assert_matches_golden, check_output
+files = my_generator.generate(trig, Path("generated"))
+assert_matches_golden(files["checklist.yaml"], golden, seams.model_hash(trig))
+assert_deterministic(my_generator, trig)
+for name, text in files.items():
+    check_output(name, text)
+```
+
+`tests/test_generator_testing.py` covers each function's pass and failure messages.
 
 ## htmx rendering rules
 
@@ -645,7 +668,7 @@ and expression of any tag that breaks the rule; its `computing_expressions(text)
 is reusable on any template text.
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines
 equality, a render of each partial, the CLI, the swap and `submitsTo` mutations and the
-`seam:rendersComponent` errors. Also `tests/test_golden_target.py` (the stripping rule)
+`seam:rendersComponent` errors. Also `tests/test_golden_target.py` (the stripping rule), `tests/test_generator_testing.py` (the test kit)
 and `tests/test_htmx_generator.py`:
 byte equality with the golden, the hash header, determinism, no domain literals in the
 template, no logic nodes but the `visibleWhen` guard in the output (Jinja2 AST walk), a

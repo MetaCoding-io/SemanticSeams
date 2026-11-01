@@ -240,7 +240,8 @@ second process, decision and page showed what that costs.
 
 ### Tests
 
-- Generator output is tested byte for byte against goldens (`golden_target`).
+- Generator output is tested byte for byte against goldens (`golden_target` and
+  `assert_matches_golden` in `seams_gen.testing`).
 - Fix a bug by first writing a test that fails because of it.
 - The examples are fixtures. `examples/chat-app` and every
   `examples/expenses/chapter-NN` checkpoint must conform to the shapes. Tests run against

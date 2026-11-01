@@ -1,10 +1,9 @@
 """seams_gen: generators that turn the seams model into code (M004/S04+).
 
 Generators read only graph facts and must reproduce the marker-stripped
-goldens in docs/generation/golden/ byte for byte (D016).
+goldens in docs/generation/golden/ byte for byte (D016); the test kit
+that checks this is seams_gen.testing.
 """
-
-from .golden import golden_target, strip_markers
 
 __version__ = "0.1.0"  # must equal [project].version in seams_gen/pyproject.toml
 
@@ -57,11 +56,9 @@ __all__ = [
     "generate_page",
     "generate_routes",
     "generate_task_forms",
-    "golden_target",
     "render_compose",
     "render_dockerfile",
     "render_fragments",
     "render_routes",
     "render_task_forms",
-    "strip_markers",
 ]

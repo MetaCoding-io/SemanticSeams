@@ -3,13 +3,12 @@
     (GAP-19). Expects `c`, a Details Component. #]
       <li class="[[ c.item_class ]]">
 [% for fl in c.fields %]
-[% set value = "{{ " ~ c.loop_var ~ "." ~ fl.name ~ " }}" %]
-[% if fl.kind == "textarea" %]
-        <p>[[ value ]]</p>
-[% elif fl.kind == "datetime" %]
-        <time datetime="[[ value ]]">[[ value ]]</time>
+[% if fl.is_textarea %]
+        <p>{{ [[ c.loop_var ]].[[ fl.name ]] }}</p>
+[% elif fl.is_datetime %]
+        <time datetime="{{ [[ c.loop_var ]].[[ fl.name ]] }}">{{ [[ c.loop_var ]].[[ fl.name ]] }}</time>
 [% else %]
-        <span class="[[ fl.name ]]">[[ value ]]</span>
+        <span class="[[ fl.name ]]">{{ [[ c.loop_var ]].[[ fl.name ]] }}</span>
 [% endif %]
 [% endfor %]
       </li>

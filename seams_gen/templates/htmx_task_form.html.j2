@@ -29,10 +29,10 @@
         hx-swap="[[ s.flow.swap ]]">
 [% for i in t.inputs %]
     <label for="[[ i.id ]]_{{ task.correlation_key }}">[[ i.name ]]</label>
-[% if i.element == "select" %]
+[% if i.is_select %]
     <select id="[[ i.id ]]_{{ task.correlation_key }}"
-[% for a in i.attributes %]
-            [[ a ]][[ ">" if loop.last else "" ]]
+[% for a in i.attribute_items %]
+            [[ a.value ]][[ a.after ]]
 [% endfor %]
 [% for o in i.options %]
       <option value="[[ o|e ]]">[[ o|e ]]</option>
@@ -40,13 +40,13 @@
     </select>
 [% else %]
     <[[ i.element ]] id="[[ i.id ]]_{{ task.correlation_key }}"
-[% for a in i.attributes %]
-[[ " " * (i.element|length + 6) ]][[ a ]][[ ("></" ~ i.element ~ ">" if i.element == "textarea" else ">") if loop.last else "" ]]
+[% for a in i.attribute_items %]
+[[ i.indent ]][[ a.value ]][[ a.after ]]
 [% endfor %]
 [% endif %]
 [% endfor %]
 [% if t.unbound %]
-    {# [[ t.unbound|english_list ]] [[ "is" if t.unbound|length == 1 else "are" ]] set by the runtime, not entered: no parameter is ifml:boundTo [[ "it" if t.unbound|length == 1 else "them" ]] #}
+    {# [[ t.unbound_text ]] [[ t.unbound_verb ]] set by the runtime, not entered: no parameter is ifml:boundTo [[ t.unbound_pronoun ]] #}
 [% endif %]
     <button type="submit">[[ s.label|e ]]</button>
   </form>

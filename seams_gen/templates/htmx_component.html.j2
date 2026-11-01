@@ -1,7 +1,7 @@
 [#- The body of one component's {% block %} (D016), included by
     htmx_page.html.j2 inside the block and by htmx_fragment.html.j2 as a
     whole-component partial (GAP-19). Expects `c`, a Component. #]
-[% if c.kind == "List" %]
+[% if c.is_list %]
   <nav id="[[ c.id ]]" aria-label="[[ c.label|e ]]">
     <ul>
       {% for [[ c.loop_var ]] in [[ c.collection ]] %}
@@ -10,9 +10,9 @@
            hx-get="[[ c.link.get_path ]]"
            hx-trigger="[[ c.link.event_trigger ]]"
            hx-target="#[[ c.link.flow.target_id ]]"
-           hx-swap="[[ c.link.flow.swap ]]"[[ "" if c.link.vals else ">" ]]
+           hx-swap="[[ c.link.flow.swap ]]"[[ c.link.close ]]
 [% if c.link.vals %]
-           hx-vals='{[% for k, v in c.link.vals %]"[[ k ]]": "{{ [[ v ]] }}"[[ "" if loop.last else ", " ]][% endfor %]}'>
+           hx-vals='{[% for v in c.link.val_items %]"[[ v.name ]]": "{{ [[ v.expr ]] }}"[[ v.after ]][% endfor %]}'>
 [% endif %]
           {{ [[ c.loop_var ]].[[ c.display_field ]] }}
         </a>
@@ -20,17 +20,17 @@
       {% endfor %}
     </ul>
   </nav>
-[% elif c.kind == "Details" %]
+[% elif c.is_details %]
 [% if c.guard_variable %]
-[% if c.guard_states|length == 1 %]
-  {% if [[ c.guard_variable ]] == "[[ c.guard_states[0] ]]" %}
+[% if c.single_guard_state %]
+  {% if [[ c.guard_variable ]] == [[ c.guard_states_text ]] %}
 [% else %]
-  {% if [[ c.guard_variable ]] in ([% for s in c.guard_states %]"[[ s ]]"[[ "" if loop.last else ", " ]][% endfor %]) %}
+  {% if [[ c.guard_variable ]] in ([[ c.guard_states_text ]]) %}
 [% endif %]
 [% endif %]
-  <section id="[[ c.id ]]" aria-label="[[ c.label|e ]]"[[ "" if c.parameters else ">" ]]
-[% for p in c.parameters %]
-           data-[[ p ]]="{{ [[ p ]] }}"[[ ">" if loop.last else "" ]]
+  <section id="[[ c.id ]]" aria-label="[[ c.label|e ]]"[[ c.section_close ]]
+[% for p in c.parameter_items %]
+           data-[[ p.value ]]="{{ [[ p.value ]] }}"[[ p.after ]]
 [% endfor %]
     <ol id="[[ c.id ]]_items">
       {% for [[ c.loop_var ]] in [[ c.collection ]] %}
@@ -50,15 +50,15 @@
 [% if c.guard_variable %]
   {% endif %}
 [% endif %]
-[% elif c.kind == "Form" %]
+[% elif c.is_form %]
 [% set s = c.submit %]
-[% if s.triggers or s.event_policies %]
-  {# [[ s.event ]][[ " seam:triggers " ~ s.triggers|join(", ") if s.triggers else "" ]][[ " ;" if s.triggers and s.event_policies else "" ]][[ " seam:governedBy " ~ s.event_policies|join(", ") if s.event_policies else "" ]] #}
+[% if s.event_note %]
+  {# [[ s.event ]][[ s.event_note ]] #}
 [% endif %]
   {# [[ s.method_upper ]], [[ s.media_kind ]] response: [[ s.consumer ]] seam:consumes [[ s.operation ]] #}
-  {# [[ s.event ]] seam:submitsTo [[ s.operation ]][[ " ; the route enforces seam:governedBy " ~ s.route_policies|join(", ") if s.route_policies else "" ]] #}
+  {# [[ s.event ]] seam:submitsTo [[ s.operation ]][[ s.route_note ]] #}
 [% if s.mint %]
-  {# {[[ s.mint|join("}, {") ]]} starts a new process instance: no component on the page binds it, so the browser fills it with a fresh random key on every submit #}
+  {# {[[ s.mint_text ]]} starts a new process instance: no component on the page binds it, so the browser fills it with a fresh random key on every submit #}
 [% endif %]
   <form id="[[ c.id ]]" aria-label="[[ c.label|e ]]"
         hx-[[ s.method ]]="[[ s.path ]]"
@@ -70,12 +70,12 @@
 [% for i in c.inputs %]
     <label for="[[ i.id ]]">[[ i.name ]]</label>
     <[[ i.element ]] id="[[ i.id ]]"
-[% for a in i.attributes %]
-[[ " " * (i.element|length + 6) ]][[ a ]][[ ("></" ~ i.element ~ ">" if i.element == "textarea" else ">") if loop.last else "" ]]
+[% for a in i.attribute_items %]
+[[ i.indent ]][[ a.value ]][[ a.after ]]
 [% endfor %]
 [% endfor %]
 [% if c.unbound %]
-    {# [[ c.unbound|english_list ]] [[ "is" if c.unbound|length == 1 else "are" ]] set by the runtime, not entered: no parameter is ifml:boundTo [[ "it" if c.unbound|length == 1 else "them" ]] #}
+    {# [[ c.unbound_text ]] [[ c.unbound_verb ]] set by the runtime, not entered: no parameter is ifml:boundTo [[ c.unbound_pronoun ]] #}
 [% endif %]
     <button type="submit">[[ s.label|e ]]</button>
   </form>

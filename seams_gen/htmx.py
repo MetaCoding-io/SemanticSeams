@@ -49,7 +49,7 @@ from seams import Component as ComponentView
 
 from . import GeneratorError
 from ._views import label, only, optional, required, view_errors
-from .fragments import fragment_for
+from .fragments import ITEM, fragment_for
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "htmx_page.html.j2"
@@ -77,6 +77,24 @@ COMPONENT_TYPES = (IFML.List, IFML.Details, IFML.Form)
 
 
 @dataclass(frozen=True)
+class Item:
+    """One value of a rendered list and the text that follows it: a separator,
+    or the closer after the last value."""
+
+    value: str
+    after: str
+
+
+@dataclass(frozen=True)
+class Val:
+    """One hx-vals entry and the separator that follows it."""
+
+    name: str
+    expr: str
+    after: str
+
+
+@dataclass(frozen=True)
 class Field:
     name: str  # local name of sh:path
     kind: str  # "textarea" (dash:TextAreaEditor), "datetime", "enum" (sh:in) or "text"
@@ -84,6 +102,8 @@ class Field:
     max_length: int | None
     required: bool  # sh:minCount >= 1
     options: tuple[str, ...] = ()  # sh:in values, in list order
+    is_textarea: bool = False
+    is_datetime: bool = False
 
 
 @dataclass(frozen=True)
@@ -102,6 +122,8 @@ class Link:
     flow: Flow
     get_path: str  # hx-get, with path variables filled from the item
     vals: tuple[tuple[str, str], ...]  # hx-vals from the DataFlow ParameterBinding
+    val_items: tuple[Val, ...] = ()  # vals, each with its separator
+    close: str = ""  # ">" closing the <a> tag when there are no vals
 
 
 @dataclass(frozen=True)
@@ -122,6 +144,9 @@ class Input:
     element: str  # "textarea", "input" or (task forms only) "select"
     attributes: tuple[str, ...]
     options: tuple[str, ...] = ()  # a select's sh:in values
+    is_select: bool = False
+    indent: str = ""  # aligns continuation attributes under the first
+    attribute_items: tuple[Item, ...] = ()  # attributes, the last followed by the tag closer
 
 
 @dataclass(frozen=True)
@@ -142,6 +167,9 @@ class Submit:
     # new process instance; the path keeps {key} and the browser fills it
     # with a fresh random key on every submit
     mint: tuple[str, ...] = ()
+    mint_text: str = ""  # mint joined by "}, {"
+    event_note: str = ""  # the event's seam:triggers / seam:governedBy comment suffix
+    route_note: str = ""  # the operation's seam:governedBy comment suffix
 
 
 @dataclass(frozen=True)
@@ -158,6 +186,14 @@ class Component:
     guard_states: tuple[str, ...]
     guard_state_curies: tuple[str, ...]
     parameters: tuple[str, ...]
+    is_list: bool = False
+    is_details: bool = False
+    is_form: bool = False
+    seam_note: str = ""  # the seam:reads / seam:writes / seam:visibleWhen comment suffix
+    single_guard_state: bool = False
+    guard_states_text: str = ""  # quoted guard states joined by ", "
+    section_close: str = ""  # ">" closing the <section> tag when there are no parameters
+    parameter_items: tuple[Item, ...] = ()  # parameters, the last followed by ">"
     # List / Details
     collection: str | None = None
     loop_var: str | None = None
@@ -170,6 +206,9 @@ class Component:
     submit: Submit | None = None
     inputs: tuple[Input, ...] = ()
     unbound: tuple[str, ...] = ()
+    unbound_text: str = ""  # unbound as an English list
+    unbound_verb: str = ""  # "is" or "are"
+    unbound_pronoun: str = ""  # "it" or "them"
 
 
 @dataclass(frozen=True)
@@ -180,6 +219,8 @@ class Fragment:
     component: str  # local name of the seam:rendersComponent target
     kind: str  # "component" or "item"
     operations: tuple[str, ...]  # curies of the operations that render it, by IRI
+    operations_text: str = ""  # operations as an English list
+    is_item: bool = False
 
 
 @dataclass(frozen=True)
@@ -200,6 +241,9 @@ class TaskForm:
     submit: Submit
     inputs: tuple[Input, ...]
     unbound: tuple[str, ...]
+    unbound_text: str = ""
+    unbound_verb: str = ""
+    unbound_pronoun: str = ""
 
 
 @dataclass(frozen=True)
@@ -226,6 +270,29 @@ def _shape_name(shape) -> str:
     """:MessageShape -> message (the seam:visibleWhen variable rule in seam.ttl)."""
     name = local_name(shape).lower()
     return name[: -len("shape")] if name.endswith("shape") and len(name) > 5 else name
+
+
+def _english_list(items) -> str:
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _items(values, sep: str = "", last: str = "") -> tuple[Item, ...]:
+    """``values`` as Items: each followed by ``sep``, the last by ``last``."""
+    values = list(values)
+    return tuple(Item(v, last if i == len(values) - 1 else sep) for i, v in enumerate(values))
+
+
+def _unbound(unbound: tuple[str, ...]) -> dict:
+    """The English words of the comment naming a form's unbound fields."""
+    if not unbound:
+        return {}
+    one = len(unbound) == 1
+    return dict(
+        unbound_text=_english_list(unbound),
+        unbound_verb="is" if one else "are",
+        unbound_pronoun="it" if one else "them",
+    )
 
 
 def _fill(template: str, fill) -> str:
@@ -312,7 +379,14 @@ def _fragments(model: Model, presenter, component_ids) -> tuple[Fragment, ...]:
             continue
         found.setdefault(name, (local_name(component), kind, []))[2].append(model.compact(op.iri))
     return tuple(
-        Fragment(name=name, component=comp, kind=kind, operations=tuple(ops))
+        Fragment(
+            name=name,
+            component=comp,
+            kind=kind,
+            operations=tuple(ops),
+            operations_text=_english_list(ops),
+            is_item=kind == ITEM,
+        )
         for name, (comp, kind, ops) in sorted(found.items())
     )
 
@@ -379,6 +453,16 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
         guard_states = tuple(sorted(label(model, state.iri) for state in states))
         guard_curies = tuple(sorted(model.compact(state.iri) for state in states))
 
+    reads_curie = model.compact(reads.iri) if reads is not None else None
+    writes_curie = model.compact(writes.iri) if writes is not None else None
+    note = ""
+    if reads_curie:
+        note += ", seam:reads " + reads_curie
+    if writes_curie:
+        note += ", seam:writes " + writes_curie
+    if guard_curies:
+        note += ", seam:visibleWhen " + " , ".join(guard_curies)
+    parameters = tuple(sorted(_parameters(model, c)))
     base = dict(
         id=local_name(c.iri),
         curie=model.compact(c.iri),
@@ -386,12 +470,20 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
         type_curie=model.compact(ctype),
         label=label(model, c.iri),
         order=order,
-        reads=model.compact(reads.iri) if reads is not None else None,
-        writes=model.compact(writes.iri) if writes is not None else None,
+        reads=reads_curie,
+        writes=writes_curie,
         guard_variable=guard_var,
         guard_states=guard_states,
         guard_state_curies=guard_curies,
-        parameters=tuple(sorted(_parameters(model, c))),
+        parameters=parameters,
+        is_list=ctype == IFML.List,
+        is_details=ctype == IFML.Details,
+        is_form=ctype == IFML.Form,
+        seam_note=note,
+        single_guard_state=len(guard_states) == 1,
+        guard_states_text=", ".join(f'"{s}"' for s in guard_states),
+        section_close="" if parameters else ">",
+        parameter_items=_items(parameters, last=">"),
     )
 
     def fill_param(var: str) -> str:
@@ -466,7 +558,7 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
         prefix = prefix[: -len(suffix)]
     inputs = tuple(_input(prefix, fl) for fl in fields if fl.name in bound)
     unbound = tuple(fl.name for fl in fields if fl.name not in bound)
-    return Component(**base, fields=fields, submit=submit, inputs=inputs, unbound=unbound)
+    return Component(**base, fields=fields, submit=submit, inputs=inputs, unbound=unbound, **_unbound(unbound))
 
 
 def _fields(shape) -> tuple[Field, ...]:
@@ -492,6 +584,8 @@ def _fields(shape) -> tuple[Field, ...]:
                 max_length=prop.max_length,
                 required=prop.required,
                 options=prop.options,
+                is_textarea=kind == "textarea",
+                is_datetime=kind == "datetime",
             )
         )
     fields.sort(key=lambda fl: (fl.order is None, fl.order or 0, fl.name))
@@ -544,11 +638,14 @@ def _list_link(model: Model, c) -> Link:
                     df.iri, IFML.targetParameter, f"{name!r} is not a path variable of {reads_ops[0].iri}"
                 )
             vals.append((name, "item." + mappings[name]))
+    vals = sorted(vals)
     return Link(
         event_trigger=required(event.trigger, event.iri, IFML.trigger),
         flow=flow,
         get_path=get_path,
-        vals=tuple(sorted(vals)),
+        vals=tuple(vals),
+        val_items=tuple(Val(k, v, item.after) for (k, v), item in zip(vals, _items(vals, sep=", "), strict=True)),
+        close="" if vals else ">",
     )
 
 
@@ -575,6 +672,17 @@ def _submit(model: Model, c, presenter, fill_param, mintable=frozenset()) -> Sub
     path = re.sub(
         r"\{(\w+)\}", lambda m: m.group(0) if m.group(1) in mint else "{{ " + fill_param(m.group(1)) + " }}", template
     )
+    triggers = tuple(model.compact(p.iri) for p in event.triggers_all)
+    event_policies = tuple(model.compact(p.iri) for p in event.governed_by)
+    route_policies = tuple(model.compact(p.iri) for p in op.governed_by)
+    event_note = ""
+    if triggers:
+        event_note += " seam:triggers " + ", ".join(triggers)
+    if triggers and event_policies:
+        event_note += " ;"
+    if event_policies:
+        event_note += " seam:governedBy " + ", ".join(event_policies)
+    route_note = " ; the route enforces seam:governedBy " + ", ".join(route_policies) if route_policies else ""
     return Submit(
         event=model.compact(event.iri),
         label=label(model, event.iri),
@@ -583,11 +691,14 @@ def _submit(model: Model, c, presenter, fill_param, mintable=frozenset()) -> Sub
         path=path,
         operation=model.compact(op.iri),
         mint=mint,
+        mint_text="}, {".join(mint),
+        event_note=event_note,
+        route_note=route_note,
         media_kind=local_name(required(op.media_kind, op.iri, SEAM.mediaKind)),
         consumer=model.compact(presenter.iri),
-        triggers=tuple(model.compact(p.iri) for p in event.triggers_all),
-        event_policies=tuple(model.compact(p.iri) for p in event.governed_by),
-        route_policies=tuple(model.compact(p.iri) for p in op.governed_by),
+        triggers=triggers,
+        event_policies=event_policies,
+        route_policies=route_policies,
         flow=_flow(model, _navigation(event)),
     )
 
@@ -645,6 +756,7 @@ def _task_form(model: Model, form, task, presenter) -> TaskForm:
     if prefix.endswith("_form") and len(prefix) > len("_form"):
         prefix = prefix[: -len("_form")]
     reads = optional(task.reads)
+    unbound = tuple(fl.name for fl in fields if fl.name not in bound)
     return TaskForm(
         name=f"{local_name(form.iri)}.html",
         id=local_name(form.iri),
@@ -657,7 +769,8 @@ def _task_form(model: Model, form, task, presenter) -> TaskForm:
         entity_fields=_fields(reads) if reads is not None else (),
         submit=submit,
         inputs=tuple(_task_input(prefix, fl) for fl in fields if fl.name in bound),
-        unbound=tuple(fl.name for fl in fields if fl.name not in bound),
+        unbound=unbound,
+        **_unbound(unbound),
     )
 
 
@@ -712,7 +825,15 @@ def _task_input(prefix: str, fl: Field) -> Input:
     if not fl.options:
         return _input(prefix, fl)
     attributes = (f'name="{fl.name}"',) + (("required",) if fl.required else ())
-    return Input(id=f"{prefix}_{fl.name}", name=fl.name, element="select", attributes=attributes, options=fl.options)
+    return Input(
+        id=f"{prefix}_{fl.name}",
+        name=fl.name,
+        element="select",
+        attributes=attributes,
+        options=fl.options,
+        is_select=True,
+        attribute_items=_items(attributes, last=">"),
+    )
 
 
 def _input(prefix: str, fl: Field) -> Input:
@@ -724,7 +845,14 @@ def _input(prefix: str, fl: Field) -> Input:
         attributes.append(f'maxlength="{fl.max_length}"')
     if fl.required:
         attributes.append("required")
-    return Input(id=f"{prefix}_{fl.name}", name=fl.name, element=element, attributes=tuple(attributes))
+    return Input(
+        id=f"{prefix}_{fl.name}",
+        name=fl.name,
+        element=element,
+        attributes=tuple(attributes),
+        indent=" " * (len(element) + 6),
+        attribute_items=_items(attributes, last=f"></{element}>" if element == "textarea" else ">"),
+    )
 
 
 # ── rendering ───────────────────────────────────────────────────────────────
@@ -745,13 +873,7 @@ def _environment() -> jinja2.Environment:
         undefined=jinja2.StrictUndefined,
         autoescape=False,
     )
-    env.filters["english_list"] = _english_list
     return env
-
-
-def _english_list(items) -> str:
-    items = list(items)
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
 def render_page(page: PageModel) -> str:

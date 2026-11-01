@@ -24,6 +24,12 @@ and ``policies_without_deny``.
 their input's sh:datatype and gateway conditions that read a variable no
 upstream decision or user task sets.
 
+``seams.review_check`` runs the model review checks (backlog R1):
+``review_findings`` lists sh:in lists that copy a lifecycle's state labels,
+sh:class pointing at a sh:NodeShape, shapes without sh:targetClass and
+sh:path IRIs nothing declares a property. A ``ReviewFinding`` flags the
+model for review; it never refuses it.
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
@@ -63,6 +69,7 @@ from .graph import (
 )
 from .loader import Model, load, model_hash, payload_path
 from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, VERIFY, local_name
+from .review_check import ReviewFinding, review_findings
 from .sparql import PREFIXES, load_question, question_names
 from .views import (
     Architecture,
@@ -180,6 +187,7 @@ __all__ = [
     "ProcessPath",
     "Processes",
     "ResolutionError",
+    "ReviewFinding",
     "Rule",
     "SEAM",
     "STATE",
@@ -215,6 +223,7 @@ __all__ = [
     "policies_without_deny",
     "process_paths",
     "question_names",
+    "review_findings",
     "type_ref_findings",
     "unexercised_paths",
     "unfired_transitions",

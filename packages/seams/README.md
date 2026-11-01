@@ -58,6 +58,18 @@ accept the `sh:datatype` of its `dec:fromPath`, and `condition_findings` flags
 a BPMN condition that reads a variable no upstream business-rule or user task
 sets. `seams check` reports them as `decision` findings.
 
+`seams.review_findings(model)` runs the model review checks (backlog R1) and
+returns a sorted list of `ReviewFinding` (`subject`, `fact`, `message`). It
+flags four things: a `sh:in` list that copies the `rdfs:label`s of the shape's
+`seam:lifecycle` states (subject the shape, fact the `sh:path`, the message
+names the state IRIs to use), a `sh:class` that points at a `sh:NodeShape`, a
+`sh:NodeShape` with no `sh:targetClass` that is not itself a class (fact
+`sh:targetClass`), and a `sh:path` IRI that no `rdf:Property`,
+`owl:ObjectProperty`, `owl:DatatypeProperty` or `owl:AnnotationProperty`
+declares (subject the path, fact `sh:path`; path expressions are skipped). The
+checks are in `seams.review_check`, one function each. A review finding flags
+the model; it never refuses it, and the function does not raise.
+
 `ModelGraph.operation_implementation(op)` reads what serves an operation
 (ADR-0012) from `seam:implementedBy`, returning an `Implementation` (`iri`,
 `kind`, `handler`) or None when the operation declares none. `kind` is one

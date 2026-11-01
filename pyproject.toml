@@ -30,6 +30,10 @@ filterwarnings = [
 include = ["packages/seams"]
 strict = ["packages/seams"]
 pythonVersion = "3.12"
+# The uv workspace venv, so a bare .venv/bin/pyright resolves rdflib and lxml
+# without an activated environment.
+venvPath = "."
+venv = ".venv"
 
 [tool.ruff]
 line-length = 120

@@ -489,6 +489,31 @@ A decision or process whose payload file is missing is skipped. Any other
 `ResolutionError` met while reading one becomes a finding. Every example
 model yields no findings.
 
+## Model review checks
+
+`seams.review_check` flags facts the model states twice or not at all
+(backlog R1). Each finding is one `ReviewFinding`, with `subject` (an IRI),
+`fact` and `message`. The lists are sorted. A review finding flags the model;
+it never refuses it, and the checks do not raise.
+
+- `lifecycle_label_findings(model)`: a `sh:in` list on a shape with a
+  `seam:lifecycle` whose members are all `rdfs:label`s of that lifecycle's
+  states. The subject is the shape, the fact the property's `sh:path`, and
+  the message names the state IRIs to use instead.
+- `shape_class_findings(model)`: a `sh:class` whose value is a
+  `sh:NodeShape`. The subject is the shape, the fact the `sh:path`.
+- `target_class_findings(model)`: a `sh:NodeShape` with no `sh:targetClass`
+  that is not itself an `rdfs:Class` or `owl:Class`. The fact is
+  `sh:targetClass`.
+- `undeclared_path_findings(model)`: a `sh:path` IRI that no `rdf:Property`,
+  `owl:ObjectProperty`, `owl:DatatypeProperty` or `owl:AnnotationProperty`
+  declares. Path expressions such as `sh:inversePath` are skipped. The
+  subject is the path, the fact `sh:path`.
+- `seams.review_findings(model)` returns the findings of all four.
+
+The chat app has eleven: its `MessageShape` status list, `sh:class
+:MessageShape`, both shapes and all seven paths. Backlog O1 and O2 remove them.
+
 ## The model hash
 
 `"sha256:<hex>"`, where each payload is framed as relative path, NUL, decimal

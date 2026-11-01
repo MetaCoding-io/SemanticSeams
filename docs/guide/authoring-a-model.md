@@ -48,6 +48,10 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
    [shapes reference](/reference/shapes) lists every constraint, and the
    [seam predicates reference](/reference/seam-predicates) describes each predicate's
    intended source and target.
+7. **Pages are complete enough to generate.** Every component of a page (an
+   `ifml:ViewContainer` with an `ifml:path`) has exactly one `ifml:order`, and every
+   `ifml:List` names the shape it shows with `seam:reads`. The generators need both, and
+   the shapes flag a missing one in `seams check` and the viewer's SHACL health panel.
 
 ::: tip Adding a seam predicate
 A model only uses the seam predicates that already exist. If you extend

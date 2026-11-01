@@ -186,7 +186,7 @@ nothing else and can start now.
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
-| K1 | **Shapes catch every generator fault first**: a parity test with one minimal broken model per `GeneratorError` condition; each fault gets a shape or is listed as generator-only with the reason. Starts with `ifml:order` on page components and `seam:reads` on `ifml:List`, which the generator requires and the shapes do not | S | none | shapes only | planned (M017/S01) |
+| K1 | **Shapes catch every generator fault first**: a parity test with one minimal broken model per `GeneratorError` condition; each fault gets a shape or is listed as generator-only with the reason. Starts with `ifml:order` on page components and `seam:reads` on `ifml:List`, which the generator requires and the shapes do not | S | none | shapes only | done (M017/S01) |
 | K2 | **Static checks for decisions**: DMN `typeRef` agrees with the `sh:datatype` of the input's `dec:fromPath`; gateway condition variables are upstream `dec:processVariable`s | S | none | shapes or SPARQL checks only | planned (M017/S02) |
 | K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | planned (M018/S01, S02) |
 | K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | planned (M018/S03) |
@@ -412,6 +412,11 @@ UI work must not eat M3.*
    milestone that needs a decision opens with its ADR.
    - **M017, Honest Checks** (K1, K2, T2, R1): shapes catch every generator fault, static
      decision checks, logic out of templates, and model review checks. No dependencies.
+     *K1 done, M017/S01: `tests/test_shape_generator_parity.py` gives every
+     `raise GeneratorError` in `seams_gen` a parity case (a broken example the shapes flag
+     and the generator rejects) or a `GENERATOR_ONLY` entry with its reason, and its
+     inventory fails on an unlisted or stale raise site. New shapes require `ifml:order` on
+     page components and `seam:reads` on an `ifml:List`.*
    - **M018, Generator Kit** (K3, K4, K5): the generator protocol and entry points, lenient
      mode, the public test kit, and `seams new-generator`. Depends on M012 and M017.
    - **M019, Editing the Model** (I1 to I6): an ADR on the write path and comments, the

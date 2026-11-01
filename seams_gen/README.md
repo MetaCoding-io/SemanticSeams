@@ -104,6 +104,13 @@ author can find the fact to fix. The CLI prints that message to stderr and exits
 A model file that cannot be read, or an output directory that cannot be written, exits
 **1**. Nothing is written when generation fails.
 
+**Parity with the shapes.** A model that passes `ontology/shapes/seam-shapes.ttl` must
+generate (principle 5). A new `raise GeneratorError` therefore needs a parity case in
+`tests/test_shape_generator_parity.py` (a mutated example that the shapes flag and the
+generator rejects, naming the same subject and predicate) or a `GENERATOR_ONLY` entry
+there with the reason no shape states it. The inventory tests count the raise sites per
+module and fail on an unlisted or stale one.
+
 ## The golden-target rule
 
 `golden_target(path, model_hash)` (`golden.py`) is the expected output: the golden with

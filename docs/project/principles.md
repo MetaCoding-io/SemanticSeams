@@ -72,8 +72,10 @@ generator raise `GeneratorError` is also a shape violation, or is documented as
 generator-only with the reason.
 
 - Invalid models can still be saved, shared and viewed; they are flagged, never refused.
-- **Check:** partial. K1 adds a parity test and records the conditions the shapes do
-  not catch yet.
+- **Check:** `tests/test_shape_generator_parity.py`. Each `raise GeneratorError` in
+  `seams_gen` has a parity case, a broken example that the shapes flag and the generator
+  rejects, or an entry in its `GENERATOR_ONLY` list with the reason the shapes do not
+  state it. The inventory tests fail on a raise site with neither.
 
 ### 6. Same model, same bytes
 

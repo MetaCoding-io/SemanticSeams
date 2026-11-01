@@ -45,6 +45,8 @@
         deploy:configuration [ a deploy:Configuration ;
                                deploy:binding [ deploy:key "DB_URL" ;
                                                 deploy:secretRef <https://secrets.example.org/shop/prod/db-url> ] ] ;
+        # The runtime's /healthz probe uses the serving container's single port.
+        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
         deploy:replicas 2 ;
         deploy:dependsOn :order_db ;
         deploy:placement [ a deploy:PlacementPolicy ;

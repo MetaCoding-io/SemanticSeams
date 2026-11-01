@@ -26,7 +26,7 @@ from typing import NamedTuple
 
 import pyshacl
 import pytest
-from rdflib import RDF, Dataset, Graph, Literal, Namespace, URIRef
+from rdflib import RDF, RDFS, BNode, Dataset, Graph, Literal, Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -35,6 +35,8 @@ if str(ROOT) not in sys.path:
 from seams import ModelGraph  # noqa: E402
 
 from seams_gen import GeneratorError, ifmledit  # noqa: E402
+from seams_gen.compose import compose_file_name, environments, extract_compose  # noqa: E402
+from seams_gen.dockerfile import extract_dockerfile  # noqa: E402
 from seams_gen.fastapi import extract_routes  # noqa: E402
 from seams_gen.htmx import generate_pages  # noqa: E402
 from seams_gen.smoke import extract_smoke  # noqa: E402
@@ -49,6 +51,7 @@ EXPENSES_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
 SH = Namespace("http://www.w3.org/ns/shacl#")
 ARCH = Namespace("https://w3id.org/seams/arch#")
 COMM = Namespace("https://w3id.org/seams/comm#")
+DEPLOY = Namespace("https://w3id.org/seams/deploy#")
 HYDRA = Namespace("http://www.w3.org/ns/hydra/core#")
 ODRL = Namespace("http://www.w3.org/ns/odrl/2/")
 PROC = Namespace("https://w3id.org/seams/proc#")
@@ -60,15 +63,6 @@ CHAT = Namespace("https://example.org/chat/")
 EXP = Namespace("https://example.org/expenses/")
 APPROVAL = Namespace("https://example.org/expenses/approval_bpmn#")
 PAYOUT = Namespace("https://example.org/expenses/payout_bpmn#")
-
-# Modules whose raise sites a later task of M017/S01 covers. Their strict inventory
-# waits for that task; test_pending_modules_are_not_yet_covered fails once one is
-# covered, as the reminder to drop it from this map.
-PENDING = {
-    "compose": "T03",
-    "dockerfile": "T03",
-}
-
 
 class Site(NamedTuple):
     """One ``raise GeneratorError`` in seams_gen: its module, the innermost function
@@ -149,12 +143,24 @@ def _ifmledit(model) -> object:
     return ifmledit.generate(model)
 
 
+def _compose(model) -> object:
+    """The compose model of every environment, as generate_compose_environments
+    builds them, with paths relative to the model's directory."""
+    files = []
+    for env in environments(model):
+        compose_file_name(env)
+        files.append(extract_compose(model, model.path.parent, env))
+    return files
+
+
 GENERATORS = {
     "htmx": _htmx,
     "ifmledit": _ifmledit,
     "fastapi": extract_routes,
     "tests": extract_tests,
     "smoke": extract_smoke,
+    "compose": _compose,
+    "dockerfile": extract_dockerfile,
 }
 
 
@@ -233,6 +239,52 @@ def _permission(ds, policy):
 
 def _permission_without_target(ds):
     _remove(_seams(ds), _permission(ds, CHAT.user_send_policy), ODRL.target)
+
+
+def _chat_arch(ds):
+    return _graph(ds, "model:chat_architecture")
+
+
+def _outsider(ds):
+    """An arch:Container no arch:System contains."""
+    _chat_arch(ds).add((CHAT.outsider, RDF.type, ARCH.Container))
+    return CHAT.outsider
+
+
+def _binding_with_key(ds, key: str):
+    (node,) = _chat_arch(ds).subjects(DEPLOY.key, Literal(key))
+    return node
+
+
+def _add_binding(ds, container, node, key: str, *facts) -> None:
+    """A shared binding ``node`` of ``container`` with deploy:key ``key`` and ``facts``."""
+    g = _chat_arch(ds)
+    config = g.value(container, DEPLOY.configuration)
+    assert config is not None, container
+    g.add((config, DEPLOY.binding, node))
+    g.add((node, DEPLOY.key, Literal(key)))
+    for p, o in facts:
+        g.add((node, p, o))
+
+
+def _system_without_containers(ds):
+    _chat_arch(ds).remove((CHAT.chat_system, ARCH.contains, None))
+
+
+def _service_of_outsider(ds):
+    _replace(_chat_arch(ds), _binding_with_key(ds, "LLM_GATEWAY_URL"), DEPLOY.serviceOf, _outsider(ds))
+
+
+def _second_port(ds, container):
+    port = BNode()
+    g = _chat_arch(ds)
+    g.add((container, DEPLOY.port, port))
+    g.add((port, RDF.type, DEPLOY.Port))
+    g.add((port, DEPLOY.containerPort, Literal(9000)))
+
+
+BAD_KEY = BNode("bad_key_binding")
+TWO_KINDS = BNode("two_kinds_binding")
 
 
 CASES = [
@@ -691,6 +743,121 @@ CASES = [
         CHAT.user_send_policy,
         ODRL.permission,
     ),
+
+    Case(
+        "system-without-containers",
+        Site("compose", "extract_compose", "ARCH.contains", "no container"),
+        CHAT_TRIG,
+        _system_without_containers,
+        "compose",
+        CHAT.chat_system,
+        ARCH.contains,
+        CHAT.chat_system,
+        ARCH.contains,
+    ),
+    Case(
+        "serving-container-without-a-port",
+        Site("compose", "_single_port", "DEPLOY.port"),
+        CHAT_TRIG,
+        lambda ds: _remove(_chat_arch(ds), CHAT.chat_api, DEPLOY.port),
+        "compose",
+        CHAT.chat_api,
+        DEPLOY.port,
+        CHAT.chat_api,
+        match="/healthz",
+    ),
+    Case(
+        "depends-on-outside-the-system",
+        Site("compose", "_service", "DEPLOY.dependsOn"),
+        CHAT_TRIG,
+        lambda ds: _chat_arch(ds).add((CHAT.chat_ui, DEPLOY.dependsOn, _outsider(ds))),
+        "compose",
+        CHAT.chat_ui,
+        DEPLOY.dependsOn,
+        CHAT.chat_ui,
+    ),
+    Case(
+        "proxies-outside-the-system",
+        Site("compose", "_service", "DEPLOY.proxies"),
+        CHAT_TRIG,
+        lambda ds: _replace(_chat_arch(ds), CHAT.chat_ui, DEPLOY.proxies, _outsider(ds)),
+        "compose",
+        CHAT.chat_ui,
+        DEPLOY.proxies,
+        CHAT.chat_ui,
+    ),
+    Case(
+        "placed-on-an-unlabelled-node",
+        Site("compose", "_service", "RDFS.label"),
+        CHAT_TRIG,
+        lambda ds: _remove(_chat_arch(ds), CHAT.app01, RDFS.label),
+        "compose",
+        CHAT.app01,
+        RDFS.label,
+        CHAT.app01,
+        RDFS.label,
+    ),
+    Case(
+        "binding-key-not-an-env-name",
+        Site("compose", "_bindings", "DEPLOY.key"),
+        CHAT_TRIG,
+        lambda ds: _add_binding(ds, CHAT.llm_gateway, BAD_KEY, "BAD-KEY", (DEPLOY.value, Literal("x"))),
+        "compose",
+        CHAT.llm_gateway,
+        DEPLOY.key,
+        BAD_KEY,
+        DEPLOY.key,
+    ),
+    Case(
+        "binding-key-bound-twice",
+        Site("compose", "_bindings", "DEPLOY.binding", "twice"),
+        CHAT_TRIG,
+        lambda ds: _add_binding(ds, CHAT.llm_gateway, BNode(), "UPSTREAM_BASE_URL", (DEPLOY.value, Literal("x"))),
+        "compose",
+        CHAT.llm_gateway,
+        DEPLOY.binding,
+        CHAT.llm_gateway,
+        match="bound twice",
+    ),
+    Case(
+        "binding-with-two-kinds",
+        Site("compose", "_bindings", "DEPLOY.binding", "kinds"),
+        CHAT_TRIG,
+        lambda ds: _add_binding(
+            ds,
+            CHAT.llm_gateway,
+            TWO_KINDS,
+            "TWO_KINDS",
+            (DEPLOY.value, Literal("x")),
+            (DEPLOY.secretFile, Literal("../../.secrets/x")),
+        ),
+        "compose",
+        CHAT.llm_gateway,
+        DEPLOY.binding,
+        TWO_KINDS,
+        match="exactly one of",
+    ),
+    Case(
+        "service-of-outside-the-system",
+        Site("compose", "_bindings", "DEPLOY.serviceOf"),
+        CHAT_TRIG,
+        _service_of_outsider,
+        "compose",
+        CHAT.chat_api,
+        DEPLOY.serviceOf,
+        CHAT.chat_api,
+    ),
+    Case(
+        "service-of-a-container-with-two-ports",
+        Site("compose", "_bindings", "DEPLOY.port"),
+        CHAT_TRIG,
+        lambda ds: _second_port(ds, CHAT.llm_gateway),
+        "compose",
+        CHAT.llm_gateway,
+        DEPLOY.port,
+        CHAT.llm_gateway,
+        DEPLOY.port,
+    ),
 ]
 
 
@@ -812,6 +979,43 @@ GENERATOR_ONLY: dict[Site, str] = {
     Site("sequence", "read_trace", "'trace'", "no row"): f"The store has no row for the instance: {_TRACE}.",
     Site("sequence", "read_trace", "'trace'", "no trace"): f"The checkpoint holds no trace: {_TRACE}.",
     Site("sequence", "_rows", "'trace'"): f"The trace is not a list of rows: {_TRACE}.",
+    Site("compose", "environments", "RDF.type"): (
+        "A model without an arch:Environment is valid (a model with no deployment layer); "
+        "only compose generation needs one."
+    ),
+    Site("compose", "compose_file_name", "RDF.type"): (
+        "A compose file is named after the environment's IRI local name, and a valid IRI may have a local "
+        "name that is not a file stem; a constraint of the generated file name, not of the model."
+    ),
+    Site("compose", "_resolve_environment", "RDF.type"): (
+        "The environment is the caller's argument (the CLI's --environment); naming one the model does not "
+        "declare is a fault of the argument, not of the model."
+    ),
+    Site("compose", "extract_compose", "ARCH.contains", "one system"): (
+        "A model without an arch:System is valid (no architecture layer), and several systems are valid "
+        f"architecture; a compose file is the project of one system: {_LIMIT}."
+    ),
+    Site("compose", "_executing", "SEAM.executes"): (
+        "Several serving containers are a valid architecture; the compose file mounts the model into one "
+        f"(D026): {_LIMIT}."
+    ),
+    Site("compose", "_bindings", "kind"): (
+        "Two bindings with one secret key (the deploy:key lower-cased) and different sources, in any "
+        "containers of one environment. Stating it needs each container's bindings in that environment "
+        "after ADR-0015's override merge, compared case-insensitively across containers; left to the generator."
+    ),
+    Site("compose", "generate_compose_environments", "RDF.type"): f"Two compose files named alike: {_NAMES}.",
+    Site("dockerfile", "extract_dockerfile", "SEAM.executes"): (
+        "A model with no container serving routes is valid; only the runtime image's Dockerfile needs one."
+    ),
+    Site("dockerfile", "extract_dockerfile", "DEPLOY.build"): (
+        "A serving container whose development deploy:artifact pulls a published image is valid (compose "
+        "pulls it); only the Dockerfile generator, run on its own, needs a deploy:build."
+    ),
+    Site("dockerfile", "extract_dockerfile", "DEPLOY.context"): (
+        "Whether the build context holds the model's directory depends on resolving the deploy:context path "
+        "against the model file's location on disk, not on the graph; backlog A11 covers the build paths."
+    ),
 }
 
 
@@ -879,20 +1083,14 @@ def _covered(module: str) -> list[Site]:
 
 
 def test_every_module_with_raises_is_inventoried():
-    finished = {"htmx", "fragments", "_views", "ifmledit", "fastapi", "tests", "smoke", "sequence"}
-    assert set(_modules()) == finished | set(PENDING)
+    """A module with raise sites and no case or entry fails here, not silently."""
+    assert set(_modules()) == {s.module for s in [*(c.site for c in CASES), *GENERATOR_ONLY]}
 
 
-@pytest.mark.parametrize("module", [m for m in _modules() if m not in PENDING])
+@pytest.mark.parametrize("module", _modules())
 def test_inventory_matches_the_raise_sites(module):
     """One parity case or generator-only entry per raise site, no more and no fewer."""
     count = len(re.findall(r"\braise GeneratorError\b", _source(module)))
     covered = _covered(module)
     assert len(covered) == count, f"{module}: {count} raise sites, {len(covered)} cases and entries"
     assert Counter((s.function, s.predicate) for s in covered) == _raise_sites(module)
-
-
-@pytest.mark.parametrize("module", sorted(PENDING))
-def test_pending_modules_are_not_yet_covered(module):
-    count = len(re.findall(r"\braise GeneratorError\b", _source(module)))
-    assert len(_covered(module)) != count, f"{module} is covered: drop it from PENDING ({PENDING[module]})"

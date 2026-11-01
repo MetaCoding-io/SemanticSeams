@@ -38,7 +38,8 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "proc" ; sh:namespace "https://w3id.org/seams/proc#"^^xsd:anyURI ] ,
                [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
                [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
-               [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] .
+               [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] ,
+               [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -678,6 +679,82 @@ seamsh:ProxiesShape a sh:NodeShape ;
     sh:property [ sh:path deploy:proxies ; sh:maxCount 1 ; sh:class arch:Container ;
         sh:message "deploy:proxies points at one arch:Container." ] ;
     sh:message "Only an arch:Container deploy:proxies another." .
+
+# Each constraint below is a fault the compose generator (seams_gen/compose.py) would
+# otherwise have to reject (principle 5).
+
+seamsh:SystemShape a sh:NodeShape ;
+    sh:targetClass arch:System ;
+    sh:property [ sh:path arch:contains ;
+        sh:qualifiedValueShape [ sh:class arch:Container ] ; sh:qualifiedMinCount 1 ;
+        sh:message "An arch:System arch:contains at least one arch:Container." ] .
+
+seamsh:BindingKeyShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:binding ;
+    sh:property [ sh:path deploy:key ; sh:pattern "^[A-Za-z_][A-Za-z0-9_]*$" ;
+        sh:message "deploy:key is an environment variable name: a letter or _, then letters, digits or _." ] .
+
+seamsh:BindingKeyOnceShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:configuration ;
+    sh:sparql [
+        sh:message "A container or override binds each deploy:key at most once in its deploy:configuration." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this deploy:configuration/deploy:binding ?a , ?b .
+                ?a deploy:key ?value .
+                ?b deploy:key ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+# The compose file has one service per container of the arch:System, so what a
+# service depends on, proxies or reads the URL of is a service of that file too.
+seamsh:SameSystemShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "deploy:dependsOn, deploy:proxies and a binding's deploy:serviceOf point at a container of the arch:System that contains the container stating them." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this (deploy:dependsOn|deploy:proxies|deploy:configuration/deploy:binding/deploy:serviceOf|deploy:override/deploy:configuration/deploy:binding/deploy:serviceOf) ?value .
+                ?system a arch:System ; arch:contains $this .
+                FILTER NOT EXISTS { ?system arch:contains ?value }
+            }""" ;
+    ] .
+
+# The proxy command and a service URL name one port; so does the runtime's /healthz
+# probe of a serving container (one that seam:executes a process or seam:exposes an
+# operation an event seam:submitsTo, D026) that states no deploy:healthcheck. The
+# probe is a compose fact, so it applies only to a model with an arch:Environment
+# (a model without one has no deployment layer yet, like the early tutorial chapters).
+seamsh:SinglePortShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:proxies ;
+    sh:targetObjectsOf deploy:proxies , deploy:serviceOf ;
+    sh:property [ sh:path deploy:port ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A container that deploy:proxies another, its target and a deploy:serviceOf container each have exactly one deploy:port." ] .
+
+seamsh:ServingProbePortShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "In a model with an arch:Environment, a serving container without a deploy:healthcheck has exactly one deploy:port, which the runtime's /healthz probe uses." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this WHERE {
+                { $this seam:executes ?process . ?process a proc:Process . }
+                UNION
+                { $this seam:exposes ?op . ?op a hydra:Operation . ?event seam:submitsTo ?op . }
+                FILTER NOT EXISTS { $this deploy:healthcheck ?check }
+                FILTER EXISTS { ?environment a arch:Environment }
+                FILTER (NOT EXISTS { $this deploy:port ?port }
+                        || EXISTS { $this deploy:port ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] .
+
+seamsh:DeploymentNodeLabelShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:deployedTo ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A seam:deployedTo node has exactly one rdfs:label, which names it in the placement constraint." ] .
 
 #################################################################
 # Environments (ADR-0015)

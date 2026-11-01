@@ -162,6 +162,11 @@ class Endpoint:
     accepts: str | None = None  # a channel's seam:acceptsShape curie
     scope: str | None = None  # a channel's single path variable
     errors: tuple[ErrorResponse, ...] = ()  # by hydra:statusCode
+    method_lower: str = ""  # the decorator name, @router.<method_lower>
+    arguments_text: str = ""  # arguments joined with ", "
+    accepts_suffix: str = ""  # a channel's " ; seam:acceptsShape <curie>" header fact, or ""
+    dependencies: str = ""  # the decorator's policy list, '[Depends(runtime.policy("<curie>")), ...]'
+    validate_only: bool = False  # a separate runtime.validate call (no write or completion validates)
 
     @property
     def multiline_decorator(self) -> bool:
@@ -176,6 +181,12 @@ class NotRouted:
 
 
 @dataclass(frozen=True)
+class ProblemRoute:
+    name: str  # handler name
+    curie: str  # the operation that declares errors
+
+
+@dataclass(frozen=True)
 class RouteModule:
     file_name: str  # <container local name>.py
     id: str
@@ -185,6 +196,7 @@ class RouteModule:
     not_routed: tuple[NotRouted, ...]
     invoked_only: tuple[str, ...]  # curies of exposed operations only a task invokes (not routed)
     endpoints: tuple[Endpoint, ...]
+    exposes_text: str  # exposes joined with " , ", the header's seam:exposes object list
 
     @property
     def needs_identity(self) -> bool:
@@ -195,6 +207,11 @@ class RouteModule:
     def problem_routes(self) -> tuple[tuple[str, str], ...]:
         """(handler name, operation curie) of each endpoint that declares errors."""
         return tuple((e.name, e.curie) for e in self.endpoints if e.errors)
+
+    @property
+    def problem_operations(self) -> tuple[ProblemRoute, ...]:
+        """``problem_routes`` as named pairs, for the PROBLEM_OPERATIONS table."""
+        return tuple(ProblemRoute(name=name, curie=curie) for name, curie in self.problem_routes)
 
     @property
     def runtime_imports(self) -> str:
@@ -262,12 +279,14 @@ def _module(model: Model, container: Container) -> RouteModule:
     triggered = _triggered(model, processes)
     exposed = container.exposes
     invoked_only = _invoked_only(model, container, processes)
+    exposes = tuple(model.compact(e.iri) for e in exposed)
     return RouteModule(
         file_name=route_file_name(container.iri),
         id=local_name(container.iri),
         curie=model.compact(container.iri),
         system=model.compact(systems[0].iri),
-        exposes=tuple(model.compact(e.iri) for e in exposed),
+        exposes=exposes,
+        exposes_text=" , ".join(exposes),
         not_routed=_not_routed(model, container, processes),
         invoked_only=tuple(model.compact(e.iri) for e in exposed if e.iri in invoked_only),
         endpoints=tuple(_endpoint(model, e, triggered) for e in exposed if e.iri not in invoked_only),
@@ -363,15 +382,20 @@ def _channel(model: Model, ch: Channel) -> Endpoint:
         raise GeneratorError(
             ch.iri, COMM.path, f"an SSE channel needs exactly one path variable as its scope, found {variables}"
         )
+    arguments = tuple(f"{v}: str" for v in variables)
+    accepts_curie = model.compact(accepts.iri) if accepts is not None else None
     return Endpoint(
         curie=model.compact(ch.iri),
         name=_handler_name(ch.iri),
         channel=True,
         method="GET",
         path=template,
-        arguments=tuple(f"{v}: str" for v in variables),
-        accepts=model.compact(accepts.iri) if accepts is not None else None,
+        arguments=arguments,
+        accepts=accepts_curie,
         scope=variables[0],
+        method_lower="get",
+        arguments_text=", ".join(arguments),
+        accepts_suffix=f" ; seam:acceptsShape {accepts_curie}" if accepts_curie else "",
     )
 
 
@@ -486,6 +510,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
     arguments = tuple(f"{v}: str" for v in variables) + (("request: Request",) if body else ())
     if complete is not None:
         arguments += (f'identity: Identity = Depends(runtime.task_policy("{complete.task}"))',)
+    policies = tuple(model.compact(p.iri) for p in op.governed_by)
     return Endpoint(
         curie=model.compact(op.iri),
         name=_handler_name(op.iri),
@@ -493,7 +518,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         method=method,
         path=template,
         arguments=arguments,
-        policies=tuple(model.compact(p.iri) for p in op.governed_by),
+        policies=policies,
         body=body,
         validate=validate,
         start=start,
@@ -502,6 +527,10 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         query=query,
         render=render,
         errors=_errors(model, op),
+        method_lower=method.lower(),
+        arguments_text=", ".join(arguments),
+        dependencies="[" + ", ".join(f'Depends(runtime.policy("{p}"))' for p in policies) + "]",
+        validate_only=validate is not None and write is None and complete is None,
     )
 
 

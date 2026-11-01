@@ -281,3 +281,54 @@ and counts instead. It exits 0 with no gap, 1 with any, after
 without a deny test` on stderr, and 2 when the project or model cannot be
 loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-coverage).
+
+## seams new-generator
+
+```sh
+seams new-generator checklist --reference checklist.yaml            # writes ./seams-checklist
+seams new-generator page --reference page.html --out ../seams-page
+```
+
+It turns a reference output, a file written by hand exactly as the generator
+should emit it, into an installable generator package (M018/S04, backlog K5,
+`new_generator.py`). NAME is the generator and entry-point name: lowercase
+letters, digits and underscores, starting with a letter. The reference's suffix
+must be one `seams_gen.testing` has a marker comment syntax for: `.py`, `.yaml`,
+`.yml` or `.html`. `--out` defaults to `./seams-<name>` and must not exist or be
+an empty directory. It writes, the same bytes every time:
+
+```text
+seams-<name>/
+  pyproject.toml                      # seams-<name>; [project.entry-points."seams.generators"] <name> = "seams_<name>:generator"
+  seams_<name>/__init__.py            # the Generator: extract -> view model dict, render (no logic), sources
+  seams_<name>/templates/<reference>  # the reference, verbatim
+  tests/golden/<reference>            # the reference, every non-blank line marked [fixed]
+  tests/test_<name>.py                # assert_matches_golden, assert_deterministic, check_output
+```
+
+The template uses the built-ins' `[[ ]]`/`[% %]` delimiters. The golden marks
+each line in a trailing `# [fixed]` (`.py`, `.yaml`, `.yml`) or `{# [fixed] #}`
+(`.html`) comment. The test runs on the model `SEAMS_MODEL` names, else on
+`examples/chat-app/chat-app.trig` in the checkout `seams_gen` is imported from,
+and passes as written: run it with `PYTHONPATH=seams-<name> python -m pytest
+seams-<name>/tests`, or after installing the package next to the CLI. Each
+written path is printed.
+
+The reference is refused when it is not UTF-8, holds no non-blank line, does not
+parse as its file type (`check_output`), or has a line that already carries a
+producibility marker, holds a template delimiter (`[[`, `[%`, `[#`), or ends in
+whitespace (a `\r` included), which `strip_markers` would drop. A line inside a
+multi-line string or YAML block scalar is marked like any other; whether a
+comment belongs there is the author's call. The generator guide's "Start from a
+reference output" section is the method that follows.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | the package was written |
+| 1 | a file could not be written |
+| 2 | a refused name, reference or `--out` (not empty, or a file); nothing is written |
+
+Errors print to stderr as `seams new-generator: <message>`. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-new-generator).

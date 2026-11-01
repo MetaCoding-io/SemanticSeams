@@ -1,5 +1,5 @@
 """Command line: ``seams generate|check|status|sequence|secrets [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
-``seams coverage [MODEL | --project PATH]``.
+``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
 working directory); ``--model`` overrides the project's model. Each written
@@ -98,6 +98,15 @@ missing row, ``seams secrets: N missing`` goes to stderr and the exit code is 1.
 development, else the first environment: keys sorted, plain values with their
 model literal, secrets blank under a ``# secret: <kind> <source>`` comment. An
 unknown environment or a model fault (ResolutionError) exits 2.
+
+``seams new-generator NAME --reference FILE [--out DIR]`` (M018/S04, backlog
+K5) writes a generator package for the reference output FILE into DIR
+(default ``./seams-<NAME>``): pyproject.toml with its ``seams.generators``
+entry point, ``seams_<NAME>/__init__.py``, the reference verbatim as the
+template, a golden marking every non-blank line ``[fixed]`` and a golden test
+that passes as written (new_generator.py). Each written path is printed. A
+refused name, reference or DIR (not empty) prints ``seams new-generator:
+<message>`` to stderr, exits 2 and writes nothing. It reads no seams.toml.
 """
 
 from __future__ import annotations
@@ -118,6 +127,7 @@ from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
 from .generate import apply, generate_project
 from .lockfile import locate
+from .new_generator import NewGeneratorError, new_generator
 from .plan import render, resolve
 from .project import ProjectError, load_project, resolve_model
 from .secrets import EXAMPLE, example_environment, render_example, run_secrets
@@ -221,6 +231,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coverage.add_argument("--json", action="store_true", help="print the three lists and their counts as JSON")
     coverage.set_defaults(run=_coverage)
+    new = sub.add_parser(
+        "new-generator",
+        help="scaffold a generator package, with a passing golden test, from a reference output file",
+        description="Write a generator package whose template is the reference output and whose golden test passes.",
+    )
+    new.add_argument("name", help="the generator and entry-point name: lowercase letters, digits and underscores")
+    new.add_argument(
+        "--reference", type=Path, required=True, help="the reference output: a .py, .yaml, .yml or .html file"
+    )
+    new.add_argument("--out", type=Path, help="the package directory, absent or empty (default: ./seams-<name>)")
+    new.set_defaults(run=_new_generator)
     return parser
 
 
@@ -372,6 +393,12 @@ def _coverage(args: argparse.Namespace) -> int:
     return 0
 
 
+def _new_generator(args: argparse.Namespace) -> int:
+    for path in new_generator(args.name, args.reference, args.out):
+        print(_display(path.resolve()))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -379,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("sequence: --db needs --trace")
     try:
         return args.run(args)
-    except (ProjectError, GeneratorError, seams.ResolutionError) as err:
+    except (ProjectError, GeneratorError, seams.ResolutionError, NewGeneratorError) as err:
         print(f"seams {args.command}: {err}", file=sys.stderr)
         return EXIT_PROJECT_ERROR
     except OSError as err:

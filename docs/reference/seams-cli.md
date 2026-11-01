@@ -9,7 +9,8 @@ operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
 as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
 and policies no scenario or test exercises; `seams secrets` checks that each
-environment's configuration keys and secrets exist, without reading a value. Its distribution name is `semanticseams-cli` and its import name is
+environment's configuration keys and secrets exist, without reading a value;
+`seams new-generator` scaffolds a generator package from a reference output. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -984,3 +985,37 @@ reports six paths and exits 1.
 | 2 | The project file is missing or malformed, no model was given, or the model cannot be loaded. |
 
 Errors print to stderr as `seams coverage: <message>`.
+
+## seams new-generator
+
+```sh
+seams new-generator checklist --reference checklist.yaml   # writes ./seams-checklist
+```
+
+It turns a reference output, a file written by hand exactly as the generator
+should emit it, into a generator package whose golden test passes as written
+(backlog K5). NAME is lowercase letters, digits and underscores; the reference is
+a `.py`, `.yaml`, `.yml` or `.html` file; `--out` (default `./seams-<name>`) must
+not exist or be empty. The package holds `pyproject.toml` with a
+`seams.generators` entry point `<name> = "seams_<name>:generator"`,
+`seams_<name>/__init__.py` (the Generator), the reference verbatim as
+`seams_<name>/templates/<reference>`, `tests/golden/<reference>` with every
+non-blank line marked `[fixed]`, and `tests/test_<name>.py`, which runs the
+[test kit](/guide/write-your-own-generator) on the model `SEAMS_MODEL` names, else
+the chat-app example. Each written path is printed. The same arguments give the
+same bytes.
+
+A reference that is not UTF-8, is empty, does not parse as its file type, or has a
+line that already carries a marker, holds a template delimiter (`[[`, `[%`, `[#`)
+or ends in whitespace is refused. See
+[packages/seams-cli/README.md](../../packages/seams-cli/README.md#seams-new-generator).
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The package was written. |
+| 1 | A file could not be written. |
+| 2 | A refused name, reference or `--out`; nothing is written. |
+
+Errors print to stderr as `seams new-generator: <message>`.

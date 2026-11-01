@@ -26,7 +26,7 @@ from typing import NamedTuple
 
 import pyshacl
 import pytest
-from rdflib import RDF, Dataset, Graph, Namespace, URIRef
+from rdflib import RDF, Dataset, Graph, Literal, Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -35,7 +35,10 @@ if str(ROOT) not in sys.path:
 from seams import ModelGraph  # noqa: E402
 
 from seams_gen import GeneratorError, ifmledit  # noqa: E402
+from seams_gen.fastapi import extract_routes  # noqa: E402
 from seams_gen.htmx import generate_pages  # noqa: E402
+from seams_gen.smoke import extract_smoke  # noqa: E402
+from seams_gen.tests import extract_tests  # noqa: E402
 
 SEAMS_GEN = ROOT / "seams_gen"
 SHAPES_FILE = ROOT / "ontology" / "shapes" / "seam-shapes.ttl"
@@ -44,21 +47,24 @@ CHAT_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 EXPENSES_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
 
 SH = Namespace("http://www.w3.org/ns/shacl#")
+ARCH = Namespace("https://w3id.org/seams/arch#")
+COMM = Namespace("https://w3id.org/seams/comm#")
+HYDRA = Namespace("http://www.w3.org/ns/hydra/core#")
+ODRL = Namespace("http://www.w3.org/ns/odrl/2/")
+PROC = Namespace("https://w3id.org/seams/proc#")
+VERIFY = Namespace("https://w3id.org/seams/verify#")
 IFML = Namespace("https://w3id.org/seams/ifml#")
 SEAM = Namespace("https://w3id.org/seams/seam#")
 STATE = Namespace("https://w3id.org/seams/state#")
 CHAT = Namespace("https://example.org/chat/")
 EXP = Namespace("https://example.org/expenses/")
 APPROVAL = Namespace("https://example.org/expenses/approval_bpmn#")
+PAYOUT = Namespace("https://example.org/expenses/payout_bpmn#")
 
 # Modules whose raise sites a later task of M017/S01 covers. Their strict inventory
 # waits for that task; test_pending_modules_are_not_yet_covered fails once one is
 # covered, as the reminder to drop it from this map.
 PENDING = {
-    "fastapi": "T02",
-    "tests": "T02",
-    "smoke": "T02",
-    "sequence": "T02",
     "compose": "T03",
     "dockerfile": "T03",
 }
@@ -143,7 +149,13 @@ def _ifmledit(model) -> object:
     return ifmledit.generate(model)
 
 
-GENERATORS = {"htmx": _htmx, "ifmledit": _ifmledit}
+GENERATORS = {
+    "htmx": _htmx,
+    "ifmledit": _ifmledit,
+    "fastapi": extract_routes,
+    "tests": extract_tests,
+    "smoke": extract_smoke,
+}
 
 
 # ── parity cases ────────────────────────────────────────────────────────────
@@ -198,6 +210,29 @@ def _form_completes_two_tasks(ds):
 def _item_swap_onto_a_form(ds):
     _replace(_chat_ifml(ds), CHAT.send_to_thread, IFML.target, CHAT.compose_form)
     _replace(_seams(ds), CHAT.send_message_op, SEAM.rendersComponent, CHAT.compose_form)
+
+
+def _also_started_by(ds, container, event, process) -> None:
+    """A second executed process ``process`` that ``event`` also seam:triggers."""
+    g = _seams(ds)
+    g.add((process, RDF.type, PROC.Process))
+    g.add((container, SEAM.executes, process))
+    g.add((event, SEAM.triggers, process))
+
+
+def _completion_without_body(ds):
+    _remove(_seams(ds), EXP.approve_expense_op, SEAM.acceptsShape)
+    _remove(_seams(ds), EXP.approve_expense_op, COMM.requestMediaType)
+
+
+def _permission(ds, policy):
+    node = _seams(ds).value(policy, ODRL.permission)
+    assert node is not None, policy
+    return node
+
+
+def _permission_without_target(ds):
+    _remove(_seams(ds), _permission(ds, CHAT.user_send_policy), ODRL.target)
 
 
 CASES = [
@@ -441,12 +476,235 @@ CASES = [
         CHAT.select_to_thread,
         IFML.target,
     ),
+    Case(
+        "serving-container-in-no-system",
+        Site("fastapi", "_module", "ARCH.contains"),
+        CHAT_TRIG,
+        lambda ds: _remove(_graph(ds, "model:chat_architecture"), CHAT.chat_system, ARCH.contains, CHAT.chat_api),
+        "fastapi",
+        CHAT.chat_api,
+        ARCH.contains,
+        CHAT.chat_api,
+    ),
+    Case(
+        "executes-a-non-process",
+        Site("fastapi", "_triggered", "RDF.type"),
+        CHAT_TRIG,
+        lambda ds: _replace(_seams(ds), CHAT.chat_api, SEAM.executes, CHAT.chat_bpmn),
+        "fastapi",
+        CHAT.chat_bpmn,
+        RDF.type,
+        CHAT.chat_api,
+        SEAM.executes,
+    ),
+    Case(
+        "executed-process-without-a-model",
+        Site("fastapi", "_triggered", "SEAM.subscribesTo", "no model"),
+        EXPENSES_TRIG,
+        lambda ds: _remove(_seams(ds), EXP.payout_process, SEAM.detailedBy),
+        "fastapi",
+        EXP.payout_process,
+        SEAM.subscribesTo,
+        EXP.payout_process,
+        SEAM.detailedBy,
+        "BPMN model",
+    ),
+    Case(
+        "executed-process-never-started",
+        Site("fastapi", "_triggered", "SEAM.triggers"),
+        CHAT_TRIG,
+        lambda ds: _remove(_seams(ds), CHAT.send_message, SEAM.triggers),
+        "fastapi",
+        CHAT.send_message_process,
+        SEAM.triggers,
+        CHAT.send_message_process,
+    ),
+    Case(
+        "route-starts-two-processes",
+        Site("fastapi", "_triggered", "SEAM.submitsTo"),
+        CHAT_TRIG,
+        lambda ds: _also_started_by(ds, CHAT.chat_api, CHAT.send_message, CHAT.audit_process),
+        "fastapi",
+        CHAT.send_message_op,
+        SEAM.submitsTo,
+        CHAT.send_message_op,
+    ),
+    Case(
+        "exposes-a-non-endpoint",
+        Site("fastapi", "_endpoint", "RDF.type"),
+        CHAT_TRIG,
+        lambda ds: _seams(ds).add((CHAT.chat_api, SEAM.exposes, CHAT.chat_page)),
+        "fastapi",
+        CHAT.chat_page,
+        RDF.type,
+        CHAT.chat_api,
+        SEAM.exposes,
+    ),
+    Case(
+        "unknown-method",
+        Site("fastapi", "_operation", "HYDRA.method"),
+        CHAT_TRIG,
+        lambda ds: _replace(_seams(ds), CHAT.list_conversations_op, HYDRA.method, Literal("FETCH")),
+        "fastapi",
+        CHAT.list_conversations_op,
+        HYDRA.method,
+        CHAT.list_conversations_op,
+        HYDRA.method,
+    ),
+    Case(
+        "accepted-shape-without-request-body",
+        Site("fastapi", "_operation", "COMM.requestMediaType", "acceptsShape"),
+        CHAT_TRIG,
+        lambda ds: _remove(_seams(ds), CHAT.send_message_op, COMM.requestMediaType),
+        "fastapi",
+        CHAT.send_message_op,
+        COMM.requestMediaType,
+        CHAT.send_message_op,
+        match="seam:acceptsShape needs a request body",
+    ),
+    Case(
+        "completion-without-request-body",
+        Site("fastapi", "_operation", "COMM.requestMediaType", "completion"),
+        EXPENSES_TRIG,
+        _completion_without_body,
+        "fastapi",
+        EXP.approve_expense_op,
+        COMM.requestMediaType,
+        EXP.approve_expense_op,
+        match="completing",
+    ),
+    Case(
+        "route-completes-and-starts",
+        Site("fastapi", "_operation", "SEAM.submitsTo"),
+        EXPENSES_TRIG,
+        lambda ds: _also_started_by(ds, EXP.expense_api, EXP.submit_approval, EXP.review_process),
+        "fastapi",
+        EXP.approve_expense_op,
+        SEAM.submitsTo,
+        EXP.approve_expense_op,
+    ),
+    Case(
+        "start-without-accepted-shape",
+        Site("fastapi", "_operation", "SEAM.acceptsShape"),
+        CHAT_TRIG,
+        lambda ds: _remove(_seams(ds), CHAT.send_message_op, SEAM.acceptsShape),
+        "fastapi",
+        CHAT.send_message_op,
+        SEAM.acceptsShape,
+        CHAT.send_message_op,
+    ),
+    Case(
+        "item-route-returns-another-shape",
+        Site("fastapi", "_operation", "SEAM.returnsShape", "item"),
+        CHAT_TRIG,
+        lambda ds: _replace(_seams(ds), CHAT.send_message_op, SEAM.returnsShape, CHAT.ConversationShape),
+        "fastapi",
+        CHAT.send_message_op,
+        SEAM.returnsShape,
+        CHAT.send_message_op,
+        match="item partial",
+    ),
+    Case(
+        "component-route-without-a-query",
+        Site("fastapi", "_operation", "SEAM.returnsShape", "component"),
+        CHAT_TRIG,
+        lambda ds: _replace(_chat_ifml(ds), CHAT.send_to_thread, IFML.swap, IFML.Replace),
+        "fastapi",
+        CHAT.send_message_op,
+        SEAM.returnsShape,
+        CHAT.send_message_op,
+        match="component partial",
+    ),
+    Case(
+        "route-completes-two-tasks",
+        Site("fastapi", "_completed_task", "SEAM.submitsTo"),
+        EXPENSES_TRIG,
+        lambda ds: _replace(_seams(ds), EXP.submit_finance_approval, SEAM.submitsTo, EXP.approve_expense_op),
+        "fastapi",
+        EXP.approve_expense_op,
+        SEAM.submitsTo,
+        EXP.approve_expense_op,
+    ),
+    # _submits also checks that a step's or a permission's form submits to one
+    # operation; seamsh:FormWritesShape states that for every form.
+    Case(
+        "scenario-process-not-started-by-a-route",
+        Site("tests", "_submits", "predicate"),
+        EXPENSES_TRIG,
+        lambda ds: _remove(_seams(ds), EXP.submit_expense, SEAM.triggers),
+        "tests",
+        EXP.approval_process,
+        SEAM.triggers,
+        EXP.auto_approved,
+        match="starting",
+    ),
+    Case(
+        "scenario-without-an-expectation",
+        Site("tests", "_scenario", "VERIFY.expectState"),
+        EXPENSES_TRIG,
+        lambda ds: _remove(_seams(ds), EXP.auto_approved, VERIFY.expectState),
+        "tests",
+        EXP.auto_approved,
+        VERIFY.expectState,
+        EXP.auto_approved,
+    ),
+    Case(
+        "decision-example-without-an-output",
+        Site("tests", "_decision_example", "VERIFY.expectOutput"),
+        EXPENSES_TRIG,
+        lambda ds: _remove(_seams(ds), EXP.routes_up_to_100_automatically, VERIFY.expectOutput),
+        "tests",
+        EXP.routes_up_to_100_automatically,
+        VERIFY.expectOutput,
+        EXP.routes_up_to_100_automatically,
+        VERIFY.expectOutput,
+    ),
+    Case(
+        "permission-target-not-a-request",
+        Site("tests", "target_operation", "ODRL.target"),
+        CHAT_TRIG,
+        lambda ds: _replace(_seams(ds), _permission(ds, CHAT.user_send_policy), ODRL.target, CHAT.chat_page),
+        "tests",
+        CHAT.user_send_policy,
+        ODRL.target,
+        CHAT.user_send_policy,
+    ),
+    Case(
+        "permission-without-a-target",
+        Site("tests", "_permission_target", "ODRL.target"),
+        CHAT_TRIG,
+        _permission_without_target,
+        "tests",
+        CHAT.user_send_policy,
+        ODRL.target,
+        CHAT.user_send_policy,
+        ODRL.permission,
+    ),
+    Case(
+        "smoke-permission-without-a-target",
+        Site("smoke", "_grants", "ODRL.target"),
+        CHAT_TRIG,
+        _permission_without_target,
+        "smoke",
+        CHAT.user_send_policy,
+        ODRL.target,
+        CHAT.user_send_policy,
+        ODRL.permission,
+    ),
 ]
 
 
 # ── conditions the shapes do not state ──────────────────────────────────────
 
 _TEMPLATE = "it needs the variables of a comm:path hydra:template, which means parsing the template string"
+_LIMIT = "a limit of this generator, not a fault of the model"
+_NAMES = (
+    "generated test names come from IRI local names, and two IRIs in different namespaces may share "
+    "one in a valid model; a constraint of the generated module, not of the model"
+)
+_TRACE = (
+    "the trace an executed diagram is drawn from is a runtime input (a JSON file or the SQLite store), not the model"
+)
 _HELPER = (
     "a generic helper: it raises for whatever fact its caller asks for, so the condition "
     "belongs to the calling site, not to this one"
@@ -505,6 +763,55 @@ GENERATOR_ONLY: dict[Site, str] = {
     Site("ifmledit", "extract_ifmledit", "RDF.type", "no interaction model"): (
         "A model without an IFML layer is valid (a process-only model); only this export needs one."
     ),
+    Site("fastapi", "extract_routes", "SEAM.executes"): (
+        "A model with no container serving routes is valid (a data, process-only or UI sketch model); "
+        "only route generation needs one."
+    ),
+    Site("fastapi", "route_module", "SEAM.executes"): (
+        "Several serving containers are a valid architecture, and extract_routes renders a module for each. "
+        "route_module, which the CLI, the tests generator and seams_gen.sources use, takes one: "
+        f"{_LIMIT}."
+    ),
+    Site("fastapi", "_triggered", "SEAM.subscribesTo", "several"): (
+        "Whether a proc:MessageCatchEvent that seam:subscribesTo a channel is a start event is in the BPMN XML "
+        "(bpmn:startEvent), not in the graph; an intermediate catch event subscribes the same way."
+    ),
+    Site("fastapi", "_channel", "COMM.transport"): (
+        f"comm:WebSocket is a comm:Transport of the vocabulary, and the generator routes only comm:SSE: {_LIMIT}."
+    ),
+    Site(
+        "fastapi", "_channel", "COMM.path"
+    ): f"An SSE channel's path has exactly one variable, its scope: {_TEMPLATE}.",
+    Site("fastapi", "_operation", "SEAM.mediaKind"): (
+        f"seam:Data is a seam:MediaKind of the vocabulary, and the generator routes only seam:UIFragment: {_LIMIT}."
+    ),
+    Site("fastapi", "_operation", "COMM.requestMediaType", "unknown"): (
+        "comm:requestMediaType takes any media type, and the generator decodes only "
+        f"application/x-www-form-urlencoded and application/json bodies: {_LIMIT}."
+    ),
+    Site("fastapi", "_operation", "PROC.correlationKey", "completion"): (
+        f"The correlation key is a path variable of the operation completing the task: {_TEMPLATE}."
+    ),
+    Site("fastapi", "_operation", "PROC.correlationKey", "start"): (
+        f"The correlation key is a path variable of the operation starting the process: {_TEMPLATE}."
+    ),
+    Site("tests", "_unique", "predicate"): f"Two tests named alike: {_NAMES}.",
+    Site("smoke", "extract_smoke", "HYDRA.Operation"): f"Two probes named alike: {_NAMES}.",
+    Site("sequence", "find_event", "'ifml:Event'"): (
+        "The event is the command-line argument naming the diagram to derive; no or several matching events "
+        "is a fault of the argument, not of the model."
+    ),
+    Site("sequence", "add", "'proc:Process'"): (
+        "The number of paths through a process is a property of its BPMN flow graph; MAX_PATHS bounds the "
+        "diagrams derived, and a valid process may exceed it."
+    ),
+    Site("sequence", "read_trace", "'trace file'", "not JSON"): f"The trace file is not JSON: {_TRACE}.",
+    Site("sequence", "read_trace", "'trace file'", "not a trace"): f"The trace file holds no trace: {_TRACE}.",
+    Site("sequence", "read_trace", "'trace'", "no store"): f"No trace file and no SQLite store: {_TRACE}.",
+    Site("sequence", "read_trace", "'trace'", "unreadable store"): f"The store cannot be read: {_TRACE}.",
+    Site("sequence", "read_trace", "'trace'", "no row"): f"The store has no row for the instance: {_TRACE}.",
+    Site("sequence", "read_trace", "'trace'", "no trace"): f"The checkpoint holds no trace: {_TRACE}.",
+    Site("sequence", "_rows", "'trace'"): f"The trace is not a list of rows: {_TRACE}.",
 }
 
 
@@ -572,7 +879,8 @@ def _covered(module: str) -> list[Site]:
 
 
 def test_every_module_with_raises_is_inventoried():
-    assert set(_modules()) == {"htmx", "fragments", "_views", "ifmledit", *PENDING}
+    finished = {"htmx", "fragments", "_views", "ifmledit", "fastapi", "tests", "smoke", "sequence"}
+    assert set(_modules()) == finished | set(PENDING)
 
 
 @pytest.mark.parametrize("module", [m for m in _modules() if m not in PENDING])

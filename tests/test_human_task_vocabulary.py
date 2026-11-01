@@ -148,15 +148,17 @@ PREFIXES = """
 @prefix seam:  <https://w3id.org/seams/seam#> .
 @prefix sh:    <http://www.w3.org/ns/shacl#> .
 @prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
 """
 
 
 def form(name: str) -> str:
     """A well-formed ifml:Form :<name>: it writes a shape and has one submitting
-    event with its NavigationFlow, so only the completedOn facts can trip a shape."""
+    event (to an operation with a request body) with its NavigationFlow, so only
+    the completedOn facts can trip a shape."""
     return (
         f":{name} a ifml:Form ; seam:writes :S ; ifml:hasEvent :{name}_submit . :S a sh:NodeShape . "
-        f":{name}_submit a ifml:Event ; seam:submitsTo :op . :op a hydra:Operation . "
+        f':{name}_submit a ifml:Event ; seam:submitsTo :op . :op a hydra:Operation ; comm:requestMediaType "application/json" . '
         f":{name}_flow a ifml:NavigationFlow ; ifml:source :{name}_submit ; ifml:target :{name} ; ifml:swap ifml:Replace ."
     )
 

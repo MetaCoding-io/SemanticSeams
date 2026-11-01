@@ -631,7 +631,8 @@ OWNED_EVENT = (
             "Only a hydra:Operation seam:rendersComponent.",
         ),
         (
-            ":op a hydra:Operation ; seam:rendersComponent :p . :p a ifml:ViewContainer .",
+            ':op a hydra:Operation ; hydra:method "GET" ; seam:returnsShape :S ; seam:rendersComponent :p . '
+            ":S a sh:NodeShape . :p a ifml:ViewContainer .",
             "seam:rendersComponent points at an ifml:ViewComponent.",
         ),
         (

@@ -253,6 +253,9 @@ REMOTE = """
 :task a proc:ServiceTask ; seam:inModel :bpmn ; seam:invokes :op .
 :op a hydra:Operation .
 :runtime a arch:Container ; seam:executes :process .
+:system a arch:System ; arch:contains :runtime , :gateway .
+<https://example.org/impl/bpmn#start> a proc:MessageCatchEvent ; seam:subscribesTo :events .
+:events a comm:Channel .
 """
 
 

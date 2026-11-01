@@ -601,7 +601,7 @@ def render_routes(routes: RoutesModel) -> dict[str, str]:
 
 def route_module(trig_path) -> tuple[str, str]:
     """(file name, text) of the model's one route module; no or several
-    serving containers raise GeneratorError(model, seam:executes)."""
+    serving containers are a GeneratorError(model, seam:executes)."""
     model = load(trig_path)
     routes = extract_routes(model)
     if len(routes.modules) != 1:

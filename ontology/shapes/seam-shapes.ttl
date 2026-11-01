@@ -35,6 +35,7 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "rdfs" ; sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ] ,
                [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ] ,
                [ sh:prefix "state" ; sh:namespace "https://w3id.org/seams/state#"^^xsd:anyURI ] ,
+               [ sh:prefix "proc" ; sh:namespace "https://w3id.org/seams/proc#"^^xsd:anyURI ] ,
                [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
                [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
                [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] .
@@ -757,6 +758,173 @@ seamsh:StoreKindShape a sh:NodeShape ;
         sh:in ( deploy:PostgreSQL deploy:SQLite ) ;
         sh:message "deploy:storeKind is at most one of deploy:PostgreSQL or deploy:SQLite." ] ;
     sh:message "Only an arch:Container carries a deploy:storeKind." .
+
+#################################################################
+# Routes (principle 5)
+#################################################################
+
+# Each constraint below is a fault the route generator (seams_gen/fastapi.py) would
+# otherwise have to reject: the container that serves routes, the way each process it
+# executes starts, and the request and response of each route.
+
+seamsh:ServingContainerShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:executes , seam:exposes ;
+    sh:property [ sh:path [ sh:inversePath arch:contains ] ;
+        sh:qualifiedValueShape [ sh:class arch:System ] ; sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "A container that seam:executes a process or seam:exposes an endpoint is arch:contains-ed by exactly one arch:System." ] .
+
+# Whether a subscribing message catch event is a bpmn:startEvent is in the BPMN XML,
+# not in the graph; the shape counts every one in the process's model.
+seamsh:ExecutedProcessShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:executes ;
+    sh:property [ sh:path seam:detailedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class seam:Model ;
+        sh:message "A process a container seam:executes is seam:detailedBy exactly one BPMN seam:Model." ] ;
+    sh:sparql [
+        sh:message "A process a container seam:executes starts one way: the events that seam:triggers it seam:submitsTo exactly one operation, or a proc:MessageCatchEvent of its BPMN model seam:subscribesTo a comm:Channel (ADR-0010)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER NOT EXISTS {
+                    ?event seam:triggers $this ; seam:submitsTo ?op .
+                    FILTER NOT EXISTS { ?other seam:triggers $this ; seam:submitsTo ?op2 . FILTER (?op2 != ?op) }
+                }
+                FILTER NOT EXISTS {
+                    $this seam:detailedBy ?model .
+                    ?start a proc:MessageCatchEvent ; seam:subscribesTo ?channel .
+                    ?channel a comm:Channel .
+                    FILTER (STRSTARTS(STR(?start), CONCAT(STR(?model), "#")))
+                }
+            }""" ;
+    ] .
+
+seamsh:MethodShape a sh:NodeShape ;
+    sh:targetSubjectsOf hydra:method ;
+    sh:property [ sh:path hydra:method ; sh:pattern "^(GET|POST|PUT|PATCH|DELETE)$" ; sh:flags "i" ;
+        sh:message "hydra:method is an HTTP method a route serves: GET, POST, PUT, PATCH or DELETE." ] .
+
+seamsh:RouteOperationShape a sh:NodeShape ;
+    sh:targetClass hydra:Operation ;
+    sh:sparql [
+        sh:message "A routed operation (one an event seam:submitsTo, or one no task seam:invokes) that seam:acceptsShape a shape has a comm:requestMediaType: the request body the shape is validated from." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:acceptsShape ?value .
+                FILTER NOT EXISTS { $this comm:requestMediaType ?type }
+                FILTER (EXISTS { ?event seam:submitsTo $this } || NOT EXISTS { ?task seam:invokes $this })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation a user task's form submits to (ADR-0009) has a comm:requestMediaType: the completion is a request body." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this .
+                ?form a ifml:Form ; ifml:hasEvent ?event .
+                ?value a proc:UserTask ; seam:completedOn ?form .
+                FILTER NOT EXISTS { $this comm:requestMediaType ?type }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation that the event triggering a process seam:submitsTo has a seam:acceptsShape: the process starts from a validated payload." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this ; seam:triggers ?value .
+                ?value a proc:Process .
+                FILTER NOT EXISTS { $this seam:acceptsShape ?shape }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The events that seam:submitsTo an operation seam:triggers at most one process: a route starts one." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this ; seam:triggers ?value .
+                ?value a proc:Process .
+                ?other seam:submitsTo $this ; seam:triggers ?process .
+                ?process a proc:Process .
+                FILTER (?process != ?value)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation completes a user task or starts a process, not both: no form a task seam:completedOn and no event that seam:triggers a process both seam:submitsTo it." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this .
+                ?form a ifml:Form ; ifml:hasEvent ?event .
+                ?task a proc:UserTask ; seam:completedOn ?form .
+                ?starter seam:submitsTo $this ; seam:triggers ?value .
+                ?value a proc:Process .
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The forms that seam:submitsTo an operation are seam:completedOn by at most one user task: a route completes one task." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this .
+                ?form a ifml:Form ; ifml:hasEvent ?event .
+                ?value a proc:UserTask ; seam:completedOn ?form .
+                ?other seam:submitsTo $this .
+                ?otherForm a ifml:Form ; ifml:hasEvent ?other .
+                ?task a proc:UserTask ; seam:completedOn ?otherForm .
+                FILTER (?task != ?value)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation whose submitting event's NavigationFlow ifml:swap ifml:Append or ifml:Prepend onto the component it renders returns the entity it accepts: its seam:returnsShape is its seam:acceptsShape." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:rendersComponent ?value .
+                ?event a ifml:Event ; seam:submitsTo $this .
+                ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target ?value ; ifml:swap ?swap .
+                FILTER (?swap IN (ifml:Append, ifml:Prepend))
+                FILTER NOT EXISTS { $this seam:acceptsShape ?shape ; seam:returnsShape ?shape }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation that renders a whole component (no ifml:Append or ifml:Prepend flow onto it) renders a query of its seam:returnsShape, so it has one and is a GET or a user-task completion." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:rendersComponent ?value .
+                FILTER NOT EXISTS {
+                    ?event a ifml:Event ; seam:submitsTo $this .
+                    ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target ?value ; ifml:swap ?swap .
+                    FILTER (?swap IN (ifml:Append, ifml:Prepend))
+                }
+                FILTER (
+                    NOT EXISTS { $this seam:returnsShape ?shape }
+                    || (
+                        NOT EXISTS { $this hydra:method ?method . FILTER (UCASE(STR(?method)) = "GET") }
+                        && NOT EXISTS {
+                            ?submit seam:submitsTo $this .
+                            ?form a ifml:Form ; ifml:hasEvent ?submit .
+                            ?task a proc:UserTask ; seam:completedOn ?form .
+                        }
+                    )
+                )
+            }""" ;
+    ] .
+
+#################################################################
+# Authorization
+#################################################################
+
+seamsh:PolicyShape a sh:NodeShape ;
+    sh:targetClass odrl:Policy ;
+    sh:property [ sh:path odrl:permission ; sh:node seamsh:PermissionShape ;
+        sh:message "Each odrl:permission of a policy names exactly one odrl:target." ] ;
+    sh:property [ sh:path ( odrl:permission odrl:target ) ;
+        sh:or ( [ sh:class hydra:Operation ] [ sh:class proc:UserTask ] ) ;
+        sh:message "A permission's odrl:target is a hydra:Operation or a proc:UserTask: the request the policy governs." ] .
+
+# Not targeted: applied through seamsh:PolicyShape to each permission.
+seamsh:PermissionShape a sh:NodeShape ;
+    sh:property [ sh:path odrl:target ; sh:minCount 1 ; sh:maxCount 1 ] .
 
 #################################################################
 # Scenarios and examples (ADR-0014)

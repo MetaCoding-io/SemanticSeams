@@ -119,10 +119,10 @@
     seam:governedBy :customer_policy ;
     seam:inModel :checkout_ifml .
 
-# Submitting the order replaces the status with the stored order.
+# Submitting the order appends the stored order to the status.
 :submit_to_status a ifml:NavigationFlow ;
     ifml:source :submit_order ; ifml:target :order_status ;
-    ifml:swap ifml:Replace ;
+    ifml:swap ifml:Append ;
     seam:inModel :checkout_ifml .
 
 :cart_to_form a ifml:DataFlow ;
@@ -234,6 +234,7 @@
     seam:acceptsShape :OrderShape ;
     seam:returnsShape :OrderShape ;     # the shape of the data the fragment renders
     seam:mediaKind seam:UIFragment ;
+    comm:requestMediaType "application/x-www-form-urlencoded" ;
     seam:rendersComponent :order_status .   # the partial the fragment response is
 
 :order_events a comm:Channel ; rdfs:label "order.events" ;

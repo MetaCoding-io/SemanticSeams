@@ -17,6 +17,10 @@
   <p class="edit-health" data-conforms="{{ 'true' if model_conformance.conforms else 'false' }}" data-violations="{{ model_conformance.violationCount }}">
     {% if model_conformance.conforms %}&#10003; Conforms{% else %}&#10007; {{ model_conformance.violationCount }} violation(s){% endif %}
   </p>
+  <p class="edit-actions">
+    <a class="edit-done" href="{{ view_href }}" hx-get="{{ view_href }}" hx-target="#view-content" hx-push-url="true">Done</a>
+    {% if undo_count %}<button type="button" class="edit-undo" hx-post="/edit/undo" hx-swap="none" data-undo="{{ undo_count }}">Undo</button>{% endif %}
+  </p>
   {% for f in fields %}
     <form class="edit-field" method="post" action="{{ action }}" hx-post="{{ action }}" hx-target="closest .edit-form" hx-swap="outerHTML" data-path="{{ f.path }}" data-kind="{{ f.kind }}">
       <input type="hidden" name="field" value="{{ f.path }}">
@@ -42,3 +46,5 @@
     <p class="edit-none">No shape targets this element, so it has no form.</p>
   {% endfor %}
 </section>
+{# After a save the shell's health panel is stale (MEM009): send it out of band. #}
+{% if saved %}{% with oob=true %}{% include "health-panel.html" %}{% endwith %}{% endif %}

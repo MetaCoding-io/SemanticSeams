@@ -343,6 +343,15 @@
     <p><strong>Type:</strong> {{ types_str }}</p>
     {% if native_element_id %}<p><strong>Native ID:</strong> {{ native_element_id }}</p>{% endif %}
     {% if render_payload %}<p><strong>Payload:</strong> <code>{{ render_payload }}</code></p>{% endif %}
+    {% if edit_enabled() and edit_href %}
+    {# Edit mode (ADR-0017): the form comes from the shapes that target this
+       element and loads into #edit-panel; a save swaps the health panel out of band. #}
+    <p class="edit-controls">
+      <button type="button" class="edit-open" hx-get="{{ edit_href }}" hx-target="#edit-panel" hx-swap="innerHTML">Edit</button>
+      {% if undo_count %}<button type="button" class="edit-undo" hx-post="/edit/undo" hx-swap="none" data-undo="{{ undo_count }}">Undo</button>{% endif %}
+    </p>
+    <div id="edit-panel"></div>
+    {% endif %}
     {% for e in sequence_events if e.iri == focus_iri %}
     <p><strong>Sequence:</strong> <a class="sequence-link" data-event="{{ e.iri }}" href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#sequence-view">{{ e.label }}</a></p>
     {% endfor %}

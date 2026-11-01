@@ -332,3 +332,77 @@ def test_same_edit_on_fresh_copies_gives_same_bytes(tmp_path, monkeypatch, resto
         results.append(_trig(copy).read_bytes())
     assert results[0] == results[1]
     assert results[0] != (CHAPTER / "expenses.trig").read_bytes()
+
+
+# T02: the edit control in the view, and the health panel after a save
+
+HX = {"Accept": "text/html", "hx-request": "true"}
+
+
+def _view(iri: str) -> str:
+    return f"/view/{quote(iri, safe='')}"
+
+
+def test_edit_control_shows_only_in_edit_mode(tmp_path, monkeypatch, restore_viewer):
+    copy = _copy(tmp_path / "chapter-08")
+    monkeypatch.delenv(viewer_app.EDIT_ENV, raising=False)
+    viewer_app.configure(copy)
+    iri, _ = _integer_target(viewer_app.get_graph())
+    off = TestClient(viewer_app.app).get(_view(iri), headers=HX)
+    assert off.status_code == 200
+    assert 'class="edit-open"' not in off.text and 'id="edit-panel"' not in off.text
+
+    monkeypatch.setenv(viewer_app.EDIT_ENV, "1")
+    viewer_app.configure(copy)
+    client = TestClient(viewer_app.app)
+    on = client.get(_view(iri), headers=HX)
+    focus = client.get(f"{_view(iri)}?format=json").json()["@id"]
+    assert editing.form_fields(viewer_app.get_graph(), focus), "the landed element has a form"
+    assert f'class="edit-open" hx-get="{_edit(focus)}"' in on.text
+    assert 'id="edit-panel"' in on.text
+    # The fragment is swapped into #view-content: the health panel stays in the shell.
+    assert "health-panel" not in on.text
+    assert 'class="edit-undo"' not in on.text
+
+
+def test_edit_control_absent_for_an_element_no_shape_targets(client, monkeypatch):
+    root = viewer_app.root_iri()
+    assert 'class="edit-open"' in client.get(_view(root), headers=HX).text
+    monkeypatch.setattr(editing, "form_fields", lambda ds, iri: [])
+    assert 'class="edit-open"' not in client.get(_view(root), headers=HX).text
+
+
+def test_save_response_carries_the_refreshed_health_panel(client, model):
+    iri, path = _integer_target(viewer_app.get_graph())
+    form = client.get(_edit(iri), headers=HX).text
+    assert "health-panel" not in form
+
+    response = client.post(_edit(iri), data={"field": path, "value": "not-a-number"}, headers=HX)
+    assert response.status_code == 200
+    oob = response.text.split('class="health-panel"', 1)[1].split(">", 1)[0]
+    assert 'data-conforms="false"' in oob and 'hx-swap-oob="true"' in oob
+    count = validation.get_model_conformance(viewer_app.get_graph())["violationCount"]
+    assert f"{count} violation(s)" in response.text.split('class="health-panel"', 1)[1]
+    assert 'class="edit-undo"' in response.text
+
+
+def test_writer_fault_sends_no_health_panel(client, model):
+    iri, path = _iri_field_target(viewer_app.get_graph())
+    response = client.post(_edit(iri), data={"field": path, "value": "not an iri"}, headers=HX)
+    assert 'class="edit-error"' in response.text
+    assert "health-panel" not in response.text
+
+
+def test_undo_control_after_a_save_and_htmx_undo_refreshes(client, model):
+    trig = _trig(model)
+    before = trig.read_bytes()
+    iri, path = _integer_target(viewer_app.get_graph())
+    client.post(_edit(iri), data={"field": path, "value": "91"})
+    view = client.get(_view(iri), headers=HX).text
+    assert 'class="edit-undo" hx-post="/edit/undo"' in view
+
+    response = client.post("/edit/undo", headers=HX)
+    assert response.status_code == 200
+    assert response.headers["HX-Refresh"] == "true"
+    assert trig.read_bytes() == before
+    assert 'class="edit-undo"' not in client.get(_view(iri), headers=HX).text

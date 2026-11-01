@@ -1,6 +1,7 @@
 # Using the viewer
 
-The viewer is a read-only browser over one model. Every click is an htmx request for
+The viewer is a browser over one model, read-only unless you switch on
+[edit mode](#edit-mode). Every click is an htmx request for
 `/view/{iri}`, and the server picks a renderer from the `seam:notation` of the model the
 element belongs to. This page walks the canonical descent through the chat-app example,
 then explains the parts of the page and the URLs behind them.
@@ -210,6 +211,43 @@ gives each seam edge its `reveal` mode beside `navigational`. When you click an 
    model of its own (e.g. ConversationShape) also gets its model's shape graph on the
    canvas, with itself highlighted; the JSON view still reports its notation as none.
 
+## Edit mode
+
+Edit mode is off by default. Start the viewer with `SEAMS_EDIT=1` beside `SEAMS_MODEL`
+to switch it on ([ADR-0017](/adr/0017-write-path-and-editor)). Saves change the model's
+files, so point it at a copy when you only want to try it:
+
+```sh
+cp -r examples/expenses/chapter-08 /tmp/chapter-08
+SEAMS_MODEL=/tmp/chapter-08 SEAMS_EDIT=1 uv run uvicorn viewer.app:app --port 8000
+```
+
+Any other value, or none, leaves the viewer read-only and the edit routes do not exist.
+
+**Forms come from the shapes.** When some shape targets the element in view, its
+inspector shows an **Edit** button. The form it opens has one field per property the
+shapes give a path to: the seam shapes in `ontology/shapes/seam-shapes.ttl`, the same
+ones the health badge checks, and any shapes in the model itself, through every SHACL
+target kind. A field takes its name from `sh:name` or the property's label, offers a
+list for `sh:in` and a checkbox for `xsd:boolean`, and shows a text input per value
+otherwise. A value that is a blank node is shown but not editable here.
+
+**Invalid values are saved and flagged.** A save never refuses a value for breaking a
+shape ([principle 5](/project/principles)). A value that does not fit `sh:datatype`, or
+one value too many, is written as typed, and the health badge at the top of the page
+turns red with the new violation as soon as the save returns. Only faults the writer
+cannot express are refused, such as a malformed IRI: the form names the subject, the
+predicate and the reason, and nothing is written.
+
+**Only `seams_edit` writes.** Each save is a `seams_edit` patch applied to the model's own
+TriG files, so the diff is the changed triples, comments and layout are kept, and the
+viewer never opens a model file for writing itself. The server log records each save
+with the element, the field, the file and the quads added and removed.
+
+**Undo.** After a save, an **Undo** button reverses the newest edit of the session, byte
+for byte, and reloads the page. The history is held in memory, so it ends when the
+viewer stops. **Done** closes the form and shows the refreshed view.
+
 ## URLs
 
 Every state is a URL, so any view can be bookmarked or shared. The browser's Back and
@@ -224,14 +262,19 @@ the diagram comes back drawn and clickable.
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
+| `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel. |
+| `/edit/undo` | Edit mode only: `POST` reverses the newest edit of the session. |
 
 ## Current limits
 
-The viewer is the v1 proof of concept. It is read-only and loads one model, chosen by
+The viewer is the v1 proof of concept. It loads one model, chosen by
 the `SEAMS_MODEL` environment variable (default the chat-app example in
 `examples/chat-app/chat-app.trig`). `SEAMS_MODEL` may name a TriG file or a directory
 of TriG files loaded together, as the seams library's `seams.load` reads them; payload
 files sit beside the file, or in the directory. The root view is
 the model's single C4 `seam:Model`, or `SEAMS_VIEWER_ROOT` when set; with no C4 model,
 or more than one, the viewer refuses to start and names the candidates. The statechart
-renderer does not yet draw containment as nesting. The [backlog](/backlog) lists what comes next for the viewer.
+renderer does not yet draw containment as nesting. Edit mode edits one field of one
+element at a time through forms: it does not create or delete elements, edit BPMN or
+DMN, or edit on the diagrams yet, and its undo history lasts only as long as the
+viewer runs. The [backlog](/backlog) lists what comes next for the viewer.

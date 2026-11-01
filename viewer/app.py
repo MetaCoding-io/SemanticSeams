@@ -1045,6 +1045,9 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "applicable_queries": applicable_queries(focus),
         # Template-only (M013/S03): the /view JSON contract is unchanged.
         "sequence_events": sequence_events(focus),
+        # Edit mode (ADR-0017): an Edit control only for an element some shape targets.
+        "edit_href": _edit_href(focus) if edit_enabled() and editing.form_fields(get_graph(), focus) else None,
+        "undo_count": len(_undo_stack),
     }
 
     if render_kind == "c4":
@@ -1134,6 +1137,7 @@ def _edit_context(request: Request, iri: str, **extra) -> dict:
         "focus_iri": iri,
         "label": label(iri),
         "action": _edit_href(iri),
+        "view_href": f"/view/{quote(iri, safe='')}",
         "fields": [
             {
                 **vars(f),
@@ -1180,7 +1184,12 @@ def edit_undo(request: Request):
     reload_model()
     files = _shares(record)
     logger.info("edit undone: %s", ", ".join(f"{f['file']} (-{f['adds']} +{f['removes']})" for f in files))
-    return JSONResponse({"undone": True, "files": files, "remaining": len(_undo_stack)})
+    response = JSONResponse({"undone": True, "files": files, "remaining": len(_undo_stack)})
+    if request.headers.get("hx-request") == "true":
+        # The undo button reloads the page, so the view and the health panel
+        # both show the restored model.
+        response.headers["HX-Refresh"] = "true"
+    return response
 
 
 @edit_router.get("/edit/{iri:path}")

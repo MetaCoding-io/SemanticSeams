@@ -80,6 +80,9 @@ way, may name SHACL shapes the model must pass first, and is locked with its own
 `seams generate --lenient` previews a model that still breaks a generator: it writes what
 the generators produce and records each precondition or generator fault in a `faults`
 list in `seams.lock`, which flags the lock (D057).
+Such a generator's tests import `seams_gen.testing`, the kit the built-ins use: golden
+comparison, a determinism check, output checkers per file type and the shape parity check
+([test it](docs/guide/write-your-own-generator.md#test-it)).
 `seams check` writes nothing: it validates the model against the SHACL shapes,
 runs the project's gate queries, checks decisions statically and fails on any stale,
 missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied

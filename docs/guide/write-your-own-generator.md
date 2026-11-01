@@ -306,6 +306,85 @@ What goes wrong is reported before anything is written:
 - A name in `seams.toml` that no installed distribution registers is a project error. It
   lists the known generators.
 
+## Test it
+
+`seams_gen.testing` is the test kit the built-in generators use, and it is public, so a
+generator's own tests import it. It gives four checks:
+
+- `assert_matches_golden(text, golden_path, model_hash)` compares the output with a
+  golden file byte for byte. The golden is the expected output with a producibility
+  marker in a trailing comment on every non-blank line (`# [graph: ...]` for a line that
+  comes from model facts, `# [fixed]` for a constant one) and `sha256:<model-hash>`
+  where the model's hash goes. The markers are stripped and the placeholder filled in
+  before the comparison. Comment syntax is known for `.html` (`{# ... #}`), `.py` and
+  `.yaml` (`# ...`). A mismatch names the golden file and the first differing line and
+  shows a unified diff.
+- `assert_deterministic(generator, model_path, out)` runs `generator.generate` twice, each
+  time on a freshly loaded model, and names the first output file that differs.
+- `check_output(path, text)` parses the text as its file type, picked by suffix: Python,
+  YAML, JSON or a Jinja2 template (`.html`). An error is `<path>:<line>: <parse error>`.
+- `assert_shapes_catch(extract, dataset, subject=..., predicate=..., focus=..., path=...)`
+  checks a model fault from both sides (principle 5): `extract` must raise a
+  `GeneratorError` on `subject` and `predicate`, and the SHACL shapes must report a
+  violation on `focus`. A fault only the generator catches is a gap in the shapes: the
+  error says `no shape violation on <focus>` and lists the results that were found.
+  `shape_violations(dataset, shapes, ontology)` returns those results directly.
+
+`tests/test_generator_kit_third_party.py` tests a YAML variant of the checklist this way,
+importing only `seams`, `seams_gen.protocol` and `seams_gen.testing`. Its golden is
+`tests/fixtures/generator_kit/checklist.yaml`:
+
+```yaml
+model: "chat-app.trig"  # [fixed]
+model_hash: "sha256:<model-hash>"  # [fixed]
+processes:  # [fixed]
+  - process: "Send Message Process"  # [graph: :send_message_process proc:Process rdfs:label]
+    bpmn: "https://example.org/chat/chat_bpmn"  # [graph: :send_message_process seam:detailedBy :chat_bpmn]
+```
+
+and the tests are a few lines each:
+
+```python
+import seams
+from rdflib import Dataset
+from seams_gen.testing import assert_deterministic, assert_matches_golden, assert_shapes_catch, check_output
+
+
+def test_output_matches_golden(tmp_path):
+    files = checklist.generate(CHAT_TRIG, tmp_path)
+    assert_matches_golden(files["checklist.yaml"], GOLDEN, seams.load(CHAT_TRIG).hash)
+
+
+def test_output_is_deterministic(tmp_path):
+    assert_deterministic(checklist, CHAT_TRIG, tmp_path)
+
+
+def test_output_is_valid_yaml(tmp_path):
+    for name, text in checklist.generate(CHAT_TRIG, tmp_path).items():
+        check_output(name, text)
+
+
+def test_process_without_bpmn_model_is_a_shape_violation():
+    ds = Dataset(default_union=True)
+    ds.parse(CHAT_TRIG, format="trig")
+    for graph in ds.graphs():
+        graph.remove((CHAT.send_message_process, SEAM.detailedBy, CHAT.chat_bpmn))
+    assert_shapes_catch(
+        extract_checklist,  # takes a loaded model, raises GeneratorError
+        ds,
+        subject=CHAT.send_message_process,
+        predicate=SEAM.detailedBy,
+        focus=CHAT.send_message_process,
+        path=SEAM.detailedBy,
+        model_path=CHAT_TRIG,  # so the model's relative file names still resolve
+    )
+```
+
+`assert_shapes_catch` calls `extract` with the faulty model loaded as a seams model, so
+give it the part of your generator that reads the model, not `Generator.extract`, which
+takes a path. The shapes default to the repository's `ontology/shapes/seam-shapes.ttl`
+and `ontology/*.ttl`; pass `shapes=` and `ontology=` to check your own.
+
 ## Preview a broken model with --lenient
 
 While a model is still being written, a broken precondition stops every generator.

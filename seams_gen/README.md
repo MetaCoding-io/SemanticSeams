@@ -193,6 +193,10 @@ for name, text in files.items():
     check_output(name, text)
 ```
 
+`tests/test_generator_kit_third_party.py` tests a generator defined in the test with
+nothing but this module, `seams` and `seams_gen.protocol`; the
+[guide](../docs/guide/write-your-own-generator.md#test-it) walks through it.
+
 `tests/test_generator_testing.py` covers each function's pass and failure messages.
 
 ## htmx rendering rules

@@ -113,8 +113,8 @@ is written: no outputs and no `seams.lock`.
 seams generate: https://example.org/expenses/broken_model: https://w3id.org/seams/shapes#ModelShape: generator 'strict-gen' requires the model to conform to this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
 ```
 
-`seams_gen` does not depend on pyshacl: `seams_cli` runs the validation and hands the
-report over, so the check sits in `seams_gen/protocol.py`, where the shape/generator
+`seams_gen` runs no validation itself (its only use of pyshacl is the test kit's parity
+helpers): `seams_cli` runs the validation and hands the report over, so the check sits in `seams_gen/protocol.py`, where the shape/generator
 parity inventory (`tests/test_shape_generator_parity.py`) lists it as `GENERATOR_ONLY`
 (the check *is* the shapes). Results of shapes that are not preconditions are ignored
 here; `seams check` still reports them.
@@ -149,6 +149,20 @@ files stay deterministic and carry no markers, and principle 5 (flag invalid mod
 never refuse them) holds for previews. `lockfile_version` stays 1: a lock with no faults
 has no `faults` key and is byte for byte what a strict run writes.
 
+### The test kit (M018/S03)
+
+A generator from another distribution needs the same checks the built-ins' tests use, so
+they are public in **`seams_gen.testing`** (backlog K4): `golden_target` and
+`assert_matches_golden` (the golden-target rule, D016, with the `sha256:<model-hash>`
+placeholder), `assert_deterministic` (two runs of `Generator.generate` give the same
+files), `check_output` (the output parses as Python, YAML, JSON or a Jinja2 template)
+and the K1 parity helpers `shape_violations` and `assert_shapes_catch` (a fault the
+generator rejects is also a shape violation). The built-ins' tests and
+`tests/test_shape_generator_parity.py` use the module, and
+`tests/test_generator_kit_third_party.py` tests a generator defined in the test with it
+alone. The kit is imported as `seams_gen.testing`, not re-exported from `seams_gen`, so
+pyshacl, which only the parity helpers need, loads only when they run.
+
 ## Alternatives Considered
 
 - **Keep `GENERATORS` and add a `plugins` key to `seams.toml` naming import paths.**
@@ -161,9 +175,8 @@ has no `faults` key and is byte for byte what a strict run writes.
 - **A `Generator` protocol class (`typing.Protocol`) instead of a dataclass.** Rejected:
   `discover()` needs a runtime check that an entry point loads a generator, and a frozen
   dataclass gives that with `isinstance`, plus immutability and keyword-only construction.
-- **Run pyshacl inside `seams_gen`.** Rejected: it would add pyshacl to `seams_gen`'s
-  dependencies for a check only the CLI needs, and validate once per generator instead of
-  once per run.
+- **Run pyshacl inside `seams_gen`.** Rejected: it would validate once per generator
+  instead of once per run, for a check only the CLI needs.
 - **Record `seams_gen.__version__` for every output, as before.** Rejected: a third-party
   generator's output would carry a version unrelated to the code that wrote it.
 

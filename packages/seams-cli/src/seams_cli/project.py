@@ -49,7 +49,7 @@ class ProjectError(ValueError):
 
 @dataclass(frozen=True)
 class GeneratorTarget:
-    """One generator run: a seams_gen generator name and its absolute output directory."""
+    """One generator run: a registered generator name and its absolute output directory."""
 
     name: str
     out: Path
@@ -73,9 +73,10 @@ class Project:
 
 
 def _known_generators() -> dict:
-    from seams_gen.__main__ import GENERATORS
+    """The ``seams.generators`` registry (D056): built-ins and installed third-party generators."""
+    from seams_gen.registry import discover
 
-    return GENERATORS
+    return discover()
 
 
 def load_project(path: Path | str) -> Project:

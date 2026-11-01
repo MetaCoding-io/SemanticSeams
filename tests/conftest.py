@@ -5,9 +5,15 @@
 ``postgresql://postgres:pw@localhost:5433/postgres``) and skips without it,
 unless ``SEAMS_REQUIRE_POSTGRES=1`` makes the missing URL a failure (CI).
 Each postgres test gets its own schemas, dropped at teardown.
+
+``generator_dist`` simulates an installed third-party generator distribution
+(M018/S01, D056): a ``<name>-<version>.dist-info`` directory and a module on
+sys.path, so ``seams_gen.registry.discover()`` finds its entry points while
+nothing is installed.
 """
 
 import os
+import sys
 import uuid
 
 import pytest
@@ -26,6 +32,28 @@ def postgres_url() -> str:
     if os.environ.get(REQUIRE_POSTGRES_ENV) == "1":
         pytest.fail(f"{REQUIRE_POSTGRES_ENV}=1 but {POSTGRES_URL_ENV} is not set")
     pytest.skip(f"{POSTGRES_URL_ENV} is not set")
+
+
+@pytest.fixture
+def generator_dist(tmp_path, monkeypatch):
+    """``generator_dist(module, source, entries)`` writes ``module``.py holding
+    ``source`` and a distribution ``example-gen 1.0`` whose ``seams.generators``
+    group is ``entries`` ({entry-point name: "module:object"}), under
+    tmp_path/site, and puts that directory on sys.path."""
+
+    def make(module: str, source: str, entries: dict[str, str]):
+        site = tmp_path / "site"
+        info = site / "example_gen-1.0.dist-info"
+        info.mkdir(parents=True)
+        (site / f"{module}.py").write_text(source, encoding="utf-8")
+        (info / "METADATA").write_text("Metadata-Version: 2.1\nName: example-gen\nVersion: 1.0\n", encoding="utf-8")
+        lines = "".join(f"{name} = {value}\n" for name, value in entries.items())
+        (info / "entry_points.txt").write_text(f"[seams.generators]\n{lines}", encoding="utf-8")
+        monkeypatch.syspath_prepend(str(site))
+        monkeypatch.delitem(sys.modules, module, raising=False)
+        return site
+
+    return make
 
 
 @pytest.fixture(params=["sqlite", "postgres"])

@@ -1016,6 +1016,10 @@ GENERATOR_ONLY: dict[Site, str] = {
         "Whether the build context holds the model's directory depends on resolving the deploy:context path "
         "against the model file's location on disk, not on the graph; backlog A11 covers the build paths."
     ),
+    Site("protocol", "check_preconditions", "shape"): (
+        "A generator's precondition check is the shapes themselves: it raises exactly when ontology/shapes "
+        "reports a result of one of the generator's precondition shapes, so there is no condition left to state."
+    ),
 }
 
 

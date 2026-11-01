@@ -4,6 +4,12 @@ All generators run in memory first; a GeneratorError from any of them leaves
 every output untouched, so a project is never half-regenerated. Files are
 written as ``python -m seams_gen`` writes them: UTF-8 with ``\\n`` newlines.
 
+Generators come from the ``seams.generators`` registry (D056). Before any
+runs, a generator that declares precondition shapes has them checked: the model,
+unioned with ``ontology/*.ttl``, is validated against ontology/shapes once, and
+a result of one of its shapes raises GeneratorError naming the generator, the
+shape and the focus node (strict mode, M018/S01).
+
 ``apply`` then reconciles the project with its seams.lock (D043): it reads the
 old lock before writing anything (a malformed one raises LockError), writes the
 outputs, deletes each orphan the old lock still knows byte for byte, and writes
@@ -17,22 +23,41 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from rdflib import Graph
+
 from .lockfile import Audit, Output, audit, build_lock, locate, lock_path, read_lock, render_lock, sha256_file
 from .project import Project
 
 
 def generate_project(project: Project, model: Path) -> dict[Path, Output]:
     """{absolute output path: Output} for every generator target of ``project``."""
-    from seams_gen.__main__ import GENERATORS
-    from seams_gen.sources import output_sources
+    from seams_gen.registry import discover
 
+    registry = discover()
+    generators = [(registry[target.name], target.out) for target in project.generators]
+    if any(gen.preconditions for gen, _out in generators):
+        from .check import SHAPES_FILE
+
+        shapes = Graph().parse(SHAPES_FILE, format="turtle")
+        results = shape_results(model, shapes)
+        for gen, _out in generators:
+            gen.check_preconditions(results, shapes)
     files: dict[Path, Output] = {}
-    for target in project.generators:
-        generate = GENERATORS[target.name][1]
-        sources = output_sources(target.name, model, target.out)
-        for name, text in generate(model, target.out).items():
-            files[(target.out / name).resolve()] = Output(target.name, text, sources[name])
+    for gen, out in generators:
+        sources = gen.sources(model, out)
+        for name, text in gen.generate(model, out).items():
+            files[(out / name).resolve()] = Output(gen.name, gen.version, text, sources[name])
     return files
+
+
+def shape_results(model: Path, shapes: Graph) -> Graph:
+    """The SHACL validation report graph of ``model`` against ``shapes``, validated as ``seams check`` does."""
+    import pyshacl
+
+    from .check import model_graph
+
+    _conforms, results, _text = pyshacl.validate(model_graph(model), shacl_graph=shapes, inference="none")
+    return results
 
 
 def write_outputs(files: dict[Path, Output]) -> None:

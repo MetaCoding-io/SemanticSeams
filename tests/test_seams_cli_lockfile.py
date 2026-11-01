@@ -239,3 +239,33 @@ def test_a_failing_generator_keeps_the_old_lock(app, capsys):
 
 def test_lock_error_is_a_project_error():
     assert issubclass(LockError, ProjectError)
+
+
+PLUGIN = """
+from seams_gen.protocol import Generator
+
+generator = Generator(
+    name="example-gen",
+    version="9.9.9",
+    help="one example file",
+    extract=lambda trig, out: trig.name,
+    render=lambda name: {"example.txt": f"made from {name}\\n"},
+    sources=lambda trig, out: {"example.txt": ("https://example.org/expenses/expense_api",)},
+)
+"""
+
+
+def test_each_output_records_its_own_generator_version(app, capsys, generator_dist):
+    """A third-party generator's outputs carry its version, not seams_gen's (M018/S01)."""
+    generator_dist("seams_lock_test_plugin", PLUGIN, {"example-gen": "seams_lock_test_plugin:generator"})
+    (app / "seams.toml").write_text(
+        BOTH + '[[generators]]\nname = "example-gen"\nout = "generated/example"\n', encoding="utf-8"
+    )
+    _generate(app, capsys)
+    versions = {o["path"]: (o["generator"], o["generator_version"]) for o in _lock(app)["outputs"]}
+    assert versions["generated/example/example.txt"] == ("example-gen", "9.9.9")
+    assert versions[API] == ("fastapi", seams_gen.__version__)
+    assert all(versions[path] == ("htmx", seams_gen.__version__) for path in TEMPLATES)
+    entry = next(o for o in _lock(app)["outputs"] if o["generator"] == "example-gen")
+    assert entry["sources"] == ["https://example.org/expenses/expense_api"]
+    assert entry["sha256"] == _sha(app / "generated/example/example.txt")

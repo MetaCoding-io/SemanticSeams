@@ -201,3 +201,83 @@ def test_an_unwritable_output_exits_1(app, capsys):
     (app / "generated").write_text("a file where a directory is needed", encoding="utf-8")
     assert main(["generate", "--project", str(app)]) == 1
     assert capsys.readouterr().err.startswith("seams generate: ")
+
+
+# ── registered generators (M018/S01, D056) ──────────────────────────────────
+
+PLUGIN = """
+from seams_gen.protocol import Generator
+
+generator = Generator(
+    name="example-gen",
+    version="9.9.9",
+    help="one example file",
+    extract=lambda trig, out: trig.name,
+    render=lambda name: {"example.txt": f"made from {name}\\n"},
+    sources=lambda trig, out: {"example.txt": ("https://example.org/expenses/expense_api",)},
+)
+strict = Generator(
+    name="strict-gen",
+    version="1.2.3",
+    help="needs every seam:Model to have one notation",
+    extract=lambda trig, out: None,
+    render=lambda view: {"strict.txt": "ok\\n"},
+    sources=lambda trig, out: {"strict.txt": ()},
+    preconditions=("https://w3id.org/seams/shapes#ModelShape",),
+)
+"""
+ENTRIES = {"example-gen": "seams_cli_test_plugin:generator", "strict-gen": "seams_cli_test_plugin:strict"}
+EXAMPLE = '[[generators]]\nname = "example-gen"\nout = "generated/example"\n'
+STRICT = '[[generators]]\nname = "strict-gen"\nout = "generated/strict"\n'
+MODEL_SHAPE = "https://w3id.org/seams/shapes#ModelShape"
+BROKEN = "https://example.org/expenses/broken_model"
+
+
+def _break_a_model(app: Path) -> None:
+    """Add a seam:Model with no seam:notation, which seamsh:ModelShape reports."""
+    with open(app / "expenses.trig", "a", encoding="utf-8") as fh:
+        fh.write(f"\n<urn:seams:graph:model:broken_model> {{ <{BROKEN}> a seam:Model . }}\n")
+
+
+def test_a_registered_third_party_generator_writes_its_files(app, generator_dist):
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _project(app, 'model = "expenses.trig"\n' + GENERATORS + EXAMPLE)
+    assert main(["generate", "--project", str(app)]) == 0
+    assert _generated(app) == sorted([*EXPECTED, "example/example.txt"])
+    assert (app / "generated/example/example.txt").read_text(encoding="utf-8") == "made from expenses.trig\n"
+
+
+def test_a_satisfied_precondition_generates(app, generator_dist):
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _project(app, 'model = "expenses.trig"\n' + STRICT)
+    assert main(["generate", "--project", str(app)]) == 0
+    assert _generated(app) == ["strict/strict.txt"]
+
+
+def test_a_violated_precondition_exits_2_naming_generator_shape_and_focus(app, generator_dist, capsys):
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _break_a_model(app)
+    _project(app, 'model = "expenses.trig"\n' + GENERATORS + STRICT)
+    assert main(["generate", "--project", str(app)]) == 2
+    assert capsys.readouterr().err == (
+        f"seams generate: {BROKEN}: {MODEL_SHAPE}: generator 'strict-gen' requires the model to conform to "
+        "this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.\n"
+    )
+    assert not (app / "generated").exists()
+    assert not (app / "seams.lock").exists()
+
+
+def test_preconditions_of_other_shapes_are_ignored(app, generator_dist):
+    # The broken model only violates ModelShape; generators without it still run.
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _break_a_model(app)
+    _project(app, 'model = "expenses.trig"\n' + EXAMPLE)
+    assert main(["generate", "--project", str(app)]) == 0
+    assert _generated(app) == ["example/example.txt"]
+
+
+def test_an_unknown_generator_is_a_project_error_listing_registered_ones(app, generator_dist):
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _project(app, '[[generators]]\nname = "react"\nout = "x"\n')
+    with pytest.raises(ProjectError, match=r"`generators\[0\]\.name` is 'react'; known generators: .*example-gen"):
+        load_project(app)

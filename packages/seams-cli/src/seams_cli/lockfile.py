@@ -50,9 +50,11 @@ class LockError(ProjectError):
 
 
 class Output(NamedTuple):
-    """One produced file: the generator that wrote it, its text and its source element IRIs."""
+    """One produced file: the generator that wrote it and that generator's version,
+    its text and its source element IRIs."""
 
     generator: str
+    generator_version: str
     text: str
     sources: tuple[str, ...]
 
@@ -150,12 +152,13 @@ def read_lock(project: Project) -> Lock | None:
 
 
 def build_lock(project: Project, model: Path, outputs: Mapping[Path, Output]) -> Lock:
-    """The lock for ``outputs`` ({absolute path: Output}) generated from ``model``."""
-    from seams_gen import __version__
-
+    """The lock for ``outputs`` ({absolute path: Output}) generated from ``model``.
+    Each output records the version of its own generator."""
     digest = hash_model(model)
     locked = [
-        LockedOutput(relative(project, path), out.generator, __version__, digest, sha256_text(out.text), out.sources)
+        LockedOutput(
+            relative(project, path), out.generator, out.generator_version, digest, sha256_text(out.text), out.sources
+        )
         for path, out in outputs.items()
     ]
     return Lock(relative(project, Path(model).resolve()), digest, tuple(sorted(locked, key=lambda o: o.path)))

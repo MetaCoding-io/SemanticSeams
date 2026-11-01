@@ -20,6 +20,8 @@ read the model, through their own extract functions and the seams views
   the decision examples with their decisions, or the example shapes and nodes.
 - ``dockerfile``: the serving container and the development
   arch:Environment whose deploy:build it renders.
+- ``ifmledit``: every IFML view container, component, event and flow it
+  exports.
 - ``smoke``: each operation it calls, the shapes it accepts and returns (and
   its error statuses'), the examples it sends and the policies and parties
   governing it.
@@ -38,6 +40,7 @@ from .compose import DEVELOPMENT, _resolve_environment, compose_file_name, envir
 from .dockerfile import dockerfile_name, extract_dockerfile
 from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
+from .ifmledit import ifmledit_sources
 from .smoke import smoke_sources
 from .tests import tests_sources
 
@@ -117,6 +120,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "tests": lambda trig, out: tests_sources(trig),
     "smoke": lambda trig, out: smoke_sources(trig),
     "dockerfile": _dockerfile,
+    "ifmledit": lambda trig, out: ifmledit_sources(load(trig)),
 }
 
 

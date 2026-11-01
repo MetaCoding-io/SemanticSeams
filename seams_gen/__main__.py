@@ -2,7 +2,8 @@
 
 Each generator is a subcommand registered in ``GENERATORS``: ``htmx`` (S04),
 ``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015, ADR-0014),
-``smoke`` (M015/S05, backlog A9) and ``dockerfile`` (M016/S03). A generator is called as
+``smoke`` (M015/S05, backlog A9), ``dockerfile`` (M016/S03) and ``ifmledit``
+(M008/S01, backlog 12). A generator is called as
 ``generate(trig, out)`` and returns ``{relative file name: text}``; only
 ``compose`` uses ``out``, as the base directory its bind-mount sources, build
 contexts and secret files are relative to (D018). ``compose`` writes one
@@ -24,6 +25,8 @@ from .compose import generate_compose_environments
 from .dockerfile import generate_dockerfiles
 from .fastapi import route_module
 from .htmx import generate_pages
+from .ifmledit import generate as generate_ifmledit
+from .ifmledit import unmapped_summary
 from .smoke import generate_smoke
 from .tests import generate_tests
 
@@ -73,6 +76,14 @@ def _smoke(trig: Path, out: Path) -> dict[str, str]:
     return generate_smoke(trig)
 
 
+def _ifmledit(trig: Path, out: Path) -> dict[str, str]:
+    """{ifmledit.json: content}: the IFML layer as IFMLEdit.org JSON (backlog
+    12). The ifml: terms IFMLEdit has no counterpart for are named on stderr."""
+    files = generate_ifmledit(load(trig))
+    print(unmapped_summary(), file=sys.stderr)
+    return files
+
+
 # subcommand -> (help, generate(trig, out) -> {relative file name: text})
 GENERATORS = {
     "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
@@ -81,6 +92,7 @@ GENERATORS = {
     "tests": ("pytest files for the model's verify: scenarios and examples, and its ODRL permissions", _tests),
     "smoke": ("a pytest file calling each operation on a running app, checking seam:returnsShape", _smoke),
     "dockerfile": ("the runtime image Dockerfile of the serving container's development build", _dockerfile),
+    "ifmledit": ("the IFML interaction model as IFMLEdit.org JSON", _ifmledit),
 }
 
 

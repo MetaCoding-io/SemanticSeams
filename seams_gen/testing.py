@@ -11,16 +11,24 @@
   are. Every ``sha256:<model-hash>`` placeholder becomes the model's hash.
 - ``assert_deterministic(generator, model_path)``: two runs give the same files.
 - ``check_output(path, text)``: the text parses as its file type.
+- ``shape_violations(dataset, shapes, ontology)`` and ``assert_shapes_catch(extract,
+  dataset, ...)``: the shapes catch every generator fault (backlog K1, principle
+  5). A model the generator rejects must also be a shape violation, so a model
+  that passes the shapes always generates.
 """
 
 import ast
 import difflib
 import json
 import re
+import tempfile
+from collections.abc import Callable, Iterable
+from functools import cache
 from pathlib import Path
 
 import jinja2
 import yaml
+from rdflib import RDF, Dataset, Graph, Namespace, URIRef
 
 # Same pattern as MARKER in tests/test_golden_outputs.py.
 MARKER = re.compile(r"\[(graph: [^\]]+|fixed|gap: GAP-\d{2})\]")
@@ -194,12 +202,134 @@ def check_output(path, text: str) -> None:
     checker(text, str(path))
 
 
+# ── shape parity (backlog K1) ───────────────────────────────────────────────
+
+ONTOLOGY_DIR = Path(__file__).resolve().parents[1] / "ontology"
+SHAPES_FILE = ONTOLOGY_DIR / "shapes" / "seam-shapes.ttl"
+_SH = Namespace("http://www.w3.org/ns/shacl#")
+
+
+@cache
+def _turtle(path: Path) -> Graph:
+    return Graph().parse(path, format="turtle")
+
+
+def _as_graph(source) -> Graph:
+    """A Graph as given, or the Turtle file at a path (parsed once per path)."""
+    return source if isinstance(source, Graph) else _turtle(Path(source).resolve())
+
+
+def shape_violations(dataset: Dataset, shapes, ontology: Iterable = ()) -> list[tuple[str, str | None, str]]:
+    """(focus node, result path, message) of each SHACL result for ``dataset``.
+
+    It is validated the way ``seams check`` and the viewer do: every quad of the
+    model unioned with the ``ontology`` graphs, with pyshacl inference off.
+    ``shapes`` and each ontology entry are a Graph or the path of a Turtle file.
+    The result path is None when it is not a plain IRI (a sequence or inverse path).
+    """
+    import pyshacl  # only the parity helpers need it
+
+    union = Graph()
+    for graph in ontology:
+        union += _as_graph(graph)
+    for s, p, o, _ctx in dataset.quads((None, None, None, None)):
+        union.add((s, p, o))
+    _conforms, results, _text = pyshacl.validate(union, shacl_graph=_as_graph(shapes), inference="none")
+    out = []
+    for result in results.subjects(RDF.type, _SH.ValidationResult):
+        path = results.value(result, _SH.resultPath)
+        out.append(
+            (
+                str(results.value(result, _SH.focusNode)),
+                str(path) if isinstance(path, URIRef) else None,
+                str(results.value(result, _SH.resultMessage) or ""),
+            )
+        )
+    return out
+
+
+def _model(dataset: Dataset, model_path, tmp: str):
+    from seams import ModelGraph
+
+    if model_path is not None:
+        return ModelGraph(model_path, dataset=dataset)
+    written = Path(tmp) / "model.trig"
+    dataset.serialize(destination=written, format="trig")
+    return ModelGraph(written)
+
+
+def assert_shapes_catch(
+    extract: Callable,
+    dataset: Dataset,
+    *,
+    subject,
+    predicate,
+    focus,
+    path=None,
+    match: str = "",
+    model_path=None,
+    shapes=SHAPES_FILE,
+    ontology: Iterable | None = None,
+) -> None:
+    """Assert a model fault the generator rejects is also a shape violation.
+
+    ``dataset`` is a model with the fault in it, usually a mutated copy of a
+    conforming example. ``extract(model)`` is called on it as a seams
+    ModelGraph and must raise a GeneratorError on ``subject`` and ``predicate``
+    with ``match`` in its detail. Then the shapes must report a result whose
+    focus node is ``focus`` (and whose path is ``path``, when given), with a
+    message.
+
+    The model is ``ModelGraph(model_path, dataset=dataset)`` when ``model_path``
+    is given, so paths in the model resolve against that file's directory;
+    otherwise the dataset is written to a temporary TriG file and loaded from
+    there. ``shapes`` defaults to ontology/shapes/seam-shapes.ttl and
+    ``ontology`` to ontology/*.ttl.
+
+    The AssertionError names the focus node and lists the shape results found,
+    or says that extract did not raise or raised on another fact.
+    """
+    from . import GeneratorError
+
+    if ontology is None:
+        ontology = sorted(ONTOLOGY_DIR.glob("*.ttl"))
+    want = (str(subject), str(predicate))
+    name = getattr(extract, "__name__", repr(extract))
+    with tempfile.TemporaryDirectory() as tmp:
+        model = _model(dataset, model_path, tmp)
+        try:
+            extract(model)
+        except GeneratorError as err:
+            got = (err.subject, err.predicate)
+            if got != want:
+                raise AssertionError(
+                    f"{name} raised GeneratorError on {got[0]} {got[1]}, expected {want[0]} {want[1]}: {err}"
+                ) from None
+            if match not in err.detail:
+                raise AssertionError(f"{name} raised GeneratorError without {match!r} in its detail: {err}") from None
+        else:
+            raise AssertionError(f"{name} did not raise a GeneratorError on {want[0]} {want[1]}")
+
+    violations = shape_violations(dataset, shapes, ontology)
+    on_focus = [v for v in violations if v[0] == str(focus) and (path is None or v[1] == str(path))]
+    if not on_focus:
+        where = f"{focus} {path}" if path is not None else str(focus)
+        listed = "\n".join(f"  {f} {p or '-'}: {m}" for f, p, m in violations) or "  (none)"
+        raise AssertionError(f"no shape violation on {where}; shape results found:\n{listed}")
+    silent = [v for v in on_focus if not v[2]]
+    if silent:
+        raise AssertionError(f"shape violation on {focus} without a message: {silent}")
+
+
 __all__ = [
     "MARKER",
     "PLACEHOLDER_HASH",
+    "SHAPES_FILE",
     "assert_deterministic",
     "assert_matches_golden",
+    "assert_shapes_catch",
     "check_output",
     "golden_target",
+    "shape_violations",
     "strip_markers",
 ]

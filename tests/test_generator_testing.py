@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from rdflib import Dataset, Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -16,14 +17,24 @@ if str(ROOT) not in sys.path:
 
 from seams import model_hash  # noqa: E402
 
-from seams_gen import builtin  # noqa: E402
-from seams_gen.htmx import generate_page  # noqa: E402
+from seams_gen import GeneratorError, builtin  # noqa: E402
+from seams_gen.htmx import generate_page, generate_pages  # noqa: E402
 from seams_gen.protocol import Generator  # noqa: E402
-from seams_gen.testing import assert_deterministic, assert_matches_golden, check_output  # noqa: E402
+from seams_gen.testing import (  # noqa: E402
+    SHAPES_FILE,
+    assert_deterministic,
+    assert_matches_golden,
+    assert_shapes_catch,
+    check_output,
+    shape_violations,
+)
 
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 GOLDEN = ROOT / "docs" / "generation" / "golden"
 HASH = "sha256:" + "0123456789abcdef" * 4
+CHAT = Namespace("https://example.org/chat/")
+IFML = Namespace("https://w3id.org/seams/ifml#")
+CHAT_IFML = URIRef("urn:seams:graph:model:chat_ifml")
 
 
 # --- assert_matches_golden -------------------------------------------------
@@ -154,3 +165,115 @@ def test_unknown_suffix_is_a_value_error():
 def test_every_built_in_htmx_output_parses():
     for name, text in builtin.htmx.generate(TRIG, Path("generated")).items():
         check_output(name, text)
+
+
+# --- shape_violations / assert_shapes_catch ---------------------------------
+
+
+def _chat() -> Dataset:
+    ds = Dataset(default_union=True)
+    ds.parse(TRIG, format="trig")
+    return ds
+
+
+def _without_order() -> Dataset:
+    """The chat app with a page component missing its ifml:order."""
+    ds = _chat()
+    ds.graph(CHAT_IFML).remove((CHAT.message_thread, IFML.order, None))
+    return ds
+
+
+def test_conforming_example_has_no_shape_violations():
+    assert shape_violations(_chat(), SHAPES_FILE, sorted((ROOT / "ontology").glob("*.ttl"))) == []
+
+
+def test_shape_violation_names_focus_path_and_message():
+    found = shape_violations(_without_order(), SHAPES_FILE, sorted((ROOT / "ontology").glob("*.ttl")))
+    assert [(f, p) for f, p, _m in found] == [(str(CHAT.message_thread), None)]
+    assert all(message for _f, _p, message in found)
+
+
+@pytest.mark.parametrize("model_path", [TRIG, None], ids=["model-path", "written"])
+def test_shapes_catch_a_constrained_fault(model_path):
+    assert_shapes_catch(
+        generate_pages,
+        _without_order(),
+        subject=CHAT.message_thread,
+        predicate=IFML.order,
+        focus=CHAT.message_thread,
+        model_path=model_path,
+    )
+
+
+def _raises(subject, predicate, detail=""):
+    def extract(model):
+        raise GeneratorError(subject, predicate, detail)
+
+    return extract
+
+
+def test_unconstrained_fault_reports_no_shape_violation():
+    with pytest.raises(AssertionError) as caught:
+        assert_shapes_catch(
+            _raises(CHAT.chat_page, IFML.order),
+            _chat(),
+            subject=CHAT.chat_page,
+            predicate=IFML.order,
+            focus=CHAT.chat_page,
+            model_path=TRIG,
+        )
+    assert str(caught.value) == f"no shape violation on {CHAT.chat_page}; shape results found:\n  (none)"
+
+
+def test_violation_without_the_path_is_not_enough():
+    with pytest.raises(AssertionError) as caught:
+        assert_shapes_catch(
+            generate_pages,
+            _without_order(),
+            subject=CHAT.message_thread,
+            predicate=IFML.order,
+            focus=CHAT.message_thread,
+            path=IFML.order,
+            model_path=TRIG,
+        )
+    message = str(caught.value)
+    assert message.startswith(f"no shape violation on {CHAT.message_thread} {IFML.order}; shape results found:\n")
+    assert f"\n  {CHAT.message_thread} -: A component of a page" in message
+
+
+def test_extract_that_does_not_raise_is_reported():
+    with pytest.raises(AssertionError) as caught:
+        assert_shapes_catch(
+            generate_pages,
+            _chat(),
+            subject=CHAT.message_thread,
+            predicate=IFML.order,
+            focus=CHAT.message_thread,
+            model_path=TRIG,
+        )
+    assert str(caught.value) == f"generate_pages did not raise a GeneratorError on {CHAT.message_thread} {IFML.order}"
+
+
+def test_raise_on_another_fact_is_reported():
+    with pytest.raises(AssertionError, match=r"raised GeneratorError on .*chat_page .*, expected .*message_thread"):
+        assert_shapes_catch(
+            _raises(CHAT.chat_page, IFML.order),
+            _without_order(),
+            subject=CHAT.message_thread,
+            predicate=IFML.order,
+            focus=CHAT.message_thread,
+            model_path=TRIG,
+        )
+
+
+def test_raise_without_the_match_is_reported():
+    with pytest.raises(AssertionError, match=r"without 'two orders' in its detail"):
+        assert_shapes_catch(
+            _raises(CHAT.message_thread, IFML.order, "no order"),
+            _without_order(),
+            subject=CHAT.message_thread,
+            predicate=IFML.order,
+            focus=CHAT.message_thread,
+            match="two orders",
+            model_path=TRIG,
+        )

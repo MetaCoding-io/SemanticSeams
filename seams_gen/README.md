@@ -181,6 +181,8 @@ built-in or third-party:
 | `assert_matches_golden(text, golden_path, model_hash)` | `text == golden_target(golden_path, model_hash)` | `AssertionError` naming the golden file and first differing line, then a unified diff |
 | `assert_deterministic(generator, model_path, out=Path("generated"))` | two `generator.generate(model_path, out)` runs return the same `{file name: text}` | `AssertionError` naming the generator and the first (sorted) file name that differs or is produced by one run only |
 | `check_output(path, text)` | `text` parses as its type: `.py` `ast.parse`, `.yaml`/`.yml` `yaml.safe_load_all`, `.json` `json.loads`, `.html` a Jinja2 parse | `AssertionError` `<path>:<line>: <parse error>`; an unknown suffix is a `ValueError` |
+| `shape_violations(dataset, shapes, ontology=())` | (returns) `(focus, path, message)` of each SHACL result, validated as `seams check` does: the model unioned with the ontology graphs, pyshacl inference off; `path` is `None` when not a plain IRI | — |
+| `assert_shapes_catch(extract, dataset, *, subject, predicate, focus, path=None, match='', model_path=None)` | the K1 parity rule: `extract(model)` raises a `GeneratorError` on `subject`/`predicate` (with `match` in its detail) and the shapes (default `ontology/shapes/seam-shapes.ttl` over `ontology/*.ttl`) report a result on `focus` (and `path`). Without `model_path` the dataset is written to a temporary TriG file and loaded from there | `AssertionError` saying `extract` did not raise or raised on another fact, or `no shape violation on <focus>` with the shape results found |
 
 ```python
 from seams_gen.testing import assert_deterministic, assert_matches_golden, check_output

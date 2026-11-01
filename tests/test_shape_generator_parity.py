@@ -20,11 +20,9 @@ import sys
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
-import pyshacl
 import pytest
 from rdflib import RDF, RDFS, BNode, Dataset, Graph, Literal, Namespace, URIRef
 
@@ -34,16 +32,16 @@ if str(ROOT) not in sys.path:
 
 from seams import ModelGraph  # noqa: E402
 
-from seams_gen import GeneratorError, ifmledit  # noqa: E402
+from seams_gen import ifmledit  # noqa: E402
 from seams_gen.compose import compose_file_name, environments, extract_compose  # noqa: E402
 from seams_gen.dockerfile import extract_dockerfile  # noqa: E402
 from seams_gen.fastapi import extract_routes  # noqa: E402
 from seams_gen.htmx import generate_pages  # noqa: E402
 from seams_gen.smoke import extract_smoke  # noqa: E402
+from seams_gen.testing import SHAPES_FILE, assert_shapes_catch, shape_violations  # noqa: E402
 from seams_gen.tests import extract_tests  # noqa: E402
 
 SEAMS_GEN = ROOT / "seams_gen"
-SHAPES_FILE = ROOT / "ontology" / "shapes" / "seam-shapes.ttl"
 ONTOLOGY_FILES = sorted((ROOT / "ontology").glob("*.ttl"))
 CHAT_TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
 EXPENSES_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
@@ -100,40 +98,6 @@ def _remove(graph: Graph, s, p, o=None) -> None:
 def _replace(graph: Graph, s, p, o) -> None:
     _remove(graph, s, p)
     graph.add((s, p, o))
-
-
-@cache
-def _ontology() -> Graph:
-    g = Graph()
-    for path in ONTOLOGY_FILES:
-        g.parse(path, format="turtle")
-    return g
-
-
-@cache
-def _shapes() -> Graph:
-    return Graph().parse(SHAPES_FILE, format="turtle")
-
-
-def _violations(ds: Dataset) -> list[tuple[str, str | None, str]]:
-    """(focus node, result path, message) of each shape result, validated the way
-    `seams check` and the viewer do: the model unioned with ontology/*.ttl."""
-    union = Graph()
-    union += _ontology()
-    for s, p, o, _ctx in ds.quads((None, None, None, None)):
-        union.add((s, p, o))
-    _conforms, results, _text = pyshacl.validate(union, shacl_graph=_shapes(), inference="none")
-    out = []
-    for r in results.subjects(RDF.type, SH.ValidationResult):
-        path = results.value(r, SH.resultPath)
-        out.append(
-            (
-                str(results.value(r, SH.focusNode)),
-                str(path) if isinstance(path, URIRef) else None,
-                str(results.value(r, SH.resultMessage) or ""),
-            )
-        )
-    return out
 
 
 def _htmx(model) -> object:
@@ -1030,7 +994,7 @@ GENERATOR_ONLY: dict[Site, str] = {
 def test_unmutated_example_conforms_and_generates(trig):
     """The baseline: each case's violation and GeneratorError come from its mutation."""
     ds = _dataset(trig)
-    assert _violations(ds) == []
+    assert shape_violations(ds, SHAPES_FILE, ONTOLOGY_FILES) == []
     for generate in GENERATORS.values():
         assert generate(ModelGraph(trig, dataset=ds))
 
@@ -1040,15 +1004,16 @@ def test_generator_fault_is_a_shape_violation(case: Case):
     ds = _dataset(case.trig)
     case.mutate(ds)
 
-    with pytest.raises(GeneratorError) as err:
-        GENERATORS[case.generator](ModelGraph(case.trig, dataset=ds))
-    assert (err.value.subject, err.value.predicate) == (str(case.subject), str(case.predicate)), err.value
-    assert case.match in err.value.detail
-
-    violations = _violations(ds)
-    found = [v for v in violations if v[0] == str(case.focus) and (case.path is None or v[1] == str(case.path))]
-    assert found, f"no shape result on {case.focus} {case.path or ''}; results: {violations}"
-    assert all(message for _f, _p, message in found), found
+    assert_shapes_catch(
+        GENERATORS[case.generator],
+        ds,
+        subject=case.subject,
+        predicate=case.predicate,
+        focus=case.focus,
+        path=case.path,
+        match=case.match,
+        model_path=case.trig,
+    )
 
 
 def test_each_site_has_one_case_or_entry():

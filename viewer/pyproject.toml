@@ -7,6 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     # the model is loaded through the seams library
     "semanticseams",
+    # edit mode saves every change through the one write path (ADR-0017)
+    "semanticseams-edit",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     # backs fastapi.templating.Jinja2Templates
@@ -20,3 +22,4 @@ package = false
 
 [tool.uv.sources]
 semanticseams = { workspace = true }
+semanticseams-edit = { workspace = true }

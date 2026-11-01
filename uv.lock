@@ -1343,6 +1343,7 @@ dependencies = [
     { name = "pyshacl" },
     { name = "rdflib" },
     { name = "semanticseams" },
+    { name = "semanticseams-edit" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1353,6 +1354,7 @@ requires-dist = [
     { name = "pyshacl", specifier = ">=0.30" },
     { name = "rdflib", specifier = ">=7.0" },
     { name = "semanticseams", editable = "packages/seams" },
+    { name = "semanticseams-edit", virtual = "seams_edit" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 

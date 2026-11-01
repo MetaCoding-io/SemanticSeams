@@ -17,18 +17,20 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 import seams
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.routing import BaseRoute
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
 
+import seams_edit
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import ifml, layers, legend, validation
+from viewer import editing, ifml, layers, legend, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.shapegraph import shapegraph_graph_data
@@ -41,6 +43,9 @@ logger = logging.getLogger("uvicorn.error")
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_ENV = "SEAMS_MODEL"
 ROOT_ENV = "SEAMS_VIEWER_ROOT"
+# ADR-0017: edit mode is off unless SEAMS_EDIT=1 when the viewer starts (or when
+# configure() runs); without it no route that writes is mounted.
+EDIT_ENV = "SEAMS_EDIT"
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "examples" / "chat-app" / "chat-app.trig"
 
 
@@ -136,6 +141,17 @@ def configure(path: Path) -> None:
     global MODEL_PATH, MODEL_DIR, _model, _root_iri
     MODEL_PATH = Path(path).resolve()
     MODEL_DIR = model_base_dir(MODEL_PATH)
+    _model = None
+    _root_iri = None
+    validation._clear_cache()
+    _undo_stack.clear()
+    mount_edit_routes()
+
+
+def reload_model() -> None:
+    """Drop the loaded model and its cached conformance after an edit, so the next
+    request reads the files seams_edit wrote (MEM010: the cache is keyed by id(ds))."""
+    global _model, _root_iri
     _model = None
     _root_iri = None
     validation._clear_cache()
@@ -1069,3 +1085,151 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
 
     template = "fragment.html" if request.headers.get("hx-request") == "true" else "page.html"
     return templates.TemplateResponse(request, template, ctx)
+
+
+# --- Edit mode (ADR-0017, backlog I2) ---------------------------------------
+#
+# The edit routes live on their own router, included in the app only when
+# SEAMS_EDIT=1 at import or at configure(). A test switches edit mode with
+# monkeypatch.setenv(EDIT_ENV, "1") (or delenv) and then configure(path), which
+# mounts or unmounts the router. Every save goes through seams_edit.apply on the
+# model's own TriG files; the viewer never opens a model file for writing.
+
+edit_router = APIRouter()
+_edit_routes: list[BaseRoute] = []
+# The session's edit history (ADR-0017 Undo): in memory only, newest last.
+_undo_stack: list[seams_edit.EditRecord] = []
+
+
+def edit_enabled() -> bool:
+    """Whether the edit routes are mounted."""
+    return bool(_edit_routes)
+
+
+templates.env.globals["edit_enabled"] = edit_enabled
+
+
+def mount_edit_routes() -> None:
+    """Include the edit router when SEAMS_EDIT=1, remove it otherwise."""
+    wanted = os.environ.get(EDIT_ENV) == "1"
+    if wanted and not _edit_routes:
+        before = list(app.router.routes)
+        app.include_router(edit_router)
+        _edit_routes.extend(r for r in app.router.routes if r not in before)
+    elif not wanted and _edit_routes:
+        app.router.routes[:] = [r for r in app.router.routes if r not in _edit_routes]
+        _edit_routes.clear()
+    app.openapi_schema = None
+
+
+def _edit_href(iri: str) -> str:
+    return f"/edit/{quote(iri, safe='')}"
+
+
+def _edit_context(request: Request, iri: str, **extra) -> dict:
+    ds = get_graph()
+    fields = editing.form_fields(ds, iri)
+    return {
+        "request": request,
+        "focus_iri": iri,
+        "label": label(iri),
+        "action": _edit_href(iri),
+        "fields": [
+            {
+                **vars(f),
+                "slot": i,
+                "multiple": f.max_count != 1,
+                # A text field shows each value, plus a blank input to add one.
+                "inputs": list(f.values) + ([""] if f.max_count != 1 or not f.values else []),
+                "checked": "true" in f.values,
+            }
+            for i, f in enumerate(fields)
+        ],
+        "undo_count": len(_undo_stack),
+        "model_conformance": get_model_conformance(ds),
+        "saved": None,
+        "error": None,
+        **extra,
+    }
+
+
+def _known_element(iri: str) -> None:
+    if editing.element_graph(get_graph(), iri) is None:
+        raise HTTPException(status_code=404, detail=f"no element {iri} in the model")
+
+
+def _shares(record: seams_edit.EditRecord) -> list[dict]:
+    return [
+        {"file": e.path.name, "adds": len(e.patch.adds), "removes": len(e.patch.removes)}
+        for e in sorted(record.files, key=lambda e: str(e.path))
+    ]
+
+
+@edit_router.post("/edit/undo")
+def edit_undo(request: Request):
+    """Reverse the newest edit of this session (seams_edit.undo), then reload."""
+    if not _undo_stack:
+        raise HTTPException(status_code=409, detail="nothing to undo")
+    record = _undo_stack[-1]
+    try:
+        seams_edit.undo(record)
+    except (seams_edit.PatchError, OSError) as err:
+        logger.warning("edit undo failed: %s", err)
+        return JSONResponse({"undone": False, "error": str(err)}, status_code=409)
+    _undo_stack.pop()
+    reload_model()
+    files = _shares(record)
+    logger.info("edit undone: %s", ", ".join(f"{f['file']} (-{f['adds']} +{f['removes']})" for f in files))
+    return JSONResponse({"undone": True, "files": files, "remaining": len(_undo_stack)})
+
+
+@edit_router.get("/edit/{iri:path}")
+def edit_form(request: Request, iri: str):
+    """The element's form, one field per shaped property (viewer/editing.py)."""
+    element = unquote(iri)
+    _known_element(element)
+    return templates.TemplateResponse(request, "edit-form.html", _edit_context(request, element))
+
+
+@edit_router.post("/edit/{iri:path}")
+async def edit_save(request: Request, iri: str):
+    """Save one field: build the patch, apply it with seams_edit, reload.
+
+    A value that breaks the shapes is saved and the health badge flags it
+    (principle 5). A PatchError renders in the form, naming the subject, the
+    predicate and the reason, and nothing is written.
+    """
+    element = unquote(iri)
+    _known_element(element)
+    form = parse_qs((await request.body()).decode("utf-8"), keep_blank_values=True)
+    path = (form.get("field") or [""])[0]
+    fields = {f.path: f for f in editing.form_fields(get_graph(), element)}
+    if path not in fields:
+        raise HTTPException(status_code=400, detail=f"{element} has no shaped field {path!r}")
+    try:
+        patch = editing.build_patch(get_graph(), element, fields[path], form.get("value", []))
+        record = seams_edit.apply(get_model().files, patch)
+    except seams_edit.PatchError as err:
+        logger.warning("edit refused by the writer: %s", err)
+        error = {"subject": err.subject, "predicate": err.predicate, "detail": err.detail}
+        return templates.TemplateResponse(request, "edit-form.html", _edit_context(request, element, error=error))
+    except OSError as err:
+        logger.warning("edit not written: %s", err)
+        error = {"subject": element, "predicate": path, "detail": f"could not write the model: {err}"}
+        return templates.TemplateResponse(request, "edit-form.html", _edit_context(request, element, error=error))
+    if patch.is_empty:
+        saved = {"field": path, "files": []}
+    else:
+        _undo_stack.append(record)
+        reload_model()
+        saved = {"field": path, "files": _shares(record)}
+    logger.info(
+        "edit saved %s %s: %s",
+        element,
+        path,
+        ", ".join(f"{f['file']} (+{f['adds']} -{f['removes']})" for f in saved["files"]) or "no change",
+    )
+    return templates.TemplateResponse(request, "edit-form.html", _edit_context(request, element, saved=saved))
+
+
+mount_edit_routes()

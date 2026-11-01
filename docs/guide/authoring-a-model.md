@@ -59,6 +59,13 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
    `dec:variable` of an upstream business-rule task's decision, or a field of the shape
    an upstream user task writes. `seams check` reports a break as a `decision` finding
    naming the decision or sequence flow and the fact.
+9. **Each fact is stated once, and stated.** A `sh:in` list should not copy the
+   `rdfs:label`s of a lifecycle's states (use the state IRIs), a `sh:class` names a
+   class rather than a `sh:NodeShape`, each node shape has a `sh:targetClass`, and every
+   `sh:path` IRI is declared a property (`rdf:Property`, `owl:ObjectProperty`,
+   `owl:DatatypeProperty` or `owl:AnnotationProperty`). `seams check` prints a break as
+   a `review` line and the viewer's health badge counts it as a warning; neither refuses
+   the model, and `seams check` still exits 0 when review lines are all it finds.
 
 ::: tip Adding a seam predicate
 A model only uses the seam predicates that already exist. If you extend

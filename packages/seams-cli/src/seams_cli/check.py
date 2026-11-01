@@ -1,6 +1,6 @@
 """``seams check``: does a project still hold together? (M012/S03, D044)
 
-Four checks run, and a fifth when the project asks for it; every finding
+Five checks run, and a sixth when the project asks for it; every finding
 is reported and nothing is written.
 
 - ``shacl``: the model, unioned with ``ontology/*.ttl``, is validated against
@@ -19,6 +19,12 @@ is reported and nothing is written.
   sh:datatype of its dec:fromPath, or a gateway condition reading a variable
   nothing upstream sets. The detail is the subject IRI (the decision or the
   sequence flow), the fact (the property or the variable) and the message.
+- ``review``: one finding per fault ``seams.review_findings`` reports
+  (backlog R1, M017/S04): lifecycle state labels copied into sh:in, sh:class
+  pointing at a sh:NodeShape, a shape without sh:targetClass, or a sh:path
+  nothing declares a property. The detail is the subject IRI, the fact and
+  the message. Review findings are advisory (ADVISORY_KINDS): they are
+  reported but do not make ``seams check`` fail.
 - ``coverage``: with ``coverage = ["paths"]`` in the project file, one finding
   per BPMN path no verify:Scenario runs (``seams.coverage``, D054): the
   process IRI, then the path's flow node IRIs.
@@ -50,6 +56,9 @@ SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 
 # Finding kinds whose detail is an absolute file path.
 FILE_KINDS = frozenset({"missing", "stale", "hand-edited", "orphan", "lock-out-of-date"})
+
+# Finding kinds that flag the model for review but do not fail the check.
+ADVISORY_KINDS = frozenset({"review"})
 
 
 class Finding(NamedTuple):
@@ -143,19 +152,27 @@ def check_decisions(model: Path) -> list[Finding]:
     ]
 
 
+def check_review(model: Path) -> list[Finding]:
+    """One advisory finding per model review fault: the subject IRI, the fact, then the message."""
+    return [Finding("review", f"{f.subject} {f.fact} {f.message}") for f in seams.review_findings(seams.load(model))]
+
+
 def run_check(project: Project, model: Path) -> list[Finding]:
     """Every finding of the checks, sorted by kind and detail."""
     graph = model_graph(model)
     findings = check_gates(project, graph) + check_shapes(graph) + check_outputs(project, model)
-    return sorted(findings + check_decisions(model) + check_coverage(project, model))
+    findings += check_decisions(model) + check_review(model) + check_coverage(project, model)
+    return sorted(findings)
 
 
 __all__ = [
+    "ADVISORY_KINDS",
     "Finding",
     "check_coverage",
     "check_decisions",
     "check_gates",
     "check_outputs",
+    "check_review",
     "check_shapes",
     "model_graph",
     "run_check",

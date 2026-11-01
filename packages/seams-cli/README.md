@@ -91,13 +91,19 @@ It writes nothing (D044, `check.py`). It validates the model, unioned with
 `ontology/*.ttl`, against `ontology/shapes/seam-shapes.ttl`; runs each gate
 query over the same graph; checks each decision statically (a DMN `typeRef`
 against its input's `sh:datatype`, gateway conditions against the variables set
-upstream); and runs every generator in memory to compare the
-outputs with the disk and `seams.lock`. Each finding prints to stdout as
+upstream); reviews the model (`seams.review_findings`: lifecycle state labels
+copied into `sh:in`, `sh:class` pointing at a shape, a shape without
+`sh:targetClass`, a `sh:path` nothing declares); and runs every generator in
+memory to compare the outputs with the disk and `seams.lock`. Each finding prints to stdout as
 `<kind> <detail>`, with kind one of `shacl`, `gate`, `missing`, `stale`,
 `hand-edited`, `orphan`, `lock-out-of-date`, `decision` (the decision or
-sequence flow IRI, the fact and a message) and, with `coverage = ["paths"]`,
+sequence flow IRI, the fact and a message), `review` (the shape or path IRI,
+the fact and a message) and, with `coverage = ["paths"]`,
 `coverage` (the process IRI and the node IRIs of an unexercised path), followed by
-`seams check: N problem(s)` on stderr. It exits 0 with no findings, 1 with any,
+`seams check: N problem(s)` on stderr. `review` findings are warnings
+(`ADVISORY_KINDS`): they print but are not counted, and when they are the only
+findings stderr says `seams check: N review warning(s)` and the exit code is 0.
+It exits 0 with no problems, 1 with any,
 and 2 for the errors of `seams generate` plus a missing, unparsable or
 non-SELECT gate, an unknown `coverage` entry or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-check).

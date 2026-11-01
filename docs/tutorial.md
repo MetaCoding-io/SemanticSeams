@@ -86,13 +86,17 @@ git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock
 
 `seams check` confirms the same without writing anything. It also validates the model
 against the SHACL shapes and runs the project's gate queries, and prints one line per
-problem:
+finding:
 
 ```
 seams check --project examples/chat-app
 ```
 
-CI runs this check for the chat app and each expenses chapter, and fails on any finding.
+The chat app prints eleven `review` lines and `seams check: 11 review warning(s)`: its
+shapes have no `sh:targetClass`, `hasMessage` names `MessageShape` with `sh:class`,
+`MessageShape`'s `status` copies the message lifecycle's state labels, and its paths are
+not declared properties. Review lines are warnings, so the exit code stays 0. CI runs this
+check for the chat app and each expenses chapter, and fails on any other finding.
 
 ## 4. Choose an LLM
 

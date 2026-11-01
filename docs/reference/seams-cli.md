@@ -188,7 +188,7 @@ seams check --project examples/expenses/chapter-08
 seams check --project path/to/seams.toml --model other.trig
 ```
 
-The options are those of `seams generate`. The command runs four checks,
+The options are those of `seams generate`. The command runs five checks,
 reports every finding and writes nothing, so it is safe in CI and in a
 pre-commit hook (D044):
 
@@ -215,7 +215,15 @@ pre-commit hook (D044):
    or user task puts in the task data, are `decision` findings: the subject IRI
    (the decision, or the sequence flow as `<bpmn model>#<flow id>`), the fact
    (the property, or the variable name) and a message.
-5. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+5. **Review.** Facts the model states twice or not at all (backlog R1,
+   `seams.review_findings`): a `sh:in` list that copies the `rdfs:label`s of a
+   lifecycle's states, a `sh:class` whose object is a `sh:NodeShape`, a
+   `sh:NodeShape` with no `sh:targetClass` that is not itself a class, and a
+   `sh:path` IRI nothing types as a property. Each is a `review` finding: the
+   shape or path IRI, the fact (the `sh:path`, `sh:targetClass` or `sh:path`
+   itself) and a message. Review findings are warnings: they print, but they
+   never fail the check.
+6. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
    start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
    the process IRI, then the path's flow node IRIs (see
    [seams coverage](#seams-coverage)). The other two coverage reports are gate
@@ -232,29 +240,36 @@ pre-commit hook (D044):
 | `orphan` | `seams.lock` lists an output no generator writes any more, and it is still on disk. |
 | `lock-out-of-date` | There is no `seams.lock`, or the lock generate would write differs from it. |
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
+| `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
-the working directory when they lie below it. A closing count goes to stderr:
+the working directory when they lie below it. A closing count of the problems,
+every kind but `review`, goes to stderr:
 
 ```
 $ seams check --project examples/expenses/chapter-05
 gate examples/expenses/chapter-05/gates/events.rq https://example.org/expenses/submit_expense
 hand-edited examples/expenses/chapter-05/generated/expense_api.py
 lock-out-of-date examples/expenses/chapter-05/seams.lock
+review https://example.org/expenses/ApprovalShape http://www.w3.org/ns/shacl#targetClass ApprovalShape has no sh:targetClass, so it says what a form holds but not what class of thing it describes
+…
 shacl https://example.org/expenses/expense_data https://w3id.org/seams/seam#notation Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
 seams check: 4 problem(s)
 ```
 
-`seams generate` fixes every output finding. A `shacl`, `gate`, `decision` or
-`coverage` finding is fixed in the model.
+When the only findings are `review` findings, stderr says
+`seams check: N review warning(s)` instead and the exit code is 0.
+
+`seams generate` fixes every output finding. A `shacl`, `gate`, `decision`,
+`review` or `coverage` finding is fixed in the model.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | No findings. |
-| 1 | At least one finding, or a file could not be read. |
+| 0 | No findings, or only `review` warnings. |
+| 1 | At least one finding other than `review`, or a file could not be read. |
 | 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a generator found a missing or ambiguous graph fact. |
 
 Errors print to stderr as `seams check: <message>`.
@@ -264,7 +279,8 @@ Errors print to stderr as `seams check: <message>`.
 The composite action
 [`.github/actions/seams-check`](../../.github/actions/seams-check/README.md) runs
 `seams check --project` for each line of its `projects` input (default `.`), each
-in its own log group, and fails after the last project if any had a finding. The
+in its own log group, and fails after the last project if any exited non-zero
+(review warnings print in the log but do not fail it). The
 CLI is not published, so `seams` must be on PATH before the action runs. This
 repository's acceptance job does:
 

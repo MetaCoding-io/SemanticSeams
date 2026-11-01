@@ -19,8 +19,10 @@ stderr and exits 2; a file that cannot be read or written exits 1.
 ``seams check`` (D044) writes nothing. It validates the model against the
 SHACL shapes, runs the project's gate queries and compares the outputs
 generate would write with the disk and seams.lock. Each finding prints to
-stdout as ``<kind> <detail>``; with any finding, ``seams check: N problem(s)``
-goes to stderr and the exit code is 1. A model that cannot be loaded, a bad
+stdout as ``<kind> <detail>``; with any finding that is not advisory (a
+``review`` finding is, ADVISORY_KINDS), ``seams check: N problem(s)`` counting
+only those goes to stderr and the exit code is 1. With review findings only,
+``seams check: N review warning(s)`` goes to stderr and the exit code is 0. A model that cannot be loaded, a bad
 gate or a malformed seams.lock exits 2. With ``coverage = ["paths"]`` in the
 project file, each BPMN path no scenario runs is a ``coverage`` finding too.
 
@@ -103,7 +105,7 @@ import seams
 
 from seams_gen import GeneratorError
 
-from .check import FILE_KINDS, run_check
+from .check import ADVISORY_KINDS, FILE_KINDS, run_check
 from .coverage import coverage_report, summary
 from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
@@ -249,9 +251,12 @@ def _check(args: argparse.Namespace) -> int:
     for finding in findings:
         detail = _display(Path(finding.detail)) if finding.kind in FILE_KINDS else finding.detail
         print(f"{finding.kind} {detail}")
-    if findings:
-        print(f"seams check: {len(findings)} problem(s)", file=sys.stderr)
+    problems = sum(finding.kind not in ADVISORY_KINDS for finding in findings)
+    if problems:
+        print(f"seams check: {problems} problem(s)", file=sys.stderr)
         return 1
+    if findings:
+        print(f"seams check: {len(findings)} review warning(s)", file=sys.stderr)
     return 0
 
 

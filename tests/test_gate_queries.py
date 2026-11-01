@@ -10,6 +10,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import seams
 from seams_cli import load_project
 from seams_cli.__main__ import main
 from seams_cli.check import model_graph
@@ -63,9 +64,14 @@ def test_seams_check_fails_on_chapter_04_with_the_gate(tmp_path, capsys):
     code = main(["check", "--project", str(app)])
     out, err = capsys.readouterr()
 
-    lines = out.splitlines()
+    lines = [line for line in out.splitlines() if not line.startswith("review ")]
+    review = [line for line in out.splitlines() if line.startswith("review ")]
     assert code == 1
     gate = f"gate ../../../{GATE.as_posix()} https://example.org/expenses/submit_expense"
     assert len(lines) == 2
     assert all(line.startswith(gate + " ") for line in lines)
+    # Chapter 4's review findings (seams.review_findings) are printed but not counted.
+    model = seams.load(load_project(app).model)
+    assert review == [f"review {f.subject} {f.fact} {f.message}" for f in seams.review_findings(model)]
+    assert len(review) == 8
     assert err.strip() == "seams check: 2 problem(s)"

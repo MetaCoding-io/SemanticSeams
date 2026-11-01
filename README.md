@@ -73,8 +73,10 @@ their output directories; `seams generate --project examples/chat-app` (installe
 `uv sync --all-packages`) runs them all and rewrites the committed chat-app outputs and
 `examples/chat-app/seams.lock`, which records each output's generator version, file hash
 and source model elements. `seams check` writes nothing: it validates the model against the SHACL shapes,
-runs the project's gate queries and fails on any stale, missing, hand-edited or orphaned
-output. CI runs it for every example through the composite action in
+runs the project's gate queries, checks decisions statically and fails on any stale,
+missing, hand-edited or orphaned output; model review findings (lifecycle labels copied
+into `sh:in`, shapes without a target class, undeclared paths) print as `review` warnings
+and do not fail it. CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
 `seams status` reads each running runtime container's `/healthz` and reports it as current,
 behind, ahead or unreachable compared with the current model.

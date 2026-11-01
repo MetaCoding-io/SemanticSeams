@@ -1,5 +1,10 @@
 """`seams check` fails on SHACL violations, gate rows and drifted outputs, and writes nothing (M012/S03, D044).
 
+Review findings (seams.review_findings, M017/S04) are printed but never fail
+the check. ``_check`` asserts that the printed ``review`` lines are exactly the
+model's review findings and returns the other lines, so each test pins its
+problems while the expected review warnings ride along.
+
 Each example is copied into tmp_path at its repository-relative path, so the
 chat app's compose target (``../..``) lands at tmp_path/compose.<environment>.yaml, as in
 tests/test_seams_generate_examples.py. Checking a copy keeps the committed
@@ -15,6 +20,7 @@ import pytest
 import seams
 from seams_cli import Finding, load_project, run_check
 from seams_cli.__main__ import main
+from seams_cli.check import ADVISORY_KINDS, check_review
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
@@ -52,10 +58,26 @@ def app(tmp_path: Path) -> Path:
     return _copy(CHAPTER, tmp_path)
 
 
+def _review_lines(app: Path) -> list[str]:
+    model = seams.load(load_project(app).model)
+    return [f"review {f.subject} {f.fact} {f.message}" for f in seams.review_findings(model)]
+
+
+def _warnings(app: Path) -> str:
+    """The stderr of a check whose only findings are review findings."""
+    count = len(_review_lines(app))
+    return f"seams check: {count} review warning(s)\n" if count else ""
+
+
 def _check(app: Path, capsys) -> tuple[int, list[str], str]:
+    """Exit code, the non-review lines and stderr; the review lines must be the model's review findings."""
     code = main(["check", "--project", str(app)])
     out, err = capsys.readouterr()
-    return code, out.splitlines(), err
+    lines = out.splitlines()
+    review = [line for line in lines if line.startswith("review ")]
+    if code != 2:
+        assert review == _review_lines(app)
+    return code, [line for line in lines if not line.startswith("review ")], err
 
 
 def _kinds(lines: list[str]) -> set[str]:
@@ -74,11 +96,70 @@ def _hashes(root: Path) -> dict[Path, str]:
 @pytest.mark.parametrize("rel", PROJECTS, ids=str)
 def test_every_example_passes_in_place(rel, capsys):
     code, lines, err = _check(ROOT / rel, capsys)
-    assert (code, lines, err) == (0, [], "")
+    assert (code, lines, err) == (0, [], _warnings(ROOT / rel))
+
+
+EX = "https://example.org/expenses/"
+UNDECLARED = "no rdf:type rdf:Property, owl:ObjectProperty, owl:DatatypeProperty or owl:AnnotationProperty declares it"
+NO_TARGET = "has no sh:targetClass, so it says what a form holds but not what class of thing it describes"
+CHAPTER_5_REVIEW = [
+    f"review {EX}ApprovalShape http://www.w3.org/ns/shacl#targetClass ApprovalShape {NO_TARGET}",
+    f"review {EX}ExpenseShape http://www.w3.org/ns/shacl#targetClass ExpenseShape {NO_TARGET}",
+    *(
+        f"review {EX}{path} http://www.w3.org/ns/shacl#path {path} is a sh:path (used by {shape}), but {UNDECLARED}"
+        for path, shape in [
+            ("amount", "ExpenseShape"),
+            ("comment", "ApprovalShape"),
+            ("date", "ExpenseShape"),
+            ("decision", "ApprovalShape"),
+            ("description", "ExpenseShape"),
+            ("id", "ExpenseShape"),
+        ]
+    ),
+]
 
 
 def test_a_clean_copy_passes(app, capsys):
-    assert _check(app, capsys) == (0, [], "")
+    assert _check(app, capsys) == (0, [], "seams check: 8 review warning(s)\n")
+
+
+def test_review_findings_are_printed_but_do_not_fail(app, capsys):
+    """Chapter 5's shapes have no target class and its paths are undeclared: eight review lines, exit 0."""
+    code = main(["check", "--project", str(app)])
+    out, err = capsys.readouterr()
+    assert (code, out.splitlines(), err) == (0, CHAPTER_5_REVIEW, "seams check: 8 review warning(s)\n")
+
+
+def test_review_findings_are_not_counted_as_problems(app, capsys):
+    """A review finding plus a real problem exits 1, and the problem count leaves the review out."""
+    (app / API).unlink()
+    code = main(["check", "--project", str(app)])
+    out, err = capsys.readouterr()
+    assert code == 1
+    assert out.splitlines() == sorted([f"missing {app / API}", *CHAPTER_5_REVIEW])
+    assert err == "seams check: 1 problem(s)\n"
+
+
+def test_a_shacl_violation_with_review_findings_exits_1(tmp_path, capsys):
+    """Chapter 2 without its notation: one shacl finding beside its review findings."""
+    app = _copy(Path("examples/expenses/chapter-02"), tmp_path)
+    model = app / "expenses.trig"
+    text = model.read_text(encoding="utf-8")
+    model.write_text(text.replace(":expense_data seam:notation seam:ShapeGraph .", ""), encoding="utf-8")
+    code = main(["check", "--project", str(app)])
+    out, err = capsys.readouterr()
+    lines = out.splitlines()
+    problems = [line for line in lines if not line.startswith("review ")]
+    assert code == 1
+    assert len([line for line in lines if line.startswith("review ")]) == 5
+    assert [line.split(" ", 1)[0] for line in problems].count("shacl") == 1
+    assert err == f"seams check: {len(problems)} problem(s)\n"
+
+
+def test_run_check_reports_review_findings(app):
+    project = load_project(app)
+    assert run_check(project, project.model) == [Finding("review", line.split(" ", 1)[1]) for line in CHAPTER_5_REVIEW]
+    assert check_review(project.model) == run_check(project, project.model)
 
 
 def test_a_changed_model_makes_outputs_stale(app, capsys):
@@ -161,6 +242,10 @@ def test_gate_rows_are_findings(app, capsys):
     assert _kinds(lines) == {"gate"}
 
 
+def test_review_is_the_only_advisory_kind():
+    assert ADVISORY_KINDS == frozenset({"review"})
+
+
 def test_run_check_returns_sorted_findings(app):
     (app / API).unlink()
     (app / LOCK).unlink()
@@ -168,6 +253,7 @@ def test_run_check_returns_sorted_findings(app):
     assert run_check(project, project.model) == [
         Finding("lock-out-of-date", str(app / LOCK)),
         Finding("missing", str(app / API)),
+        *(Finding("review", line.split(" ", 1)[1]) for line in CHAPTER_5_REVIEW),
     ]
 
 
@@ -278,7 +364,7 @@ def test_a_condition_reading_an_unset_variable_is_a_decision_finding(tmp_path, c
 def test_coverage_unset_adds_no_findings(tmp_path, capsys):
     app = _chapter_9(tmp_path)
     assert load_project(app).coverage == ()
-    assert _check(app, capsys) == (0, [], "")
+    assert _check(app, capsys) == (0, [], _warnings(app))
 
 
 def test_coverage_paths_passes_a_model_without_processes(tmp_path, capsys):
@@ -286,6 +372,7 @@ def test_coverage_paths_passes_a_model_without_processes(tmp_path, capsys):
     _set_coverage(app, '["paths", "paths"]')
     assert load_project(app).coverage == ("paths",)
     assert _check(app, capsys) == (0, [], "")
+    assert _review_lines(app) == []
 
 
 @pytest.mark.parametrize(
@@ -316,7 +403,7 @@ def test_the_coverage_queries_are_gates(tmp_path, capsys):
     """Chapter 9 fires every transition and denies every permission to some party, so both gates pass."""
     app = _chapter_9(tmp_path)
     _replace_gates(app, "../../../")
-    assert _check(app, capsys) == (0, [], "")
+    assert _check(app, capsys) == (0, [], _warnings(app))
 
 
 def test_the_coverage_gates_report_the_chat_app_gaps(tmp_path, capsys):

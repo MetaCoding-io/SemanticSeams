@@ -90,17 +90,20 @@
     seam:inModel :checkout_ifml .
 
 :cart_list a ifml:List ; rdfs:label "Cart Items" ;
+    ifml:order 0 ;
     seam:reads :OrderShape ;
     ifml:hasParameter :selected_items ;
     seam:inModel :checkout_ifml .
 
 :order_form a ifml:Form ; rdfs:label "Order Details" ;
+    ifml:order 1 ;
     seam:writes :OrderShape ;
     ifml:hasEvent :submit_order ;
     ifml:hasParameter :order_input ;
     seam:inModel :checkout_ifml .
 
 :order_status a ifml:Details ; rdfs:label "Order Status" ;
+    ifml:order 2 ;
     seam:reads :OrderShape ;
     seam:visibleWhen :s_submitted ;     # conditional rendering as a graph edge
     seam:inModel :checkout_ifml .
@@ -114,6 +117,12 @@
     seam:triggers :order_process ;
     seam:submitsTo :submit_order_op ;   # the route the form posts to
     seam:governedBy :customer_policy ;
+    seam:inModel :checkout_ifml .
+
+# Submitting the order replaces the status with the stored order.
+:submit_to_status a ifml:NavigationFlow ;
+    ifml:source :submit_order ; ifml:target :order_status ;
+    ifml:swap ifml:Replace ;
     seam:inModel :checkout_ifml .
 
 :cart_to_form a ifml:DataFlow ;

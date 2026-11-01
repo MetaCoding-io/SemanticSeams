@@ -84,15 +84,18 @@
         seam:inModel :checkout_ifml .
 
     :cart_list a ifml:List ; rdfs:label "Cart Items" ;
+        ifml:order 0 ;
         ifml:hasParameter :selected_items ;
         seam:inModel :checkout_ifml .
 
     :order_form a ifml:Form ; rdfs:label "Order Details" ;
+        ifml:order 1 ;
         ifml:hasEvent :submit_order ;
         ifml:hasParameter :order_input ;
         seam:inModel :checkout_ifml .
 
     :order_status a ifml:Details ; rdfs:label "Order Status" ;
+        ifml:order 2 ;
         seam:inModel :checkout_ifml .
 
     :selected_items a ifml:Parameter ; rdfs:label "selected items" ;
@@ -101,6 +104,12 @@
         seam:inModel :checkout_ifml .
 
     :submit_order a ifml:Event ; rdfs:label "Submit Order" ;
+        seam:inModel :checkout_ifml .
+
+    # Submitting the order replaces the status with the stored order.
+    :submit_to_status a ifml:NavigationFlow ;
+        ifml:source :submit_order ; ifml:target :order_status ;
+        ifml:swap ifml:Replace ;
         seam:inModel :checkout_ifml .
 
     :cart_to_form a ifml:DataFlow ;

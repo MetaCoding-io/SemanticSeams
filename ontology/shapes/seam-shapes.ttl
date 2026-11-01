@@ -32,6 +32,7 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "hydra" ; sh:namespace "http://www.w3.org/ns/hydra/core#"^^xsd:anyURI ] ,
                [ sh:prefix "comm" ; sh:namespace "https://w3id.org/seams/comm#"^^xsd:anyURI ] ,
                [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ] ,
+               [ sh:prefix "rdfs" ; sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ] ,
                [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ] ,
                [ sh:prefix "state" ; sh:namespace "https://w3id.org/seams/state#"^^xsd:anyURI ] ,
                [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
@@ -230,6 +231,187 @@ seamsh:OrderUniqueShape a sh:NodeShape ;
                 FILTER(?other != $this)
                 $this ifml:order ?n . ?other ifml:order ?m .
                 FILTER(?n = ?m)
+            }""" ;
+    ] .
+
+# A served page lays its components out by ifml:order (seams_gen htmx), so every
+# component of a page with an ifml:path, or of the landmark, has one.
+seamsh:PageComponentOrderShape a sh:NodeShape ;
+    sh:targetObjectsOf ifml:contains ;
+    sh:sparql [
+        sh:message "A component of a page (an ifml:ViewContainer with an ifml:path, or the landmark) has exactly one ifml:order." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?page ifml:contains $this .
+                FILTER (EXISTS { ?page ifml:path ?path } || EXISTS { ?page ifml:isLandmark true })
+                $this a ?type . ?type rdfs:subClassOf* ifml:ViewComponent .
+                FILTER NOT EXISTS { $this ifml:order ?n }
+            }""" ;
+    ] .
+
+#################################################################
+# IFML structure the generators rely on (backlog K1)
+#
+# Each shape here is the model-side form of a GeneratorError condition in
+# seams_gen; tests/test_shape_generator_parity.py pairs every one with the
+# generator fault it catches.
+#################################################################
+
+seamsh:ComponentKindShape a sh:NodeShape ;
+    sh:targetClass ifml:ViewComponent ;
+    sh:xone ( [ sh:class ifml:List ] [ sh:class ifml:Details ] [ sh:class ifml:Form ] ) ;
+    sh:message "An ifml:ViewComponent is exactly one of ifml:List, ifml:Details or ifml:Form." .
+
+seamsh:ComponentReadsShape a sh:NodeShape ;
+    sh:targetClass ifml:List , ifml:Details ;
+    sh:property [ sh:path seam:reads ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An ifml:List or ifml:Details seam:reads exactly one shape, the data it shows." ] .
+
+seamsh:FormWritesShape a sh:NodeShape ;
+    sh:targetClass ifml:Form ;
+    sh:property [ sh:path seam:writes ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An ifml:Form seam:writes exactly one shape, the data it submits." ] ;
+    sh:sparql [
+        sh:message "An ifml:Form has exactly one ifml:hasEvent event that seam:submitsTo an operation." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER (NOT EXISTS { $this ifml:hasEvent ?e . ?e seam:submitsTo ?op }
+                    || EXISTS { $this ifml:hasEvent ?e1 , ?e2 . ?e1 seam:submitsTo ?op1 . ?e2 seam:submitsTo ?op2 .
+                                FILTER(?e1 != ?e2) })
+            }""" ;
+    ] .
+
+seamsh:VisibleWhenGuardShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:visibleWhen ;
+    sh:property [ sh:path seam:reads ; sh:minCount 1 ;
+        sh:message "A component with seam:visibleWhen seam:reads the shape whose lifecycle state guards it." ] ;
+    sh:sparql [
+        sh:message "Each seam:visibleWhen state is a state:hasState of the seam:lifecycle of the shape the component seam:reads." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:visibleWhen ?value ; seam:reads ?shape .
+                FILTER NOT EXISTS { ?shape seam:lifecycle ?machine . ?machine state:hasState ?value }
+            }""" ;
+    ] .
+
+seamsh:InteractionModelShape a sh:NodeShape ;
+    sh:targetClass ifml:InteractionModel ;
+    sh:property [ sh:path [ sh:inversePath seam:presents ] ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An ifml:InteractionModel is seam:presents-ed by exactly one container." ] ;
+    sh:sparql [
+        sh:message "A model with an IFML layer has exactly one ifml:ViewContainer with ifml:isLandmark true (the app's entry page)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this a ifml:InteractionModel .
+                FILTER (NOT EXISTS { ?page a ifml:ViewContainer ; ifml:isLandmark true }
+                    || EXISTS { ?p1 a ifml:ViewContainer ; ifml:isLandmark true .
+                                ?p2 a ifml:ViewContainer ; ifml:isLandmark true . FILTER(?p1 != ?p2) })
+            }""" ;
+    ] .
+
+seamsh:ServedPageShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:path , ifml:isLandmark ;
+    sh:property [ sh:path [ sh:inversePath ifml:contains ] ;
+        sh:qualifiedValueShape [ sh:class ifml:InteractionModel ] ;
+        sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "A page (an ifml:ViewContainer with an ifml:path, or the landmark) is ifml:contains-ed by exactly one ifml:InteractionModel." ] .
+
+seamsh:EventOwnerShape a sh:NodeShape ;
+    sh:targetClass ifml:Event ;
+    sh:property [ sh:path [ sh:inversePath ifml:hasEvent ] ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:or ( [ sh:class ifml:ViewContainer ] [ sh:class ifml:ViewComponent ] ) ;
+        sh:message "An ifml:Event is the ifml:hasEvent of exactly one ifml:ViewContainer or ifml:ViewComponent." ] .
+
+# A List's link and a form's submit follow the one NavigationFlow from their event.
+seamsh:EventNavigationShape a sh:NodeShape ;
+    sh:targetClass ifml:Event ;
+    sh:sparql [
+        sh:message "An event of an ifml:List, or one that seam:submitsTo an operation, is the ifml:source of exactly one ifml:NavigationFlow." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER (EXISTS { ?list a ifml:List ; ifml:hasEvent $this } || EXISTS { $this seam:submitsTo ?op })
+                FILTER (NOT EXISTS { ?f a ifml:NavigationFlow ; ifml:source $this }
+                    || EXISTS { ?f1 a ifml:NavigationFlow ; ifml:source $this .
+                                ?f2 a ifml:NavigationFlow ; ifml:source $this . FILTER(?f1 != ?f2) })
+            }""" ;
+    ] .
+
+seamsh:InteractionFlowShape a sh:NodeShape ;
+    sh:targetClass ifml:InteractionFlow ;
+    sh:property [ sh:path ifml:source ;
+        sh:or ( [ sh:class ifml:Event ] [ sh:class ifml:ViewContainer ] [ sh:class ifml:ViewComponent ] ) ;
+        sh:message "ifml:source points at an ifml:Event, ifml:ViewContainer or ifml:ViewComponent." ] ;
+    sh:property [ sh:path ifml:target ;
+        sh:or ( [ sh:class ifml:Event ] [ sh:class ifml:ViewContainer ] [ sh:class ifml:ViewComponent ] ) ;
+        sh:message "ifml:target points at an ifml:Event, ifml:ViewContainer or ifml:ViewComponent." ] .
+
+# ifml:Append and ifml:Prepend add to the target's item list, which only a Details has.
+seamsh:ItemSwapShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:swap ;
+    sh:sparql [
+        sh:message "A flow that ifml:swap ifml:Append or ifml:Prepend has an ifml:Details as its ifml:target (only a Details has an item list)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this ifml:swap ?swap ; ifml:target ?value .
+                FILTER(?swap IN (ifml:Append, ifml:Prepend))
+                FILTER NOT EXISTS { ?value a ifml:Details }
+            }""" ;
+    ] .
+
+# The List link's hx-get is the one GET operation that renders the flow's target.
+seamsh:ListLinkShape a sh:NodeShape ;
+    sh:targetObjectsOf ifml:target ;
+    sh:sparql [
+        sh:message "The ifml:target of the NavigationFlow from an ifml:List's event is seam:rendersComponent-ed by exactly one GET operation." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this WHERE {
+                ?list a ifml:List ; ifml:hasEvent ?event .
+                ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target $this .
+                FILTER (NOT EXISTS { ?op seam:rendersComponent $this ; hydra:method "GET" }
+                    || EXISTS { ?op1 seam:rendersComponent $this ; hydra:method "GET" .
+                                ?op2 seam:rendersComponent $this ; hydra:method "GET" . FILTER(?op1 != ?op2) })
+            }""" ;
+    ] .
+
+# A form posts through its presenting container, which must consume the operation.
+seamsh:SubmitConsumedShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:submitsTo ;
+    sh:sparql [
+        sh:message "The container that seam:presents a form's interaction model seam:consumes the operation the form's event seam:submitsTo." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:submitsTo ?value .
+                ?form a ifml:Form ; ifml:hasEvent $this .
+                ?im a ifml:InteractionModel ; ifml:contains/ifml:contains ?form .
+                ?presenter seam:presents ?im .
+                FILTER NOT EXISTS { ?presenter seam:consumes ?value }
+            }""" ;
+    ] .
+
+seamsh:CompletedOnFormShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:completedOn ;
+    sh:property [ sh:path [ sh:inversePath seam:completedOn ] ; sh:maxCount 1 ;
+        sh:message "A form is seam:completedOn by at most one user task (ADR-0009)." ] .
+
+# A form input is bound to a field of the shape the form writes.
+seamsh:BoundToWrittenShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:boundTo ;
+    sh:sparql [
+        sh:message "A parameter of an ifml:Form is ifml:boundTo the sh:path of a datatype property of the shape the form seam:writes." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this ifml:boundTo ?value .
+                ?form a ifml:Form ; ifml:hasParameter $this ; seam:writes ?shape .
+                FILTER NOT EXISTS { ?shape sh:property ?p . ?p sh:path ?value ; sh:datatype ?datatype }
             }""" ;
     ] .
 

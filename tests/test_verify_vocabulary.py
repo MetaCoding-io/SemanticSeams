@@ -27,6 +27,7 @@ VERIFY = Namespace("https://w3id.org/seams/verify#")
 SEAM = Namespace("https://w3id.org/seams/seam#")
 PROC = Namespace("https://w3id.org/seams/proc#")
 DEC = Namespace("https://w3id.org/seams/dec#")
+IFML = Namespace("https://w3id.org/seams/ifml#")
 SEAMSH = Namespace("https://w3id.org/seams/shapes#")
 SH = Namespace("http://www.w3.org/ns/shacl#")
 EX = Namespace("https://example.org/expenses/")
@@ -67,11 +68,15 @@ def ontology() -> rdflib.Graph:
 
 def model() -> rdflib.Graph:
     """The ontology plus the ADR's turtle example: a scenario, a decision example and a
-    pair of shape examples, with the facts they point at."""
+    pair of shape examples, with the facts they point at. The example leaves out the
+    view that owns :submit_expense, which seamsh:EventOwnerShape (K1) requires, so
+    one page owning it is added here."""
     blocks = re.findall(r"```turtle\n(.*?)```", adr_text(), re.DOTALL)
     assert len(blocks) == 1
     g = ontology()
     g.parse(data=blocks[0], format="turtle")
+    g.add((EX.expense_page, RDF.type, IFML.ViewContainer))
+    g.add((EX.expense_page, IFML.hasEvent, EX.submit_expense))
     return g
 
 

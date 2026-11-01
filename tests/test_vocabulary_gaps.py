@@ -605,7 +605,13 @@ UI_PREFIXES = """
 @prefix ifml:  <https://w3id.org/seams/ifml#> .
 @prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
 """
+# A view owning event :e, with the one NavigationFlow a submitting event needs, so
+# an event fixture trips only the shape under test.
+OWNED_EVENT = (
+    ":page a ifml:ViewContainer ; ifml:hasEvent :e . :nav a ifml:NavigationFlow ; ifml:source :e ; ifml:target :page ."
+)
 
 
 @pytest.mark.parametrize(
@@ -615,9 +621,13 @@ UI_PREFIXES = """
             ":e a arch:Container ; seam:submitsTo :op . :op a hydra:Operation .",
             "Only an ifml:Event seam:submitsTo an operation.",
         ),
-        (":e a ifml:Event ; seam:submitsTo :c . :c a arch:Container .", "seam:submitsTo points at a hydra:Operation."),
         (
-            ":e a ifml:Event ; seam:rendersComponent :v . :v a ifml:List .",
+            ":e a ifml:Event ; seam:submitsTo :c . :c a arch:Container . " + OWNED_EVENT,
+            "seam:submitsTo points at a hydra:Operation.",
+        ),
+        (
+            ":e a ifml:Event ; seam:rendersComponent :v . :v a ifml:Details ; seam:reads :S . :S a sh:NodeShape . "
+            + OWNED_EVENT,
             "Only a hydra:Operation seam:rendersComponent.",
         ),
         (
@@ -794,6 +804,8 @@ def test_gap_28_component_order(chat_model):
 
 ORDER_MSG = "ifml:order is at most one xsd:integer per component."
 ORDER_UNIQUE_MSG = "ifml:order is unique among the components of one ViewContainer."
+# The shape a Details component reads (ComponentReadsShape).
+READS = ":a seam:reads :S . :S a sh:NodeShape ."
 
 
 @pytest.mark.parametrize(
@@ -801,12 +813,13 @@ ORDER_UNIQUE_MSG = "ifml:order is unique among the components of one ViewContain
     [
         (
             ":page a ifml:ViewContainer ; ifml:contains :a , :b . "
-            ":a a ifml:List ; ifml:order 0 . :b a ifml:Form ; ifml:order 0 .",
+            ":a a ifml:Details ; ifml:order 0 ; seam:reads :S . :b a ifml:Details ; ifml:order 0 ; seam:reads :S . "
+            ":S a sh:NodeShape .",
             ORDER_UNIQUE_MSG,
         ),
-        (':a a ifml:List ; ifml:order "0" .', ORDER_MSG),
-        (":a a ifml:List ; ifml:order 0 , 1 .", ORDER_MSG),
-        (":a a ifml:List ; ifml:order 1.5 .", ORDER_MSG),
+        (f':a a ifml:Details ; ifml:order "0" . {READS}', ORDER_MSG),
+        (f":a a ifml:Details ; ifml:order 0 , 1 . {READS}", ORDER_MSG),
+        (f":a a ifml:Details ; ifml:order 1.5 . {READS}", ORDER_MSG),
         (":p a ifml:ViewContainer ; ifml:order 0 .", "Only an ifml:ViewComponent carries ifml:order."),
     ],
     ids=["order-duplicate-in-container", "order-string", "order-two-values", "order-decimal", "order-on-container"],
@@ -826,8 +839,9 @@ def test_order_shape_allows_equal_orders_in_different_containers():
         data.parse(path, format="turtle")
     data.parse(
         data=f"""{UI_PREFIXES}
-            :p1 a ifml:ViewContainer ; ifml:contains :a . :a a ifml:List ; ifml:order 0 .
-            :p2 a ifml:ViewContainer ; ifml:contains :b . :b a ifml:List ; ifml:order 0 .""",
+            :p1 a ifml:ViewContainer ; ifml:contains :a . :a a ifml:Details ; ifml:order 0 ; seam:reads :S .
+            :p2 a ifml:ViewContainer ; ifml:contains :b . :b a ifml:Details ; ifml:order 0 ; seam:reads :S .
+            :S a sh:NodeShape .""",
         format="turtle",
     )
     assert shacl_messages(data) == set()

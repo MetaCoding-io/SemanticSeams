@@ -146,27 +146,42 @@ PREFIXES = """
 @prefix ifml:  <https://w3id.org/seams/ifml#> .
 @prefix proc:  <https://w3id.org/seams/proc#> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 """
+
+
+def form(name: str) -> str:
+    """A well-formed ifml:Form :<name>: it writes a shape and has one submitting
+    event with its NavigationFlow, so only the completedOn facts can trip a shape."""
+    return (
+        f":{name} a ifml:Form ; seam:writes :S ; ifml:hasEvent :{name}_submit . :S a sh:NodeShape . "
+        f":{name}_submit a ifml:Event ; seam:submitsTo :op . :op a hydra:Operation . "
+        f":{name}_flow a ifml:NavigationFlow ; ifml:source :{name}_submit ; ifml:target :{name} ; ifml:swap ifml:Replace ."
+    )
 
 
 @pytest.mark.parametrize(
     "facts, message",
     [
         (
-            ":c a arch:Container ; seam:completedOn :f . :f a ifml:Form .",
+            ":c a arch:Container ; seam:completedOn :f . " + form("f"),
             "Only a proc:UserTask seam:completedOn a form.",
         ),
         (
-            ":t a proc:ServiceTask ; seam:completedOn :f . :f a ifml:Form .",
+            ":t a proc:ServiceTask ; seam:completedOn :f . " + form("f"),
             "Only a proc:UserTask seam:completedOn a form.",
         ),
-        (":t a proc:UserTask ; seam:completedOn :e . :e a ifml:Event .", "seam:completedOn points at one ifml:Form."),
+        (
+            ":t a proc:UserTask ; seam:completedOn :e . :e a ifml:Event . :p a ifml:ViewContainer ; ifml:hasEvent :e .",
+            "seam:completedOn points at one ifml:Form.",
+        ),
         (
             ":t a proc:UserTask ; seam:completedOn :p . :p a ifml:ViewContainer .",
             "seam:completedOn points at one ifml:Form.",
         ),
         (
-            ":t a proc:UserTask ; seam:completedOn :f , :g . :f a ifml:Form . :g a ifml:Form .",
+            ":t a proc:UserTask ; seam:completedOn :f , :g . " + form("f") + form("g"),
             "seam:completedOn points at one ifml:Form.",
         ),
     ],
@@ -184,5 +199,5 @@ def test_a_user_task_on_one_form_conforms():
     data = rdflib.Graph()
     for path in ONTOLOGY_FILES:
         data.parse(path, format="turtle")
-    data.parse(data=f"{PREFIXES}\n:t a proc:UserTask ; seam:completedOn :f . :f a ifml:Form .", format="turtle")
+    data.parse(data=f"{PREFIXES}\n:t a proc:UserTask ; seam:completedOn :f . {form('f')}", format="turtle")
     assert shacl_messages(data) == set()

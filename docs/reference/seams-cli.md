@@ -41,7 +41,7 @@ out = "generated/templates"
 |---|---|---|
 | `model` | string, optional | The TriG file to generate from. |
 | `[[generators]]` | array of tables | One entry per generator to run, in any order. |
-| `[[generators]].name` | string | A generator name from `seams_gen` (see [Generators](#generators)). |
+| `[[generators]].name` | string | A generator registered in the `seams.generators` entry-point group: a built-in or one from an installed distribution (see [Generators](#generators)). |
 | `[[generators]].out` | string | The directory the generator writes into. |
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
@@ -173,12 +173,17 @@ was edited by hand.
 |---|---|
 | 0 | Every output was written. |
 | 1 | A file could not be read or written. |
-| 2 | The project file is missing or malformed, `seams.lock` is malformed, no model was given, or a generator found a missing or ambiguous graph fact. |
+| 2 | The project file is missing or malformed, `seams.lock` is malformed, no model was given, a generator found a missing or ambiguous graph fact, the model breaks a generator's precondition shape, or a `seams.generators` entry point cannot be registered. |
 
 Errors print to stderr as `seams generate: <message>`. A project-file error
 names the file by its absolute path and the offending key, for example
 ``/…/examples/chat-app/seams.toml: `generators[0]` needs a string `out` ``, and
-an unknown generator name lists the known ones.
+an unknown generator name lists the known ones. A failed precondition names the
+focus node, the shape and the generator, and nothing is written:
+
+```text
+seams generate: https://example.org/expenses/broken_model: https://w3id.org/seams/shapes#ModelShape: generator 'strict-gen' requires the model to conform to this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
+```
 
 ## seams check
 
@@ -318,8 +323,15 @@ repos:
 
 ## Generators
 
-The generator names are the `python -m seams_gen` subcommands. The
-[seams_gen README](../../seams_gen/README.md) gives each one's rules.
+A generator is a `seams_gen.protocol.Generator` registered in the
+`seams.generators` entry-point group ([ADR-0016](/adr/0016-generator-protocol)).
+`seams generate` and `python -m seams_gen` run every registered one, and
+`seams.lock` records each output's own generator version. A generator may name
+precondition shapes, which `seams generate` checks before running anything
+(strict mode). The built-ins are below, and the
+[seams_gen README](../../seams_gen/README.md) gives each one's rules;
+[Write your own generator](/guide/write-your-own-generator#register-it-with-seams-generate)
+registers another.
 
 | Name | Writes into `out` |
 |---|---|

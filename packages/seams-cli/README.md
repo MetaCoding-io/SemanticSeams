@@ -25,9 +25,13 @@ out = "generated/templates"
 ```
 
 - `model` (string, optional): the TriG file to generate from.
-- `generators` (array of tables): each entry has a `name`, one of the
-  `python -m seams_gen` generators (`compose`, `fastapi`, `htmx`), and an `out`
-  directory.
+- `generators` (array of tables): each entry has a `name` and an `out`
+  directory. The name is one registered in the `seams.generators` entry-point
+  group (D056, [ADR-0016](../../docs/adr/0016-generator-protocol.md)): a
+  built-in (`compose`, `dockerfile`, `fastapi`, `htmx`, `ifmledit`, `smoke`,
+  `tests`, declared in this package's `pyproject.toml`) or one from any
+  installed distribution. An unknown name is a project error listing the known
+  ones.
 - `gates` (array of strings, optional): SPARQL SELECT files, relative to the
   project file, that `seams check` runs over the model; each must return no
   rows.
@@ -50,14 +54,20 @@ seams generate --project path/to/seams.toml --model other.trig
 ```
 
 It runs every generator in memory and writes the files only when all of them
-succeed, so a failing generator leaves every output untouched. Each written
+succeed, so a failing generator leaves every output untouched. Before any
+runs, a generator that declares precondition shapes has them checked (strict
+mode): the model, unioned with `ontology/*.ttl`, is validated against
+`ontology/shapes` once, and a result of one of those shapes fails the command
+with exit 2, naming the focus node, the shape and the generator, and writes
+nothing. Projects that use only the built-ins skip the validation: they declare
+no preconditions. Each written
 path is printed, relative to the working directory when it lies below it.
 Files are written as UTF-8 with `\n` newlines, byte-for-byte what
 `python -m seams_gen` writes.
 
 The command also writes `seams.lock` next to `seams.toml` and prints its path
-last. The lock is deterministic JSON recording, per output, the generator and its
-version, the model hash, the file's sha256 and the source element IRIs (D043);
+last. The lock is deterministic JSON recording, per output, the generator and that
+generator's own `version` (`seams_gen.__version__` for the built-ins), the model hash, the file's sha256 and the source element IRIs (D043);
 `lockfile.py` reads, builds and audits it. An output the old lock lists but no
 generator writes any more is deleted (`removed <path>` on stdout) when it is a
 regular file still matching its locked hash; otherwise it is kept. Hand-edited,
@@ -75,7 +85,7 @@ three, the command fails.
 |---|---|
 | 0 | every output was written |
 | 1 | a file could not be read or written |
-| 2 | the project file is missing or malformed, `seams.lock` is malformed, no model was given, or a generator found a missing or ambiguous graph fact |
+| 2 | the project file is missing or malformed, `seams.lock` is malformed, no model was given, a generator found a missing or ambiguous graph fact, the model breaks a generator's precondition shape, or a `seams.generators` entry point cannot be registered |
 
 Errors print to stderr as `seams generate: <message>`; a project-file error
 names the file and the offending key.

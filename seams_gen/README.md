@@ -14,8 +14,9 @@ A custom generator reads the model through `seams` the same way; the
 
 ## Version
 
-`seams_gen.__version__` (in `seams_gen/__init__.py`) is the generators' version, which
-`seams generate` records per output in `seams.lock`. This member is never installed
+`seams_gen.__version__` (in `seams_gen/__init__.py`) is the built-in generators'
+version: each built-in `Generator`'s `version`, which `seams generate` records per output
+in `seams.lock`. A third-party generator's outputs carry its own `version`. This member is never installed
 (D033), so `importlib.metadata` cannot read it; keep it equal to `[project].version` in
 `seams_gen/pyproject.toml` (`tests/test_versions.py` checks).
 
@@ -86,15 +87,53 @@ dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", ba
 | `ifmledit` | `<out>/ifmledit.json`, the model's IFML layer as [IFMLEdit.org](https://github.com/B3rn475/IFMLEdit.org) JSON (backlog 12, a conformance check of the `ifml:` vocabulary): `elements` (`ifml.ViewContainer`, `ifml.ViewComponent` with stereotype `list` / `details` / `form`, `ifml.Event`, `ifml.NavigationFlow`, `ifml.DataFlow`) and `hierarchy` / `source` / `target` `relations`, ids the IRI local names, everything sorted, with a deterministic `metadata.graphics` layout the IFMLEdit loader requires. The `ifml:` terms with no IFMLEdit counterpart (`ifmledit.UNMAPPED`: `ifml:swap` and its strategies, `trigger`, `path`, `title`, `boundTo`, `order`, `InteractionModel`) are left out, printed on stderr and listed in [gaps.md](../docs/generation/golden/gaps.md) (GAP-29 to GAP-35) | `model.interfaces`; no `ifml:InteractionModel`, a component that is not exactly one of List, Details and Form, an element in several containers, an event without one exported owner, a flow with an unexported end or two elements with one local name is a `GeneratorError` |
 | `smoke` | `<out>/test_smoke.py`, a pytest file that calls a running app (backlog A9) | each `hydra:Operation` of `model.operations` with a `hydra:method` and a `comm:path`, its `seam:acceptsShape` / `seam:returnsShape`, its error statuses (ADR-0013), the first `verify:validExample` of its shapes and each `odrl:permission` targeting it; [Smoke rendering rules](#smoke-rendering-rules) |
 
-Each generator is one subcommand in `GENERATORS` in `__main__.py`, called as
-`generate(trig, out)`; only `compose` uses `out`. `GENERATORS` is a view of
-`registry.discover()`, which loads every entry point of the `seams.generators` group
-(D056), sorted by name. The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015),
-`smoke` (M015/S05), `dockerfile` (M016/S03) and `ifmledit` (M008/S01) are the objects of
-`builtin.py`, registered in `packages/seams-cli/pyproject.toml`, so a third-party
-generator is found the same way. An entry point that does not load, loads no `Generator`,
-names a different generator or repeats a name raises `registry.RegistryError` (a
-`GeneratorError`) naming the entry point and its distribution.
+## The protocol and the registry
+
+Every generator, built-in or not, is a `Generator` object (`protocol.py`,
+[ADR-0016](../docs/adr/0016-generator-protocol.md)): a frozen, keyword-only dataclass
+with `name`, `version`, `help`, `preconditions` (full `sh:NodeShape` IRIs, default `()`)
+and three functions:
+
+- `extract(trig, out)` reads the model into a frozen view model. Every check and
+  computation is here; a missing or ambiguous fact raises `GeneratorError`.
+- `render(view)` turns the view model into `{relative file name: text}`, with no model
+  access.
+- `sources(trig, out)` gives `{relative file name: full IRIs}` of the model elements each
+  file comes from, with exactly the file names `render` returns; `seams generate`
+  records them in `seams.lock`.
+
+`generate(trig, out)` is `render(extract(trig, out))`; only `compose` uses `out`.
+`check_preconditions(results, shapes)` reads a pyshacl report of the model against
+`ontology/shapes` and raises `GeneratorError` (subject the focus node, predicate the shape
+IRI, naming the generator) on a result of a precondition shape or one of its
+`sh:property` shapes. `seams generate` calls it before running anything (strict mode);
+`seams_gen` itself does not depend on pyshacl. Lenient mode is M018/S02.
+
+The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke` (M015/S05),
+`dockerfile` (M016/S03) and `ifmledit` (M008/S01) are the objects of `builtin.py`. Each
+has a real extract and render step built on its `extract_*` and `render_*` functions
+(htmx extracts every `PageModel`, then renders each), takes its sources from
+`sources.py` and declares no preconditions; `ifmledit` keeps its stderr summary of
+unmapped terms.
+
+`registry.discover()` loads every entry point of the `seams.generators` group (D056) and
+returns `{name: Generator}` sorted by name. The built-ins are registered in
+`packages/seams-cli/pyproject.toml`, because this member is virtual and installs no
+metadata (D033), so a third-party generator is found the same way:
+
+```toml
+[project.entry-points."seams.generators"]
+checklist = "seams_checklist:generator"
+```
+
+An entry point that does not load, loads no `Generator`, names a different generator or
+repeats a name raises `registry.RegistryError` (a `GeneratorError`) naming the entry
+point and its distribution. After changing the entry points, run `uv sync --all-packages`
+so the editable metadata refreshes. `GENERATORS` in `__main__.py` (subcommand to
+`(help, generate)`) and `sources.output_sources` are views of the registry, so
+`python -m seams_gen <name>` runs any registered generator. The
+[guide](../docs/guide/write-your-own-generator.md#register-it-with-seams-generate)
+registers one.
 
 **Images.** `python -m seams_gen.images PROJECT...` (`images.py`) is not a generator: it
 prints, as JSON, each Dockerfile a project's `dockerfile` generator writes, its build

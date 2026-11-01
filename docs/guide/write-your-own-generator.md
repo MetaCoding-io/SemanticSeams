@@ -212,6 +212,100 @@ SEAMS_MODEL=examples/expenses/chapter-08 uv run python checklist.py
 The expenses model gives two sections, Expense Approval and Expense Payout, with the
 user tasks' forms, the routing and payout decision tables and the gateway paths.
 
+## Register it with seams generate
+
+Run by hand, the checklist is not in `seams.lock`, so `seams check` cannot tell you when
+it is stale or hand-edited. To make `seams generate` run it like a built-in, wrap it in a
+`Generator` object and register that object in the `seams.generators` entry-point group
+([ADR-0016](/adr/0016-generator-protocol)).
+
+A `Generator` has a `name`, a `version`, a one-line `help` and three functions:
+
+- `extract(trig, out)` reads the model into a view model. Every check and computation
+  goes here, and a missing fact raises an error here.
+- `render(view)` turns that view model into `{relative file name: text}`. It does not
+  read the model.
+- `sources(trig, out)` gives, for each file `render` writes, the IRIs of the model
+  elements it comes from. `seams.lock` records them.
+
+It can also name `preconditions`: the full IRIs of the SHACL node shapes the model must
+conform to before it runs. Put the checklist in its own package, here
+`seams_checklist/__init__.py`, and import the `checklist` function from the module
+above:
+
+```python
+# seams_checklist/__init__.py
+from pathlib import Path
+
+import seams
+from seams_gen.protocol import Generator
+
+from .checklist import checklist  # the function from the generator above
+
+
+def extract(trig: Path, out: Path) -> tuple[str, ...]:
+    return tuple(checklist(seams.load(trig)))
+
+
+def render(lines: tuple[str, ...]) -> dict[str, str]:
+    return {"checklist.md": "\n".join(lines) + "\n"}
+
+
+def sources(trig: Path, out: Path) -> dict[str, tuple[str, ...]]:
+    model = seams.load(trig)
+    return {"checklist.md": tuple(sorted(str(p.iri) for p in model.processes))}
+
+
+generator = Generator(
+    name="checklist",
+    version="0.1.0",
+    help="a Markdown review checklist of every process",
+    extract=extract,
+    render=render,
+    sources=sources,
+    preconditions=("https://w3id.org/seams/shapes#ModelShape",),  # optional
+)
+```
+
+Declare the entry point in the package's `pyproject.toml`. The entry-point name must be
+the generator's `name`:
+
+```toml
+[project]
+name = "seams-checklist"
+version = "0.1.0"
+dependencies = ["semanticseams"]
+
+[project.entry-points."seams.generators"]
+checklist = "seams_checklist:generator"
+```
+
+`seams_gen` is a workspace member of this repository and is not published, so install
+the package into the repository's environment: add it as a workspace member, or run
+`uv pip install -e path/to/seams-checklist`. Then name it in the app's `seams.toml`, like
+any built-in:
+
+```toml
+[[generators]]
+name = "checklist"
+out = "generated/review"
+```
+
+`seams generate --project <app>` now writes `generated/review/checklist.md`. Its entry in
+`seams.lock` names generator `checklist` and generator version `0.1.0`, and `seams check`
+audits the file with the rest. `python -m seams_gen checklist MODEL --out DIR` runs it
+on its own.
+
+What goes wrong is reported before anything is written:
+
+- A model that breaks a precondition makes `seams generate` exit 2. The error names the
+  focus node, the shape and the generator.
+- An entry point that does not load, loads something that is not a `Generator`, or uses
+  a name that differs from `Generator.name` or repeats another generator's name raises
+  `RegistryError`. It names the entry point and its distribution.
+- A name in `seams.toml` that no installed distribution registers is a project error. It
+  lists the known generators.
+
 ## Where to go next
 
 - [The seams library](/reference/seams-library): every view, property and error.

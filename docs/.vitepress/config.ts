@@ -42,6 +42,7 @@ const decisions = [
   ["0013", "Error shapes and boundaries", "0013-error-shapes-and-boundaries"],
   ["0014", "Scenarios and derived tests", "0014-scenarios-and-derived-tests"],
   ["0015", "Environments", "0015-environments"],
+  ["0016", "Generator protocol", "0016-generator-protocol"],
 ] as const;
 
 export default defineConfig({

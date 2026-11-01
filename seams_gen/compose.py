@@ -141,6 +141,9 @@ class Service:
     build: Build | None = None
     command: str | None = None  # YAML scalar
     declared_replicas: int | None = None  # the model's count when capped
+    has_replicas: bool = False  # replicas is set
+    has_declared_replicas: bool = False  # declared_replicas is set
+    has_deploy: bool = False  # a deploy section: replicas or a placement
 
 
 @dataclass(frozen=True)
@@ -411,6 +414,9 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
         build=build,
         command=command,
         declared_replicas=declared,
+        has_replicas=replicas is not None,
+        has_declared_replicas=declared is not None,
+        has_deploy=replicas is not None or placement is not None,
     )
 
 

@@ -86,7 +86,7 @@ def app(tmp_path):
 
 def [[ c.name ]](app):
     result = attempt(*app, [[ g.constant ]], [[ c.party ]])
-[% if c.allowed and g.scenario %]
+[% if c.completes %]
     assert result.status == 200, result.text
 [% elif c.allowed %]
     assert result.status not in (401, 403), result.text

@@ -156,6 +156,7 @@ class PolicyCaseModel:
     party_curie: str | None
     allowed: bool
     status: int  # the expected status when denied (403, or 401 without identity)
+    completes: bool  # allowed and reached by a scenario, so the request must succeed (200)
 
 
 @dataclass(frozen=True)
@@ -371,6 +372,7 @@ def _permission_target(
     assignee = permission.assignee
     anyone = assignee is None or ODRL.PartyCollection in permission.assignee_types
     prefix = _name("test_policy", policy.iri, target.iri)
+    reached = _reach(scenarios, starts, target)
     cases = [
         PolicyCaseModel(
             name=f"{prefix}_{'allows' if anyone or party == assignee else 'denies'}_{_identifier(party)}",
@@ -378,11 +380,11 @@ def _permission_target(
             party_curie=model.compact(party),
             allowed=anyone or party == assignee,
             status=403,
+            completes=(anyone or party == assignee) and reached is not None,
         )
         for party in parties
     ]
-    cases.append(PolicyCaseModel(f"{prefix}_denies_no_identity", "None", None, False, 401))
-    reached = _reach(scenarios, starts, target)
+    cases.append(PolicyCaseModel(f"{prefix}_denies_no_identity", "None", None, False, 401, False))
     return TargetModel(
         constant=prefix.removeprefix("test_policy_").upper(),
         policy=_py(policy.iri),

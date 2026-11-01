@@ -65,12 +65,12 @@ services:
       retries: 12
       start_period: 5s
 [% endif %]
-[% if s.replicas is not none or s.placement %]
+[% if s.has_deploy %]
     deploy:
-[% if s.declared_replicas is not none %]
+[% if s.has_declared_replicas %]
       # The model declares [[ s.declared_replicas ]] replicas; one until backlog A10 moves process state out of the process.
 [% endif %]
-[% if s.replicas is not none %]
+[% if s.has_replicas %]
       replicas: [[ s.replicas ]]
 [% endif %]
 [% if s.placement %]

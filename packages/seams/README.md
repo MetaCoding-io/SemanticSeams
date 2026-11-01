@@ -51,6 +51,13 @@ each `hydra:possibleStatus` with a `comm:errorCode`, as a `Status` view
 shape it `seam:returnsShape`, and `operations`). `Operation.error(code)` is the
 one status with that code, else `ResolutionError(operation, comm:errorCode)`.
 
+`seams.decision_findings(model)` runs the static decision checks (backlog
+K2) and returns a sorted list of `DecisionFinding` (`subject`, `fact`,
+`message`): `type_ref_findings` flags a DMN input whose `typeRef` does not
+accept the `sh:datatype` of its `dec:fromPath`, and `condition_findings` flags
+a BPMN condition that reads a variable no upstream business-rule or user task
+sets. `seams check` reports them as `decision` findings.
+
 `ModelGraph.operation_implementation(op)` reads what serves an operation
 (ADR-0012) from `seam:implementedBy`, returning an `Implementation` (`iri`,
 `kind`, `handler`) or None when the operation declares none. `kind` is one

@@ -588,6 +588,12 @@ write_stubs(plan)
 
 ## Tests
 
+Templates hold text, not logic: a `[[ ]]` tag outputs an attribute path (optionally
+`|e`), and a `[% %]` tag loops or branches on a bare path, closes a block, includes a
+template by name or sets a name to a path. Everything else is computed in `extract`.
+`tests/test_template_logic.py` scans every `templates/*.j2` and names the template, line
+and expression of any tag that breaks the rule; its `computing_expressions(text)` scanner
+is reusable on any template text.
 `tests/test_htmx_fragments.py` covers the fragment names, the header-plus-page-lines
 equality, a render of each partial, the CLI, the swap and `submitsTo` mutations and the
 `seam:rendersComponent` errors. Also `tests/test_golden_target.py` (the stripping rule)

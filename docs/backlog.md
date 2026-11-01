@@ -199,7 +199,7 @@ nothing else and can start now.
 | I5 | **Domain profiles**: a package of vocabulary, shapes, generators, palette and labels, attached by the reserved `seam:conformsTo`, restricting what the editor offers | L | ADR first, I2, K3 | extends `seam:Profile` | planned (M019/S06) |
 | I6 | **IFML editing on the diagram**: the diagram-js modeling module on the IFML view (create, connect, move and delete containers, components, events and flows), each change a patch through the write path, properties edited through I2's forms | M | I1, I2, item 10 | none | planned (M019/S07) |
 | T1 | **Trace capture**: template origins by sentinel render, model origins through Jinja2 `finalize` with origin-carrying values, a sidecar trace per output, A2 provenance derived from it, and a test comparing traces with golden markers. [Note](research/2026-10-31-generation-trace.md) | M | K3; A2 for storage | none | planned (M020/S01) |
-| T2 | **Logic out of templates**: move the 43 of 213 template expressions that filter, concatenate or branch into `extract`, goldens unchanged; value-level traces need it, and K5 recommends it | S | none | none | planned (M017/S03) |
+| T2 | **Logic out of templates**: move the 43 of 213 template expressions that filter, concatenate or branch into `extract`, goldens unchanged; value-level traces need it, and K5 recommends it | S | none | none | done (M017/S03) |
 | T3 | **Generation view**: model, template and output panes joined by trace lines, a fan-out view, and a "Generated" section in the element inspector ([mockup](research/2026-10-31-generation-trace.md)) | M | T1 | none | planned (M020/S02) |
 | T4 | **Write-back of single-literal values**: edit a label, title or path in the output, apply a one-triple patch after regenerating reproduces the edit, and show effects beyond the page first | M | T1, I1 | none | planned (M021/S01) |
 | T5 | **Structural edit proposals**: drafted model patches accepted only when regeneration reproduces the edit; start with adding and removing form fields | M | T4 | none | planned (M021/S02) |
@@ -420,7 +420,11 @@ UI work must not eat M3.*
      K2 done, M017/S02: `seams.decision_findings` checks each DMN input's `typeRef`
      against the `sh:datatype` of its `dec:fromPath` and each gateway condition's
      variables against what upstream tasks set; `seams check` reports them as
-     `decision` findings.*
+     `decision` findings.
+     T2 done, M017/S03: the htmx, FastAPI, compose and tests generators compute every
+     join, filter and compound condition in `extract`, goldens unchanged, and
+     `tests/test_template_logic.py` fails on any template tag that is not a prepared
+     value or a plain loop or branch over one.*
    - **M018, Generator Kit** (K3, K4, K5): the generator protocol and entry points, lenient
      mode, the public test kit, and `seams new-generator`. Depends on M012 and M017.
    - **M019, Editing the Model** (I1 to I6): an ADR on the write path and comments, the

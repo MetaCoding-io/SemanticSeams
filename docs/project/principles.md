@@ -228,9 +228,13 @@ second process, decision and page showed what that costs.
 
 - Generators are `extract` (graph to a frozen view model) then `render` (view model to
   text). All computation happens in `extract`: names, joins, conditions, formatting.
-- Templates loop over prepared values and emit text. Filters, string concatenation and
-  inline conditions inside a template are a smell. T2 moves the existing ones into
-  `extract`.
+- Templates loop over prepared values and emit text. A `[[ ]]` tag outputs an attribute
+  path, optionally escaped with `|e`. A `[% %]` tag is `for` over a path, `if`, `if not`
+  or `elif` on a bare path (`loop.first` and `loop.last` included), `else`, `endif`,
+  `endfor`, an `include` of a template by name, or `set` of a name to a path. Filters,
+  string concatenation, comparisons, compound conditions and calls go in `extract`.
+- `tests/test_template_logic.py` checks every template against this rule and names the
+  template, line and expression of each tag that breaks it.
 - Templates use the `[[ ]]` and `[% %]` delimiters, so the Jinja2 they emit stays plain
   text.
 

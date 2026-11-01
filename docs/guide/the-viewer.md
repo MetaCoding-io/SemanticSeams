@@ -145,9 +145,44 @@ stored in Message Store.
 each predicate declares in `ontology/seam.ttl` (`seam:reveal`). **Open** edges
 replace the view with the target's model. **Nest** edges (`presents`,
 `executes`) draw the target inside its source. **Layer** edges overlay the target
-on the view; until layer mode is built, a layer row is a plain link to the
-target, resolved like any click. Each row shows the other end's layer colour, the predicate, an arrow
+on the view; in the per-element view a layer row is a plain link to the
+target, resolved like any click, and the [layer mode](#layer-mode) page draws them
+all at once. Each row shows the other end's layer colour, the predicate, an arrow
 for direction and the label. Empty groups are left out.
+
+## Layer mode
+
+`/layers` (the **Layers** link in the page header) draws the whole loaded model at
+once as six stacked planes, one per layer, top to bottom: architecture, interaction,
+process, decision, data and lifecycle. Each plane holds its layer's elements, laid out
+by ELK, with the edges between them, and is tilted by a simple oblique projection so the
+planes read as a stack. The cards stay upright so their labels stay readable.
+
+**Seams.** The lines between planes are the seams that cross layers, coloured by the
+layer they start in. Which ones show is set by the **Seams shown** checkboxes, one per
+reveal mode (`seam:reveal`, see [How a click is resolved](#how-a-click-is-resolved)).
+Only **layer** seams are on at first, since those are the ones the flat views never
+draw. **Open** seams (dashed) and **nest** seams (dotted) can be switched on. An open
+seam that ends at a model is drawn to that model's name in the plane title.
+
+**Hover.** Hovering an element, or a model name in a plane title, lights it, every seam
+it takes part in, and the element at the far end of each, in any reveal mode, even
+one that is switched off. That traces one element through the stack without clicking.
+
+**Plane titles.** A plane's title opens that layer flat: it links to the layer's first
+model in `/view`, and the layer's other models are listed beside it, each a link of its
+own. A click on an element opens it in `/view`, resolved like any click.
+
+**Elements in no layer.** An element in no model, or in a model whose notation maps to
+no layer, is not drawn. It is listed above the canvas, with the reason, rather than
+dropped silently, and so is a seam end that falls outside the six layers.
+
+The page works for any model the viewer loads, including one with several models per
+notation, such as the expense app's final checkpoint
+(`examples/expenses/chapter-08/expenses.trig`). Add `format=json`, or send
+`Accept: application/json`, for the same data as JSON: `layers` (per layer its `id`,
+`label`, `models`, `nodes` and within-layer `edges`), `seams` (each with `source`,
+`target`, `predicate`, `reveal`, `sourceLayer` and `targetLayer`) and `warnings`.
 
 ## How a click is resolved
 
@@ -181,6 +216,7 @@ the diagram comes back drawn and clickable.
 | `/queries` | The canned-query catalog as JSON. |
 | `/queries/{name}/{focus_iri}` | One query's rows for one focus element. |
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
+| `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
 
 ## Current limits

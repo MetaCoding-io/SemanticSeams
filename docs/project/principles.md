@@ -204,6 +204,7 @@ stop and report it.
 | `packages/seams` | Loading, hashing, payload resolution, typed read-only views, joins with native BPMN and DMN | Depend on anything beyond rdflib and lxml; write; execute |
 | `seams_gen` | Generators: `extract` from views, then `render` | Query the graph around the views; hold domain literals |
 | `seams_runtime` | Execution: the engine, worker, store, policy | Re-implement model reading that `seams` provides |
+| `seams_edit` | The write path: patches, the TriG text writer, undo ([ADR-0017](../adr/0017-write-path-and-editor.md)) | Write model files any other way; import private `seams` names |
 | `viewer` | Rendering, navigation and editing | Write model files except through the write path (principle 10) |
 
 - Import only public names across packages. A leading underscore means private to its

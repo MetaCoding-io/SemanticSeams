@@ -52,6 +52,7 @@ every push"). CI fails if regeneration changes anything uncommitted.
 | `packages/seams` | Read-only model library: loading, hashing, typed views |
 | `seams_gen` | Generators (htmx, FastAPI, compose); rules in its README |
 | `seams_runtime` | Execution: engine, worker, store, policy |
+| `seams_edit` | The one write path: patches and the TriG text writer (ADR-0017) |
 | `viewer` | Read-only model browser |
 | `examples/` | The chat app and the expense tutorial's per-chapter checkpoints |
 | `docs/backlog.md` | Planned and proposed work, by item ID |

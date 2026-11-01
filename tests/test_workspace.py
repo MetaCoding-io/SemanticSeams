@@ -1,7 +1,7 @@
 """The repository is a uv workspace with a locked environment (M010/S01, backlog L1).
 
-Pins the workspace layout: the six members, the virtual status of the four
-existing packages (D033), the packaged seams-cli member and its `seams` script
+Pins the workspace layout: the seven members, the virtual status of the five
+unpackaged ones (D033; seams_edit joined them with ADR-0017), the packaged seams-cli member and its `seams` script
 (D042), the seams library's dependency allowlist (D031) and the removal of the
 old pip requirements files.
 """
@@ -13,8 +13,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-MEMBERS = ["packages/seams", "seams_runtime", "seams_gen", "seams_gateway", "viewer", "packages/seams-cli"]
-VIRTUAL_MEMBERS = ["seams_runtime", "seams_gen", "seams_gateway", "viewer"]
+MEMBERS = [
+    "packages/seams",
+    "seams_runtime",
+    "seams_gen",
+    "seams_edit",
+    "seams_gateway",
+    "viewer",
+    "packages/seams-cli",
+]
+VIRTUAL_MEMBERS = ["seams_runtime", "seams_gen", "seams_edit", "seams_gateway", "viewer"]
 SEAMS_ALLOWED_DEPENDENCIES = {"rdflib", "lxml"}
 REMOVED_REQUIREMENTS = [
     "requirements-dev.txt",
@@ -35,7 +43,7 @@ def _requirement_name(requirement: str) -> str:
     return re.sub(r"[-_.]+", "-", name.group(1)).lower()
 
 
-def test_root_lists_exactly_the_six_members():
+def test_root_lists_exactly_the_seven_members():
     root = _toml(ROOT / "pyproject.toml")
     assert root["tool"]["uv"]["workspace"]["members"] == MEMBERS
 

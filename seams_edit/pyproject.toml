@@ -1,0 +1,19 @@
+# Virtual workspace member (D033): declares dependencies only; the package
+# itself resolves from the repository root and is never built or installed.
+[project]
+name = "semanticseams-edit"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    # the model is read only through the seams library's public names (ADR-0017)
+    "semanticseams",
+    "rdflib>=7.0",
+    # the BPMN and DMN XML payload writer (backlog I4)
+    "lxml>=5.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+semanticseams = { workspace = true }

@@ -96,7 +96,13 @@ element. A store the runtime could not resolve, such as a written shape with no
 `seam:storedIn` or a store with an unsupported `deploy:storeKind`, counts as a
 violation. A store container no shape is `seam:storedIn` adds an amber warning count
 with its own list, and a model that declares no store gets a note that the runtime
-keeps embedded SQLite at `SEAMS_DB`. Warnings and notes leave the badge at *Conforms*.
+keeps embedded SQLite at `SEAMS_DB`. The model review checks of `seams check`
+(`seams.review_findings()`) add one warning each: lifecycle state labels copied into
+a `sh:in` list, a `sh:class` that points at a shape, a shape with no `sh:targetClass`
+and a `sh:path` nothing declares a property. Each names the shape or path (the
+*focusNode*) and the fact (the *path*); the chat app shows eleven of them beside the
+replica cap. Warnings and notes leave the badge at *Conforms*, and a review check that
+fails is itself one warning.
 The JSON view's `modelConformance` carries the same `violations`, `warnings` and
 `notes`.
 

@@ -14,7 +14,11 @@ violation, a declared store no shape is seam:storedIn is a warning, and a model
 that declares no store gets a note that the runtime keeps embedded SQLite.
 The replica cap of ADR-0015 (seams.ModelGraph.replica_health()) joins them: a
 serving container declaring more than one deploy:replicas is a warning, since
-the generator runs one until backlog A10.
+the generator runs one until backlog A10. The model review checks of backlog
+R1 (seams.review_findings()) add one warning each: lifecycle labels copied
+into sh:in, sh:class pointing at a shape, shapes without sh:targetClass and
+undeclared sh:path IRIs. They flag the model for review and never change
+``conforms``, not even when the check itself fails.
 
 Results are cached per Dataset identity: the model is loaded once per process,
 so each dataset is validated at most once.
@@ -91,15 +95,44 @@ def _store_findings(ds: rdflib.Dataset) -> list[dict]:
     return [_finding(f) for f in findings]
 
 
+def _review_findings(ds: rdflib.Dataset) -> list[dict]:
+    """seams.review_findings() over the same Dataset, one Warning each with the
+    subject as focusNode and the fact as path. A failure of the check itself is
+    one Warning too, so review findings never change ``conforms``."""
+    try:
+        findings = seams.review_findings(seams.ModelGraph(ROOT / "viewer.trig", dataset=ds))
+    except Exception as err:
+        return [
+            {
+                "focusNode": None,
+                "path": None,
+                "message": f"model review check failed: {err}",
+                "severity": "Warning",
+                "sourceShape": None,
+            }
+        ]
+    return [
+        {
+            "focusNode": f.subject,
+            "path": f.fact,
+            "message": f.message,
+            "severity": "Warning",
+            "sourceShape": None,
+        }
+        for f in findings
+    ]
+
+
 def get_model_conformance(ds: rdflib.Dataset) -> dict:
     """Validate the dataset (plus ontology closure) against seam-shapes.ttl,
-    then run the storage health checks.
+    then run the storage health and model review checks.
 
     Returns {"conforms": bool, "violationCount": int, "violations": list[dict],
     "warnings": list[dict], "notes": list[dict]}. Each entry carries focusNode,
     path, message, severity, and sourceShape (focusNode, path and sourceShape
     may be None). Store violations join ``violations`` and make the model not
-    conform; warnings and notes do not change ``conforms``.
+    conform; warnings (store, replica and review findings, in that order) and
+    notes do not change ``conforms``.
     """
     key = id(ds)
     if key in _cache:
@@ -127,7 +160,7 @@ def get_model_conformance(ds: rdflib.Dataset) -> dict:
 
     store = _store_findings(ds)
     violations += [f for f in store if f["severity"] == "Violation"]
-    warnings = [f for f in store if f["severity"] == "Warning"]
+    warnings = [f for f in store if f["severity"] == "Warning"] + _review_findings(ds)
     notes = [f for f in store if f["severity"] == "Info"]
 
     summary = {

@@ -2,7 +2,8 @@
 
 Exercises viewer.validation.get_model_conformance() against the real loaded
 chat-app model (conforming) and a deliberately broken in-memory Dataset
-(non-conforming), plus the per-dataset cache behavior.
+(non-conforming), plus the per-dataset cache behavior, the storage health
+findings and the model review warnings (backlog R1).
 """
 
 import sys
@@ -191,25 +192,133 @@ def _dataset(*trig_texts: str, files: tuple[Path, ...] = ()) -> rdflib.Dataset:
     return ds
 
 
-def test_loaded_chat_app_warns_only_about_the_replica_cap():
+CHAT = "https://example.org/chat/"
+SH_PATH = "http://www.w3.org/ns/shacl#path"
+SH_TARGET_CLASS = "http://www.w3.org/ns/shacl#targetClass"
+
+# The chat app's model review findings (backlog R1) as (focusNode, path).
+CHAT_REVIEW = [
+    (CHAT + "ConversationShape", SH_TARGET_CLASS),
+    (CHAT + "ConversationShape", CHAT + "hasMessage"),
+    (CHAT + "MessageShape", SH_TARGET_CLASS),
+    (CHAT + "MessageShape", CHAT + "status"),
+    *((CHAT + name, SH_PATH) for name in ("content", "hasMessage", "id", "role", "status", "timestamp", "title")),
+]
+
+
+def _review_warnings(ds: rdflib.Dataset) -> list[dict]:
+    """The warnings seams.review_findings gives for ds, as the panel shows them."""
+    model = validation.seams.ModelGraph(ROOT / "viewer.trig", dataset=ds)
+    return [
+        {"focusNode": f.subject, "path": f.fact, "message": f.message, "severity": "Warning", "sourceShape": None}
+        for f in validation.seams.review_findings(model)
+    ]
+
+
+def _store_warnings(result: dict, ds: rdflib.Dataset) -> list[dict]:
+    """The warnings before the review findings, which must close the list."""
+    review = _review_warnings(ds)
+    split = len(result["warnings"]) - len(review)
+    assert result["warnings"][split:] == review
+    return result["warnings"][:split]
+
+
+def test_loaded_chat_app_warns_about_the_replica_cap_and_review_findings():
     """No store warnings or notes; :chat_api's deploy:replicas 3 is capped at
-    one replica until backlog A10 (ADR-0015), which model health shows."""
+    one replica until backlog A10 (ADR-0015), then one warning per model
+    review finding (backlog R1)."""
     result = validation.get_model_conformance(viewer_app.get_graph())
     assert result["conforms"] is True
-    [warning] = result["warnings"]
-    assert warning["focusNode"] == "https://example.org/chat/chat_api"
-    assert warning["path"] == str(DEPLOY.replicas)
-    assert "A10" in warning["message"]
+    replicas, *review = result["warnings"]
+    assert replicas["focusNode"] == "https://example.org/chat/chat_api"
+    assert replicas["path"] == str(DEPLOY.replicas)
+    assert "A10" in replicas["message"]
+    assert [(w["focusNode"], w["path"]) for w in review] == CHAT_REVIEW
+    assert {w["severity"] for w in review} == {"Warning"}
+    assert {w["sourceShape"] for w in review} == {None}
+    by_fact = {(w["focusNode"], w["path"]): w["message"] for w in review}
+    assert by_fact[(CHAT + "MessageShape", CHAT + "status")] == (
+        "sh:in on status copies the rdfs:labels of message_lifecycle's states, so it can drift "
+        "from the lifecycle; use the state IRIs (s_composing, s_sending, s_streaming, s_complete, s_failed)"
+    )
+    assert by_fact[(CHAT + "ConversationShape", CHAT + "hasMessage")] == (
+        "sh:class on hasMessage is MessageShape, a sh:NodeShape, not a class; "
+        "declare the class and give the shape sh:targetClass"
+    )
     assert result["notes"] == []
+
+
+REVIEW_ONLY = """
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix :     <https://example.org/review/> .
+<urn:test:graph:review> {
+    :ThingShape a sh:NodeShape ; rdfs:label "Thing" ;
+        sh:property [ sh:path :name ] .
+}
+"""
+
+
+def test_review_findings_never_change_conforms():
+    """A model whose only faults are review findings conforms, with no
+    violations and one warning per finding."""
+    ds = _dataset(REVIEW_ONLY)
+    result = validation.get_model_conformance(ds)
+    assert result["conforms"] is True
+    assert result["violations"] == []
+    assert [(w["focusNode"], w["path"]) for w in result["warnings"]] == [
+        ("https://example.org/review/ThingShape", SH_TARGET_CLASS),
+        ("https://example.org/review/name", SH_PATH),
+    ]
+    assert result["warnings"] == _review_warnings(ds)
+
+
+def test_failing_review_check_is_one_warning(monkeypatch):
+    def boom(model):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(validation.seams, "review_findings", boom)
+    result = validation.get_model_conformance(viewer_app.get_graph())
+    assert result["conforms"] is True
+    assert result["violations"] == []
+    replicas, failed = result["warnings"]
+    assert replicas["path"] == str(DEPLOY.replicas)
+    assert failed == {
+        "focusNode": None,
+        "path": None,
+        "message": "model review check failed: boom",
+        "severity": "Warning",
+        "sourceShape": None,
+    }
+
+
+def test_full_page_renders_review_warnings():
+    resp = _client().get(f"/view/{ROOT_IRI}", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'data-conforms="true"' in html
+    assert f'data-warnings="{1 + len(CHAT_REVIEW)}"' in html
+    assert "MessageShape has no sh:targetClass" in html
+
+
+def test_fragment_response_omits_review_warnings():
+    resp = _client().get(
+        f"/view/{ROOT_IRI}",
+        headers={"Accept": "text/html", "hx-request": "true"},
+    )
+    assert resp.status_code == 200
+    assert "data-warnings" not in resp.text
+    assert "has no sh:targetClass" not in resp.text
 
 
 def test_unused_postgres_store_warns_and_still_conforms():
     """A declared store no shape is seam:storedIn (the original chat-app
     mismatch) is a warning, not a violation."""
-    result = validation.get_model_conformance(_dataset(UNUSED_STORE, files=(CHAT_TRIG,)))
+    ds = _dataset(UNUSED_STORE, files=(CHAT_TRIG,))
+    result = validation.get_model_conformance(ds)
     assert result["conforms"] is True
     assert result["violations"] == []
-    [warning] = [w for w in result["warnings"] if w["path"] != str(DEPLOY.replicas)]
+    [warning] = [w for w in _store_warnings(result, ds) if w["path"] != str(DEPLOY.replicas)]
     assert warning["focusNode"] == STORE + "spare_db"
     assert warning["path"] == str(SEAM.storedIn)
     assert warning["severity"] == "Warning"
@@ -243,9 +352,10 @@ def test_unsupported_store_kind_is_a_violation():
 
 
 def test_no_store_model_conforms_with_an_embedded_sqlite_note():
-    result = validation.get_model_conformance(_dataset(files=(CH07_TRIG,)))
+    ds = _dataset(files=(CH07_TRIG,))
+    result = validation.get_model_conformance(ds)
     assert result["conforms"] is True
-    assert result["warnings"] == []
+    assert _store_warnings(result, ds) == []
     [note] = result["notes"]
     assert note["severity"] == "Info"
     assert note["focusNode"] is None
@@ -276,10 +386,11 @@ def test_full_page_renders_store_warning(unused_store_viewer):
     assert resp.status_code == 200
     html = resp.text
     assert 'data-conforms="true"' in html
-    assert 'data-warnings="2"' in html  # the unused store and the chat app's replica cap
+    # the unused store, the chat app's replica cap and its review findings
+    assert f'data-warnings="{2 + len(CHAT_REVIEW)}"' in html
     assert STORE + "spare_db" in html
     json_mc = _client().get(f"/view/{ROOT_IRI}", params={"format": "json"}).json()["modelConformance"]
-    assert len(json_mc["warnings"]) == 2
+    assert len(json_mc["warnings"]) == 2 + len(CHAT_REVIEW)
 
 
 def test_fragment_response_omits_store_warning(unused_store_viewer):

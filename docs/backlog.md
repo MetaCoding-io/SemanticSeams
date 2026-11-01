@@ -214,7 +214,7 @@ nothing else and can start now.
 | O4 | **SemPKM storage backend** behind U9's interface: validate, then `POST /api/commands`; read through scoped SPARQL; the compose generator adds SemPKM's services when the model names it. Decided in U9's ADR, alongside SQLite and PostgreSQL | M | U9, O2 | a store-kind value | planned (M024/S01, S02) |
 | O5 | **Mental Model generator**: `manifest.yaml`, ontology, shapes, and views from IFML, as a package SemPKM installs | M | O1, O2, K3 | none | planned (M024/S03) |
 | O6 | **SemPKM webhooks as a channel**, so `object.changed` can start a BPMN process through `seam:subscribesTo` | S | O4, ADR-0010 | a channel transport value | planned (M024/S04) |
-| R1 | **Model review checks**: lifecycle labels repeated in `sh:in` (found three times today), `sh:class` pointing at a shape, shapes without a target class, undeclared paths, T2's computing expressions, and literals in drafts that repeat model facts; reported by `seams check` and the health badge | S | none | none | planned (M017/S04) |
+| R1 | **Model review checks**: lifecycle labels repeated in `sh:in` (found three times today), `sh:class` pointing at a shape, shapes without a target class, undeclared paths, T2's computing expressions, and literals in drafts that repeat model facts; reported by `seams check` and the health badge | S | none | none | done (M017/S04) |
 | R2 | **Copilot suggestions**: LLM-proposed model patches (move logic into DMN, merge shapes into a class, gist anchors), each accepted after validation, regeneration and review | M | R1, T5, C4 | none | planned (M025/S01) |
 | R3 | **Generators that write generators**: an LLM drafts a template and `extract` step from a reference output, accepted when the golden test passes | M | K5, C4 | none | planned (M025/S02) |
 
@@ -424,7 +424,13 @@ UI work must not eat M3.*
      T2 done, M017/S03: the htmx, FastAPI, compose and tests generators compute every
      join, filter and compound condition in `extract`, goldens unchanged, and
      `tests/test_template_logic.py` fails on any template tag that is not a prepared
-     value or a plain loop or branch over one.*
+     value or a plain loop or branch over one.
+     R1 done, M017/S04: `seams.review_findings` flags lifecycle labels copied into
+     `sh:in`, `sh:class` pointing at a shape, shapes without `sh:targetClass` and
+     undeclared `sh:path` IRIs; `seams check` prints them as advisory `review` lines
+     that leave the exit status alone, and the viewer health badge counts them as
+     warnings. The row's checks for T2's computing expressions and for draft literals
+     that repeat model facts are not built yet.*
    - **M018, Generator Kit** (K3, K4, K5): the generator protocol and entry points, lenient
      mode, the public test kit, and `seams new-generator`. Depends on M012 and M017.
    - **M019, Editing the Model** (I1 to I6): an ADR on the write path and comments, the

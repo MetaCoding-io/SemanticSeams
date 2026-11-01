@@ -92,4 +92,4 @@ def test_backlog_i1_cites_adr() -> None:
     row = next(line for line in backlog.splitlines() if line.startswith("| I1 |"))
     assert "ADR-0017" in row
     assert "ADR accepted (M019/S01)" in row
-    assert "planned (M019/S02)" in row
+    assert "writer done (M019/S02)" in row

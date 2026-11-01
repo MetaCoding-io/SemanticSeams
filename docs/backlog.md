@@ -192,7 +192,7 @@ nothing else and can start now.
 | K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | done (M018/S03) |
 | K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | done (M018/S04) |
 | K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | planned (M023/S01, S02) |
-| I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | ADR accepted (M019/S01): [ADR-0017](adr/0017-write-path-and-editor.md) edits the TriG text in place through a new `seams_edit` package, and editing is a viewer mode; writer planned (M019/S02) |
+| I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | ADR accepted (M019/S01): [ADR-0017](adr/0017-write-path-and-editor.md) edits the TriG text in place through a new `seams_edit` package, and editing is a viewer mode; writer done (M019/S02): `seams_edit` applies a patch by editing the TriG text at the triple level, routes it to the file that declares each graph, writes all files or none, and undoes it byte for byte; a round-trip test over every example checks one-line diffs, comments kept and undo |
 | I2 | **Forms from shapes**: edit one element through a form derived from the shapes that target its class; save invalid models and flag them | M | I1, K1 | none | planned (M019/S03) |
 | I3 | **Live checks and preview**: re-run the shapes and the generators in lenient mode after each save; show the generated page beside the model | M | I2, K3 | none | planned (M019/S05) |
 | I4 | **BPMN and DMN round-trip**: modelers in place of viewers, an ID rename that rewrites the seams graph (ADR-0002), a model-health check that lifted IRIs exist in the XML | M | I1 | none | planned (M019/S04) |
@@ -461,7 +461,11 @@ UI work must not eat M3.*
      *I1's ADR done, M019/S01 ([ADR-0017](adr/0017-write-path-and-editor.md)): a patch
      edits the source TriG text at the triple level so comments and layout survive, the
      write path is a new `seams_edit` package outside the read-only `seams` library, and
-     editing is a viewer mode that is off by default. The writer is next (M019/S02).*
+     editing is a viewer mode that is off by default.* *The writer done, M019/S02:
+     `seams_edit` holds the patch value, the TriG text writer, file apply and undo; a
+     round-trip test over every example shows an empty patch keeps the bytes, a one-quad
+     edit is a one-line diff with every comment kept, and undo restores the bytes. Forms
+     from shapes are next (M019/S03).*
    - **M020, Generation Trace** (T1, T3): trace capture and the generation view. Depends
      on M018.
    - **M021, Write-Back from Output** (T4, T5). Depends on M019 and M020.

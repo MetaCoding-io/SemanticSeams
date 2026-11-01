@@ -19,6 +19,18 @@ dependencies = [
 [project.scripts]
 seams = "seams_cli.__main__:main"
 
+# The built-in generators (D056). seams_gen is a virtual member and installs no
+# metadata (D033), so its entry points are declared here, in the one installed
+# member that imports it. A third-party generator declares the same group.
+[project.entry-points."seams.generators"]
+compose = "seams_gen.builtin:compose"
+dockerfile = "seams_gen.builtin:dockerfile"
+fastapi = "seams_gen.builtin:fastapi"
+htmx = "seams_gen.builtin:htmx"
+ifmledit = "seams_gen.builtin:ifmledit"
+smoke = "seams_gen.builtin:smoke"
+tests = "seams_gen.builtin:tests"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -1,15 +1,17 @@
 """Command line: ``python -m seams_gen <generator> <trig> --out <dir>``.
 
-Each generator is a subcommand registered in ``GENERATORS``: ``htmx`` (S04),
-``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015, ADR-0014),
-``smoke`` (M015/S05, backlog A9), ``dockerfile`` (M016/S03) and ``ifmledit``
-(M008/S01, backlog 12). A generator is called as
-``generate(trig, out)`` and returns ``{relative file name: text}``; only
-``compose`` uses ``out``, as the base directory its bind-mount sources, build
-contexts and secret files are relative to (D018). ``compose`` writes one
-``compose.<environment>.yaml`` per arch:Environment (ADR-0015). A GeneratorError (a missing or
-ambiguous graph fact) prints its message, which names the subject IRI and the
-predicate, to stderr and exits 2. A file that cannot be read or written exits 1.
+Each generator of the ``seams.generators`` entry-point group (D056,
+``seams_gen.registry``) is a subcommand of ``GENERATORS``. The built-ins are
+``htmx`` (S04), ``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015,
+ADR-0014), ``smoke`` (M015/S05, backlog A9), ``dockerfile`` (M016/S03) and
+``ifmledit`` (M008/S01, backlog 12), the objects of ``seams_gen.builtin``. A
+generator is called as ``generate(trig, out)`` and returns ``{relative file
+name: text}``; only ``compose`` uses ``out``, as the base directory its
+bind-mount sources, build contexts and secret files are relative to (D018).
+``compose`` writes one ``compose.<environment>.yaml`` per arch:Environment
+(ADR-0015). A GeneratorError (a missing or ambiguous graph fact) prints its
+message, which names the subject IRI and the predicate, to stderr and exits 2.
+A file that cannot be read or written exits 1.
 """
 
 from __future__ import annotations
@@ -18,82 +20,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from seams import load
-
 from . import GeneratorError
-from .compose import generate_compose_environments
-from .dockerfile import generate_dockerfiles
-from .fastapi import route_module
-from .htmx import generate_pages
-from .ifmledit import generate as generate_ifmledit
-from .ifmledit import unmapped_summary
-from .smoke import generate_smoke
-from .tests import generate_tests
+from .registry import discover
 
 EXIT_GENERATOR_ERROR = 2
 EXIT_IO_ERROR = 1
 
-
-def _htmx(trig: Path, out: Path) -> dict[str, str]:
-    """{file name: content}: the landmark page as <page local name>.html, plus
-    the fragment partials its UIFragment operations render (GAP-19), the
-    partial of each form a user task is completed on (ADR-0009), and each
-    other page of ``model.interfaces.served_pages()`` with its partials."""
-    return generate_pages(load(trig))
-
-
-def _fastapi(trig: Path, out: Path) -> dict[str, str]:
-    """{<container local name>.py: content}: the route module of the one
-    container that seam:executes a process."""
-    name, text = route_module(trig)
-    return {name: text}
-
-
-def _compose(trig: Path, out: Path) -> dict[str, str]:
-    """{compose.<environment local name>.yaml: content}: the docker compose
-    file of the arch:System's containers for each arch:Environment, in IRI
-    order (ADR-0015), with paths relative to the output directory."""
-    return generate_compose_environments(trig, base_dir=out)
-
-
-def _dockerfile(trig: Path, out: Path) -> dict[str, str]:
-    """{<route module stem>.Dockerfile: content}: the runtime image build file
-    of the serving container whose development deploy:artifact has a
-    deploy:build, with literal paths relative to its build context."""
-    return generate_dockerfiles(trig)
-
-
-def _tests(trig: Path, out: Path) -> dict[str, str]:
-    """{test_scenarios.py, test_decisions.py, test_shape_examples.py, test_policies.py: content}:
-    pytest files for the model's verify: scenarios, decision examples and
-    shape examples, and allow/deny tests per ODRL permission (ADR-0014)."""
-    return generate_tests(trig)
-
-
-def _smoke(trig: Path, out: Path) -> dict[str, str]:
-    """{test_smoke.py: content}: one pytest smoke test per hydra:Operation with
-    a method and a path, calling it on a running app (backlog A9)."""
-    return generate_smoke(trig)
-
-
-def _ifmledit(trig: Path, out: Path) -> dict[str, str]:
-    """{ifmledit.json: content}: the IFML layer as IFMLEdit.org JSON (backlog
-    12). The ifml: terms IFMLEdit has no counterpart for are named on stderr."""
-    files = generate_ifmledit(load(trig))
-    print(unmapped_summary(), file=sys.stderr)
-    return files
-
-
-# subcommand -> (help, generate(trig, out) -> {relative file name: text})
-GENERATORS = {
-    "htmx": ("the htmx/Jinja2 page of the landmark IFML ViewContainer and its fragment partials", _htmx),
-    "fastapi": ("the thin FastAPI route module of the container that executes the process", _fastapi),
-    "compose": ("a docker compose file of the arch:System's containers per arch:Environment", _compose),
-    "tests": ("pytest files for the model's verify: scenarios and examples, and its ODRL permissions", _tests),
-    "smoke": ("a pytest file calling each operation on a running app, checking seam:returnsShape", _smoke),
-    "dockerfile": ("the runtime image Dockerfile of the serving container's development build", _dockerfile),
-    "ifmledit": ("the IFML interaction model as IFMLEdit.org JSON", _ifmledit),
-}
+# subcommand -> (help, generate(trig, out) -> {relative file name: text}): a
+# view of the seams.generators registry (D056), sorted by name
+GENERATORS = {name: (g.help, g.generate) for name, g in discover().items()}
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,12 +1,14 @@
 """The model elements each generated file comes from (M012/S02, D043).
 
-``SOURCES`` maps each generator of ``seams_gen.__main__.GENERATORS`` to a
+``SOURCES`` maps each built-in generator (``seams_gen.builtin``) to a
 ``sources(trig, out)`` returning ``{relative file name: IRIs}``, with exactly
 the file names the generator returns for the same model and, per file, the
 full IRIs of the elements it renders, sorted and de-duplicated. ``seams
-generate`` records them in seams.lock. They are read the way the generators
-read the model, through their own extract functions and the seams views
-(D036), so a missing or ambiguous fact raises the same ``GeneratorError``:
+generate`` records them in seams.lock. ``output_sources`` reads them from the
+``seams.generators`` registry (D056), so a third-party generator's are found
+the same way. They are read the way the generators read the model, through
+their own extract functions and the seams views (D036), so a missing or
+ambiguous fact raises the same ``GeneratorError``:
 
 - ``htmx``: a page lists the page and its components; a fragment partial the
   component it renders and the operations that render it (unioned when two
@@ -42,6 +44,7 @@ from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
 from .ifmledit import ifmledit_sources
 from .protocol import Sources
+from .registry import discover
 from .smoke import smoke_sources
 from .tests import tests_sources
 
@@ -124,8 +127,9 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
 
 
 def output_sources(name: str, trig: Path, out: Path) -> Sources:
-    """{relative file name: full IRIs} of generator ``name`` for the model ``trig``."""
-    return SOURCES[name](trig, out)
+    """{relative file name: full IRIs} of registered generator ``name`` for the
+    model ``trig``. An unregistered name raises KeyError."""
+    return discover()[name].sources(trig, out)
 
 
 __all__ = ["SOURCES", "Sources", "output_sources"]

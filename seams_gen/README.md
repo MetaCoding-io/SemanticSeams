@@ -87,8 +87,14 @@ dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", ba
 | `smoke` | `<out>/test_smoke.py`, a pytest file that calls a running app (backlog A9) | each `hydra:Operation` of `model.operations` with a `hydra:method` and a `comm:path`, its `seam:acceptsShape` / `seam:returnsShape`, its error statuses (ADR-0013), the first `verify:validExample` of its shapes and each `odrl:permission` targeting it; [Smoke rendering rules](#smoke-rendering-rules) |
 
 Each generator is one subcommand in `GENERATORS` in `__main__.py`, called as
-`generate(trig, out)`; `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke`
-(M015/S05), `dockerfile` (M016/S03) and `ifmledit` (M008/S01) are registered the same way, and only `compose` uses `out`.
+`generate(trig, out)`; only `compose` uses `out`. `GENERATORS` is a view of
+`registry.discover()`, which loads every entry point of the `seams.generators` group
+(D056), sorted by name. The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015),
+`smoke` (M015/S05), `dockerfile` (M016/S03) and `ifmledit` (M008/S01) are the objects of
+`builtin.py`, registered in `packages/seams-cli/pyproject.toml`, so a third-party
+generator is found the same way. An entry point that does not load, loads no `Generator`,
+names a different generator or repeats a name raises `registry.RegistryError` (a
+`GeneratorError`) naming the entry point and its distribution.
 
 **Images.** `python -m seams_gen.images PROJECT...` (`images.py`) is not a generator: it
 prints, as JSON, each Dockerfile a project's `dockerfile` generator writes, its build

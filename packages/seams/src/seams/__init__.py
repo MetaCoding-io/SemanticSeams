@@ -19,6 +19,11 @@ canned question (``question_names()``).
 ``unexercised_paths`` (BPMN paths no scenario runs), ``unfired_transitions``
 and ``policies_without_deny``.
 
+``seams.decisions_check`` finds decision faults the runtime would hit
+(backlog K2): ``decision_findings`` lists DMN typeRefs that disagree with
+their input's sh:datatype and gateway conditions that read a variable no
+upstream decision or user task sets.
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
@@ -31,6 +36,7 @@ from .coverage import (
     unexercised_paths,
     unfired_transitions,
 )
+from .decisions_check import DecisionFinding, condition_findings, decision_findings, type_ref_findings
 from .dmn import DecisionTable, Rule, TableInput, TableOutput, decision_table, parse_dmn
 from .errors import ResolutionError, SeamsError
 from .graph import (
@@ -125,6 +131,7 @@ __all__ = [
     "Decision",
     "DecisionBinding",
     "DecisionExample",
+    "DecisionFinding",
     "DecisionTable",
     "Deployment",
     "DeploymentNode",
@@ -194,6 +201,8 @@ __all__ = [
     "VERIFY",
     "Volume",
     "bpmn_start_event_ids",
+    "condition_findings",
+    "decision_findings",
     "decision_table",
     "dmn_decision_ids",
     "dmn_input_types",
@@ -206,6 +215,7 @@ __all__ = [
     "policies_without_deny",
     "process_paths",
     "question_names",
+    "type_ref_findings",
     "unexercised_paths",
     "unfired_transitions",
 ]

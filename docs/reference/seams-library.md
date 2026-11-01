@@ -448,6 +448,47 @@ On chapter 9 the three scenarios run the auto, manager-approve and
 finance-approve paths. The two reject paths, the two notify-failed escalation
 paths and both payout paths are unexercised. Both SPARQL reports are empty.
 
+## Decision checks
+
+`seams.decisions_check` finds decision faults that the runtime would
+otherwise hit only while running (backlog K2). Each fault is one
+`DecisionFinding`, with `subject` (an IRI), `fact` and `message`. The lists
+are sorted.
+
+- `seams.type_ref_findings(model)` checks the input types of each
+  `dec:Decision` that has a `dec:payloadElement`. Each `dec:input` is matched
+  to the table input whose inputExpression text is its `dec:variable`, which
+  is how the engine matches them. The table input's `typeRef` must then
+  accept the `sh:datatype` of the `dec:fromPath` property. The property is
+  looked up on the shapes the decision `seam:reads`, or on every shape if it
+  reads none. The accepted datatypes are:
+  - `number`: `xsd:decimal`, `xsd:integer` and its subtypes, `xsd:double`
+    and `xsd:float`;
+  - `string`: `xsd:string`;
+  - `boolean`: `xsd:boolean`;
+  - `date`: `xsd:date`.
+
+  A `dec:Length` input is always a number, so its typeRef must be `number`.
+  A missing or unlisted typeRef gives no finding, and neither does a
+  property without a datatype. In each finding the subject is the decision
+  and the fact is the `dec:fromPath` IRI.
+- `seams.condition_findings(model)` checks BPMN conditions. Spiff evaluates
+  each `conditionExpression` as Python over the task data. Every free name a
+  condition reads (`seams.decisions_check.condition_names`) must be set by a
+  node upstream of the flow, in the same process. Two kinds of node set
+  names:
+  - a business-rule task sets the `dec:processVariable`s and input
+    `dec:variable`s of the decision it is `seam:decidedBy`;
+  - a user task sets the fields of the shape it writes.
+
+  In each finding the subject is the flow IRI (`<bpmn model>#<flow id>`).
+  The fact is the variable, or the expression itself if it does not parse.
+- `seams.decision_findings(model)` returns the findings of both checks.
+
+A decision or process whose payload file is missing is skipped. Any other
+`ResolutionError` met while reading one becomes a finding. Every example
+model yields no findings.
+
 ## The model hash
 
 `"sha256:<hex>"`, where each payload is framed as relative path, NUL, decimal

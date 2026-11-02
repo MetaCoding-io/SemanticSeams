@@ -80,7 +80,7 @@ from ._views import optional, required, view_errors
 from .fastapi import serving_containers
 from .htmx import _environment, _tracing_environment
 from .stubs import DEFAULT_HANDLERS
-from .trace import Trace, trace_template
+from .trace import Trace, trace_template, view_iris
 
 TEMPLATE_NAME = "compose.yaml.j2"
 
@@ -124,6 +124,7 @@ class Build:
 class Dependency:
     name: str  # the target's local name
     condition: str  # service_healthy or service_started
+    iri: str = ""  # the target container's full IRI, its origin in a generation trace (ADR-0019)
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,9 @@ class Service:
     has_declared_replicas: bool = False  # declared_replicas is set
     has_deploy: bool = False  # a deploy section: replicas or a placement
     iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
+    # the IRIs of the system, the processes it seam:executes, its placement
+    # node and its deploy:proxies target, sorted: further trace origins
+    origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -164,6 +168,8 @@ class ComposeModel:
     services: tuple[Service, ...]
     secrets: tuple[Secret, ...]
     volumes: tuple[str, ...]
+    iri: str = ""  # the arch:Environment's full IRI, its origin in a generation trace (ADR-0019)
+    origins: tuple[str, ...] = ()  # the arch:System's IRI, a further trace origin
 
 
 # ── extraction ──────────────────────────────────────────────────────────────
@@ -252,6 +258,8 @@ def extract_compose(model: Model, base_dir, environment) -> ComposeModel:
         services=services,
         secrets=tuple(secrets[k] for k in sorted(secrets)),
         volumes=tuple(sorted(volumes)),
+        iri=str(env.iri),
+        origins=(str(system.iri),),
     )
 
 
@@ -335,6 +343,8 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
         node = optional(c.deployed_to)
         depends = c.deploy_depends_on
         proxied = c.proxies
+        executes = c.executes
+        systems = c.systems
     artifact = required(deployment.artifact, c.iri, DEPLOY.artifact)
     image = f"{artifact.reference}:{artifact.version}"
 
@@ -346,7 +356,7 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
         if target not in ctx.services:
             raise GeneratorError(c.iri, DEPLOY.dependsOn, f"{target.iri} is not a container of the arch:System")
         condition = "service_healthy" if target in ctx.healthy else "service_started"
-        depends_on.append(Dependency(local_name(target.iri), condition))
+        depends_on.append(Dependency(local_name(target.iri), condition, iri=str(target.iri)))
 
     environment, own_secrets = [], []
     if serving:
@@ -401,8 +411,11 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
             ) from err
         placement = _scalar(f"node.labels.seams.node == {node_label}")
 
+    origins = {str(x.iri) for x in (*systems, *executes)}
+    origins |= {str(x.iri) for x in (node if placement else None, proxied) if x is not None}
     return Service(
         iri=str(c.iri),
+        origins=tuple(sorted(origins)),
         name=local_name(c.iri),
         image=_scalar(image),
         ports=tuple(ports),
@@ -553,7 +566,7 @@ def trace_compose_environments(files: tuple[ComposeFile, ...], generator: str = 
             output=f.name,
             generator=generator,
             expected=render_compose(f.compose),
-            fallback=(f.compose.environment,),
+            fallback=view_iris(f.compose),
         )
         for f in files
     }

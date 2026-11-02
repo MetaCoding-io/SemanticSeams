@@ -61,7 +61,7 @@ from . import GeneratorError
 from ._views import label, required, view_errors
 from .fragments import ITEM, fragment_for
 from .htmx import _environment, _path_template, _shape_name, _task_curie, _task_process, _tracing_environment
-from .trace import Trace, trace_template
+from .trace import Trace, trace_template, view_iris
 
 TEMPLATE_NAME = "fastapi_routes.py.j2"
 
@@ -169,6 +169,10 @@ class Endpoint:
     dependencies: str = ""  # the decorator's policy list, '[Depends(runtime.policy("<curie>")), ...]'
     validate_only: bool = False  # a separate runtime.validate call (no write or completion validates)
     iri: str = ""  # the operation's or channel's full IRI, its origin in a generation trace (ADR-0019)
+    # the IRIs of the shapes, processes (with their BPMN models and correlation
+    # keys), task, policies, rendered component and the flows to it the
+    # extraction read, sorted: further trace origins
+    origins: tuple[str, ...] = ()
 
     @property
     def multiline_decorator(self) -> bool:
@@ -180,6 +184,8 @@ class Endpoint:
 class NotRouted:
     operation: str  # curie of an operation a task of this container invokes
     container: str  # curie of the other container that exposes it
+    iri: str = ""  # the operation's full IRI, its origin in a generation trace (ADR-0019)
+    origins: tuple[str, ...] = ()  # the exposing container's IRI, a further trace origin
 
 
 @dataclass(frozen=True)
@@ -200,6 +206,7 @@ class RouteModule:
     endpoints: tuple[Endpoint, ...]
     exposes_text: str  # exposes joined with " , ", the header's seam:exposes object list
     iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
+    origins: tuple[str, ...] = ()  # the arch:System's IRI, a further trace origin
 
     @property
     def needs_identity(self) -> bool:
@@ -294,6 +301,7 @@ def _module(model: Model, container: Container) -> RouteModule:
         invoked_only=tuple(model.compact(e.iri) for e in exposed if e.iri in invoked_only),
         endpoints=tuple(_endpoint(model, e, triggered) for e in exposed if e.iri not in invoked_only),
         iri=str(container.iri),
+        origins=(str(systems[0].iri),),
     )
 
 
@@ -341,7 +349,12 @@ def _not_routed(model: Model, container: Container, processes: Many[Process]) ->
     another container seam:exposes."""
     invoked = sorted({op for p in processes for op in p.invoked_operations}, key=lambda op: str(op.iri))
     return tuple(
-        NotRouted(operation=model.compact(op.iri), container=model.compact(other.iri))
+        NotRouted(
+            operation=model.compact(op.iri),
+            container=model.compact(other.iri),
+            iri=str(op.iri),
+            origins=(str(other.iri),),
+        )
         for op in invoked
         for other in op.exposed_by
         if other != container
@@ -390,6 +403,7 @@ def _channel(model: Model, ch: Channel) -> Endpoint:
     accepts_curie = model.compact(accepts.iri) if accepts is not None else None
     return Endpoint(
         iri=str(ch.iri),
+        origins=(str(accepts.iri),) if accepts is not None else (),
         curie=model.compact(ch.iri),
         name=_handler_name(ch.iri),
         channel=True,
@@ -445,6 +459,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         validate = Validate(var=var, shape=model.compact(accepts.iri), source=body.var)
 
     complete = None
+    used: list[Process] = []  # the processes the endpoint starts or completes a task of
     task = _completed_task(op)
     if task is not None:
         if op.iri in triggered:
@@ -454,6 +469,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         if body is None:
             raise GeneratorError(op.iri, COMM.requestMediaType, f"completing {task} needs a request body")
         process = _task_process(model, task)
+        used.append(process)
         key = _correlation_key(model, process)
         if key not in variables:
             raise GeneratorError(
@@ -467,6 +483,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
     start = None
     if op.iri in triggered:
         process = triggered[op.iri]
+        used.append(process)
         if validate is None:
             raise GeneratorError(op.iri, SEAM.acceptsShape, f"starting {process.iri} needs a validated payload")
         key = _correlation_key(model, process)
@@ -516,8 +533,25 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
     if complete is not None:
         arguments += (f'identity: Identity = Depends(runtime.task_policy("{complete.task}"))',)
     policies = tuple(model.compact(p.iri) for p in op.governed_by)
+    with view_errors():
+        origins = {str(x.iri) for x in (accepts, returns) if x is not None}
+        origins |= {str(p.iri) for p in op.governed_by}
+        origins.add(str(component))
+        origins |= {
+            str(flow.iri)
+            for event in op.submitted_by
+            for flow in event.flows
+            if flow.kind == IFML.NavigationFlow and URIRef(str(component)) in flow.targets.iris()
+        }
+        for process in used:
+            origins |= {str(process.iri), *map(str, process.bpmn_models)}
+            if process.correlation_parameter is not None:
+                origins.add(str(process.correlation_parameter))
+    if task is not None:
+        origins.add(str(task))
     return Endpoint(
         iri=str(op.iri),
+        origins=tuple(sorted(origins)),
         curie=model.compact(op.iri),
         name=_handler_name(op.iri),
         channel=False,
@@ -647,7 +681,7 @@ def trace_routes(routes: RoutesModel, generator: str = "fastapi") -> dict[str, T
             output=m.file_name,
             generator=generator,
             expected=files[m.file_name],
-            fallback=(m.iri,),
+            fallback=view_iris(m),
         )
         for m in routes.modules
     }

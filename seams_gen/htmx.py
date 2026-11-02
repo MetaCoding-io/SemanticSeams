@@ -51,7 +51,7 @@ from seams import Component as ComponentView
 from . import GeneratorError
 from ._views import label, only, optional, required, view_errors
 from .fragments import ITEM, fragment_for
-from .trace import Trace, TracingEnvironment, trace_template
+from .trace import Trace, TracingEnvironment, trace_template, view_iris
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "htmx_page.html.j2"
@@ -106,6 +106,7 @@ class Field:
     options: tuple[str, ...] = ()  # sh:in values, in list order
     is_textarea: bool = False
     is_datetime: bool = False
+    iri: str = ""  # the shape's full IRI, its origin in a generation trace (ADR-0019)
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,8 @@ class Flow:
     target: str  # local name of ifml:target
     swap: str  # hx-swap
     target_id: str  # hx-target element id (#<target> or #<target>_items)
+    iri: str = ""  # the flow's full IRI, its origin in a generation trace (ADR-0019)
+    origins: tuple[str, ...] = ()  # the ifml:target's IRI, a further trace origin
 
 
 @dataclass(frozen=True)
@@ -126,6 +129,10 @@ class Link:
     vals: tuple[tuple[str, str], ...]  # hx-vals from the DataFlow ParameterBinding
     val_items: tuple[Val, ...] = ()  # vals, each with its separator
     close: str = ""  # ">" closing the <a> tag when there are no vals
+    iri: str = ""  # the event's full IRI, its origin in a generation trace (ADR-0019)
+    # the IRIs of the navigation flow, its target, the GET operation, and the
+    # data flows and their parameters, sorted
+    origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -135,6 +142,8 @@ class Stream:
     publisher: str  # curie of the delta publisher: the element that seam:publishesTo the channel and seam:invokes an operation, else its sole publisher
     connect: str  # sse-connect path
     event_name: str  # sse-swap
+    iri: str = ""  # the channel's full IRI, its origin in a generation trace (ADR-0019)
+    origins: tuple[str, ...] = ()  # the publisher and the consuming container, sorted
 
 
 @dataclass(frozen=True)
@@ -149,6 +158,7 @@ class Input:
     is_select: bool = False
     indent: str = ""  # aligns continuation attributes under the first
     attribute_items: tuple[Item, ...] = ()  # attributes, the last followed by the tag closer
+    iri: str = ""  # the written shape's full IRI, its origin in a generation trace (ADR-0019)
 
 
 @dataclass(frozen=True)
@@ -172,6 +182,10 @@ class Submit:
     mint_text: str = ""  # mint joined by "}, {"
     event_note: str = ""  # the event's seam:triggers / seam:governedBy comment suffix
     route_note: str = ""  # the operation's seam:governedBy comment suffix
+    iri: str = ""  # the event's full IRI, its origin in a generation trace (ADR-0019)
+    # the IRIs of the operation, the triggered processes, the policies and
+    # the consuming container, sorted
+    origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -212,6 +226,9 @@ class Component:
     unbound_verb: str = ""  # "is" or "are"
     unbound_pronoun: str = ""  # "it" or "them"
     iri: str = ""  # the component's full IRI, its origin in a generation trace (ADR-0019)
+    # the IRIs of the read and written shapes, the guard's lifecycle and
+    # states and the parameters, sorted: further trace origins
+    origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -266,6 +283,9 @@ class PageModel:
     screen_components: tuple[Component, ...] = ()  # rendered components of task form screens
     landmark: bool = True  # Page.is_landmark; False for the other model.interfaces.served_pages()
     iri: str = ""  # the page's full IRI, its origin in a generation trace (ADR-0019)
+    # the IRIs of the interaction model, the presenting container and its
+    # SSE channels, sorted: further trace origins
+    origins: tuple[str, ...] = ()
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
@@ -370,6 +390,7 @@ def _extract_page(model: Model, page) -> PageModel:
         screen_components=screens,
         landmark=landmark,
         iri=str(view.iri),
+        origins=tuple(sorted({str(imodel.iri), str(presenter.iri), *(str(ch.iri) for ch in sse_channels)})),
     )
 
 
@@ -444,6 +465,7 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
     guard_var = None
     guard_states: tuple[str, ...] = ()
     guard_curies: tuple[str, ...] = ()
+    guard_iris: set[str] = set()
     states = c.visible_when
     if states:
         if reads is None:
@@ -456,6 +478,7 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
                     machine.iri, STATE.hasState, f"guard state {state.iri} of {c.iri} is not a state of it"
                 )
         guard_var = _shape_name(reads.iri) + "_state"
+        guard_iris = {str(machine.iri), *(str(state.iri) for state in states)}
         guard_states = tuple(sorted(label(model, state.iri) for state in states))
         guard_curies = tuple(sorted(model.compact(state.iri) for state in states))
 
@@ -469,8 +492,11 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
     if guard_curies:
         note += ", seam:visibleWhen " + " , ".join(guard_curies)
     parameters = tuple(sorted(_parameters(model, c)))
+    origins = guard_iris | {str(x.iri) for x in (reads, writes) if x is not None}
+    origins |= {str(p.iri) for p in c.parameter_bindings}
     base = dict(
         iri=str(c.iri),
+        origins=tuple(sorted(origins)),
         id=local_name(c.iri),
         curie=model.compact(c.iri),
         kind=local_name(ctype),
@@ -531,6 +557,8 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
                 raise GeneratorError(ch.iri, SEAM.publishesTo, f"expected one publisher, found {len(publishers)}")
             template, _ = _path_template(ch)
             stream = Stream(
+                iri=str(ch.iri),
+                origins=tuple(sorted({str(publishers[0].iri), str(presenter.iri)})),
                 id=local_name(ch.iri),
                 curie=model.compact(ch.iri),
                 publisher=model.compact(publishers[0].iri),
@@ -585,6 +613,7 @@ def _fields(shape) -> tuple[Field, ...]:
             kind = "text"
         fields.append(
             Field(
+                iri=str(shape.iri),
                 name=prop.name,
                 kind=kind,
                 order=prop.order,
@@ -606,7 +635,14 @@ def _flow(model: Model, flow) -> Flow:
         raise GeneratorError(flow.iri, IFML.swap, f"unknown swap strategy {swap}")
     hx_swap, to_items = SWAPS[swap]
     tid = local_name(target.iri) + ("_items" if to_items else "")
-    return Flow(curie=model.compact(flow.iri), target=local_name(target.iri), swap=hx_swap, target_id=tid)
+    return Flow(
+        curie=model.compact(flow.iri),
+        target=local_name(target.iri),
+        swap=hx_swap,
+        target_id=tid,
+        iri=str(flow.iri),
+        origins=(str(target.iri),),
+    )
 
 
 def _navigation(event):
@@ -635,10 +671,13 @@ def _list_link(model: Model, c) -> Link:
     get_path = _fill(template, lambda var: "item." + mappings[var])
 
     vals = []
+    origins = {str(navigation.iri), str(target.iri), str(reads_ops[0].iri)}
     for df in c.data_flows:
         if target.iri not in df.targets.iris():
             continue
+        origins.add(str(df.iri))
         for binding in df.binds:
+            origins |= {str(binding.source), str(binding.target)}
             name = label(model, binding.target)
             if name not in mappings:
                 raise GeneratorError(
@@ -647,6 +686,8 @@ def _list_link(model: Model, c) -> Link:
             vals.append((name, "item." + mappings[name]))
     vals = sorted(vals)
     return Link(
+        iri=str(event.iri),
+        origins=tuple(sorted(origins)),
         event_trigger=required(event.trigger, event.iri, IFML.trigger),
         flow=flow,
         get_path=get_path,
@@ -690,7 +731,11 @@ def _submit(model: Model, c, presenter, fill_param, mintable=frozenset()) -> Sub
     if event_policies:
         event_note += " seam:governedBy " + ", ".join(event_policies)
     route_note = " ; the route enforces seam:governedBy " + ", ".join(route_policies) if route_policies else ""
+    origins = {str(op.iri), str(presenter.iri)}
+    origins |= {str(x.iri) for x in (*event.triggers_all, *event.governed_by, *op.governed_by)}
     return Submit(
+        iri=str(event.iri),
+        origins=tuple(sorted(origins)),
         event=model.compact(event.iri),
         label=label(model, event.iri),
         method=method.lower(),
@@ -834,6 +879,7 @@ def _task_input(prefix: str, fl: Field) -> Input:
         return _input(prefix, fl)
     attributes = (f'name="{fl.name}"',) + (("required",) if fl.required else ())
     return Input(
+        iri=fl.iri,
         id=f"{prefix}_{fl.name}",
         name=fl.name,
         element="select",
@@ -854,6 +900,7 @@ def _input(prefix: str, fl: Field) -> Input:
     if fl.required:
         attributes.append("required")
     return Input(
+        iri=fl.iri,
         id=f"{prefix}_{fl.name}",
         name=fl.name,
         element=element,
@@ -945,29 +992,35 @@ def render_pages(pages: tuple[ServedPage, ...]) -> dict[str, str]:
 
 def trace_pages(pages: tuple[ServedPage, ...], generator: str = "htmx") -> dict[str, Trace]:
     """{file name: Trace} for the files of ``render_pages(pages)``. A line no
-    origin-carrying value lands on takes the IRI of the page, the component
+    origin-carrying value lands on takes the IRIs of the page, the component
     of a fragment partial or the form of a task form partial; a partial two
     pages name gets the union of both traces."""
     files = render_pages(pages)
     env = _tracing_environment()
     traces: dict[str, Trace] = {}
 
-    def add(name: str, template: str, context: dict[str, Any], fallback: str) -> None:
+    def add(name: str, template: str, context: dict[str, Any], enclosing: object) -> None:
         trace = trace_template(
-            env, template, context, output=name, generator=generator, expected=files[name], fallback=(fallback,)
+            env,
+            template,
+            context,
+            output=name,
+            generator=generator,
+            expected=files[name],
+            fallback=view_iris(enclosing),
         )
         traces[name] = traces[name].union(trace) if name in traces else trace
 
     for served in pages:
         page = served.page
-        add(f"{page.id}.html", TEMPLATE_NAME, {"page": page}, page.iri)
+        add(f"{page.id}.html", TEMPLATE_NAME, {"page": page}, page)
         by_id = {c.id: c for c in page.components + page.screen_components}
         for fr in page.fragments:
             c = by_id[fr.component]
-            add(fr.name, FRAGMENT_TEMPLATE_NAME, {"page": page, "fr": fr, "c": c}, c.iri)
+            add(fr.name, FRAGMENT_TEMPLATE_NAME, {"page": page, "fr": fr, "c": c}, c)
         if page.landmark:
             for tf in page.task_forms:
-                add(tf.name, TASK_FORM_TEMPLATE_NAME, {"page": page, "t": tf}, tf.iri)
+                add(tf.name, TASK_FORM_TEMPLATE_NAME, {"page": page, "t": tf}, tf)
     return traces
 
 

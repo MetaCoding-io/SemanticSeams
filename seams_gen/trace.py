@@ -15,8 +15,10 @@ A trace comes from a second render of the same view model with a
   (an included template's lines are inside the span of the include).
   Block-only lines and comments emit no text, so they get none.
 - ``getattr``/``getitem`` that tag a plain ``str`` read off a view object
-  carrying an ``iri`` (or one reached from such an object) with that IRI, and
-  a ``finalize`` that emits a term sentinel before each tagged value.
+  carrying an ``iri`` (or one reached from such an object) with that
+  object's IRIs (``view_iris``: the ``iri`` and the sorted ``origins``, the
+  further model elements its extraction read), and a ``finalize`` that emits
+  a term sentinel per IRI before each tagged value.
 
 ``trace_template`` renders, strips the sentinels and requires the result to
 equal the normal render; a mismatch, or a sentinel character already in the
@@ -106,24 +108,30 @@ def _sentinel(kind: str, payload: str = "") -> str:
 
 
 class _Origin(str):
-    """A ``str`` read off a view object carrying ``iri``."""
+    """A ``str`` read off a view object carrying ``iri``, with that object's IRIs."""
 
-    iri: str
+    iris: tuple[str, ...]
 
-    def __new__(cls, text: str, iri: str) -> _Origin:
+    def __new__(cls, text: str, iris: tuple[str, ...]) -> _Origin:
         value = super().__new__(cls, text)
-        value.iri = iri
+        value.iris = iris
         return value
 
 
-def _own_iri(obj: object) -> str | None:
+def view_iris(obj: object) -> tuple[str, ...]:
+    """The model IRIs of a view object: its non-empty ``iri`` followed by its
+    ``origins`` (a tuple of IRI strings, when it has one); () without an ``iri``."""
     iri = getattr(obj, "iri", None)
-    return iri if isinstance(iri, str) and iri else None
+    if not isinstance(iri, str) or not iri:
+        return ()
+    origins: object = getattr(obj, "origins", ())
+    extra = tuple(o for o in origins if isinstance(o, str) and o) if isinstance(origins, tuple) else ()
+    return (iri, *extra)
 
 
 def _finalize(value: Any) -> Any:
-    iri = value.iri if isinstance(value, _Origin) else _own_iri(value)
-    return f"{_sentinel('T', iri)}{value}" if iri else value
+    iris = value.iris if isinstance(value, _Origin) else view_iris(value)
+    return "".join(_sentinel("T", iri) for iri in iris) + f"{value}" if iris else value
 
 
 def _mark_text(name: str, lineno: int, text: str) -> str:
@@ -167,24 +175,24 @@ class TracingEnvironment(jinja2.Environment):
 
     def __init__(self, **options: Any) -> None:
         super().__init__(finalize=_finalize, extensions=[_SentinelExtension], **options)
-        self._reached: dict[int, tuple[object, str]] = {}  # id -> (object, IRI it was reached from)
+        self._reached: dict[int, tuple[object, tuple[str, ...]]] = {}  # id -> (object, IRIs it was reached from)
 
-    def _iri(self, obj: object) -> str | None:
-        own = _own_iri(obj)
-        if own is not None:
+    def _iris(self, obj: object) -> tuple[str, ...]:
+        own = view_iris(obj)
+        if own:
             return own
         reached = self._reached.get(id(obj))
-        return reached[1] if reached is not None and reached[0] is obj else None
+        return reached[1] if reached is not None and reached[0] is obj else ()
 
     def _tag(self, obj: object, value: Any) -> Any:
-        iri = self._iri(obj)
-        if iri is None or isinstance(value, jinja2.Undefined):
+        iris = self._iris(obj)
+        if not iris or isinstance(value, jinja2.Undefined):
             return value
         if type(value) is str:
-            return _Origin(value, iri)
+            return _Origin(value, iris)
         for item in value if isinstance(value, tuple | list) else (value,):
-            if not isinstance(item, _PRIMITIVE) and _own_iri(item) is None:
-                self._reached.setdefault(id(item), (item, iri))
+            if not isinstance(item, _PRIMITIVE) and not view_iris(item):
+                self._reached.setdefault(id(item), (item, iris))
         return value
 
     def getattr(self, obj: Any, attribute: str) -> Any:
@@ -306,4 +314,12 @@ def trace_template(
     return Trace(output, generator, tuple(lines))
 
 
-__all__ = ["TRACE_VERSION", "Trace", "TraceLine", "TracingEnvironment", "render_trace_json", "trace_template"]
+__all__ = [
+    "TRACE_VERSION",
+    "Trace",
+    "TraceLine",
+    "TracingEnvironment",
+    "render_trace_json",
+    "trace_template",
+    "view_iris",
+]

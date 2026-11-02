@@ -481,17 +481,29 @@ A trace is a second render of the same view model with a `TracingEnvironment`
 extension's `filter_stream` adds a line sentinel to each piece of template text and a
 span around each `[[ expression ]]` and `[% include %]`; block-only and comment lines
 emit no text and get none. Its `getattr`/`getitem` tag a plain `str` read off a view
-object with an `iri` field (or an object reached from one) with that IRI, and its
-`finalize` emits a term sentinel before each tagged value. The view objects carry the
-`iri` fields: `PageModel`, `Component`, `TaskForm`, `RouteModule`, `Endpoint` and
-`Service`. A value a template filters, joins or concatenates loses its tag (value-level
+object with an `iri` field (or an object reached from one) with that object's IRIs,
+`view_iris(obj)`: the `iri`, then its `origins`, the sorted IRIs of the further model
+elements its extraction read (the shapes, flows, processes, policies and so on the line
+was derived from). Like `iri`, an origin is a model element, a subject of the model, so
+it can be a `seams.lock` source. Its `finalize` emits a term sentinel per IRI before
+each tagged value. The view objects with an `iri`: `PageModel`, `Component`, `Field`,
+`Flow`, `Link`, `Stream`, `Submit`, `Input` and `TaskForm` (htmx); `RouteModule`,
+`Endpoint` and `NotRouted` (fastapi); `ComposeModel`, `Service` and `Dependency`
+(compose). A value a template filters, joins or concatenates loses its tag (value-level
 spans wait for backlog T2).
 
 `trace_template(env, template, context, output=, generator=, expected=, fallback=)`
 strips the sentinels and requires exactly `expected`, the normal render, so templates
 need no change. A line no term sentinel lands on takes the terms of its innermost
-include that has any (the included component's), else `fallback`: the IRI of the page,
-fragment component, task form, serving container or `arch:Environment`. It raises
+include that has any (the included component's), else `fallback`: the `view_iris` of the
+page, fragment component, task form, serving container or `arch:Environment`.
+
+`tests/test_generation_trace.py` checks the traces against the golden markers: on every
+golden line that matches a generated line once its marker is stripped, each model element
+(a subject of `chat-app.trig`) a `[graph: ...]` marker cites must be in the line's terms or in those of the include it
+is in (a line-level trace records no loop scope), and each `[fixed]` line needs a
+template origin. A cited element the generator does not read is listed in the test's
+`KNOWN_GAPS`, with a backlog question. It raises
 `GeneratorError`, writing nothing, when:
 
 | Case | Subject | Detail |

@@ -153,4 +153,10 @@ and compose generators provide it. A third-party generator may leave it `None`.
   non-blank line, determinism, sentinel collision and mismatch).
 - T03: sidecars and trace-derived sources in `packages/seams-cli/src/seams_cli/generate.py`;
   regenerated examples.
-- T04: the golden-marker comparison and the backlog status.
+- T04: the golden-marker comparison and the backlog status. To make the traces name what
+  the goldens cite, a view object's IRIs are its `iri` plus an optional sorted `origins`
+  tuple: the further model elements its extraction read (`seams_gen.trace.view_iris`).
+  A value read off it carries all of them, and a fallback takes all of them. Because a
+  line-level trace records no loop scope, the test takes a line's enclosing view object's
+  terms to be those of the include it is in. One cited element the generator does not
+  read, `:select_to_thread` on `chat_api.py` line 31, is a known gap (backlog T1).

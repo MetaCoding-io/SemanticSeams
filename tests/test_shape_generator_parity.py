@@ -836,6 +836,10 @@ _NAMES = (
 _TRACE = (
     "the trace an executed diagram is drawn from is a runtime input (a JSON file or the SQLite store), not the model"
 )
+_GEN_TRACE = (
+    "it checks the traced template render against the normal one (ADR-0019), a property of the "
+    "templates and the rendered text, not of the model"
+)
 _HELPER = (
     "a generic helper: it raises for whatever fact its caller asks for, so the condition "
     "belongs to the calling site, not to this one"
@@ -943,6 +947,14 @@ GENERATOR_ONLY: dict[Site, str] = {
     Site("sequence", "read_trace", "'trace'", "no row"): f"The store has no row for the instance: {_TRACE}.",
     Site("sequence", "read_trace", "'trace'", "no trace"): f"The checkpoint holds no trace: {_TRACE}.",
     Site("sequence", "_rows", "'trace'"): f"The trace is not a list of rows: {_TRACE}.",
+    Site("trace", "_parse", "'trace'"): f"A trace span ends that never began: {_GEN_TRACE}.",
+    Site("trace", "trace_template", "'trace'", "sentinel"): (
+        f"A rendered line already holds a trace sentinel character: {_GEN_TRACE}."
+    ),
+    Site("trace", "trace_template", "'trace'", "differs"): (
+        f"The traced render differs from the normal render: {_GEN_TRACE}."
+    ),
+    Site("trace", "trace_template", "'trace'", "no origin"): f"A rendered line has no template origin: {_GEN_TRACE}.",
     Site("compose", "environments", "RDF.type"): (
         "A model without an arch:Environment is valid (a model with no deployment layer); "
         "only compose generation needs one."

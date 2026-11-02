@@ -9,7 +9,7 @@ module turns that edit into a one-triple patch to the model, or refuses it:
   is required; none or several is a ``Refusal`` listing the candidates, sorted.
 - ``draft`` is the patch: remove that quad, add the same subject, predicate and
   graph with the edited value, keeping the literal's language and datatype.
-- ``check`` copies the model files and payloads to a temporary directory laid
+- ``check`` (``regenerate``, then the comparison) copies the model files and payloads to a temporary directory laid
   out as the project is (generated paths are relative to the model), applies the
   patch there through ``seams_edit.apply`` and regenerates in memory with
   ``seams_cli.generate_project``. The regenerated output must equal the old
@@ -212,7 +212,8 @@ def _rebase(patch: Patch, old: Path, new: Path) -> Patch:
     return Patch(adds=[quad(q) for q in patch.adds], removes=[quad(q) for q in patch.removes])
 
 
-def _first_difference(output: str, expected: str, actual: str) -> str:
+def first_difference(output: str, expected: str, actual: str) -> str:
+    """The refusal detail naming the first line where ``actual`` differs from ``expected``."""
     want, got = _lines(expected), _lines(actual)
     for number, (w, a) in enumerate(zip(want, got, strict=False), start=1):
         if w != a:
@@ -222,10 +223,10 @@ def _first_difference(output: str, expected: str, actual: str) -> str:
     return f"regenerating gives {output} with different line endings"
 
 
-def check(project_dir: Path, model_path: Path, patch: Patch, output: str, edited: str) -> Regenerated:
-    """Regenerate with ``patch`` applied to a temporary copy of the model; require
-    ``output`` to come out as ``edited`` (the whole edited output text), hashes aside."""
-    subject, predicate = (patch.removes or patch.adds or ((output, "output", None, None),))[0][:2]
+def regenerate(project_dir: Path, model_path: Path, patch: Patch, subject: object, predicate: object) -> Regenerated:
+    """Regenerate in memory with ``patch`` applied to a temporary copy of the model.
+    A refusal for a model that cannot be read or generated names ``subject`` and
+    ``predicate`` (the fact the patch is about)."""
     try:
         project = load_project(project_dir)
         model = seams.load(model_path)
@@ -278,15 +279,23 @@ def check(project_dir: Path, model_path: Path, patch: Patch, output: str, edited
             if not path.name.endswith(SIDECAR_SUFFIX)
         }
         files = tuple(sorted(_relative(Path(e.path), tmp_root) for e in record.files))
+    return Regenerated(texts=texts, files=files, old_hash=old_hash, new_hash=new_hash)
 
-    old_hex, new_hex = old_hash.removeprefix("sha256:"), new_hash.removeprefix("sha256:")
+
+def check(project_dir: Path, model_path: Path, patch: Patch, output: str, edited: str) -> Regenerated:
+    """Regenerate with ``patch`` applied to a temporary copy of the model; require
+    ``output`` to come out as ``edited`` (the whole edited output text), hashes aside."""
+    subject, predicate = (patch.removes or patch.adds or ((output, "output", None, None),))[0][:2]
+    regenerated = regenerate(project_dir, model_path, patch, subject, predicate)
+    old_hex = regenerated.old_hash.removeprefix("sha256:")
+    new_hex = regenerated.new_hash.removeprefix("sha256:")
     expected = edited.replace(old_hex, new_hex)
-    actual = texts.get(output)
+    actual = regenerated.texts.get(output)
     if actual is None:
         raise Refusal(subject, predicate, f"regenerating no longer writes {output}")
     if actual != expected:
-        raise Refusal(subject, predicate, _first_difference(output, expected, actual))
-    return Regenerated(texts=texts, files=files, old_hash=old_hash, new_hash=new_hash)
+        raise Refusal(subject, predicate, first_difference(output, expected, actual))
+    return regenerated
 
 
 def effects(index: GenerationIndex, regenerated: Regenerated, output: str) -> tuple[Effect, ...]:
@@ -303,18 +312,23 @@ def effects(index: GenerationIndex, regenerated: Regenerated, output: str) -> tu
         before, after = _lines(before_texts.get(path, "")), _lines(regenerated.texts.get(path, ""))
         matcher = difflib.SequenceMatcher(None, before, after, autojunk=False)
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-            if tag == "equal":
-                continue
-            for k in range(max(i2 - i1, j2 - j1)):
-                found.append(
-                    Effect(
-                        output=path,
-                        line=i1 + k + 1 if i1 + k < i2 else i2 + 1,
-                        before=before[i1 + k] if i1 + k < i2 else "",
-                        after=after[j1 + k] if j1 + k < j2 else "",
-                    )
-                )
+            if tag != "equal":
+                found.extend(line_effects(path, before, after, (i1, i2, j1, j2)))
     return tuple(sorted(found, key=lambda e: (e.output, e.line, e.before, e.after)))
+
+
+def line_effects(output: str, before: list[str], after: list[str], opcode: tuple[int, int, int, int]) -> list[Effect]:
+    """One ``Effect`` per line of a difflib opcode (i1, i2, j1, j2) from ``before`` to ``after``."""
+    i1, i2, j1, j2 = opcode
+    return [
+        Effect(
+            output=output,
+            line=i1 + k + 1 if i1 + k < i2 else i2 + 1,
+            before=before[i1 + k] if i1 + k < i2 else "",
+            after=after[j1 + k] if j1 + k < j2 else "",
+        )
+        for k in range(max(i2 - i1, j2 - j1))
+    ]
 
 
 def write_back(

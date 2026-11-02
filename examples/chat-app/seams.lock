@@ -11,10 +11,12 @@
       "sha256": "5b1bd3c6b34366fff83dd96660d7c10fc958c60f9b18755b6e6e8a34704059ff",
       "sources": [
         "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_system",
         "https://example.org/chat/chat_ui",
         "https://example.org/chat/development",
         "https://example.org/chat/llm_gateway",
-        "https://example.org/chat/message_db"
+        "https://example.org/chat/message_db",
+        "https://example.org/chat/send_message_process"
       ]
     },
     {
@@ -22,13 +24,15 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "../../compose.development.yaml.trace.json",
-      "sha256": "ce5fc838d9ed4e6bb25288619c8f6e1acf3c4168d231ce477f05a3d419c4aacb",
+      "sha256": "772e2b6acb86d48144369be9bbe60b9897939eee855b3925c0d7fba4eb12506d",
       "sources": [
         "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_system",
         "https://example.org/chat/chat_ui",
         "https://example.org/chat/development",
         "https://example.org/chat/llm_gateway",
-        "https://example.org/chat/message_db"
+        "https://example.org/chat/message_db",
+        "https://example.org/chat/send_message_process"
       ]
     },
     {
@@ -38,11 +42,16 @@
       "path": "../../compose.production.yaml",
       "sha256": "b46023157dea9769d6567992aa861e761fb2bee5ab855f32abab0000a3183aa9",
       "sources": [
+        "https://example.org/chat/app01",
         "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_system",
         "https://example.org/chat/chat_ui",
+        "https://example.org/chat/db01",
         "https://example.org/chat/llm_gateway",
         "https://example.org/chat/message_db",
-        "https://example.org/chat/production"
+        "https://example.org/chat/production",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/web01"
       ]
     },
     {
@@ -50,13 +59,18 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "../../compose.production.yaml.trace.json",
-      "sha256": "eb4a0f308670718692d56c657dc0e3d1955c1c6b4b1ad6fe8d82a9aea355cff4",
+      "sha256": "18ba072c8c8a3817d8dfff512679d0e09f092153599e0bb767b3fe038e795d9f",
       "sources": [
+        "https://example.org/chat/app01",
         "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_system",
         "https://example.org/chat/chat_ui",
+        "https://example.org/chat/db01",
         "https://example.org/chat/llm_gateway",
         "https://example.org/chat/message_db",
-        "https://example.org/chat/production"
+        "https://example.org/chat/production",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/web01"
       ]
     },
     {
@@ -86,11 +100,23 @@
       "path": "generated/chat_api.py",
       "sha256": "0ac58fe61decad686a9e22f7b765f8571683544e7728fa244a693f2740b9704e",
       "sources": [
+        "https://example.org/chat/ConversationShape",
+        "https://example.org/chat/MessageShape",
         "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_bpmn",
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/completion_op",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/conversation_list",
         "https://example.org/chat/list_conversations_op",
+        "https://example.org/chat/llm_gateway",
+        "https://example.org/chat/message_thread",
         "https://example.org/chat/message_thread_op",
         "https://example.org/chat/send_message_op",
-        "https://example.org/chat/stream_events"
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/stream_events",
+        "https://example.org/chat/user_send_policy"
       ]
     },
     {
@@ -98,13 +124,25 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "generated/chat_api.py.trace.json",
-      "sha256": "0b01bc421a36c6939c5cd9c1289a15b76acced565b2b319276e759d41aea5871",
+      "sha256": "51309a9e0d1c22a690bec7fe192d7fdd9a41b1960849edfaf2f69865d072f171",
       "sources": [
+        "https://example.org/chat/ConversationShape",
+        "https://example.org/chat/MessageShape",
         "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_bpmn",
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/completion_op",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/conversation_list",
         "https://example.org/chat/list_conversations_op",
+        "https://example.org/chat/llm_gateway",
+        "https://example.org/chat/message_thread",
         "https://example.org/chat/message_thread_op",
         "https://example.org/chat/send_message_op",
-        "https://example.org/chat/stream_events"
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/stream_events",
+        "https://example.org/chat/user_send_policy"
       ]
     },
     {
@@ -114,10 +152,33 @@
       "path": "generated/templates/chat_page.html",
       "sha256": "838eece5787b37b4f1e59cff41b5d9118c3cd4f50f53203d17dc8db95d7fe9e9",
       "sources": [
+        "https://example.org/chat/ConversationShape",
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
+        "https://example.org/chat/chat_ui",
         "https://example.org/chat/compose_form",
+        "https://example.org/chat/conversation",
         "https://example.org/chat/conversation_list",
-        "https://example.org/chat/message_thread"
+        "https://example.org/chat/list_to_thread",
+        "https://example.org/chat/message_input",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/message_thread_op",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/select_conversation",
+        "https://example.org/chat/select_to_thread",
+        "https://example.org/chat/selected_conversation",
+        "https://example.org/chat/send_message",
+        "https://example.org/chat/send_message_op",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/stream_events",
+        "https://example.org/chat/user_send_policy"
       ]
     },
     {
@@ -125,12 +186,35 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "generated/templates/chat_page.html.trace.json",
-      "sha256": "de72f9417d5a6e1a0517fe88c384f8b63ce541e5f5428b88ab6760df6b8b92e6",
+      "sha256": "3d43104ab718a654625d60f51ce7088a2aab2f5ec5832b5e26d27b7f17a178d7",
       "sources": [
+        "https://example.org/chat/ConversationShape",
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
+        "https://example.org/chat/chat_ui",
         "https://example.org/chat/compose_form",
+        "https://example.org/chat/conversation",
         "https://example.org/chat/conversation_list",
-        "https://example.org/chat/message_thread"
+        "https://example.org/chat/list_to_thread",
+        "https://example.org/chat/message_input",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/message_thread_op",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/select_conversation",
+        "https://example.org/chat/select_to_thread",
+        "https://example.org/chat/selected_conversation",
+        "https://example.org/chat/send_message",
+        "https://example.org/chat/send_message_op",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/stream_events",
+        "https://example.org/chat/user_send_policy"
       ]
     },
     {
@@ -140,8 +224,19 @@
       "path": "generated/templates/conversation_list.html",
       "sha256": "e3037db1204a33b14586bad36a8e77da9ea7bd6009fed2c6f1cb255043278ffb",
       "sources": [
+        "https://example.org/chat/ConversationShape",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
-        "https://example.org/chat/conversation_list"
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/conversation_list",
+        "https://example.org/chat/list_to_thread",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/message_thread_op",
+        "https://example.org/chat/select_conversation",
+        "https://example.org/chat/select_to_thread",
+        "https://example.org/chat/selected_conversation",
+        "https://example.org/chat/stream_events"
       ]
     },
     {
@@ -149,10 +244,21 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "generated/templates/conversation_list.html.trace.json",
-      "sha256": "6897978967d969b241c924bf5f8f0fa136cd764623f09b47df2b51a26417cf8b",
+      "sha256": "0e4f84240107011a836c1035e06c383676737b26a5c80445daccf5e2332b82d1",
       "sources": [
+        "https://example.org/chat/ConversationShape",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
-        "https://example.org/chat/conversation_list"
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/conversation_list",
+        "https://example.org/chat/list_to_thread",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/message_thread_op",
+        "https://example.org/chat/select_conversation",
+        "https://example.org/chat/select_to_thread",
+        "https://example.org/chat/selected_conversation",
+        "https://example.org/chat/stream_events"
       ]
     },
     {
@@ -162,8 +268,19 @@
       "path": "generated/templates/message_thread.html",
       "sha256": "3744c5260709f79483f0ca5247b13a2f4dea04c335c12d1bf7f73b4e5619e20e",
       "sources": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
-        "https://example.org/chat/message_thread"
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
       ]
     },
     {
@@ -171,10 +288,21 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "generated/templates/message_thread.html.trace.json",
-      "sha256": "7e27a15cfeb6562be75d8818f87db94a34ed2a092cdc98c5be739e8d55eeaa79",
+      "sha256": "2671f2bce20ba03414d8406d74786103db15ec0d954bea8ada5f9568980aa972",
       "sources": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
-        "https://example.org/chat/message_thread"
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
       ]
     },
     {
@@ -184,8 +312,18 @@
       "path": "generated/templates/message_thread_item.html",
       "sha256": "552c2cc00adbcc57eb1544d383d47b1b5da75e42a1657d6de7a7150cbbb4a2bd",
       "sources": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
-        "https://example.org/chat/message_thread"
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
       ]
     },
     {
@@ -193,10 +331,20 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:ff9d4ea8a4e1dbe0885e0712c78de5bd16c2a10b8652afef997311acd55c01d0",
       "path": "generated/templates/message_thread_item.html.trace.json",
-      "sha256": "c02ae77a483c05738a9e6436b262e979adbe2c8d8c694f4bdb616e4e806e0b2f",
+      "sha256": "be78d0eed0a1763933c3c677036b25a3b53dda140978d5234058a0007b45c26b",
       "sources": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_ifml",
         "https://example.org/chat/chat_page",
-        "https://example.org/chat/message_thread"
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
       ]
     }
   ]

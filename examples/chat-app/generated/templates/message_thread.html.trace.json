@@ -1,0 +1,428 @@
+{
+  "generator": "htmx",
+  "lines": [
+    {
+      "line": 1,
+      "templates": [
+        "htmx_fragment.html.j2:6"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_ifml",
+        "https://example.org/chat/chat_page",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 2,
+      "templates": [
+        "htmx_fragment.html.j2:7"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_ifml",
+        "https://example.org/chat/chat_page",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 3,
+      "templates": [
+        "htmx_fragment.html.j2:8"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 4,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:28"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 5,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:31"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 6,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:33"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 7,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:35"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 8,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:36"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 9,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:4"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 10,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:7"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 11,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 12,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 13,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:9"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 14,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:14"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming"
+      ]
+    },
+    {
+      "line": 15,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:38"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 16,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:39"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 17,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:41"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 18,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:42"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 19,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:43"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 20,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:44"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 21,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:45"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 22,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:46"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 23,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:47"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 24,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:49"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    },
+    {
+      "line": 25,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:51"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn#invoke_llm",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_lifecycle",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/s_complete",
+        "https://example.org/chat/s_composing",
+        "https://example.org/chat/s_sending",
+        "https://example.org/chat/s_streaming",
+        "https://example.org/chat/stream_events"
+      ]
+    }
+  ],
+  "output": "message_thread.html",
+  "trace_version": 1
+}

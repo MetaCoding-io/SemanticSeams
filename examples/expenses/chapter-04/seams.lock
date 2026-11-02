@@ -10,12 +10,47 @@
       "path": "generated/expense_api.py",
       "sha256": "a4169326af967860e8bc2115efd31637b974c53446a7ba2fdd3cd798da11aa3d",
       "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#approve_expense",
         "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approval_to_details",
         "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_details",
         "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expense_system",
         "https://example.org/expenses/list_expenses_op",
-        "https://example.org/expenses/submit_expense_op"
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "generator": "fastapi",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:70f83e6e09b5ed1fb82e49c9ae32c666dbc816552bb359b978425b60f72a6631",
+      "path": "generated/expense_api.py.trace.json",
+      "sha256": "d5bce75135366ea2968806cf77b7f7a53d962f4b237f0408ac821d9bab6cbcf2",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approval_to_details",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_details_op",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/list_expenses_op",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
       ]
     },
     {
@@ -27,8 +62,33 @@
       "sources": [
         "https://example.org/expenses/ApprovalShape",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn#approve_expense",
-        "https://example.org/expenses/approve_form"
+        "https://example.org/expenses/approval_to_details",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/approve_form",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page",
+        "https://example.org/expenses/submit_approval"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:70f83e6e09b5ed1fb82e49c9ae32c666dbc816552bb359b978425b60f72a6631",
+      "path": "generated/templates/approve_form.html.trace.json",
+      "sha256": "8912b552d1785d461d221a77f73add49b6201fece0f812f7b219b44b1e7f76b9",
+      "sources": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_to_details",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/approve_form",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page",
+        "https://example.org/expenses/submit_approval"
       ]
     },
     {
@@ -38,9 +98,27 @@
       "path": "generated/templates/expense_details.html",
       "sha256": "54ecca75a2ef89752956180b7549e164edb37ab3bcc5ab33fdae8f7126658642",
       "sources": [
-        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approved_expense",
+        "https://example.org/expenses/employee_portal",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/expense_details_op"
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:70f83e6e09b5ed1fb82e49c9ae32c666dbc816552bb359b978425b60f72a6631",
+      "path": "generated/templates/expense_details.html.trace.json",
+      "sha256": "bd8ccfea190c1bdac392bf80fb05edb6844b3d84a14542714b9cec0e26d126e4",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approved_expense",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page"
       ]
     },
     {
@@ -50,8 +128,25 @@
       "path": "generated/templates/expense_list.html",
       "sha256": "6c1ba5d2bfd5aa59c9fab9dc7144d5d2e6f63b4882016b9c4ff924c7148278b2",
       "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
         "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/list_expenses_op"
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:70f83e6e09b5ed1fb82e49c9ae32c666dbc816552bb359b978425b60f72a6631",
+      "path": "generated/templates/expense_list.html.trace.json",
+      "sha256": "8dd6e27b35427eff05e3e49d339424ae748376e7553a025573364fb3bbdc1a9e",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expenses_page"
       ]
     },
     {
@@ -61,8 +156,25 @@
       "path": "generated/templates/expense_list_item.html",
       "sha256": "395caaa917170185aff319bdae1d34360f6ed456434a9139bf2f76524de3a96d",
       "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
         "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op"
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:70f83e6e09b5ed1fb82e49c9ae32c666dbc816552bb359b978425b60f72a6631",
+      "path": "generated/templates/expense_list_item.html.trace.json",
+      "sha256": "9bbe57bcc0fdf114de26f4fd0d13d889d6562dd564f13914b0fbe4830c3674f2",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expenses_page"
       ]
     },
     {
@@ -72,9 +184,43 @@
       "path": "generated/templates/expenses_page.html",
       "sha256": "c689e01bcb2ebb61fb49780604d1727d98eedcd04aac152f58d9526598de3179",
       "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount_input",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/date_input",
+        "https://example.org/expenses/description_input",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_form",
+        "https://example.org/expenses/expense_ifml",
         "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/expenses_page"
+        "https://example.org/expenses/expenses_page",
+        "https://example.org/expenses/submit_expense",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "generator": "htmx",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:70f83e6e09b5ed1fb82e49c9ae32c666dbc816552bb359b978425b60f72a6631",
+      "path": "generated/templates/expenses_page.html.trace.json",
+      "sha256": "ed44b6aa7539fa137010ee0b545ed0e369b81699218e8dd8daad784a3b721dbf",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount_input",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/date_input",
+        "https://example.org/expenses/description_input",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_form",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/expenses_page",
+        "https://example.org/expenses/submit_expense",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
       ]
     }
   ]

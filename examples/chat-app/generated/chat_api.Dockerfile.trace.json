@@ -1,0 +1,484 @@
+{
+  "generator": "dockerfile",
+  "lines": [
+    {
+      "line": 1,
+      "templates": [
+        "runtime.Dockerfile.j2:3"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 2,
+      "templates": [
+        "runtime.Dockerfile.j2:4"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 3,
+      "templates": [
+        "runtime.Dockerfile.j2:5"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 4,
+      "templates": [
+        "runtime.Dockerfile.j2:6"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 5,
+      "templates": [
+        "runtime.Dockerfile.j2:7"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 6,
+      "templates": [
+        "runtime.Dockerfile.j2:8"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 7,
+      "templates": [
+        "runtime.Dockerfile.j2:9"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 8,
+      "templates": [
+        "runtime.Dockerfile.j2:10"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 9,
+      "templates": [
+        "runtime.Dockerfile.j2:11"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 10,
+      "templates": [
+        "runtime.Dockerfile.j2:12"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 11,
+      "templates": [
+        "runtime.Dockerfile.j2:13"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 12,
+      "templates": [
+        "runtime.Dockerfile.j2:14"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 13,
+      "templates": [
+        "runtime.Dockerfile.j2:15"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 14,
+      "templates": [
+        "runtime.Dockerfile.j2:16"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 15,
+      "templates": [
+        "runtime.Dockerfile.j2:17"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 17,
+      "templates": [
+        "runtime.Dockerfile.j2:19"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 19,
+      "templates": [
+        "runtime.Dockerfile.j2:21"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 20,
+      "templates": [
+        "runtime.Dockerfile.j2:22"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 21,
+      "templates": [
+        "runtime.Dockerfile.j2:23"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 22,
+      "templates": [
+        "runtime.Dockerfile.j2:24"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 23,
+      "templates": [
+        "runtime.Dockerfile.j2:25"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 24,
+      "templates": [
+        "runtime.Dockerfile.j2:26"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 25,
+      "templates": [
+        "runtime.Dockerfile.j2:27"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 27,
+      "templates": [
+        "runtime.Dockerfile.j2:29"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 28,
+      "templates": [
+        "runtime.Dockerfile.j2:30"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 29,
+      "templates": [
+        "runtime.Dockerfile.j2:31"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 30,
+      "templates": [
+        "runtime.Dockerfile.j2:32"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 31,
+      "templates": [
+        "runtime.Dockerfile.j2:33"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 32,
+      "templates": [
+        "runtime.Dockerfile.j2:34"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 33,
+      "templates": [
+        "runtime.Dockerfile.j2:35"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 34,
+      "templates": [
+        "runtime.Dockerfile.j2:36"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 35,
+      "templates": [
+        "runtime.Dockerfile.j2:37"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 36,
+      "templates": [
+        "runtime.Dockerfile.j2:38"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 37,
+      "templates": [
+        "runtime.Dockerfile.j2:39"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 38,
+      "templates": [
+        "runtime.Dockerfile.j2:40"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 39,
+      "templates": [
+        "runtime.Dockerfile.j2:41"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 40,
+      "templates": [
+        "runtime.Dockerfile.j2:42"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 41,
+      "templates": [
+        "runtime.Dockerfile.j2:43"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 43,
+      "templates": [
+        "runtime.Dockerfile.j2:45"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 44,
+      "templates": [
+        "runtime.Dockerfile.j2:46"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 45,
+      "templates": [
+        "runtime.Dockerfile.j2:47"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 46,
+      "templates": [
+        "runtime.Dockerfile.j2:48"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 48,
+      "templates": [
+        "runtime.Dockerfile.j2:50"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 49,
+      "templates": [
+        "runtime.Dockerfile.j2:51"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 50,
+      "templates": [
+        "runtime.Dockerfile.j2:52"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 51,
+      "templates": [
+        "runtime.Dockerfile.j2:53"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 52,
+      "templates": [
+        "runtime.Dockerfile.j2:54"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 53,
+      "templates": [
+        "runtime.Dockerfile.j2:55"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 55,
+      "templates": [
+        "runtime.Dockerfile.j2:57"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 56,
+      "templates": [
+        "runtime.Dockerfile.j2:58"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 58,
+      "templates": [
+        "runtime.Dockerfile.j2:60"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 59,
+      "templates": [
+        "runtime.Dockerfile.j2:61"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    },
+    {
+      "line": 60,
+      "templates": [
+        "runtime.Dockerfile.j2:62"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api"
+      ]
+    }
+  ],
+  "output": "chat_api.Dockerfile",
+  "trace_version": 1
+}

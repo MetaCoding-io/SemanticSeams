@@ -164,3 +164,13 @@ and compose generators provide it. A third-party generator may leave it `None`.
   edited output line's trace terms to find the one model literal written over the
   changed span, and accepts the one-triple patch only when regenerating with it gives
   back the edited output ([guide](../guide/the-viewer.md#write-back-from-output)).
+
+## Revision notes
+
+- 2026-11-02 (backlog T5, M021/S02): structural edit proposals also read the traces.
+  `viewer/structural.py` finds the form around an added or removed input from the trace
+  terms of the nearest traced lines above and below the edited block, because an input
+  line traces only the form's written shape, not its `ifml:Parameter`. The drafted
+  patch is accepted only when regenerating with it reproduces the edited block; lines it
+  changes elsewhere are shown as effects first
+  ([guide](../guide/the-viewer.md#structural-edits-adding-or-removing-a-form-input)).

@@ -5,7 +5,8 @@ each at ``seams_gen.__version__`` and with its ``sources`` from
 ``seams_gen.sources.SOURCES``. Each ``extract`` loads the model and runs the
 generator's own extract step; each ``render`` is its render step, so
 ``generate`` returns the same bytes as the generator's old ``generate``
-function.
+function. ``htmx``, ``fastapi``, ``compose`` and ``dockerfile`` also have a
+``trace`` (ADR-0019).
 """
 
 from __future__ import annotations
@@ -16,10 +17,10 @@ from pathlib import Path
 from seams import load
 
 from . import __version__
-from .compose import ComposeFile, extract_compose_environments, render_compose_environments
-from .dockerfile import DockerfileModel, extract_dockerfile, render_dockerfile
-from .fastapi import RoutesModel, extract_route_module, render_routes
-from .htmx import ServedPage, extract_pages, render_pages
+from .compose import ComposeFile, extract_compose_environments, render_compose_environments, trace_compose_environments
+from .dockerfile import DockerfileModel, extract_dockerfile, render_dockerfile, trace_dockerfile
+from .fastapi import RoutesModel, extract_route_module, render_routes, trace_routes
+from .htmx import ServedPage, extract_pages, render_pages, trace_pages
 from .ifmledit import FILE as IFMLEDIT_FILE
 from .ifmledit import IfmlEditDocument, extract_ifmledit, render_ifmledit, unmapped_summary
 from .protocol import Files, Generator
@@ -83,6 +84,7 @@ htmx = Generator(
     extract=_htmx_extract,
     render=render_pages,
     sources=SOURCES["htmx"],
+    trace=trace_pages,
 )
 
 fastapi = Generator(
@@ -92,6 +94,7 @@ fastapi = Generator(
     extract=_fastapi_extract,
     render=render_routes,
     sources=SOURCES["fastapi"],
+    trace=trace_routes,
 )
 
 compose = Generator(
@@ -101,6 +104,7 @@ compose = Generator(
     extract=_compose_extract,
     render=render_compose_environments,
     sources=SOURCES["compose"],
+    trace=trace_compose_environments,
 )
 
 tests = Generator(
@@ -128,6 +132,7 @@ dockerfile = Generator(
     extract=_dockerfile_extract,
     render=_dockerfile_render,
     sources=SOURCES["dockerfile"],
+    trace=trace_dockerfile,
 )
 
 ifmledit = Generator(

@@ -78,8 +78,9 @@ from seams import (
 from . import GeneratorError
 from ._views import optional, required, view_errors
 from .fastapi import serving_containers
-from .htmx import _environment
+from .htmx import _environment, _tracing_environment
 from .stubs import DEFAULT_HANDLERS
+from .trace import Trace, trace_template
 
 TEMPLATE_NAME = "compose.yaml.j2"
 
@@ -144,6 +145,7 @@ class Service:
     has_replicas: bool = False  # replicas is set
     has_declared_replicas: bool = False  # declared_replicas is set
     has_deploy: bool = False  # a deploy section: replicas or a placement
+    iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
 
 
 @dataclass(frozen=True)
@@ -400,6 +402,7 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
         placement = _scalar(f"node.labels.seams.node == {node_label}")
 
     return Service(
+        iri=str(c.iri),
         name=local_name(c.iri),
         image=_scalar(image),
         ports=tuple(ports),
@@ -537,6 +540,25 @@ def render_compose_environments(files: tuple[ComposeFile, ...]) -> dict[str, str
     return {f.name: render_compose(f.compose) for f in files}
 
 
+def trace_compose_environments(files: tuple[ComposeFile, ...], generator: str = "compose") -> dict[str, Trace]:
+    """{compose.<environment local name>.yaml: Trace} for the files of
+    ``render_compose_environments(files)``; a line no origin-carrying value
+    lands on takes the arch:Environment's IRI."""
+    env = _tracing_environment()
+    return {
+        f.name: trace_template(
+            env,
+            TEMPLATE_NAME,
+            {"c": f.compose},
+            output=f.name,
+            generator=generator,
+            expected=render_compose(f.compose),
+            fallback=(f.compose.environment,),
+        )
+        for f in files
+    }
+
+
 __all__ = [
     "Build",
     "ComposeFile",
@@ -553,5 +575,6 @@ __all__ = [
     "generate_compose_environments",
     "render_compose",
     "render_compose_environments",
+    "trace_compose_environments",
     "TEMPLATE_NAME",
 ]

@@ -60,7 +60,8 @@ from seams import Component as ComponentView
 from . import GeneratorError
 from ._views import label, required, view_errors
 from .fragments import ITEM, fragment_for
-from .htmx import _environment, _path_template, _shape_name, _task_curie, _task_process
+from .htmx import _environment, _path_template, _shape_name, _task_curie, _task_process, _tracing_environment
+from .trace import Trace, trace_template
 
 TEMPLATE_NAME = "fastapi_routes.py.j2"
 
@@ -167,6 +168,7 @@ class Endpoint:
     accepts_suffix: str = ""  # a channel's " ; seam:acceptsShape <curie>" header fact, or ""
     dependencies: str = ""  # the decorator's policy list, '[Depends(runtime.policy("<curie>")), ...]'
     validate_only: bool = False  # a separate runtime.validate call (no write or completion validates)
+    iri: str = ""  # the operation's or channel's full IRI, its origin in a generation trace (ADR-0019)
 
     @property
     def multiline_decorator(self) -> bool:
@@ -197,6 +199,7 @@ class RouteModule:
     invoked_only: tuple[str, ...]  # curies of exposed operations only a task invokes (not routed)
     endpoints: tuple[Endpoint, ...]
     exposes_text: str  # exposes joined with " , ", the header's seam:exposes object list
+    iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
 
     @property
     def needs_identity(self) -> bool:
@@ -290,6 +293,7 @@ def _module(model: Model, container: Container) -> RouteModule:
         not_routed=_not_routed(model, container, processes),
         invoked_only=tuple(model.compact(e.iri) for e in exposed if e.iri in invoked_only),
         endpoints=tuple(_endpoint(model, e, triggered) for e in exposed if e.iri not in invoked_only),
+        iri=str(container.iri),
     )
 
 
@@ -385,6 +389,7 @@ def _channel(model: Model, ch: Channel) -> Endpoint:
     arguments = tuple(f"{v}: str" for v in variables)
     accepts_curie = model.compact(accepts.iri) if accepts is not None else None
     return Endpoint(
+        iri=str(ch.iri),
         curie=model.compact(ch.iri),
         name=_handler_name(ch.iri),
         channel=True,
@@ -512,6 +517,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         arguments += (f'identity: Identity = Depends(runtime.task_policy("{complete.task}"))',)
     policies = tuple(model.compact(p.iri) for p in op.governed_by)
     return Endpoint(
+        iri=str(op.iri),
         curie=model.compact(op.iri),
         name=_handler_name(op.iri),
         channel=False,
@@ -628,6 +634,25 @@ def render_routes(routes: RoutesModel) -> dict[str, str]:
     return {m.file_name: template.render(r=routes, m=m) for m in routes.modules}
 
 
+def trace_routes(routes: RoutesModel, generator: str = "fastapi") -> dict[str, Trace]:
+    """{file name: Trace} for the files of ``render_routes(routes)``; a line
+    no origin-carrying value lands on takes the serving container's IRI."""
+    files = render_routes(routes)
+    env = _tracing_environment()
+    return {
+        m.file_name: trace_template(
+            env,
+            TEMPLATE_NAME,
+            {"r": routes, "m": m},
+            output=m.file_name,
+            generator=generator,
+            expected=files[m.file_name],
+            fallback=(m.iri,),
+        )
+        for m in routes.modules
+    }
+
+
 def extract_route_module(model: Model) -> RoutesModel:
     """The routes model of the model's one serving container; no or several
     serving containers are a GeneratorError(model, seam:executes)."""
@@ -661,6 +686,7 @@ __all__ = [
     "generate_routes",
     "render_routes",
     "route_module",
+    "trace_routes",
     "route_file_name",
     "serving_containers",
     "TEMPLATE_NAME",

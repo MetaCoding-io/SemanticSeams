@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import jinja2
 from rdflib import RDF, XSD, URIRef
@@ -50,6 +51,7 @@ from seams import Component as ComponentView
 from . import GeneratorError
 from ._views import label, only, optional, required, view_errors
 from .fragments import ITEM, fragment_for
+from .trace import Trace, TracingEnvironment, trace_template
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "htmx_page.html.j2"
@@ -209,6 +211,7 @@ class Component:
     unbound_text: str = ""  # unbound as an English list
     unbound_verb: str = ""  # "is" or "are"
     unbound_pronoun: str = ""  # "it" or "them"
+    iri: str = ""  # the component's full IRI, its origin in a generation trace (ADR-0019)
 
 
 @dataclass(frozen=True)
@@ -244,6 +247,7 @@ class TaskForm:
     unbound_text: str = ""
     unbound_verb: str = ""
     unbound_pronoun: str = ""
+    iri: str = ""  # the form's full IRI, its origin in a generation trace (ADR-0019)
 
 
 @dataclass(frozen=True)
@@ -261,6 +265,7 @@ class PageModel:
     task_forms: tuple[TaskForm, ...] = ()
     screen_components: tuple[Component, ...] = ()  # rendered components of task form screens
     landmark: bool = True  # Page.is_landmark; False for the other model.interfaces.served_pages()
+    iri: str = ""  # the page's full IRI, its origin in a generation trace (ADR-0019)
 
 
 # ── graph helpers ───────────────────────────────────────────────────────────
@@ -364,6 +369,7 @@ def _extract_page(model: Model, page) -> PageModel:
         task_forms=task_forms,
         screen_components=screens,
         landmark=landmark,
+        iri=str(view.iri),
     )
 
 
@@ -464,6 +470,7 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
         note += ", seam:visibleWhen " + " , ".join(guard_curies)
     parameters = tuple(sorted(_parameters(model, c)))
     base = dict(
+        iri=str(c.iri),
         id=local_name(c.iri),
         curie=model.compact(c.iri),
         kind=local_name(ctype),
@@ -771,6 +778,7 @@ def _task_form(model: Model, form, task, presenter) -> TaskForm:
         inputs=tuple(_task_input(prefix, fl) for fl in fields if fl.name in bound),
         unbound=unbound,
         **_unbound(unbound),
+        iri=str(form.iri),
     )
 
 
@@ -858,8 +866,9 @@ def _input(prefix: str, fl: Field) -> Input:
 # ── rendering ───────────────────────────────────────────────────────────────
 
 
-def _environment() -> jinja2.Environment:
-    env = jinja2.Environment(
+def _options() -> dict[str, Any]:
+    """The Jinja2 options every seams_gen template renders with."""
+    return dict(
         loader=jinja2.FileSystemLoader(str(TEMPLATE_DIR)),
         variable_start_string="[[",
         variable_end_string="]]",
@@ -873,7 +882,15 @@ def _environment() -> jinja2.Environment:
         undefined=jinja2.StrictUndefined,
         autoescape=False,
     )
-    return env
+
+
+def _environment() -> jinja2.Environment:
+    return jinja2.Environment(**_options())
+
+
+def _tracing_environment() -> TracingEnvironment:
+    """``_environment`` rendering with trace sentinels (ADR-0019)."""
+    return TracingEnvironment(**_options())
 
 
 def render_page(page: PageModel) -> str:
@@ -924,6 +941,34 @@ def render_pages(pages: tuple[ServedPage, ...]) -> dict[str, str]:
                 )
             files[name] = text
     return files
+
+
+def trace_pages(pages: tuple[ServedPage, ...], generator: str = "htmx") -> dict[str, Trace]:
+    """{file name: Trace} for the files of ``render_pages(pages)``. A line no
+    origin-carrying value lands on takes the IRI of the page, the component
+    of a fragment partial or the form of a task form partial; a partial two
+    pages name gets the union of both traces."""
+    files = render_pages(pages)
+    env = _tracing_environment()
+    traces: dict[str, Trace] = {}
+
+    def add(name: str, template: str, context: dict[str, Any], fallback: str) -> None:
+        trace = trace_template(
+            env, template, context, output=name, generator=generator, expected=files[name], fallback=(fallback,)
+        )
+        traces[name] = traces[name].union(trace) if name in traces else trace
+
+    for served in pages:
+        page = served.page
+        add(f"{page.id}.html", TEMPLATE_NAME, {"page": page}, page.iri)
+        by_id = {c.id: c for c in page.components + page.screen_components}
+        for fr in page.fragments:
+            c = by_id[fr.component]
+            add(fr.name, FRAGMENT_TEMPLATE_NAME, {"page": page, "fr": fr, "c": c}, c.iri)
+        if page.landmark:
+            for tf in page.task_forms:
+                add(tf.name, TASK_FORM_TEMPLATE_NAME, {"page": page, "t": tf}, tf.iri)
+    return traces
 
 
 def generate_pages(model: Model) -> dict[str, str]:

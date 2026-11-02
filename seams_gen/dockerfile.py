@@ -36,7 +36,8 @@ from . import GeneratorError
 from ._views import required, view_errors
 from .compose import DEVELOPMENT, _executing, _resolve_environment
 from .fastapi import route_file_name
-from .htmx import _environment
+from .htmx import _environment, _tracing_environment
+from .trace import Trace, trace_template
 
 TEMPLATE_NAME = "runtime.Dockerfile.j2"
 SUFFIX = ".Dockerfile"
@@ -100,6 +101,22 @@ def render_dockerfile(d: DockerfileModel) -> str:
     return _environment().get_template(TEMPLATE_NAME).render(d=d)
 
 
+def trace_dockerfile(d: DockerfileModel, generator: str = "dockerfile") -> dict[str, Trace]:
+    """{<route module stem>.Dockerfile: Trace}; a line no origin-carrying value
+    lands on takes the serving container's IRI."""
+    name = Path(d.dockerfile).name
+    trace = trace_template(
+        _tracing_environment(),
+        TEMPLATE_NAME,
+        {"d": d},
+        output=name,
+        generator=generator,
+        expected=render_dockerfile(d),
+        fallback=(d.container,),
+    )
+    return {name: trace}
+
+
 def generate_dockerfiles(trig_path) -> dict[str, str]:
     """{<route module stem>.Dockerfile: text} for the model's serving container."""
     model = load(trig_path)
@@ -113,5 +130,6 @@ __all__ = [
     "extract_dockerfile",
     "generate_dockerfiles",
     "render_dockerfile",
+    "trace_dockerfile",
     "TEMPLATE_NAME",
 ]

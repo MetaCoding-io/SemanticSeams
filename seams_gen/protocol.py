@@ -13,6 +13,11 @@ text, the SHACL shapes the model must conform to before it runs
   elements each file comes from, with exactly the file names ``generate``
   returns. ``seams generate`` records them in seams.lock.
 
+and, optionally, ``trace(view)``: ``{relative file name: Trace}`` with
+exactly the file names ``render`` returns, the line-level generation trace
+of each file (ADR-0019, ``seams_gen.trace``). ``None`` (the default) means
+the generator writes no trace sidecars.
+
 ``precondition_faults(results, shapes)`` reads a pyshacl results graph of the
 model validated against ``shapes`` (ontology/shapes) and returns a sorted
 ``GeneratorError`` per result of one of ``preconditions``;
@@ -32,6 +37,7 @@ from pathlib import Path
 from rdflib import RDF, Graph, Namespace, URIRef
 
 from . import GeneratorError
+from .trace import Trace
 
 SH = Namespace("http://www.w3.org/ns/shacl#")
 
@@ -48,6 +54,7 @@ class Generator[V]:
     render: Callable[[V], Files]
     sources: Callable[[Path, Path], Sources]
     preconditions: tuple[str, ...] = ()  # sh:NodeShape IRIs
+    trace: Callable[[V], dict[str, Trace]] | None = None  # ADR-0019
 
     def generate(self, trig: Path, out: Path) -> Files:
         """{relative file name: text}: ``render(extract(trig, out))``."""

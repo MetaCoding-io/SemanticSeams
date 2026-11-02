@@ -102,6 +102,10 @@ and three functions:
   file comes from, with exactly the file names `render` returns; `seams generate`
   records them in `seams.lock`.
 
+An optional fourth, `trace(view)` (default `None`), gives `{relative file name: Trace}`
+with exactly the file names `render` returns: the line-level generation trace of each
+file ([ADR-0019](../docs/adr/0019-generation-trace.md), "Generation traces" below).
+
 `generate(trig, out)` is `render(extract(trig, out))`; only `compose` uses `out`.
 `check_preconditions(results, shapes)` reads a pyshacl report of the model against
 `ontology/shapes` and raises `GeneratorError` (subject the focus node, predicate the shape
@@ -118,7 +122,8 @@ The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke` (M015/
 has a real extract and render step built on its `extract_*` and `render_*` functions
 (htmx extracts every `PageModel`, then renders each), takes its sources from
 `sources.py` and declares no preconditions; `ifmledit` keeps its stderr summary of
-unmapped terms.
+unmapped terms. `htmx`, `fastapi`, `compose` and `dockerfile` have a `trace`
+(`trace_pages`, `trace_routes`, `trace_compose_environments`, `trace_dockerfile`).
 
 `registry.discover()` loads every entry point of the `seams.generators` group (D056) and
 returns `{name: Generator}` sorted by name. The built-ins are registered in
@@ -461,6 +466,41 @@ missing or ambiguous fact raises the generator's `GeneratorError`.
 | `tests` | `test_shape_examples.py` | each `sh:NodeShape` with examples and each example node |
 | `tests` | `test_policies.py` | each `odrl:Policy`, each permission target, each `odrl:Party` and each scenario that reaches a target |
 | `smoke` | `test_smoke.py` | each operation with a method and a path, the shapes it accepts and returns and its error statuses' shapes, each example node it sends or fills a path from, and each governing `odrl:Policy` and its assignee |
+
+## Generation traces
+
+`trace.py` ([ADR-0019](../docs/adr/0019-generation-trace.md)) holds `Trace` (`output`,
+`generator`, `lines`) and `TraceLine` (`line`, `templates`, `terms`), and
+`render_trace_json(trace)`, the `<output>.trace.json` sidecar text: sorted-key JSON, two-space
+indented, ending in a newline, with `trace_version` 1. A trace has one line per
+non-blank output line; `templates` are `<template file>:<line>`, outermost include
+first, and `terms` are full model IRIs, sorted.
+
+A trace is a second render of the same view model with a `TracingEnvironment`
+(`htmx._tracing_environment()`: the shared options of `htmx._environment()`). Its
+extension's `filter_stream` adds a line sentinel to each piece of template text and a
+span around each `[[ expression ]]` and `[% include %]`; block-only and comment lines
+emit no text and get none. Its `getattr`/`getitem` tag a plain `str` read off a view
+object with an `iri` field (or an object reached from one) with that IRI, and its
+`finalize` emits a term sentinel before each tagged value. The view objects carry the
+`iri` fields: `PageModel`, `Component`, `TaskForm`, `RouteModule`, `Endpoint` and
+`Service`. A value a template filters, joins or concatenates loses its tag (value-level
+spans wait for backlog T2).
+
+`trace_template(env, template, context, output=, generator=, expected=, fallback=)`
+strips the sentinels and requires exactly `expected`, the normal render, so templates
+need no change. A line no term sentinel lands on takes the terms of its innermost
+include that has any (the included component's), else `fallback`: the IRI of the page,
+fragment component, task form, serving container or `arch:Environment`. It raises
+`GeneratorError`, writing nothing, when:
+
+| Case | Subject | Detail |
+|---|---|---|
+| The normal render already holds a sentinel character (U+E000, U+E001) | the template | `line <n> of <output> already holds a trace sentinel character` |
+| The stripped render differs from the normal one (say, a filter block over template text) | `<template file>:<line>` of the first differing line | `the traced render of <output> differs from the normal render at line <n>` |
+| A non-blank line has no template origin | the template | `line <n> of <output> has no template origin` |
+
+The predicate of each is `trace`.
 
 ## Complexity check
 

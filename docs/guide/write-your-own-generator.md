@@ -229,7 +229,15 @@ A `Generator` has a `name`, a `version`, a one-line `help` and three functions:
   elements it comes from. `seams.lock` records them.
 
 It can also name `preconditions`: the full IRIs of the SHACL node shapes the model must
-conform to before it runs. Put the checklist in its own package, here
+conform to before it runs, and a `trace(view)` function giving, per file `render`
+writes, a `seams_gen.trace.Trace`: the template line and model IRIs behind each line
+([ADR-0019](/adr/0019-generation-trace)). A Jinja2 generator gets one from
+`seams_gen.trace.trace_template`, rendering its template a second time with a
+`TracingEnvironment` built with the same options; strings read off view objects with an
+`iri` field supply the terms. Leave `trace` out (it defaults to `None`) and the
+generator writes no trace.
+
+Put the checklist in its own package, here
 `seams_checklist/__init__.py`, and import the `checklist` function from the module
 above:
 

@@ -44,6 +44,7 @@ const decisions = [
   ["0015", "Environments", "0015-environments"],
   ["0016", "Generator protocol", "0016-generator-protocol"],
   ["0017", "Write path and editor", "0017-write-path-and-editor"],
+  ["0018", "Domain profiles", "0018-domain-profiles"],
 ] as const;
 
 export default defineConfig({

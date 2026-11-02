@@ -165,6 +165,18 @@ milestone covers yet.
 | A12 | **Workspace members in the generated Dockerfile come from the workspace**: `seams_gen/templates/runtime.Dockerfile.j2` lists each uv workspace member's `pyproject.toml` by hand, so adding or moving a member breaks the image build until the template is edited. Read the members from the root `pyproject.toml` in `extract_dockerfile` instead. Found by the M016/S03 principles gate | S | A5 | none | proposed |
 | A13 | **Publish every image the model builds**: `seams_gen.images` lists only Dockerfiles the `dockerfile` generator writes, so the hand-written `llm-gateway` (built in development from `docker/gateway.Dockerfile`) is never published and its production artifact, `ghcr.io/example/llm-gateway:latest`, names an image nothing produces. List every container whose development override has a `deploy:build`, point the gateway's production artifact at `ghcr.io/metacoding-io/llm-gateway` with a pinned `deploy:version`, and add a revision note to ADR-0015. Found at M016 validation | S | A5 | none | done: `seams_gen.images` lists every container with a development `deploy:build`; the gateway publishes as `ghcr.io/metacoding-io/llm-gateway:0.3.1` |
 
+*Added 2026-11-02 from the [domain-driven design note](research/2026-11-02-domain-driven-design.md).
+DDD's tactical patterns are already in the graph under other names; these items add the
+strategic layer it lacks, a derived event-storm view, and DDD as the second profile.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| B1 | **Domains and bounded contexts in `arch:`**: a domain that `arch:contains` systems, with a core, supporting or generic classification; a bounded context as the owner of an ontology and the named graphs that use it. Earns "core operations with no handler and no scenario" and the per-context questions below. Decided in O1's ADR alongside where the ontology lives | M | O1, K6; ADR first | a domain class with a classification, and a context boundary, in `arch:` | proposed |
+| B2 | **Context map facts and queries**: one relationship type per pair of contexts (customer-supplier, conformist, anti-corruption layer, published language, shared kernel); U8's shape diff scoped per downstream context; a gate for cross-context calls with no translating operation | M | B1, U8 | a relationship fact between contexts; no seam predicate | proposed |
+| B3 | **Lifecycle on the class, states as events**: `seam:lifecycle` targets the class once O2 lands, with a shape's lifecycle derived through `sh:targetClass`; a transition is a domain event with an IRI, publishable on a channel without a copied label | M | O1, O2 | widens `seam:lifecycle`'s subject | proposed |
+| B4 | **Derived event-storm view**: `seams storm <process>`, a timeline per process from the graph (actor, command, aggregate, transitions, decisions, channels, started processes, read models), with a golden test on the expense tutorial, then a viewer section; the bounded context canvas as a second derived view | S | none for the storm; B1 for the canvas | none | proposed |
+| B5 | **DDD profile**: a shapes library attached by `seam:conformsTo` (one correlation key, lifecycle and store per aggregate; no shape written from two contexts; cross-context calls translated unless declared conformist; bundles today's ungoverned-writes and unfired-transitions gates), as the second profile after IDesign; Context Mapper import and export | L | I5, B1, B2 | extends `seam:Profile` | proposed |
+
 ## Generator kit and domain IDE
 
 *Added 2026-10-30 from the [generator kit and domain IDE note](research/2026-10-30-domain-ide-and-generator-kit.md),

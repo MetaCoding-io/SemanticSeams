@@ -46,5 +46,6 @@
     <p class="edit-none">No shape targets this element, so it has no form.</p>
   {% endfor %}
 </section>
-{# After a save the shell's health panel is stale (MEM009): send it out of band. #}
-{% if saved %}{% with oob=true %}{% include "health-panel.html" %}{% endwith %}{% endif %}
+{# After a save the shell's health panel and live preview are stale (MEM009):
+   send both out of band. #}
+{% if saved %}{% with oob=true %}{% include "health-panel.html" %}{% if preview %}{% include "preview-panel.html" %}{% endif %}{% endwith %}{% endif %}

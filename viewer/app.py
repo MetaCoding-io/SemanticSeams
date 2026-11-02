@@ -1164,6 +1164,7 @@ def _edit_context(request: Request, iri: str, **extra) -> dict:
         "model_conformance": model_health(ds),
         "saved": None,
         "error": None,
+        "preview": None,
         **extra,
     }
 
@@ -1348,7 +1349,9 @@ async def edit_save(request: Request, iri: str):
         path,
         ", ".join(f"{f['file']} (+{f['adds']} -{f['removes']})" for f in saved["files"]) or "no change",
     )
-    return templates.TemplateResponse(request, "edit-form.html", _edit_context(request, element, saved=saved))
+    return templates.TemplateResponse(
+        request, "edit-form.html", _edit_context(request, element, saved=saved, preview=preview_context())
+    )
 
 
 mount_edit_routes()

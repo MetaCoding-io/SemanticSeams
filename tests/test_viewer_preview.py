@@ -13,6 +13,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -157,3 +158,68 @@ def test_each_preview_is_logged(client, caplog):
         client.get("/edit/preview")
     (line,) = [r.getMessage() for r in caplog.records if r.getMessage().startswith("preview ")]
     assert re.fullmatch(r"preview chapter-03/seams\.toml: \d+ output\(s\), 0 fault\(s\) in \d+\.\d\ds", line)
+
+
+# T02: the pane beside the model, refreshed on save.
+
+EXPENSES = "https://example.org/expenses/"
+SEAM_READS = "https://w3id.org/seams/seam#reads"
+IFML_ORDER = "https://w3id.org/seams/ifml#order"
+HX = {"hx-request": "true"}
+PANE = 'class="preview-pane"'
+
+
+def _edit(iri: str) -> str:
+    return f"/edit/{quote(iri, safe='')}"
+
+
+def _view(iri: str) -> str:
+    return f"/view/{quote(iri, safe='')}"
+
+
+def test_the_edit_mode_page_has_the_preview_pane_beside_the_view(client):
+    html = client.get(_view(EXPENSES + "expense_list")).text
+    assert PANE in html
+    pane = html[html.index(PANE) :]
+    assert 'id="preview-panel"' in pane and 'hx-get="/edit/preview"' in pane and 'hx-trigger="load"' in pane
+    assert html.index('id="view-content"') < html.index(PANE), "the pane sits beside, after, the view"
+
+
+def test_a_fragment_swap_does_not_repeat_the_pane(client):
+    html = client.get(_view(EXPENSES + "expense_list"), headers=HX).text
+    assert PANE not in html and 'id="preview-panel"' not in html
+
+
+def test_the_read_only_page_has_no_preview_pane(app_dir, monkeypatch, restore_viewer):
+    monkeypatch.delenv(viewer_app.EDIT_ENV, raising=False)
+    viewer_app.configure(app_dir / "expenses.trig")
+    html = TestClient(viewer_app.app).get(_view(EXPENSES + "expense_list")).text
+    assert PANE not in html and "/edit/preview" not in html
+
+
+def test_a_save_response_carries_the_refreshed_preview_out_of_band(client):
+    response = client.post(_edit(EXPENSES + "expense_list"), data={"field": IFML_ORDER, "value": "1"}, headers=HX)
+    assert response.status_code == 200
+    html = response.text
+    assert 'class="edit-saved"' in html
+    assert re.search(r'<div class="preview-panel" id="preview-panel" data-lenient="false" hx-swap-oob="true">', html)
+
+
+def test_a_save_that_breaks_generation_flags_the_oob_preview(client):
+    # A shape IRI the model does not describe has no rdfs:label: the htmx generator's
+    # GeneratorError, a lenient fault.
+    response = client.post(
+        _edit(EXPENSES + "expense_list"), data={"field": SEAM_READS, "value": EXPENSES + "missing_shape"}, headers=HX
+    )
+    html = response.text
+    assert 'class="edit-saved"' in html
+    assert 'data-lenient="true" hx-swap-oob="true"' in html
+    assert 'class="preview-faults"' in html and EXPENSES + "missing_shape" in html
+
+
+def test_a_refused_save_sends_no_preview(client):
+    response = client.post(
+        _edit(EXPENSES + "expense_list"), data={"field": SEAM_READS, "value": "not an iri"}, headers=HX
+    )
+    assert 'class="edit-error"' in response.text
+    assert 'id="preview-panel"' not in response.text

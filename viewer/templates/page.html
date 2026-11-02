@@ -97,6 +97,21 @@
     .disambiguation-options { list-style: none; padding: 0; margin: 0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .disambiguation-option { display: inline-block; padding: 0.4rem 0.8rem; background: #14213d; color: #fff; border-radius: 4px; text-decoration: none; }
     .disambiguation-option:hover { background: #1f3260; }
+    /* Edit mode's live preview (backlog I3), beside #view-content. */
+    .edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 30rem); align-items: start; }
+    .edit-layout #view-content { min-width: 0; }
+    .preview-pane { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; border-left: 1px solid #ddd; background: #fafbfc; font-size: 0.85rem; }
+    .preview-panel { padding: 0.75rem 1rem; }
+    .preview-panel[data-lenient="true"] { background: #fff4e0; }
+    .preview-panel .preview-lenient { margin-left: 0.5rem; color: #8a5300; font-weight: 600; }
+    .preview-panel .preview-error { color: #b71c1c; }
+    .preview-panel .preview-faults { padding-left: 1.25rem; color: #8a5300; }
+    .preview-panel summary { cursor: pointer; overflow-wrap: anywhere; }
+    .preview-panel pre { max-height: 24rem; overflow: auto; background: #fff; border: 1px solid #ddd; padding: 0.5rem; font-size: 0.75rem; }
+    @media (max-width: 900px) {
+      .edit-layout { grid-template-columns: minmax(0, 1fr); }
+      .preview-pane { position: static; max-height: none; border-left: 0; border-top: 1px solid #ddd; }
+    }
     .health-panel { padding: 0.5rem 1.5rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
     .health-panel[data-conforms="true"] { background: #e8f5e9; border-bottom-color: #a5d6a7; }
     .health-panel[data-conforms="false"] { background: #fdecea; border-bottom-color: #ef9a9a; }
@@ -597,8 +612,22 @@
   </script>
   <header><a class="header-home" href="/">SemanticSeams Viewer</a><nav class="header-nav"><a class="header-layers" href="/layers">Layers</a></nav></header>
   {% include "health-panel.html" %}
+  {% if edit_enabled() %}
+  {# Edit mode's live preview (backlog I3) sits beside the view, outside the
+     #view-content swap target (MEM009). It loads after the page: a save response
+     swaps it out of band, and the payload save and Undo reload the page. #}
+  <div class="edit-layout">
+  {% endif %}
   <div id="view-content">
     {% include content_template | default("fragment.html") %}
   </div>
+  {% if edit_enabled() %}
+  <aside class="preview-pane">
+    <div class="preview-panel" id="preview-panel" data-lenient="false" hx-get="/edit/preview" hx-trigger="load" hx-swap="outerHTML">
+      <p class="preview-summary">Generating the preview&hellip;</p>
+    </div>
+  </aside>
+  </div>
+  {% endif %}
 </body>
 </html>

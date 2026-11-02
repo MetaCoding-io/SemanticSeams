@@ -278,6 +278,25 @@ included, byte for byte. An id changed in the XML outside the viewer does not mo
 seam edges, and the health badge then lists the old IRI under *Lifted IRIs missing
 from the XML*.
 
+### Live preview
+
+In edit mode a preview pane sits beside the view. It runs the generators of the
+`seams.toml` project beside the loaded model on the model as it is now, in lenient mode
+and in memory: nothing is written, so the committed `generated/` files and `seams.lock`
+do not change. The pane lists each output by its path in the project, with the
+generator that wrote it and its text, so after a save you can open the regenerated page
+and read the change. A save from a form sends the refreshed pane back with the form, next
+to the refreshed health badge; a BPMN or DMN save and **Undo** reload the page, which
+loads the pane again.
+
+When a generator cannot produce an output for the edited model, the pane turns amber and
+says *lenient*, with one line per fault naming the generator, the reason, the subject and
+the predicate; the other outputs are still listed. On the expense tutorial, pointing the
+*My Expenses* list's `seam:reads` at a shape the model does not describe flags the htmx
+generator's fault. A model with no `seams.toml` beside it shows *no project* and the
+reason instead. The server log records each preview with the project, the number of
+outputs and faults, and how long it took.
+
 ## URLs
 
 Every state is a URL, so any view can be bookmarked or shared. The browser's Back and
@@ -292,9 +311,10 @@ the diagram comes back drawn and clickable.
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
-| `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel. |
+| `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel and live preview. |
 | `/edit/payload/{iri}` | Edit mode only: `POST` with JSON `{"xml": …, "renames": [{"old": …, "new": …}]}` renames each id through the seams graph and saves the BPMN or DMN model's XML; returns JSON with the files touched, or a 409 naming the subject, predicate and reason when nothing was written. |
 | `/edit/undo` | Edit mode only: `POST` reverses the newest edit of the session. |
+| `/edit/preview` | Edit mode only: `GET` returns the [live preview](#live-preview): the project's generators re-run in lenient mode, in memory, on the loaded model. Add `oob=true` to mark it for an out-of-band swap. |
 
 ## Current limits
 
@@ -309,4 +329,4 @@ renderer does not yet draw containment as nesting. Edit mode edits one field of 
 element at a time through forms, and BPMN and DMN only through their modelers: it does
 not create or delete seams-graph elements, or edit the C4, IFML or statechart diagrams
 yet. The modelers do not lift a new BPMN or DMN element into the seams graph, and its
-undo history lasts only as long as the viewer runs. The [backlog](/backlog) lists what comes next for the viewer.
+undo history lasts only as long as the viewer runs. The live preview shows the generated text, not the page served, and a form save waits for it, so a project with slow generators makes saves slow. The [backlog](/backlog) lists what comes next for the viewer.

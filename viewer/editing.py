@@ -55,6 +55,11 @@ def _ontology_graph() -> rdflib.Graph:
     return _ontology
 
 
+def ontology_graph() -> rdflib.Graph:
+    """The SemanticSeams ontology files, read once (the IFML diagram's swap strategies)."""
+    return _ontology_graph()
+
+
 @dataclass(frozen=True)
 class FormField:
     """One shaped property of an element, as the edit form shows it.

@@ -31,7 +31,7 @@ from rdflib.namespace import SH
 import seams_edit
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import editing, ifml, layers, legend, preview, validation
+from viewer import editing, ifml, ifml_edit, layers, legend, preview, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.profiles import Profile, resolve_profile
@@ -1382,6 +1382,80 @@ def edit_preview(request: Request, oob: bool = False):
     """The project's generators re-run in lenient mode on the edited model, in
     memory (backlog I3): nothing is written."""
     return templates.TemplateResponse(request, "preview-panel.html", {"preview": preview_context(), "oob": oob})
+
+
+def _writer_dataset(files) -> Dataset:
+    """The model as seams_edit reads it (text_quads of each file), so a patch built
+    from it names each blank node by the writer's label."""
+    ds = Dataset(default_union=True)
+    for path in sorted({Path(p).resolve() for p in files}):
+        for s, p, o, g in seams_edit.text_quads(path.read_text(encoding="utf-8"), base=path.as_uri()):
+            ds.add((s, p, o, g))
+    return ds
+
+
+def _ifml_error(model_iri: str, op: object, err: seams_edit.PatchError | seams.ResolutionError) -> JSONResponse:
+    logger.warning("ifml edit refused %s %s: %s %s: %s", model_iri, op, err.subject, err.predicate, err.detail)
+    error = {"subject": err.subject, "predicate": err.predicate, "detail": err.detail}
+    return JSONResponse({"saved": False, "error": error}, status_code=409)
+
+
+@edit_router.post("/edit/ifml/{iri:path}")
+async def edit_ifml(request: Request, iri: str):
+    """Apply one IFML diagram op (backlog I6): viewer/ifml_edit.py builds the patch,
+    seams_edit.apply writes it, and it goes on the undo stack.
+
+    The body is JSON ``{"op": ..., ...}`` (ifml_edit.build_ifml_patch). The answer
+    is the redrawn diagram (``ifml``, ``canvas``) and the health and preview panels
+    as out-of-band markup (``oob``). A PatchError or ResolutionError is a 409 naming
+    the subject, the predicate and the reason, and nothing is written.
+    """
+    model_iri = unquote(iri)
+    if notation_of(model_iri) != "ifml":
+        raise HTTPException(status_code=404, detail=f"{model_iri} is not an IFML model")
+    try:
+        op = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="the body is not JSON") from None
+    if not isinstance(op, dict) or not isinstance(op.get("op"), str):
+        raise HTTPException(status_code=400, detail='the body must be {"op": str, ...}')
+    files = get_model().files
+    try:
+        edit = ifml_edit.build_ifml_patch(_writer_dataset(files), model_iri, op)
+        record = seams_edit.apply(files, edit.patch)
+    except (seams_edit.PatchError, seams.ResolutionError) as err:
+        return _ifml_error(model_iri, op["op"], err)
+    except OSError as err:
+        logger.warning("ifml edit not written %s %s: %s", model_iri, op["op"], err)
+        error = {"subject": model_iri, "predicate": op["op"], "detail": f"could not write the model: {err}"}
+        return JSONResponse({"saved": False, "error": error}, status_code=409)
+    shares = _shares(record)
+    if record.files:
+        _undo_stack.append(record)
+        reload_model()
+    logger.info(
+        "ifml edit %s %s in %s: %s",
+        edit.op,
+        edit.element,
+        model_iri,
+        ", ".join(f"{f['file']} (+{f['adds']} -{f['removes']})" for f in shares) or "no change",
+    )
+    diagram = ifml.ifml_diagram(model_iri)
+    oob = templates.get_template("health-panel.html").render(
+        model_conformance=model_health(get_graph()), oob=True
+    ) + templates.get_template("preview-panel.html").render(preview=preview_context(), oob=True)
+    return JSONResponse(
+        {
+            "saved": True,
+            "op": edit.op,
+            "element": edit.element,
+            "files": shares,
+            "undo": len(_undo_stack),
+            "ifml": diagram,
+            "canvas": ifml.ifml_elk_graph(diagram),
+            "oob": oob,
+        }
+    )
 
 
 @edit_router.get("/edit/{iri:path}")

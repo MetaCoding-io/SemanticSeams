@@ -177,6 +177,18 @@ strategic layer it lacks, a derived event-storm view, and DDD as the second prof
 | B4 | **Derived event-storm view**: `seams storm <process>`, a timeline per process from the graph (actor, command, aggregate, transitions, decisions, channels, started processes, read models), with a golden test on the expense tutorial, then a viewer section; the bounded context canvas as a second derived view | S | none for the storm; B1 for the canvas | none | proposed |
 | B5 | **DDD profile**: a shapes library attached by `seam:conformsTo` (one correlation key, lifecycle and store per aggregate; no shape written from two contexts; cross-context calls translated unless declared conformist; bundles today's ungoverned-writes and unfired-transitions gates), as the second profile after IDesign; Context Mapper import and export | L | I5, B1, B2 | extends `seam:Profile` | proposed |
 
+*Added 2026-11-02 from the [SysML v2 note](research/2026-11-02-sysml-v2.md). SysML v2 has
+no diagram to author here: its views are queries plus renderings, as ours are. These items
+export the model in its textual notation, and borrow the terms it has that the graph lacks.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| V1 | **`sysml` generator**: one `<system>.sysml` in the SysML v2 textual notation from every layer (architecture, deployment as a variation per environment, ports and interfaces, items from shapes, state defs, actions from BPMN, calcs from DMN, verification cases from `verify:`, views from the query catalog), gaps as comment lines, goldens for the chat app and chapter 9, a trace sidecar, listed in `seams.toml`; parsed by the pilot implementation or Syside in a test that runs when the tool is installed | M | ADR-0016, ADR-0019 | none | proposed |
+| V2 | **Requirements vocabulary** `req:` beside `verify:`, in the shape of SysML v2's requirement, satisfy, verify, derive and frame: requirement, satisfied by, verified by (a `verify:` case), derived from, concern and frames (stakeholder as `odrl:Party`); an ADR first on the subject, and on whether a property shape is a subject or a satisfier | M | ADR first; ADR-0014 | a new `req:` namespace; `req:satisfiedBy` is a seam | proposed |
+| V3 | **Requirement coverage and the requirements table**: queries for requirements with no verification, elements that satisfy no requirement, and requirements a breaking change (U8) touches; a table in the viewer and in `seams coverage` | S | V2, U8 | none | proposed |
+| V4 | **Snapshot vocabulary for the as-observed graph**: individual, snapshot and timeslice terms (SysML v2's) for trace rows and monitoring facts, so the as-executed and as-deployed graphs share one shape with the model | M | U4, ADR-0001 | a small vocabulary for the as-deployed graph | proposed |
+| V5 | **Model API shaped like the Systems Modeling API**: projects, commits and branches over the write path, elements addressed per commit, the query catalog as resources read with HTTP QUERY | L | ADR-0017, O4; ADR first | none | proposed |
+
 ## Generator kit and domain IDE
 
 *Added 2026-10-30 from the [generator kit and domain IDE note](research/2026-10-30-domain-ide-and-generator-kit.md),

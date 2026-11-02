@@ -271,12 +271,12 @@ seamsh:ComponentKindShape a sh:NodeShape ;
 
 seamsh:ComponentReadsShape a sh:NodeShape ;
     sh:targetClass ifml:List , ifml:Details ;
-    sh:property [ sh:path seam:reads ; sh:minCount 1 ; sh:maxCount 1 ;
+    sh:property [ sh:path seam:reads ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
         sh:message "An ifml:List or ifml:Details seam:reads exactly one shape, the data it shows." ] .
 
 seamsh:FormWritesShape a sh:NodeShape ;
     sh:targetClass ifml:Form ;
-    sh:property [ sh:path seam:writes ; sh:minCount 1 ; sh:maxCount 1 ;
+    sh:property [ sh:path seam:writes ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
         sh:message "An ifml:Form seam:writes exactly one shape, the data it submits." ] ;
     sh:sparql [
         sh:message "An ifml:Form has exactly one ifml:hasEvent event that seam:submitsTo an operation." ;

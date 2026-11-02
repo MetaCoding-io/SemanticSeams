@@ -141,6 +141,18 @@ def test_add_a_component_to_a_page(client, model):
     assert '<section id="profile_card" aria-label="Profile Card">' in page
 
 
+def test_a_new_components_form_reads_an_iri(client, model):
+    """The form fills a new component's seam:reads with an IRI, not a string."""
+    _op(client, op="create", kind="Details", name="Profile Card", parent=CHAT_PAGE)
+    card = f"{CHAT}profile_card"
+    shape = f"{CHAT}ConversationShape"
+
+    response = client.post(f"/edit/{quote(card, safe='')}", data={"field": str(SEAM.reads), "value": shape})
+
+    assert response.status_code == 200, response.text
+    assert list(_fresh(model).ds.objects(URIRef(card), SEAM.reads)) == [URIRef(shape)]
+
+
 def test_wire_an_event_to_another_page(client, model):
     page = f"{CHAT}settings_page"
     _op(client, op="create", kind="ViewContainer", name="Settings Page", parent=CHAT_IFML)
@@ -205,6 +217,36 @@ def test_remove_a_field(client, model):
     fields = _by_iri(body["ifml"]["components"])[COMPOSE]["fields"]
     assert sorted(f["name"] for f in fields) == ["content", "role", "status"]
     assert "timestamp" not in _outputs(model)["generated/templates/message_thread_item.html"]
+
+
+def test_remove_a_field_takes_its_bound_input(tmp_path, monkeypatch, restore_viewer):
+    """A form input ifml:boundTo the removed path goes too, so the htmx still generates."""
+    copy = tmp_path / "chapter-08"
+    shutil.copytree(ROOT / "examples" / "expenses" / "chapter-08", copy, ignore=shutil.ignore_patterns("generated"))
+    monkeypatch.setenv(viewer_app.EDIT_ENV, "1")
+    viewer_app.configure(copy)
+    expenses = "https://example.org/expenses/"
+    route = f"/edit/ifml/{quote(expenses + 'expense_ifml', safe='')}"
+    trig = copy / "expenses.trig"
+    page = "generated/templates/expenses_page.html"
+
+    def outputs() -> dict[str, str]:
+        facts = preview.preview(trig, copy)
+        assert facts["error"] is None
+        assert facts["faults"] == []
+        return {f["path"]: f["text"] for f in facts["files"]}
+
+    assert 'name="description"' in outputs()[page]
+    response = TestClient(viewer_app.app).post(
+        route, json={"op": "remove_field", "element": f"{expenses}expense_form", "path": f"{expenses}description"}
+    )
+
+    assert response.status_code == 200, response.text
+    ds = seams.load(trig).ds
+    gone = URIRef(f"{expenses}description_input")
+    assert not list(ds.quads((gone, None, None, None)))
+    assert not list(ds.quads((None, None, gone, None)))
+    assert 'name="description"' not in outputs()[page]
 
 
 # --- move, delete, undo --------------------------------------------------------

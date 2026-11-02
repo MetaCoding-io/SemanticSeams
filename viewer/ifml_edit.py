@@ -283,7 +283,20 @@ def _remove_field(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
     if len(found) > 1:
         raise ResolutionError(form, SH.path, f"{len(found)} property shapes of the form's shapes have <{path}>")
     shape, prop, graph = found[0]
-    return IfmlEdit("remove_field", str(form), Patch(removes=_tree(ds, {(shape, SH.property, prop, graph)})))
+    # The inputs bound to the path on forms that write the shape go with it, or
+    # their ifml:boundTo would name a field the shape no longer has.
+    inputs = {
+        param
+        for writer in ds.subjects(SEAM.writes, shape)
+        if IFML.Form in _types(ds, writer)
+        for param in ds.objects(writer, IFML.hasParameter)
+        if (param, IFML.boundTo, path) in ds
+    }
+    stated: set[Quad] = {(shape, SH.property, prop, graph)}
+    for param in inputs:
+        stated.update(q for q in ds.quads((param, None, None, None)) if q[3] is not None)
+        stated.update(q for q in ds.quads((None, None, param, None)) if q[3] is not None)
+    return IfmlEdit("remove_field", str(form), Patch(removes=_tree(ds, stated)))
 
 
 BUILDERS = {"create": _create, "connect": _connect, "move": _move, "delete": _delete, "remove_field": _remove_field}
@@ -306,7 +319,8 @@ def build_ifml_patch(ds: Dataset, model_iri: str, op: dict) -> IfmlEdit:
     - ``delete``: ``element``, with what it contains, its events and parameters,
       every flow from or to any of them, and every quad naming them;
     - ``remove_field``: ``element`` (a form) and ``path``: the property shape with
-      that ``sh:path`` leaves the shape the form ``seam:writes``.
+      that ``sh:path`` leaves the shape the form ``seam:writes``, and so does each
+      ``ifml:Parameter`` bound to that path on a form that writes the shape.
     """
     model = URIRef(model_iri)
     if IFML.InteractionModel not in _types(ds, model):

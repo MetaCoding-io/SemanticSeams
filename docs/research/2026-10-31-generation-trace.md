@@ -6,6 +6,11 @@ Follows the [generator kit and domain IDE note](2026-10-30-domain-ide-and-genera
 and the [artifact management note](2026-10-29-artifact-management.md), whose A2 lockfile
 it extends. Written against `main` at `752020a`.*
 
+*Revision, 2026-11-02: T1 is scheduled as M020. The open questions on where traces
+live and their granularity are settled by
+[ADR-0019](../adr/0019-generation-trace.md): a line-level `<output>.trace.json` sidecar
+beside each output, recorded in `seams.lock`, whose terms become the lock's `sources`.*
+
 ## The question
 
 What do we have for visualising the generation process? Do the books say anything

@@ -289,7 +289,7 @@ on the selected element, a context pad. Each gesture is one change to the model:
 | Drag **ViewContainer**, **List**, **Details**, **Form** or **Event** from the palette into its parent | Creates the element, named from the bar's field (or a prompt when it is empty). A view container goes on the canvas or into another container, a component into a container, an event onto a container or component. |
 | **NavigationFlow** in the palette, or the context pad's connect on an event, then drag to a container or component | Connects the event to it with an `ifml:NavigationFlow`. |
 | Drag a container or component into another container | Moves it there: the `ifml:contains` triple changes, and so does the component's `ifml:order` when the new container already uses it. |
-| Click a form's field row, then the pad's **− field** | Removes that property from the shape the form `seam:writes`. |
+| Click a form's field row, then the pad's **− field** | Removes that property from the shape the form `seam:writes`, with each form input `ifml:boundTo` it on a form that writes the shape. |
 | The pad's trash on an element or a flow | Deletes it with what it contains, its events, and every flow from or to any of them. |
 
 A new element's IRI is its name in its parent's namespace

@@ -4,6 +4,7 @@ In-process main() on a copy of examples/expenses/chapter-03 in tmp_path, so the
 committed outputs are never touched.
 """
 
+import json
 import shutil
 from pathlib import Path
 
@@ -14,12 +15,14 @@ from seams_cli.__main__ import main
 ROOT = Path(__file__).resolve().parent.parent
 CHAPTER = ROOT / "examples" / "expenses" / "chapter-03"
 COMMITTED = CHAPTER / "generated"
-EXPECTED = [
+OUTPUTS = [
     "expense_api.py",
     "templates/expense_list.html",
     "templates/expense_list_item.html",
     "templates/expenses_page.html",
 ]
+# fastapi and htmx have a trace hook, so each output has its sidecar (ADR-0019).
+EXPECTED = sorted(OUTPUTS + [f"{name}.trace.json" for name in OUTPUTS])
 
 GENERATORS = """
 [[generators]]
@@ -65,6 +68,32 @@ def test_generate_rewrites_the_committed_outputs_byte_for_byte(app, capsys):
     printed = capsys.readouterr().out.splitlines()
     assert printed == sorted(printed)
     assert [Path(line).name for line in printed] == [Path(name).name for name in EXPECTED] + ["seams.lock"]
+
+
+def _tree(app: Path) -> dict[str, bytes]:
+    return {p.relative_to(app).as_posix(): p.read_bytes() for p in sorted(app.rglob("*")) if p.is_file()}
+
+
+def test_traced_generators_write_a_sidecar_per_output_and_lock_its_terms(app):
+    # ADR-0019: <output>.trace.json beside each output, an output of the same
+    # generator in seams.lock; both lock entries' sources are the trace's terms.
+    _project(app, 'model = "expenses.trig"\n' + GENERATORS)
+    assert main(["generate", "--project", str(app)]) == 0
+    lock = json.loads((app / "seams.lock").read_text(encoding="utf-8"))
+    entries = {entry["path"]: entry for entry in lock["outputs"]}
+    assert sorted(entries) == [f"generated/{name}" for name in EXPECTED]
+    for name in OUTPUTS:
+        trace = json.loads((app / "generated" / f"{name}.trace.json").read_text(encoding="utf-8"))
+        generator = "fastapi" if name.endswith(".py") else "htmx"
+        assert (trace["trace_version"], trace["generator"], trace["output"]) == (1, generator, Path(name).name)
+        terms = sorted({term for line in trace["lines"] for term in line["terms"]})
+        assert terms, name
+        output, sidecar = entries[f"generated/{name}"], entries[f"generated/{name}.trace.json"]
+        assert output["generator"] == sidecar["generator"] == generator
+        assert output["sources"] == sidecar["sources"] == terms, name
+    first = _tree(app)
+    assert main(["generate", "--project", str(app)]) == 0
+    assert _tree(app) == first
 
 
 def test_printed_paths_are_relative_to_the_cwd(app, capsys, monkeypatch):
@@ -207,6 +236,7 @@ def test_an_unwritable_output_exits_1(app, capsys):
 
 PLUGIN = """
 from seams_gen.protocol import Generator
+from seams_gen.trace import Trace
 
 generator = Generator(
     name="example-gen",
@@ -225,8 +255,31 @@ strict = Generator(
     sources=lambda trig, out: {"strict.txt": ()},
     preconditions=("https://w3id.org/seams/shapes#ModelShape",),
 )
+untraced = Generator(
+    name="mistraced-gen",
+    version="1.0.0",
+    help="renders a file it has no trace for",
+    extract=lambda trig, out: None,
+    render=lambda view: {"traced.txt": "ok\\n"},
+    sources=lambda trig, out: {"traced.txt": ()},
+    trace=lambda view: {},
+)
+misnamed = Generator(
+    name="misnamed-gen",
+    version="1.0.0",
+    help="traces its file under another name",
+    extract=lambda trig, out: None,
+    render=lambda view: {"traced.txt": "ok\\n"},
+    sources=lambda trig, out: {"traced.txt": ()},
+    trace=lambda view: {"traced.txt": Trace("other.txt", "misnamed-gen", ())},
+)
 """
-ENTRIES = {"example-gen": "seams_cli_test_plugin:generator", "strict-gen": "seams_cli_test_plugin:strict"}
+ENTRIES = {
+    "example-gen": "seams_cli_test_plugin:generator",
+    "strict-gen": "seams_cli_test_plugin:strict",
+    "mistraced-gen": "seams_cli_test_plugin:untraced",
+    "misnamed-gen": "seams_cli_test_plugin:misnamed",
+}
 EXAMPLE = '[[generators]]\nname = "example-gen"\nout = "generated/example"\n'
 STRICT = '[[generators]]\nname = "strict-gen"\nout = "generated/strict"\n'
 MODEL_SHAPE = "https://w3id.org/seams/shapes#ModelShape"
@@ -281,3 +334,28 @@ def test_an_unknown_generator_is_a_project_error_listing_registered_ones(app, ge
     _project(app, '[[generators]]\nname = "react"\nout = "x"\n')
     with pytest.raises(ProjectError, match=r"`generators\[0\]\.name` is 'react'; known generators: .*example-gen"):
         load_project(app)
+
+
+@pytest.mark.parametrize(
+    ("name", "detail"),
+    [
+        ("mistraced-gen", "traces [] do not name the rendered files ['traced.txt']"),
+        ("misnamed-gen", "the trace of traced.txt names output other.txt"),
+    ],
+)
+def test_a_trace_that_does_not_match_the_render_exits_2_and_writes_nothing(app, generator_dist, capsys, name, detail):
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _project(app, 'model = "expenses.trig"\n' + GENERATORS + f'[[generators]]\nname = "{name}"\nout = "generated/t"\n')
+    assert main(["generate", "--project", str(app)]) == 2
+    assert capsys.readouterr().err == f"seams generate: {name}: trace: {detail}\n"
+    assert not (app / "generated").exists()
+    assert not (app / "seams.lock").exists()
+
+
+def test_a_generator_without_a_trace_hook_writes_no_sidecar(app, generator_dist):
+    generator_dist("seams_cli_test_plugin", PLUGIN, ENTRIES)
+    _project(app, 'model = "expenses.trig"\n' + EXAMPLE)
+    assert main(["generate", "--project", str(app)]) == 0
+    assert _generated(app) == ["example/example.txt"]
+    (entry,) = json.loads((app / "seams.lock").read_text(encoding="utf-8"))["outputs"]
+    assert entry["sources"] == ["https://example.org/expenses/expense_api"]

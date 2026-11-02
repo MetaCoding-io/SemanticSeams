@@ -20,8 +20,10 @@ from seams_cli.__main__ import main
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
-# Every compose file is generated (ADR-0015 removed the hand-written overrides).
+# Every compose file is generated (ADR-0015 removed the hand-written overrides),
+# and so is its trace sidecar (ADR-0019).
 COMPOSE = "compose*.yaml"
+COMPOSE_TRACE = "compose*.yaml.trace.json"
 LOCK = "seams.lock"
 
 
@@ -32,7 +34,7 @@ def _no_ambient_model(monkeypatch):
 
 def _copy_without_outputs(rel: Path, tmp_path: Path) -> Path:
     dest = tmp_path / rel
-    shutil.copytree(ROOT / rel, dest, ignore=shutil.ignore_patterns("generated", COMPOSE, "__pycache__"))
+    shutil.copytree(ROOT / rel, dest, ignore=shutil.ignore_patterns("generated", COMPOSE, COMPOSE_TRACE, "__pycache__"))
     return dest
 
 
@@ -46,10 +48,11 @@ def _committed_outputs(rel: Path) -> set[Path]:
         for p in (app / "generated").rglob("*")
         if p.is_file() and p.name != "README.md" and "__pycache__" not in p.parts
     }
-    files |= set(app.glob(COMPOSE))
+    files |= {*app.glob(COMPOSE), *app.glob(COMPOSE_TRACE)}
     for target in load_project(app).generators:
         if target.name == "compose":
-            files |= {p.resolve() for p in target.out.resolve().glob(COMPOSE)}
+            out = target.out.resolve()
+            files |= {p.resolve() for p in [*out.glob(COMPOSE), *out.glob(COMPOSE_TRACE)]}
     return {p.relative_to(ROOT) for p in files}
 
 

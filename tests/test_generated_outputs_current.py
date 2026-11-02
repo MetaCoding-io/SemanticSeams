@@ -30,14 +30,18 @@ REGENERATE = "seams generate --project examples/chat-app"
 COMMANDS = {"fastapi": REGENERATE, "dockerfile": REGENERATE, "htmx": REGENERATE, "compose": REGENERATE}
 # Files in examples/chat-app/generated/ that no generator writes.
 HAND_WRITTEN = {"README.md"}
+# `python -m seams_gen` writes the outputs only; `seams generate` also writes each
+# one's <output>.trace.json (ADR-0019), which tests/test_seams_generate_examples.py
+# checks byte for byte.
+TRACE_SUFFIX = ".trace.json"
 
 
 def committed_files(directory: Path, ignore=frozenset()) -> dict[str, str]:
-    """{file name: text} of the regular files directly in ``directory``."""
+    """{file name: text} of the regular files directly in ``directory``, but trace sidecars."""
     return {
         p.name: p.read_text(encoding="utf-8")
         for p in sorted(directory.iterdir())
-        if p.is_file() and p.name not in ignore
+        if p.is_file() and p.name not in ignore and not p.name.endswith(TRACE_SUFFIX)
     }
 
 

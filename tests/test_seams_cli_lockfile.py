@@ -31,6 +31,11 @@ TEMPLATES = [
 ]
 
 
+def _traced(paths: list[str]) -> list[str]:
+    """``paths`` and their trace sidecars (ADR-0019), sorted: fastapi and htmx trace."""
+    return sorted([*paths, *(f"{path}.trace.json" for path in paths)])
+
+
 @pytest.fixture(autouse=True)
 def _no_ambient_model(monkeypatch):
     monkeypatch.delenv("SEAMS_MODEL", raising=False)
@@ -82,11 +87,11 @@ def test_lock_fields(app, capsys):
     assert lock["model"] == "expenses.trig"
     assert lock["model_hash"] == digest
     paths = [o["path"] for o in lock["outputs"]]
-    assert paths == [API, *TEMPLATES]
+    assert paths == _traced([API, *TEMPLATES])
     subjects = {str(s) for s in seams.load(app / "expenses.trig").ds.subjects()}
     for entry in lock["outputs"]:
         assert set(entry) == {"generator", "generator_version", "model_hash", "path", "sha256", "sources"}
-        assert entry["generator"] == ("fastapi" if entry["path"] == API else "htmx")
+        assert entry["generator"] == ("fastapi" if entry["path"].startswith(API) else "htmx")
         assert entry["generator_version"] == seams_gen.__version__
         assert entry["model_hash"] == digest
         assert entry["sha256"] == _sha(app / entry["path"])
@@ -101,11 +106,11 @@ def test_removing_a_target_deletes_its_unchanged_files(app, capsys):
     out, err = _generate(app, capsys)
     assert err == []
     assert [line for line in out if line.startswith("removed ")] == [
-        f"removed {app.resolve() / name}" for name in TEMPLATES
+        f"removed {app.resolve() / name}" for name in _traced(TEMPLATES)
     ]
-    assert not any((app / name).exists() for name in TEMPLATES)
+    assert not any((app / name).exists() for name in _traced(TEMPLATES))
     assert (app / API).is_file()
-    assert [o["path"] for o in _lock(app)["outputs"]] == [API]
+    assert [o["path"] for o in _lock(app)["outputs"]] == _traced([API])
 
 
 def test_an_edited_orphan_is_kept_and_reported(app, capsys):
@@ -116,7 +121,8 @@ def test_an_edited_orphan_is_kept_and_reported(app, capsys):
     assert err == [f"seams generate: kept hand-edited orphan {app.resolve() / PAGE}"]
     assert (app / PAGE).read_text(encoding="utf-8") == "my own page\n"
     assert f"removed {app.resolve() / PAGE}" not in out
-    assert len([line for line in out if line.startswith("removed ")]) == 2
+    # The other two templates and all three sidecars, the page's included.
+    assert len([line for line in out if line.startswith("removed ")]) == len(_traced(TEMPLATES)) - 1
 
 
 def test_a_symlink_orphan_is_not_deleted(app, capsys, tmp_path):
@@ -208,7 +214,7 @@ def test_audit_lists_missing_edited_and_orphans(app, capsys):
     _generate(app, capsys)
     project = load_project(app)
     lock = read_lock(project)
-    files = {(app / p).resolve(): (app / p).read_text(encoding="utf-8") for p in [API, *TEMPLATES]}
+    files = {(app / p).resolve(): (app / p).read_text(encoding="utf-8") for p in _traced([API, *TEMPLATES])}
     assert audit(project, lock, files) == Audit()
     assert audit(project, None, files).orphans == ()
 

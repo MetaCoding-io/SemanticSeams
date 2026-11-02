@@ -178,12 +178,14 @@ the committed outputs and confirm they are what you intend. CI fails if regenera
 changes anything you did not commit:
 
 ```sh
-trig=examples/chat-app/chat-app.trig
-uv run python -m seams_gen fastapi "$trig" --out examples/chat-app/generated
-uv run python -m seams_gen htmx "$trig" --out examples/chat-app/generated/templates
-uv run python -m seams_gen compose "$trig" --out .
-git status --short -- examples/chat-app/generated compose.development.yaml compose.production.yaml
+for project in examples/chat-app examples/expenses/chapter-0*; do
+  uv run seams generate --project "$project"
+done
+git status --short -- examples compose.*.yaml compose.*.yaml.trace.json
 ```
+
+`seams generate` also rewrites each output's `<output>.trace.json` sidecar and the
+project's `seams.lock` (ADR-0019), so commit those with the outputs.
 
 When you touch `docs/`, build the site: `cd docs && uv run npm run build`.
 

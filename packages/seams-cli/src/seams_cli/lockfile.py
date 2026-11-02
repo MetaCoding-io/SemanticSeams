@@ -19,6 +19,11 @@ timestamps, so regenerating an unchanged project rewrites it byte for byte::
       ]
     }
 
+A generator with a ``trace`` hook (ADR-0019) also writes ``<path>.trace.json``
+beside each output; the sidecar is an entry of its own, of the same generator,
+and both entries' ``sources`` are the sorted union of the trace's terms. Other
+generators' ``sources`` come from ``Generator.sources``.
+
 A lenient ``seams generate`` (D057) adds a top-level ``faults`` list, sorted,
 of ``{"focus", "generator", "message", "shape"}`` objects: each precondition
 result and GeneratorError it collected instead of raising. A lock with faults

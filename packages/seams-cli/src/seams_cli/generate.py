@@ -24,6 +24,12 @@ matches its locked sha256 is kept, so a lockfile can only delete content it
 already holds the hash of. An orphan whose generator faulted this run is not
 deleted either: its locked entry is carried into the new lock unchanged, so the
 file stays tracked until that generator runs cleanly again.
+
+A generator with a ``trace`` hook (ADR-0019) also writes, beside each output
+``<name>``, its line-level trace ``<name>.trace.json``. The sidecar is an
+output of the same generator, and both its lock ``sources`` and those of the
+file it traces are the sorted union of the trace's terms; ``Generator.sources``
+is used only for generators without the hook, which write no sidecar.
 """
 
 from __future__ import annotations
@@ -34,6 +40,8 @@ from pathlib import Path
 from rdflib import Graph
 
 from seams_gen import GeneratorError
+from seams_gen.protocol import Generator
+from seams_gen.trace import render_trace_json
 
 from .lockfile import (
     Audit,
@@ -85,16 +93,46 @@ def generate_project(project: Project, model: Path, *, lenient: bool = False) ->
     files: dict[Path, Output] = {}
     for gen, out in generators:
         try:
-            sources = gen.sources(model, out)
-            produced = gen.generate(model, out)
+            produced = _produce(gen, model, out)
         except GeneratorError as err:
             if not lenient:
                 raise
             faults.append(_fault(gen.name, err))
             continue
-        for name, text in produced.items():
-            files[(out / name).resolve()] = Output(gen.name, gen.version, text, sources[name])
+        for name, (text, sources) in produced.items():
+            files[(out / name).resolve()] = Output(gen.name, gen.version, text, sources)
     return Generated(files, tuple(sorted(faults)))
+
+
+TRACE_SUFFIX = ".trace.json"
+
+
+def _produce(gen: Generator[object], model: Path, out: Path) -> dict[str, tuple[str, tuple[str, ...]]]:
+    """{file name relative to ``out``: (text, lock sources)} of one generator.
+    With a ``trace`` hook, each output gains its ``<name>.trace.json`` sidecar
+    and both take the trace's terms as sources (ADR-0019)."""
+    if gen.trace is None:
+        sources = gen.sources(model, out)
+        return {name: (text, sources[name]) for name, text in gen.generate(model, out).items()}
+    view = gen.extract(model, out)
+    rendered = gen.render(view)
+    traces = gen.trace(view)
+    if traces.keys() != rendered.keys():
+        raise GeneratorError(
+            gen.name,
+            "trace",
+            f"traces {sorted(traces)} do not name the rendered files {sorted(rendered)}",
+        )
+    produced: dict[str, tuple[str, tuple[str, ...]]] = {}
+    for name, text in rendered.items():
+        trace = traces[name]
+        if trace.output != name:
+            raise GeneratorError(gen.name, "trace", f"the trace of {name} names output {trace.output}")
+        if name + TRACE_SUFFIX in rendered:
+            raise GeneratorError(gen.name, "trace", f"{name}{TRACE_SUFFIX} is both an output and a trace sidecar")
+        produced[name] = (text, trace.terms)
+        produced[name + TRACE_SUFFIX] = (render_trace_json(trace), trace.terms)
+    return produced
 
 
 def shape_results(model: Path, shapes: Graph) -> Graph:

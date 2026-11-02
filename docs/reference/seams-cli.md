@@ -90,13 +90,25 @@ directory when it lies below it:
 $ seams generate --project examples/chat-app
 compose.development.yaml
 compose.production.yaml
+compose.development.yaml.trace.json
+...
 examples/chat-app/generated/chat_api.py
+examples/chat-app/generated/chat_api.py.trace.json
 examples/chat-app/generated/templates/chat_page.html
 ...
 examples/chat-app/seams.lock
 ```
 
 The last line is always the project's lockfile, written after every output.
+
+A generator with a `trace` hook (the built-in `htmx`, `fastapi`, `compose` and
+`dockerfile`) also writes, beside each output `<output>`, its generation trace
+`<output>.trace.json` ([ADR-0019](/adr/0019-generation-trace)): for every non-blank
+line of the output, the template lines that emitted it and the full IRIs of the model
+elements behind it. The sidecar is sorted-key JSON with no timestamps or absolute
+paths, so it is as deterministic as the output. Commit it with the output. A trace
+that does not name exactly the files the generator rendered exits 2, naming the
+generator, and nothing is written.
 
 ### The lockfile
 
@@ -115,8 +127,13 @@ level holds:
 | `faults` | Only after `seams generate --lenient` found faults: one `{focus, generator, message, shape}` object per fault, sorted. A lock with this key is flagged. |
 
 Each output entry records the generator, its version, the model hash, the
-file's sha256 and the full IRIs of the model elements the file came from
-(`seams_gen.sources`, see the [seams_gen README](../../seams_gen/README.md)).
+file's sha256 and the full IRIs of the model elements the file came from. For a
+generator with a `trace` hook these `sources` are the sorted union of the terms in
+the file's trace, and the trace sidecar is an entry of its own, of the same
+generator and with the same `sources`; a generator without one gives them through
+`sources` (see the [seams_gen README](../../seams_gen/README.md)) and writes no sidecar.
+Sidecars are therefore audited like any output below: a hand-edited one is
+reported, a deleted one rewritten and an orphan deleted with its output.
 The `path` is POSIX and relative to the project directory, so it may start with
 `../`. An entry from
 [`examples/chat-app/seams.lock`](../../examples/chat-app/seams.lock):

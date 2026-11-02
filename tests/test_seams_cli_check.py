@@ -46,7 +46,8 @@ def _copy(rel: Path, tmp_path: Path) -> Path:
         out = target.out.resolve()
         if target.name != "compose" or out.is_relative_to(ROOT / rel):
             continue
-        for compose in out.glob("compose.*.yaml"):
+        # Each compose file with its trace sidecar (ADR-0019).
+        for compose in [*out.glob("compose.*.yaml"), *out.glob("compose.*.yaml.trace.json")]:
             copied = tmp_path / compose.relative_to(ROOT)
             copied.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(compose, copied)

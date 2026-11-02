@@ -3,7 +3,9 @@
    viewer/app.py compute everything (viewer/writeback.py); this template only
    shows it: the refusal naming the fact, or the one-triple patch, the
    regeneration check, every other output line the patch changes and the apply
-   button, or what apply wrote. #}
+   button, or what apply wrote. A structural edit (backlog T5, M021/S02,
+   POST /generation/structural/preview and /apply, viewer/structural.py) shows
+   the input added or removed, every patch quad and the same effects. #}
 <div class="writeback-result" id="writeback-result"
      data-status="{{ 'refused' if refusal else 'applied' if applied else 'drafted' }}"
      data-output="{{ output }}" data-line="{{ line }}">
@@ -12,6 +14,50 @@
     Refused: {{ refusal.detail }} —
     <code class="subject">{{ refusal.subject }}</code> <code class="predicate">{{ refusal.predicate }}</code>
   </p>
+  {% elif structural %}
+  {% set st = structural %}
+  <p class="structural-patch" data-kind="{{ st.kind }}" data-field="{{ st.field }}" data-form="{{ st.form }}" data-parameter="{{ st.parameter }}">
+    {{ "Adds" if st.kind == "add" else "Removes" }} the <code class="field">{{ st.field }}</code> input
+    ({{ st.where }})
+    {{ "to" if st.kind == "add" else "from" }} <code title="{{ st.form }}">{{ st.form_qname }}</code>:
+    parameter <code title="{{ st.parameter }}">{{ st.parameter_qname }}</code>
+    bound to <code title="{{ st.path }}">{{ st.path_qname }}</code>,
+    in {% for f in st.files %}<code class="file">{{ f }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+  </p>
+  <ul class="structural-quads">
+    {% for q in st.quads %}
+    <li class="quad" data-sign="{{ q.sign }}"><code>{{ q.sign }} {{ q.terms | join(" ") }}</code> <span class="muted">in {{ q.graph }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="writeback-check">Regenerating with this patch gives <code>{{ output }}</code> as edited.</p>
+  {% if st.effects %}
+  <p>It also changes {{ st.effects | length }} other line{% if st.effects | length != 1 %}s{% endif %}:</p>
+  <ol class="writeback-effects">
+    {% for e in st.effects %}
+    <li class="effect" data-output="{{ e.output }}" data-line="{{ e.line }}">
+      <code>{{ e.output }}:{{ e.line }}</code>
+      <del>{{ e.before }}</del> → <ins>{{ e.after }}</ins>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="writeback-effects-none">No other output line changes.</p>
+  {% endif %}
+  {% if applied %}
+  <p class="writeback-applied" role="status">
+    Applied to {% for f in applied.files %}<code>{{ f.file }}</code> (+{{ f.adds }} −{{ f.removes }}){% if not loop.last %}, {% endif %}{% endfor %}.
+    The outputs on disk change when the project is generated again.
+    <button type="button" hx-post="/edit/undo" hx-swap="none">Undo ({{ applied.undo }})</button>
+  </p>
+  {% else %}
+  <form class="writeback-apply" hx-post="/generation/structural/apply" hx-target="#writeback-result" hx-swap="outerHTML">
+    <input type="hidden" name="iri" value="{{ iri }}">
+    <input type="hidden" name="output" value="{{ output }}">
+    <textarea name="text" hidden>
+{{ text }}</textarea>
+    <button type="submit">Apply to the model</button>
+  </form>
+  {% endif %}
   {% else %}
   {% set wb = writeback %}
   <p class="writeback-patch" data-subject="{{ wb.subject }}" data-predicate="{{ wb.predicate }}" data-graph="{{ wb.graph }}">

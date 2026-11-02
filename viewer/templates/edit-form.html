@@ -1,7 +1,8 @@
 {# Edit mode form (ADR-0017, backlog I2). One <form> per shaped field; the
    fields, their widgets and inputs arrive computed from viewer/editing.py via
    viewer/app.py _edit_context. A value that breaks the shapes is saved and
-   flagged on the health badge, never refused. #}
+   flagged on the health badge, never refused. Each f is a dict, so its values
+   are f["values"]: f.values would be the dict's method. #}
 <section class="edit-form" data-iri="{{ focus_iri }}" data-undo="{{ undo_count }}">
   <h3>Edit {{ label }}</h3>
   {% if error %}
@@ -26,12 +27,12 @@
       <input type="hidden" name="field" value="{{ f.path }}">
       <label for="edit-{{ f.slot }}" title="{{ f.path }}">{{ f.name }}</label>
       {% if not f.editable %}
-        {% for v in f.values %}<code class="edit-readonly">{{ v }}</code> {% endfor %}
+        {% for v in f["values"] %}<code class="edit-readonly">{{ v }}</code> {% endfor %}
         <small>(a blank node: edit it in the file)</small>
       {% elif f.kind == "select" %}
         <select id="edit-{{ f.slot }}" name="value"{% if f.multiple %} multiple{% endif %}>
           {% if not f.multiple %}<option value=""></option>{% endif %}
-          {% for o in f.options %}<option value="{{ o }}"{% if o in f.values %} selected{% endif %}>{{ o }}</option>{% endfor %}
+          {% for o in f.options %}<option value="{{ o }}"{% if o in f["values"] %} selected{% endif %}>{{ o }}</option>{% endfor %}
         </select>
       {% elif f.kind == "checkbox" %}
         <input type="hidden" name="value" value="false">

@@ -1138,6 +1138,11 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
             ctx["ifml"] = view["ifml"]
             # Template-only ELK port graph for the diagram-js canvas (M007/S04, D023).
             ctx["ifml_canvas"] = ifml.ifml_elk_graph(view["ifml"])
+            # Edit mode (backlog I6): the canvas turns modeler and posts each
+            # gesture to /edit/ifml; read-only views get no save URL.
+            ctx["ifml_edit"] = (
+                {"saveUrl": f"/edit/ifml/{quote(focus, safe='')}", "model": focus} if edit_enabled() else None
+            )
     elif render_kind in PAYLOAD_RENDERERS and view["renderPayload"]:
         ctx["payload_url"] = f"/payload/{quote(view['renderPayload'], safe='')}"
         ctx["element_map"] = payload_element_map(focus)

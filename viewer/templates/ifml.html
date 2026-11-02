@@ -3,20 +3,31 @@
     ifml_elk_graph() as a fixed ELK graph, with events as FIXED_POS ports on
     their owner's east border. window.seamsRenderIfml (page.html) draws it on a
     diagram-js canvas: drag to pan, the buttons zoom, seam badges are overlays.
-    Every element group carries data-iri, data-kind and data-layer. -#}
-<div class="ifml-canvas" id="ifml-canvas" data-notation="ifml" aria-label="IFML: {{ ifml.label }}">
+    Every element group carries data-iri, data-kind and data-layer.
+    In edit mode (backlog I6, M019/S07) ifml_edit carries the save URL and the
+    canvas is a modeler: each palette, connect, drop-into-container, delete or
+    remove-field gesture posts one op to it (window.seamsIfmlEditing). -#}
+{% if ifml_edit %}
+<div id="ifml-edit-bar" class="modeler-bar ifml-edit-bar" data-save="{{ ifml_edit.saveUrl }}" data-undo="{{ undo_count }}">
+  <label>Name of a new element <input type="text" class="ifml-new-name"></label>
+  <button type="button" class="edit-undo" hx-post="/edit/undo" hx-swap="none">Undo</button>
+  <span class="modeler-status ifml-edit-status" role="status"></span>
+</div>
+{% endif %}
+<div class="ifml-canvas" id="ifml-canvas" data-notation="ifml" aria-label="IFML: {{ ifml.label }}"{% if ifml_edit %} data-save-url="{{ ifml_edit.saveUrl }}"{% endif %}>
   <div class="ifml-controls">
     <button type="button" data-zoom="in" title="Zoom in">+</button>
     <button type="button" data-zoom="out" title="Zoom out">&minus;</button>
     <button type="button" data-zoom="fit" title="Fit">&#9634;</button>
   </div>
 </div>
+{% if ifml_edit %}<div id="ifml-edit-panel" class="ifml-edit-panel"></div>{% endif %}
 <script>
   (function () {
     var container = document.getElementById("ifml-canvas");
     if (!container) return;
     window.seamsIfmlReady.then(function () {
-      window.seamsRenderIfml(container, {{ ifml_canvas | tojson }}, {{ ifml | tojson }}, "{{ next_path_qs }}", "{{ carried_level }}");
+      window.seamsRenderIfml(container, {{ ifml_canvas | tojson }}, {{ ifml | tojson }}, "{{ next_path_qs }}", "{{ carried_level }}", {{ ifml_edit | tojson }});
     });
   })();
 </script>

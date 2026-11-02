@@ -423,3 +423,61 @@ def test_each_op_logs_its_kind_element_files_and_counts(client, model, caplog):
     assert f"{CHAT}recent" in line
     assert CHAT_IFML in line
     assert "chat-app.trig (+5 -0)" in line
+
+
+# --- the modeler on the IFML canvas (T02) --------------------------------------
+
+VIEW = f"/view/{quote(CHAT_IFML, safe='')}"
+SAVE_URL = f"/edit/ifml/{quote(CHAT_IFML, safe='')}"
+# What edit mode adds to the IFML view: the modeling module (page shell), the
+# bar, the canvas's save URL and the edit options the render call passes.
+MODELING_HOOKS = (
+    "window.seamsIfmlEditing = {",
+    "https://esm.sh/diagram-js@15/lib/features/modeling",
+    "https://esm.sh/diagram-js@15/lib/features/palette",
+)
+VIEW_HOOKS = (
+    'id="ifml-edit-bar"',
+    f'data-save-url="{SAVE_URL}"',
+    f'"saveUrl": "{SAVE_URL}"',
+    'id="ifml-edit-panel"',
+)
+
+
+def test_ifml_view_has_the_modeling_hook_and_save_url_in_edit_mode(client):
+    html = client.get(VIEW).text
+    for hook in MODELING_HOOKS + VIEW_HOOKS:
+        assert hook in html, hook
+    # A form's field rows carry the field IRI that remove_field posts.
+    assert '"data-field-iri": f.iri' in html
+
+
+def test_ifml_fragment_carries_the_save_url_but_not_the_modules(client):
+    html = client.get(VIEW, headers={"hx-request": "true"}).text
+    for hook in VIEW_HOOKS:
+        assert hook in html, hook
+    # The modules load once with the shell (MEM009), not with every swap.
+    for hook in MODELING_HOOKS:
+        assert hook not in html, hook
+
+
+def test_ifml_view_has_no_modeling_hook_or_save_url_without_seams_edit(tmp_path, monkeypatch, restore_viewer):
+    copy = tmp_path / "chat-app"
+    shutil.copytree(CHAT_APP, copy, ignore=shutil.ignore_patterns("generated"))
+    monkeypatch.delenv(viewer_app.EDIT_ENV, raising=False)
+    viewer_app.configure(copy)
+    html = TestClient(viewer_app.app).get(VIEW).text
+    assert 'id="ifml-canvas"' in html
+    for hook in MODELING_HOOKS + VIEW_HOOKS:
+        assert hook not in html, hook
+    assert "/edit/ifml/" not in html
+    # The read-only canvas is drawn with no edit options.
+    assert '", null);' in html
+
+
+def test_selecting_a_flow_opens_its_form(client):
+    """Selecting a flow on the canvas loads its S03 form; the swap field is a
+    select over the ifml:SwapStrategy options (a dict field's values, not dict.values)."""
+    response = client.get(f"/edit/{quote(f'{CHAT}send_to_thread', safe='')}")
+    assert response.status_code == 200, response.text
+    assert "<select" in response.text

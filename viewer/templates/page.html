@@ -223,6 +223,15 @@
     .ifml-note-connector { fill: none; stroke: #b8a76a; stroke-width: 1; }
     .ifml-note-text { fill: #1a1a1a; font: 11px system-ui, sans-serif; }
     .ifml-seam-dot { stroke: #fff; stroke-width: 1; }
+    /* IFML editing (backlog I6, M019/S07): text palette and pad entries, the
+       picked field row, the bar's error with the fact it names. */
+    .ifml-canvas .djs-palette, .ifml-canvas .djs-palette.two-column.open { width: auto; }
+    .ifml-canvas .djs-palette .entry.ifml-palette-entry { width: auto; height: auto; padding: 0.25rem 0.5rem; font: 600 11px system-ui, sans-serif; line-height: 1.4; text-align: left; }
+    .ifml-canvas .djs-context-pad .entry.ifml-pad-text { width: auto; padding: 0 0.3rem; font: 600 11px system-ui, sans-serif; line-height: 22px; white-space: nowrap; }
+    .ifml-field-picked .ifml-field-bg { fill: #fdecea; stroke: #b71c1c; }
+    .ifml-edit-bar .ifml-edit-status[data-state="error"] { color: #b71c1c; }
+    .ifml-edit-bar .ifml-edit-status[data-state="saved"] { color: #1b5e20; }
+    .ifml-edit-panel:empty { display: none; }
   </style>
 </head>
 <body>
@@ -378,6 +387,284 @@
       window.seamsIfmlResolve = resolve;
     });
   </script>
+  {% if edit_enabled() %}
+  <script type="module" onerror="console.error('IFML editing failed: the diagram-js modeling modules did not load')">
+    // IFML editing on the diagram (backlog I6, M019/S07). Edit mode only, and
+    // before the IFML module below so window.seamsIfmlEditing exists when it
+    // draws. diagram-js runs the gestures (palette create, connect, move into a
+    // container, the context pad's delete and remove field); at each gesture's
+    // end the op goes as JSON to the canvas's save URL (POST /edit/ifml/{model},
+    // viewer/ifml_edit.py) and the default modeling is cancelled, so the canvas
+    // only ever shows the model: a saved op redraws from the returned graph, a
+    // refused one leaves it as it was. A drag inside the same container saves
+    // nothing (positions are not in the model).
+    import ModelingModule from "https://esm.sh/diagram-js@15/lib/features/modeling";
+    import SelectionModule from "https://esm.sh/diagram-js@15/lib/features/selection";
+    import MoveModule from "https://esm.sh/diagram-js@15/lib/features/move";
+    import CreateModule from "https://esm.sh/diagram-js@15/lib/features/create";
+    import ConnectModule from "https://esm.sh/diagram-js@15/lib/features/connect";
+    import GlobalConnectModule from "https://esm.sh/diagram-js@15/lib/features/global-connect";
+    import PaletteModule from "https://esm.sh/diagram-js@15/lib/features/palette";
+    import ContextPadModule from "https://esm.sh/diagram-js@15/lib/features/context-pad";
+    import RuleProvider from "https://esm.sh/diagram-js@15/lib/features/rules/RuleProvider";
+
+    // The kinds the palette makes, by the IFML local name the create op takes,
+    // with a placeholder drawing for the drag preview.
+    function component(stereotype) {
+      return { type: "ifml:component", width: 180, height: 48, ifml: { kind: "component", stereotype: stereotype, label: "", bindings: [], fields: [] } };
+    }
+    var NEW = {
+      ViewContainer: { type: "ifml:container", width: 240, height: 140, ifml: { kind: "container", title: "ViewContainer" } },
+      List: component("«List»"),
+      Details: component("«Details»"),
+      Form: component("«Form»"),
+      Event: { type: "ifml:event", width: 16, height: 16, ifml: { kind: "event", eventKind: "user", r: 8, label: "" } },
+    };
+
+    function kindOf(element) {
+      if (!element) return null;
+      if (!element.parent && !element.ifml) return "model";
+      return element.ifml ? element.ifml.kind : null;
+    }
+    function inside(element, ancestor) {
+      for (var e = element; e; e = e.parent) if (e === ancestor) return true;
+      return false;
+    }
+    // Where each new kind may go (viewer/ifml_edit.py refuses the rest).
+    function canHold(target, newKind) {
+      var k = kindOf(target);
+      if (k === "model") return newKind === "ViewContainer";
+      if (k === "container") return true;
+      if (k === "component") return newKind === "Event";
+      return false;
+    }
+
+    class IfmlRules extends RuleProvider {
+      init() {
+        this.addRule("shape.create", function (ctx) { return canHold(ctx.target, ctx.shape.newKind); });
+        this.addRule("shape.attach", function () { return false; });
+        this.addRule("elements.move", function (ctx) {
+          var shapes = ctx.shapes || [];
+          if (shapes.length !== 1) return false;
+          var shape = shapes[0], k = kindOf(shape), t = kindOf(ctx.target);
+          if (k !== "container" && k !== "component") return false;
+          if (!ctx.target || ctx.target === shape.parent) return true;
+          if (inside(ctx.target, shape)) return false;
+          return t === "container" || (k === "container" && t === "model");
+        });
+        this.addRule("connection.start", function (ctx) { return kindOf(ctx.source) === "event"; });
+        this.addRule("connection.create", function (ctx) {
+          var t = kindOf(ctx.target);
+          return kindOf(ctx.source) === "event" && (t === "container" || t === "component");
+        });
+        this.addRule(["connection.reconnect", "connection.updateWaypoints", "shape.resize", "elements.delete"], function () { return false; });
+      }
+    }
+    IfmlRules.$inject = ["eventBus"];
+
+    class IfmlPalette {
+      constructor(palette, create, elementFactory, globalConnect) {
+        this.create = create;
+        this.elementFactory = elementFactory;
+        this.globalConnect = globalConnect;
+        palette.registerProvider(this);
+      }
+      getPaletteEntries() {
+        var self = this, entries = {};
+        Object.keys(NEW).forEach(function (kind) {
+          function start(event) {
+            var shape = self.elementFactory.createShape(Object.assign({ newKind: kind }, NEW[kind], { ifml: Object.assign({}, NEW[kind].ifml) }));
+            self.create.start(event, shape);
+          }
+          entries["create." + kind] = {
+            group: "ifml",
+            html: '<div class="entry ifml-palette-entry" draggable="true">' + kind + "</div>",
+            title: "Create an ifml:" + kind + " (drag it into its parent)",
+            action: { dragstart: start, click: start },
+          };
+        });
+        entries["connect.NavigationFlow"] = {
+          group: "ifml",
+          html: '<div class="entry ifml-palette-entry">NavigationFlow</div>',
+          title: "Connect an event to a view container or component",
+          action: { click: function (event) { self.globalConnect.start(event); } },
+        };
+        return entries;
+      }
+    }
+    IfmlPalette.$inject = ["palette", "create", "elementFactory", "globalConnect"];
+
+    // The context pad of the selected element: connect (an event), delete, and
+    // remove the field row last clicked on a form. The actions come from
+    // seamsIfmlEditing.wire, which owns the save.
+    class IfmlContextPad {
+      constructor(contextPad, connect) {
+        this.connect = connect;
+        this.actions = null;
+        contextPad.registerProvider(this);
+      }
+      getContextPadEntries(element) {
+        var actions = this.actions, connect = this.connect, k = kindOf(element), entries = {};
+        if (!actions || !element.ifml || !element.ifml.iri || k === "note" || k === "action") return entries;
+        if (k === "event") {
+          entries.connect = {
+            group: "edit",
+            className: "bpmn-icon-connection",
+            title: "Connect with a NavigationFlow",
+            action: { click: function (event) { connect.start(event, element); }, dragstart: function (event) { connect.start(event, element); } },
+          };
+        }
+        var field = actions.field();
+        if (field && field.element === element) {
+          entries["remove-field"] = {
+            group: "edit",
+            html: '<div class="entry ifml-pad-text">&minus; field</div>',
+            title: "Remove the field " + field.name + " from the shape this form writes",
+            action: { click: function () { actions.removeField(element, field); } },
+          };
+        }
+        entries.delete = {
+          group: "edit",
+          className: "bpmn-icon-trash",
+          title: "Delete with what it contains and every flow from or to it",
+          action: { click: function () { actions.remove(element); } },
+        };
+        return entries;
+      }
+    }
+    IfmlContextPad.$inject = ["contextPad", "connect"];
+
+    var IfmlEditModule = {
+      __init__: ["ifmlRules", "ifmlPalette", "ifmlContextPad"],
+      ifmlRules: ["type", IfmlRules],
+      ifmlPalette: ["type", IfmlPalette],
+      ifmlContextPad: ["type", IfmlContextPad],
+    };
+
+    // The bar's status line and the oob panels the save answer carries.
+    function swapOob(html) {
+      var tpl = document.createElement("template");
+      tpl.innerHTML = html || "";
+      Array.from(tpl.content.children).forEach(function (node) {
+        var old = node.id && document.getElementById(node.id);
+        if (!old) return;
+        node.removeAttribute("hx-swap-oob");
+        old.replaceWith(node);
+        htmx.process(node);
+      });
+    }
+
+    window.seamsIfmlEditing = {
+      modules: [ModelingModule, SelectionModule, MoveModule, CreateModule, ConnectModule, GlobalConnectModule, PaletteModule, ContextPadModule, IfmlEditModule],
+      // Wire one drawn canvas: every gesture's end posts its op; redraw(body)
+      // draws the model the save answered with.
+      wire: function (djs, container, edit, redraw) {
+        var eventBus = djs.get("eventBus"), canvas = djs.get("canvas"), contextPad = djs.get("contextPad");
+        var bar = document.getElementById("ifml-edit-bar");
+        var status = bar && bar.querySelector(".ifml-edit-status");
+        var nameInput = bar && bar.querySelector(".ifml-new-name");
+        var field = null;
+        function say(text, state, error) {
+          if (!status) return;
+          status.textContent = text;
+          status.setAttribute("data-state", state || "");
+          ["subject", "predicate", "detail"].forEach(function (key) {
+            if (error && error[key]) status.setAttribute("data-" + key, error[key]);
+            else status.removeAttribute("data-" + key);
+          });
+        }
+        function iriOf(element) {
+          return kindOf(element) === "model" ? edit.model : element.ifml.iri;
+        }
+        function post(op) {
+          say(op.op + "…", "");
+          return fetch(edit.saveUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(op) })
+            .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+            .then(function (r) {
+              if (!r.ok || !r.body.saved) {
+                // Nothing was written: the canvas still shows the model.
+                var err = (r.body && r.body.error) || { detail: r.body && r.body.detail };
+                say("not saved: " + [err.subject, err.predicate, err.detail].filter(Boolean).join(": "), "error", err);
+                return false;
+              }
+              var files = r.body.files.map(function (f) { return f.file + " (+" + f.adds + " −" + f.removes + ")"; }).join(", ");
+              say(r.body.op + " " + r.body.element + ": " + (files || "no change"), "saved");
+              if (bar) bar.setAttribute("data-undo", r.body.undo);
+              swapOob(r.body.oob);
+              return redraw(r.body).then(function () { return true; });
+            })
+            .catch(function (err) {
+              say("not saved: " + err, "error");
+              return false;
+            });
+        }
+
+        // Each gesture ends in its op; returning false cancels diagram-js's own
+        // modeling (priority 1750: before Create, Move and Connect at 1000, after
+        // Create's 2000 cleanup).
+        eventBus.on("create.end", 1750, function (e) {
+          var c = e.context, shape = c.shape || (c.elements || [])[0];
+          if (!c.canExecute || !c.target || !shape || !shape.newKind) return false;
+          var name = (nameInput && nameInput.value.trim()) || (window.prompt("Name of the new " + shape.newKind) || "").trim();
+          if (!name) {
+            say("not created: a new " + shape.newKind + " needs a name", "error");
+            return false;
+          }
+          post({ op: "create", kind: shape.newKind, name: name, parent: iriOf(c.target) }).then(function (saved) {
+            if (saved && nameInput) nameInput.value = "";
+          });
+          return false;
+        });
+        eventBus.on("connect.end", 1750, function (e) {
+          var c = e.context;
+          if (c.canExecute && c.source && c.target) {
+            post({ op: "connect", kind: "NavigationFlow", source: iriOf(c.source), target: iriOf(c.target) });
+          }
+          return false;
+        });
+        eventBus.on("shape.move.end", 1750, function (e) {
+          var c = e.context, shape = (c.shapes || [])[0];
+          if (c.canExecute && c.target && shape && c.target !== shape.parent) {
+            post({ op: "move", element: iriOf(shape), parent: iriOf(c.target) });
+          }
+          return false;
+        });
+
+        // A click on a form's field row picks the field for "remove field". The
+        // event's target is the shape's hit box (diagram-js visuals take no
+        // pointer events), so find the row whose box holds the pointer.
+        eventBus.on("element.click", 1500, function (e) {
+          var ev = e.originalEvent, row = null;
+          if (ev && kindOf(e.element) === "component") {
+            row = Array.from(djs.get("elementRegistry").getGraphics(e.element).querySelectorAll("[data-field-iri]")).find(function (n) {
+              var r = n.getBoundingClientRect();
+              return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+            }) || null;
+          }
+          container.querySelectorAll(".ifml-field-picked").forEach(function (n) { n.classList.remove("ifml-field-picked"); });
+          field = row ? { element: e.element, iri: row.getAttribute("data-field-iri"), name: row.getAttribute("data-field-name") } : null;
+          if (row) row.classList.add("ifml-field-picked");
+          if (contextPad.isOpen(e.element)) contextPad.open(e.element, true);
+        });
+        djs.get("ifmlContextPad").actions = {
+          field: function () { return field; },
+          remove: function (element) { post({ op: "delete", element: iriOf(element) }); },
+          removeField: function (element, f) { post({ op: "remove_field", element: iriOf(element), path: f.iri }); },
+        };
+
+        // Selecting an element opens its shape-derived form (S03, /edit/{iri}).
+        eventBus.on("selection.changed", function (e) {
+          var el = e.newSelection.length === 1 ? e.newSelection[0] : null, k = kindOf(el);
+          if (!el || !el.ifml || !el.ifml.iri || k === "note" || k === "action") return;
+          if (document.getElementById("ifml-edit-panel")) {
+            htmx.ajax("GET", "/edit/" + encodeURIComponent(el.ifml.iri), { target: "#ifml-edit-panel", swap: "innerHTML" });
+          }
+        });
+        container.setAttribute("data-modeling", "ifml");
+      },
+    };
+  </script>
+  {% endif %}
   <script type="module" onerror="console.error('IFML render failed: the diagram-js modules did not load')">
     // IFML on diagram-js (M007/S04, D023). The geometry is computed in Python
     // (viewer/ifml.py) and carried as a fixed ELK graph whose events are
@@ -436,7 +723,7 @@
           var fieldY = 44 + d.bindings.length * 22;
           d.fields.forEach(function (f, i) {
             var row = group(g, "ifml-field");
-            svgAttr(row, { "data-kind-field": f.kind, "data-path": f.path });
+            svgAttr(row, { "data-kind-field": f.kind, "data-path": f.path, "data-field-iri": f.iri, "data-field-name": f.name });
             el("rect", { class: "ifml-field-bg", x: 8, y: fieldY + i * 20, width: w - 16, height: 16 }, row);
             el("text", { class: "ifml-field-text", x: 14, y: fieldY + i * 20 + 12 }, row, f.label);
             el("text", { class: "ifml-field-kind", x: w - 14, y: fieldY + i * 20 + 12, "text-anchor": "end" }, row, f.kind);
@@ -485,7 +772,9 @@
     IfmlRenderer.$inject = ["eventBus"];
     var IfmlRendererModule = { __init__: ["ifmlRenderer"], ifmlRenderer: ["type", IfmlRenderer] };
 
-    window.seamsRenderIfml = function (container, canvasData, diagram, pathQs, level) {
+    // edit (backlog I6) is {saveUrl, model} in edit mode, else null: with it the
+    // canvas also loads window.seamsIfmlEditing's modeling modules.
+    window.seamsRenderIfml = function (container, canvasData, diagram, pathQs, level, edit) {
       if (typeof ELK === "undefined") {
         console.error("IFML render failed: elkjs (ELK) is not loaded");
         return Promise.resolve(null);
@@ -495,9 +784,12 @@
         if (window.seamsIfmlCanvas) {
           try { window.seamsIfmlCanvas.destroy(); } catch (err) { /* already gone with its container */ }
         }
+        var editing = edit ? window.seamsIfmlEditing : null;
+        if (edit && !editing) console.error("IFML editing unavailable: the diagram-js modeling modules did not load");
+        var modules = [MoveCanvasModule, OverlaysModule, InteractionEventsModule, IfmlRendererModule];
         var djs = new Diagram({
           canvas: { container: container },
-          modules: [MoveCanvasModule, OverlaysModule, InteractionEventsModule, IfmlRendererModule],
+          modules: editing ? modules.concat(editing.modules) : modules,
         });
         window.seamsIfmlCanvas = djs;
         var canvas = djs.get("canvas"), factory = djs.get("elementFactory");
@@ -550,6 +842,12 @@
 
         // data-* hooks on every element group, as the M006/S05 SVG had them.
         var registry = djs.get("elementRegistry");
+        // Flows start on their event, and a flow's hit stroke is wide: raise
+        // the events above the flows so a click on one picks the event.
+        var rootGfx = registry.getGraphics(canvas.getRootElement());
+        Object.keys(idMap).forEach(function (djsId) {
+          if (elements[idMap[djsId]].kind === "event") rootGfx.appendChild(registry.getGraphics(djsId).parentNode);
+        });
         Object.keys(idMap).forEach(function (djsId) {
           var d = elements[idMap[djsId]], attrs = { "data-iri": d.iri, "data-kind": d.kind, "data-layer": d.layer };
           if (d.flowKind) attrs["data-flow-kind"] = d.flowKind;
@@ -558,10 +856,13 @@
           svgAttr(registry.getGraphics(djsId), attrs);
         });
 
-        djs.get("eventBus").on("element.click", function (e) {
-          var d = e.element && elements[idMap[e.element.id]];
-          if (d) window.seamsNavigate(d.iri, pathQs, level);
-        });
+        // In the modeler a click selects; the seam badges still navigate.
+        if (!editing) {
+          djs.get("eventBus").on("element.click", function (e) {
+            var d = e.element && elements[idMap[e.element.id]];
+            if (d) window.seamsNavigate(d.iri, pathQs, level);
+          });
+        }
 
         // Seam badges: flows and notes carry none.
         var elementSeams = {}, elementMap = {};
@@ -574,19 +875,26 @@
         window.seamsDecorateDiagram(djs, elementSeams, elementMap, pathQs, level);
 
         // Fit leaves a margin so seam badges on the outer shapes stay visible.
-        function fit() {
-          canvas.zoom("fit-viewport", "auto");
-          canvas.zoom(canvas.zoom() * 0.92, "auto");
+        function fit(c) {
+          c.zoom("fit-viewport", "auto");
+          c.zoom(c.zoom() * 0.92, "auto");
         }
-        container.querySelectorAll(".ifml-controls [data-zoom]").forEach(function (button) {
-          button.addEventListener("click", function (ev) {
-            ev.stopPropagation();
-            var how = button.getAttribute("data-zoom");
-            if (how === "fit") fit();
-            else canvas.zoom(canvas.zoom() * (how === "in" ? 1.25 : 0.8), "auto");
+        // The buttons outlive a redraw on the same container: bind them once,
+        // to whichever canvas is current.
+        if (!container.seamsIfmlZoomBound) {
+          container.seamsIfmlZoomBound = true;
+          container.querySelectorAll(".ifml-controls [data-zoom]").forEach(function (button) {
+            button.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              var how = button.getAttribute("data-zoom"), c = container.seamsIfml.get("canvas");
+              if (how === "fit") fit(c);
+              else c.zoom(c.zoom() * (how === "in" ? 1.25 : 0.8), "auto");
+            });
           });
-        });
-        fit();
+        }
+        // A redraw after an edit keeps the user's pan and zoom.
+        if (edit && edit.viewbox) canvas.viewbox(edit.viewbox);
+        else fit(canvas);
 
         // Diagnostic hooks for browser checks.
         container.seamsIfml = djs;
@@ -594,6 +902,13 @@
         container.seamsIfmlPositions = absolute;
         container.seamsIfmlIds = idMap;
         container.seamsIfmlDiagram = diagram;
+        if (editing) {
+          editing.wire(djs, container, edit, function (body) {
+            var vb = canvas.viewbox();
+            edit.viewbox = { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
+            return window.seamsRenderIfml(container, body.canvas, body.ifml, pathQs, level, edit);
+          });
+        }
         return djs;
       }).catch(function (err) {
         console.error("IFML render failed: " + (err && err.message ? err.message : err), err);

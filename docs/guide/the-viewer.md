@@ -121,7 +121,7 @@ reached from more than one parent. Each crumb is a link back.
 | Notation | Renderer |
 |---|---|
 | C4 architecture | Nested SVG cards laid out by ELK, with the zoom levels above |
-| IFML interaction | IFML notation on diagram-js: pan, zoom, seam badges; events on ELK ports, layout computed on the server |
+| IFML interaction | IFML notation on diagram-js: pan, zoom, seam badges; events on ELK ports, layout computed on the server; a modeler in [edit mode](#ifml-editing) |
 | Statechart | A node-link graph drawn with vis-network |
 | BPMN | bpmn-js, from the model's native XML payload, tinted with the process colour and badged per seam |
 | DMN | dmn-js, from the model's native XML payload: the decision diagram, tinted with the decision colour and badged per seam, and its tables |
@@ -278,6 +278,41 @@ included, byte for byte. An id changed in the XML outside the viewer does not mo
 seam edges, and the health badge then lists the old IRI under *Lifted IRIs missing
 from the XML*.
 
+### IFML editing
+
+In edit mode the IFML view is a diagram-js modeler. A bar above the canvas holds a
+*Name of a new element* field, **Undo** and a status line; the canvas gets a palette and,
+on the selected element, a context pad. Each gesture is one change to the model:
+
+| Gesture | Change |
+|---|---|
+| Drag **ViewContainer**, **List**, **Details**, **Form** or **Event** from the palette into its parent | Creates the element, named from the bar's field (or a prompt when it is empty). A view container goes on the canvas or into another container, a component into a container, an event onto a container or component. |
+| **NavigationFlow** in the palette, or the context pad's connect on an event, then drag to a container or component | Connects the event to it with an `ifml:NavigationFlow`. |
+| Drag a container or component into another container | Moves it there: the `ifml:contains` triple changes, and so does the component's `ifml:order` when the new container already uses it. |
+| Click a form's field row, then the pad's **− field** | Removes that property from the shape the form `seam:writes`. |
+| The pad's trash on an element or a flow | Deletes it with what it contains, its events, and every flow from or to any of them. |
+
+A new element's IRI is its name in its parent's namespace
+([ADR-0002](/adr/0002-iri-identity-and-migration)), so a name already in use is refused.
+A drag that stays inside the same container saves nothing: positions are computed from
+the model, not stored in it. Selecting an element opens its form from the shapes below
+the canvas, as the **Edit** button does elsewhere.
+
+Each gesture posts one op to `POST /edit/ifml/{model}`. The server builds a
+`seams_edit` patch, writes it, puts it on the undo stack and answers with the redrawn
+diagram, the health badge and the live preview, so the canvas, the badge and the
+generated pages update together. The status line names the op, the element and the
+quads each file gained and lost. An op the model cannot take is refused: the status
+line shows the subject, the predicate and the reason, nothing is written, and the
+canvas stays as it was. The server log records each op with its kind, the element, the
+files and the quad counts, and each refusal with the same three facts.
+
+What the diagram does not make, the forms do: a new page needs its `ifml:path` and
+`ifml:title`, and a new List or Details its `seam:reads`, before the htmx generator can
+render it, and the live preview names the missing fact until then. The htmx generator
+also expects one navigation flow per event, so wiring a second flow from an event shows
+as a lenient fault in the preview.
+
 ### Live preview
 
 In edit mode a preview pane sits beside the view. It runs the generators of the
@@ -344,6 +379,7 @@ the diagram comes back drawn and clickable.
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
 | `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel and live preview. |
 | `/edit/payload/{iri}` | Edit mode only: `POST` with JSON `{"xml": …, "renames": [{"old": …, "new": …}]}` renames each id through the seams graph and saves the BPMN or DMN model's XML; returns JSON with the files touched, or a 409 naming the subject, predicate and reason when nothing was written. |
+| `/edit/ifml/{iri}` | Edit mode only: `POST` with JSON `{"op": "create" \| "connect" \| "move" \| "delete" \| "remove_field", …}` applies one [IFML diagram op](#ifml-editing) to the IFML model; returns JSON with the files touched, the redrawn diagram and the health and preview markup, or a 409 naming the subject, predicate and reason when nothing was written. |
 | `/edit/undo` | Edit mode only: `POST` reverses the newest edit of the session. |
 | `/edit/preview` | Edit mode only: `GET` returns the [live preview](#live-preview): the project's generators re-run in lenient mode, in memory, on the loaded model. Add `oob=true` to mark it for an out-of-band swap. |
 
@@ -357,7 +393,8 @@ files sit beside the file, or in the directory. The root view is
 the model's single C4 `seam:Model`, or `SEAMS_VIEWER_ROOT` when set; with no C4 model,
 or more than one, the viewer refuses to start and names the candidates. The statechart
 renderer does not yet draw containment as nesting. Edit mode edits one field of one
-element at a time through forms, and BPMN and DMN only through their modelers: it does
-not create or delete seams-graph elements, or edit the C4, IFML or statechart diagrams
-yet. The modelers do not lift a new BPMN or DMN element into the seams graph, and its
+element at a time through forms, BPMN and DMN only through their modelers, and IFML on
+its diagram: it does not create or delete other seams-graph elements, or edit the C4 or
+statechart diagrams yet. The IFML modeler makes navigation flows only (a data flow is
+made through the route), and does not set a flow's swap. The modelers do not lift a new BPMN or DMN element into the seams graph, and its
 undo history lasts only as long as the viewer runs. A domain profile's palette lists the classes on offer, but the editor cannot yet add an element from it. The live preview shows the generated text, not the page served, and a form save waits for it, so a project with slow generators makes saves slow. The [backlog](/backlog) lists what comes next for the viewer.

@@ -34,6 +34,7 @@ from seams_gen.sequence import derive, render
 from viewer import editing, ifml, layers, legend, preview, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
+from viewer.profiles import Profile, resolve_profile
 from viewer.shapegraph import shapegraph_graph_data
 from viewer.validation import get_lifted_iri_health, get_model_conformance
 
@@ -133,17 +134,22 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 _model: seams.Model | None = None
 _root_iri: str | None = None
+# ADR-0018: the domain profile the loaded model conforms to, resolved with the
+# model, or the ResolutionError facts that stopped it (then no profile applies).
+_profile: Profile | None = None
+_profile_error: dict | None = None
 
 
 def configure(path: Path) -> None:
     """Point the viewer at another model and drop the loaded model, root and
     cached conformance (validation keys it by id(ds), which a fresh Dataset
     can reuse, MEM010)."""
-    global MODEL_PATH, MODEL_DIR, _model, _root_iri
+    global MODEL_PATH, MODEL_DIR, _model, _root_iri, _profile, _profile_error
     MODEL_PATH = Path(path).resolve()
     MODEL_DIR = model_base_dir(MODEL_PATH)
     _model = None
     _root_iri = None
+    _profile = _profile_error = None
     validation._clear_cache()
     _undo_stack.clear()
     mount_edit_routes()
@@ -151,10 +157,12 @@ def configure(path: Path) -> None:
 
 def reload_model() -> None:
     """Drop the loaded model and its cached conformance after an edit, so the next
-    request reads the files seams_edit wrote (MEM010: the cache is keyed by id(ds))."""
-    global _model, _root_iri
+    request reads the files seams_edit wrote (MEM010: the cache is keyed by id(ds)).
+    The domain profile is resolved again with the model (ADR-0018)."""
+    global _model, _root_iri, _profile, _profile_error
     _model = None
     _root_iri = None
+    _profile = _profile_error = None
     validation._clear_cache()
 
 
@@ -166,7 +174,53 @@ def get_model() -> seams.Model:
             source = f" (from {MODEL_ENV})" if os.environ.get(MODEL_ENV) else ""
             raise FileNotFoundError(f"viewer model not found: {MODEL_PATH}{source}")
         _model = seams.load(MODEL_PATH)
+        _resolve_profile(_model.ds)
     return _model
+
+
+def _resolve_profile(ds: Dataset) -> None:
+    """Resolve the model's domain profile (ADR-0018) and log it in one line. A
+    ResolutionError is kept as a health fact and the viewer carries on without one."""
+    global _profile, _profile_error
+    try:
+        _profile = resolve_profile(ds, MODEL_DIR)
+        _profile_error = None
+    except seams.ResolutionError as err:
+        _profile = None
+        _profile_error = {"subject": err.subject, "predicate": err.predicate, "detail": err.detail}
+        logger.warning("profile not resolved: %s %s: %s", err.subject, err.predicate, err.detail)
+        return
+    if _profile is not None:
+        logger.info(
+            "profile %s: %d class(es), %d generator(s)",
+            _profile.iri,
+            len(_profile.classes),
+            len(_profile.generators),
+        )
+
+
+def get_profile() -> Profile | None:
+    """The domain profile the loaded model conforms to, or None (ADR-0018)."""
+    get_model()
+    return _profile
+
+
+def profile_health() -> dict | None:
+    """The health panel's profile fact: the attached profile's IRI, label and
+    counts, or the ResolutionError facts that stopped it; None with no profile."""
+    profile = get_profile()
+    if _profile_error is not None:
+        return {"iri": None, "label": None, "classes": 0, "generators": 0, "error": _profile_error}
+    if profile is None:
+        return None
+    name = profile.graph.value(profile.iri, RDFS.label)
+    return {
+        "iri": str(profile.iri),
+        "label": str(name) if name is not None else str(profile.iri),
+        "classes": len(profile.classes),
+        "generators": len(profile.generators),
+        "error": None,
+    }
 
 
 def get_graph() -> Dataset:
@@ -175,10 +229,14 @@ def get_graph() -> Dataset:
 
 
 def model_health(ds: Dataset) -> dict:
-    """The health panel's facts: the cached SHACL conformance summary plus
-    ``liftedIris``, the BPMN/DMN lifted IRIs with no matching id in their payload
-    XML (ADR-0002 rule 4), resolved against MODEL_DIR as payloads are."""
-    return {**get_model_conformance(ds), "liftedIris": get_lifted_iri_health(ds, MODEL_DIR)}
+    """The health panel's facts: the cached SHACL conformance summary (with the
+    domain profile's shapes and out-of-profile warnings, ADR-0018), ``liftedIris``,
+    the BPMN/DMN lifted IRIs with no matching id in their payload XML (ADR-0002
+    rule 4), resolved against MODEL_DIR as payloads are, and ``profile`` when the
+    model states a seam:conformsTo (no key otherwise, so nothing changes)."""
+    health = {**get_model_conformance(ds, get_profile()), "liftedIris": get_lifted_iri_health(ds, MODEL_DIR)}
+    profile = profile_health()
+    return health if profile is None else {**health, "profile": profile}
 
 
 def root_iri() -> str:
@@ -1054,7 +1112,7 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         # Template-only (M013/S03): the /view JSON contract is unchanged.
         "sequence_events": sequence_events(focus),
         # Edit mode (ADR-0017): an Edit control only for an element some shape targets.
-        "edit_href": _edit_href(focus) if edit_enabled() and editing.form_fields(get_graph(), focus) else None,
+        "edit_href": _edit_href(focus) if edit_enabled() and _form_fields(focus) else None,
         "undo_count": len(_undo_stack),
         # Edit mode: BPMN and DMN open in the bpmn.io modelers, saving to /edit/payload.
         "modeler": edit_enabled() and render_kind in PAYLOAD_RENDERERS and bool(view["renderPayload"]),
@@ -1123,6 +1181,19 @@ def edit_enabled() -> bool:
 templates.env.globals["edit_enabled"] = edit_enabled
 
 
+def edit_palette() -> dict | None:
+    """The classes the editor offers (ADR-0018): the attached profile's, with its
+    labels, computed in viewer/editing.py. None without a profile or edit mode."""
+    profile = get_profile() if edit_enabled() else None
+    if profile is None:
+        return None
+    health = profile_health() or {}
+    return {"profile": health.get("label"), "iri": str(profile.iri), "classes": editing.palette(profile)}
+
+
+templates.env.globals["edit_palette"] = edit_palette
+
+
 def mount_edit_routes() -> None:
     """Include the edit router when SEAMS_EDIT=1, remove it otherwise."""
     wanted = os.environ.get(EDIT_ENV) == "1"
@@ -1140,9 +1211,17 @@ def _edit_href(iri: str) -> str:
     return f"/edit/{quote(iri, safe='')}"
 
 
+def _form_fields(iri: str) -> list[editing.FormField]:
+    """The element's form fields, with the attached profile's shapes (ADR-0018)."""
+    profile = get_profile()
+    if profile is None:
+        return editing.form_fields(get_graph(), iri)
+    return editing.form_fields(get_graph(), iri, profile.shapes)
+
+
 def _edit_context(request: Request, iri: str, **extra) -> dict:
     ds = get_graph()
-    fields = editing.form_fields(ds, iri)
+    fields = _form_fields(iri)
     return {
         "request": request,
         "focus_iri": iri,
@@ -1282,9 +1361,11 @@ def _roll_back(records: list[seams_edit.EditRecord]) -> str:
 
 def preview_context() -> dict:
     """The live preview of the loaded model (viewer/preview.py), logged with its
-    project, output count, fault count and duration."""
+    project, output count, fault count and duration. An attached profile limits it
+    to the profile's generators (ADR-0018)."""
     start = time.perf_counter()
-    facts = preview.preview(MODEL_PATH, MODEL_DIR)
+    profile = get_profile()
+    facts = preview.preview(MODEL_PATH, MODEL_DIR, profile.generators if profile is not None else None)
     logger.info(
         "preview %s: %d output(s), %d fault(s) in %.2fs%s",
         facts["project"] or MODEL_DIR,
@@ -1323,7 +1404,7 @@ async def edit_save(request: Request, iri: str):
     _known_element(element)
     form = parse_qs((await request.body()).decode("utf-8"), keep_blank_values=True)
     path = (form.get("field") or [""])[0]
-    fields = {f.path: f for f in editing.form_fields(get_graph(), element)}
+    fields = {f.path: f for f in _form_fields(element)}
     if path not in fields:
         raise HTTPException(status_code=400, detail=f"{element} has no shaped field {path!r}")
     try:

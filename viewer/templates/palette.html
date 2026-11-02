@@ -1,0 +1,14 @@
+{# Edit mode's palette (ADR-0018): the classes the attached domain profile offers,
+   with its labels, computed by viewer/editing.py palette(). page.html includes it
+   in the shell beside the preview, outside the #view-content swap target (MEM009).
+   Without a profile there is no palette. #}
+{% with palette = edit_palette() %}{% if palette %}
+<section class="edit-palette" data-profile="{{ palette.iri }}">
+  <h4>{{ palette.profile }}: offered classes</h4>
+  <ul>
+    {% for c in palette.classes %}
+    <li data-class="{{ c.iri }}" title="{{ c.qname }}">{{ c.label }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}{% endwith %}

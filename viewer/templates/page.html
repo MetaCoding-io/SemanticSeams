@@ -102,6 +102,11 @@
     .edit-layout #view-content { min-width: 0; }
     .preview-pane { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; border-left: 1px solid #ddd; background: #fafbfc; font-size: 0.85rem; }
     .preview-panel { padding: 0.75rem 1rem; }
+    /* Edit mode's palette (ADR-0018): the attached domain profile's classes. */
+    .edit-palette { padding: 0.75rem 1rem; border-bottom: 1px solid #ddd; }
+    .edit-palette h4 { margin: 0 0 0.35rem 0; font-size: 0.9rem; }
+    .edit-palette ul { margin: 0; padding-left: 1.25rem; }
+    .preview-panel .preview-profile { color: #555; }
     .preview-panel[data-lenient="true"] { background: #fff4e0; }
     .preview-panel .preview-lenient { margin-left: 0.5rem; color: #8a5300; font-weight: 600; }
     .preview-panel .preview-error { color: #b71c1c; }
@@ -124,6 +129,8 @@
     .health-panel .health-warnings { margin-left: 0.75rem; color: #8a5300; background: #fff4e0; border: 1px solid #ffcc80; border-radius: 3px; padding: 0 0.4rem; font-weight: 600; }
     .health-panel .health-lifted { margin-left: 0.75rem; color: #b71c1c; background: #fdecea; border: 1px solid #ef9a9a; border-radius: 3px; padding: 0 0.4rem; font-weight: 600; }
     .health-panel .health-notes { margin-left: 0.75rem; color: #555; }
+    .health-panel .health-profile { margin-left: 0.75rem; color: #555; }
+    .health-panel .health-profile-error { margin-left: 0.75rem; color: #b71c1c; font-weight: 600; }
     .edit-controls button, .edit-actions button, .edit-actions a { margin-right: 0.5rem; }
     .modeler-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.35rem 0; }
     .modeler-bar .modeler-status[data-state="error"] { color: #b71c1c; }
@@ -623,6 +630,7 @@
   </div>
   {% if edit_enabled() %}
   <aside class="preview-pane">
+    {% include "palette.html" %}
     <div class="preview-panel" id="preview-panel" data-lenient="false" hx-get="/edit/preview" hx-trigger="load" hx-swap="outerHTML">
       <p class="preview-summary">Generating the preview&hellip;</p>
     </div>

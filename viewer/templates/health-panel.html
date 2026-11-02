@@ -13,6 +13,13 @@
   {% if model_conformance.liftedIris %}
   <span class="health-lifted" data-lifted-iris="{{ model_conformance.liftedIris | length }}">&#9888; {{ model_conformance.liftedIris | length }} lifted IRI(s) missing from the XML</span>
   {% endif %}
+  {% if model_conformance.profile %}{% with p = model_conformance.profile %}
+  {% if p.error %}
+  <span class="health-profile-error" role="alert" data-subject="{{ p.error.subject }}" data-predicate="{{ p.error.predicate }}">&#10007; Profile not resolved: <code>{{ p.error.subject }}</code> <code>{{ p.error.predicate }}</code>: {{ p.error.detail }}</span>
+  {% else %}
+  <span class="health-profile" data-profile="{{ p.iri }}">Profile: {{ p.label }} ({{ p.classes }} class(es), {{ p.generators }} generator(s))</span>
+  {% endif %}
+  {% endwith %}{% endif %}
   {% for n in model_conformance.notes %}
   <span class="health-notes">Note: {{ n.message }}</span>
   {% endfor %}

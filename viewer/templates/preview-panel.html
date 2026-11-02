@@ -1,7 +1,8 @@
 {# The live preview (backlog I3, M019/S05): the project's generators re-run in
    lenient mode, in memory, on the edited model (viewer/preview.py). GET
    /edit/preview renders it; an edit-mode save response can send it again with
-   oob set, so htmx swaps the refreshed preview out of band, as the health panel. #}
+   oob set, so htmx swaps the refreshed preview out of band, as the health panel.
+   A model attached to a domain profile previews only its generators (ADR-0018). #}
 <div class="preview-panel" id="preview-panel" data-lenient="{{ 'true' if preview.lenient else 'false' }}"{% if oob %} hx-swap-oob="true"{% endif %}>
   {% if preview.error %}
   <p class="preview-error">{{ preview.error }}</p>
@@ -10,6 +11,12 @@
     Preview of <code>{{ preview.project }}</code>: {{ preview.files | length }} output(s)
     {% if preview.lenient %}<span class="preview-lenient">&#9888; lenient: {{ preview.faults | length }} fault(s)</span>{% endif %}
   </p>
+  {% if preview.generators is not none %}
+  <p class="preview-profile" data-generators="{{ preview.generators | join(' ') }}">
+    The domain profile previews {% for g in preview.generators %}<code>{{ g }}</code>{% if not loop.last %}, {% endif %}{% else %}no generator{% endfor %}.
+    {% for g in preview.unconfigured %}<span class="preview-unconfigured" data-generator="{{ g }}"><code>{{ g }}</code> is not configured in the project.</span> {% endfor %}
+  </p>
+  {% endif %}
   {% if preview.faults %}
   <ul class="preview-faults">
     {% for f in preview.faults %}

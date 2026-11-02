@@ -4,7 +4,8 @@
 seam shapes (ontology/shapes/seam-shapes.ttl) and any shapes in the model itself.
 Each property shape with an IRI ``sh:path`` gives one field, with its name, datatype,
 ``sh:in`` options, counts, order and the element's current values. ``build_patch``
-turns a submitted field into a ``seams_edit.Patch``.
+turns a submitted field into a ``seams_edit.Patch``. ``palette`` lists the classes an
+attached domain profile offers (ADR-0018), with the profile's labels.
 
 Nothing here refuses a value because a shape would: an edit that breaks the shapes is
 saved and flagged on the health badge (principle 5). Only a value the patch cannot
@@ -26,6 +27,7 @@ from rdflib.namespace import SH
 from rdflib.term import Node
 
 from seams_edit import Patch, PatchError, Quad
+from viewer.profiles import Profile
 from viewer.validation import ONTOLOGY_FILES, SHAPES_FILE
 
 # Characters an IRI may not contain (RFC 3987 excludes them; Turtle cannot write them).
@@ -183,16 +185,18 @@ def _label(ds: Dataset, shapes: rdflib.Graph, path: URIRef) -> str:
     return str(path)
 
 
-def form_fields(ds: Dataset, iri: str) -> list[FormField]:
+def form_fields(ds: Dataset, iri: str, profile_shapes: rdflib.Graph | None = None) -> list[FormField]:
     """The element's form: one field per IRI ``sh:path`` of the shapes that target it.
 
-    Sorted by ``sh:order`` (unordered fields last), then name, then path, so the same
-    model gives the same form.
+    ``profile_shapes`` are the attached domain profile's shapes (ADR-0018), read after
+    the seam shapes and before the model's own. Sorted by ``sh:order`` (unordered
+    fields last), then name, then path, so the same model gives the same form.
     """
     subject = URIRef(iri)
     classes = _classes(ds, subject)
     acc: dict[URIRef, _Acc] = {}
-    for shapes in (_seam_shapes(), ds):
+    sources = (_seam_shapes(), *(() if profile_shapes is None else (profile_shapes,)), ds)
+    for shapes in sources:
         for shape in sorted(set(shapes.subjects(RDF.type, SH.NodeShape)), key=str):
             if not _targets(shapes, shape, ds, subject, classes):
                 continue
@@ -226,6 +230,26 @@ def form_fields(ds: Dataset, iri: str) -> list[FormField]:
             )
         )
     return sorted(fields, key=lambda f: (f.order is None, f.order or 0.0, f.name, f.path))
+
+
+def palette(profile: Profile) -> list[dict[str, str]]:
+    """The classes the editor offers under ``profile`` (ADR-0018), in IRI order.
+
+    Each entry is the class IRI, its prefixed name and its label: the profile's
+    (skos:prefLabel, else rdfs:label), else the ontology's rdfs:label, else the
+    prefixed name, which is what the editor shows without a profile.
+    """
+    ontology = _ontology_graph()
+    entries: list[dict[str, str]] = []
+    for cls in profile.classes:
+        try:
+            qname = ontology.namespace_manager.normalizeUri(cls)
+        except Exception:
+            qname = str(cls)
+        fallback = ontology.value(cls, RDFS.label)
+        label = profile.labels.get(cls) or (str(fallback) if fallback is not None else qname)
+        entries.append({"iri": str(cls), "qname": qname, "label": label})
+    return entries
 
 
 def _iri(ds: Dataset, subject: str, path: str, text: str) -> URIRef:

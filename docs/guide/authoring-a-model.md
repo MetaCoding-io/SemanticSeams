@@ -647,3 +647,16 @@ payload paths resolve against the directory.
 The root view is your model's C4 `seam:Model`. If the file has none, or more than one,
 set `SEAMS_VIEWER_ROOT` to the IRI the viewer should open at. See
 [Getting started](/guide/getting-started#open-the-viewer) for a tour of the views.
+
+To edit the model within a domain's own terms, attach it to a domain profile with one
+triple in the seams graph, and keep the profile in `profiles/<name>/profile.ttl` beside
+the model:
+
+```turtle
+:my_architecture seam:conformsTo <https://example.org/profiles/expense> .
+```
+
+The viewer's edit mode then offers only the profile's classes under its labels, runs its
+shapes in health and previews only its generators. A profile never changes what
+`seams generate` builds. See [Domain profiles](/guide/the-viewer#domain-profiles) and
+[ADR-0018](/adr/0018-domain-profiles).

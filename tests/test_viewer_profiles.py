@@ -5,15 +5,25 @@ profiles/*/profile.ttl packages in the model directory. These tests use
 tests/fixtures/ as the model directory, so the sample profile in
 tests/fixtures/profiles/expense/ is found, and tmp_path copies for the broken cases.
 Expected classes, generators and labels are read from the fixture graph, not repeated.
+
+The viewer tests at the end (M019/S06/T03) copy the expense tutorial's chapter 4 to
+tmp_path, add the sample profile and one seam:conformsTo triple to the copy, and
+drive the edit-mode viewer through TestClient: the palette, the health merge, the
+preview's generator subset, and no change at all for a model with no profile.
 """
 
+import html
+import logging
+import re
 import shutil
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import pyshacl
 import pytest
 import rdflib
+from fastapi.testclient import TestClient
 from rdflib import RDF, RDFS, SKOS, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +32,8 @@ if str(ROOT) not in sys.path:
 
 from seams import SEAM, ResolutionError  # noqa: E402
 
+from viewer import app as viewer_app  # noqa: E402
+from viewer import editing, validation  # noqa: E402
 from viewer.profiles import Profile, resolve_profile  # noqa: E402
 from viewer.validation import ONTOLOGY_FILES, SHAPES_FILE  # noqa: E402
 
@@ -283,3 +295,235 @@ def test_offered_class_shape_rejects_two_rdfs_labels():
     graph = fixture_graph()
     graph.add((cls, RDFS.label, rdflib.Literal("second label")))
     assert seam_shape_messages(graph) == {"A class a profile offers has at most one rdfs:label."}
+
+
+# ---------------------------------------------------------------- the viewer
+
+
+CHAPTER = ROOT / "examples" / "expenses" / "chapter-04"
+SEAMS_BLOCK = "<urn:seams:graph:seams> {\n"
+
+
+@pytest.fixture
+def restore_viewer(monkeypatch):
+    """Put the viewer back on its own model, edit mode off, after the test."""
+    original = viewer_app.MODEL_PATH
+    validation._clear_cache()
+    yield
+    monkeypatch.delenv(viewer_app.EDIT_ENV, raising=False)
+    viewer_app.configure(original)
+
+
+def chapter_copy(tmp_path: Path) -> Path:
+    return Path(shutil.copytree(CHAPTER, tmp_path / "chapter-04", ignore=shutil.ignore_patterns("generated")))
+
+
+def attach(app_dir: Path, iri: URIRef) -> None:
+    """Add the sample profile package and ``<root model> seam:conformsTo <iri>``."""
+    shutil.copytree(PROFILE_DIR, app_dir / "profiles" / PROFILE_DIR.name)
+    trig = app_dir / "expenses.trig"
+    root = seams_root(trig)
+    text = trig.read_text(encoding="utf-8")
+    assert text.count(SEAMS_BLOCK) == 1
+    trig.write_text(text.replace(SEAMS_BLOCK, f"{SEAMS_BLOCK}    <{root}> seam:conformsTo <{iri}> .\n"), "utf-8")
+
+
+def seams_root(trig: Path) -> URIRef:
+    """The chapter's C4 model, the subject that states the conformance."""
+    ds = rdflib.Dataset(default_union=True)
+    ds.parse(trig, format="trig")
+    (root,) = set(ds.subjects(SEAM.notation, SEAM.C4))
+    assert isinstance(root, URIRef)
+    return root
+
+
+def open_viewer(app_dir: Path, monkeypatch) -> TestClient:
+    monkeypatch.setenv(viewer_app.EDIT_ENV, "1")
+    viewer_app.configure(app_dir / "expenses.trig")
+    return TestClient(viewer_app.app)
+
+
+@pytest.fixture
+def app_dir(tmp_path) -> Path:
+    return chapter_copy(tmp_path)
+
+
+@pytest.fixture
+def profiled(app_dir, monkeypatch, restore_viewer) -> TestClient:
+    attach(app_dir, fixture_iri())
+    return open_viewer(app_dir, monkeypatch)
+
+
+@pytest.fixture
+def plain(app_dir, monkeypatch, restore_viewer) -> TestClient:
+    return open_viewer(app_dir, monkeypatch)
+
+
+def root_page(client: TestClient) -> str:
+    response = client.get(f"/view/{quote(viewer_app.root_iri(), safe='')}")
+    assert response.status_code == 200
+    return response.text
+
+
+def palette_section(page: str) -> str:
+    match = re.search(r'<section class="edit-palette".*?</section>', page, re.DOTALL)
+    assert match is not None
+    return match.group(0)
+
+
+def instance_of(cls: URIRef) -> str:
+    """The first element of the loaded model typed ``cls``, by IRI."""
+    found = sorted(str(s) for s in viewer_app.get_graph().subjects(RDF.type, cls))
+    assert found, cls
+    return found[0]
+
+
+def test_resolving_the_model_logs_the_profile_counts(app_dir, monkeypatch, restore_viewer, caplog):
+    attach(app_dir, fixture_iri())
+    open_viewer(app_dir, monkeypatch)
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        viewer_app.get_model()
+    profile = resolved()
+    line = f"profile {profile.iri}: {len(profile.classes)} class(es), {len(profile.generators)} generator(s)"
+    assert [r.getMessage() for r in caplog.records if r.getMessage().startswith("profile ")] == [line]
+
+
+def test_palette_offers_only_the_profile_classes_with_its_labels(profiled):
+    section = palette_section(root_page(profiled))
+    profile = resolved()
+    offered = re.findall(r'data-class="([^"]+)"', section)
+    assert offered == [str(c) for c in profile.classes]
+    for cls, label in profile.labels.items():
+        assert f">{html.escape(label)}</li>" in section, cls
+    assert [e["label"] for e in editing.palette(profile)] == [
+        html.unescape(t) for t in re.findall(r"<li [^>]*>([^<]*)</li>", section)
+    ]
+
+
+def test_an_unlabelled_class_keeps_the_editors_label():
+    profile = resolved()
+    (entry,) = [e for e in editing.palette(profile) if URIRef(e["iri"]) not in profile.labels]
+    assert entry["label"] not in profile.labels.values()
+    assert entry["label"] in (entry["qname"], str(editing._ontology_graph().value(URIRef(entry["iri"]), RDFS.label)))
+
+
+def test_health_names_the_profile(profiled):
+    page = root_page(profiled)
+    assert f'data-profile="{fixture_iri()}"' in page
+    health = viewer_app.model_health(viewer_app.get_graph())
+    assert health["profile"]["iri"] == str(fixture_iri()) and health["profile"]["error"] is None
+
+
+def test_out_of_profile_classes_are_flagged_not_refused(profiled):
+    profile = resolved()
+    health = viewer_app.model_health(viewer_app.get_graph())
+    flagged = {(w["focusNode"], w["path"]) for w in health["warnings"] if str(profile.iri) in w["message"]}
+    ds = viewer_app.get_graph()
+    typed = {(str(s), c) for s, c in ds.subject_objects(RDF.type) if isinstance(s, URIRef)}
+    offered_elements = {s for s, c in typed if c in profile.classes}
+    others = {s for s, c in typed if s not in offered_elements}
+    assert flagged, "chapter 4 uses classes the sample profile does not offer"
+    assert all(path == str(RDF.type) for _s, path in flagged)
+    assert {s for s, _p in flagged} <= others
+    assert not {s for s, _p in flagged} & (offered_elements - others)
+
+
+def test_a_profile_shape_violation_is_saved_and_flagged(profiled, app_dir):
+    profile = resolved()
+    shape = next(iter(profile.shapes.subjects(RDF.type, rdflib.SH.NodeShape)))
+    cls = profile.shapes.value(shape, rdflib.SH.targetClass)
+    prop = profile.shapes.value(shape, rdflib.SH.property)
+    path = str(profile.shapes.value(prop, rdflib.SH.path))
+    message = str(profile.shapes.value(prop, rdflib.SH.message))
+    assert isinstance(cls, URIRef)
+    element = instance_of(cls)
+    assert message not in root_page(profiled)
+
+    form = profiled.get(f"/edit/{quote(element, safe='')}")
+    assert f'data-path="{path}"' in form.text, "the profile's shape adds its field to the form"
+
+    trig = app_dir / "expenses.trig"
+    before = trig.read_text(encoding="utf-8")
+    response = profiled.post(f"/edit/{quote(element, safe='')}", data={"field": path, "value": ""})
+    assert response.status_code == 200
+    assert 'class="edit-saved"' in response.text
+    assert trig.read_text(encoding="utf-8") != before
+    assert viewer_app.get_graph().value(URIRef(element), URIRef(path)) is None
+    assert 'id="health-panel" hx-swap-oob="true"' in response.text
+    assert html.escape(message) in response.text
+    health = viewer_app.model_health(viewer_app.get_graph())
+    assert health["conforms"] is False
+    assert any(v["focusNode"] == element and v["message"] == message for v in health["violations"])
+
+
+def test_preview_runs_only_the_profile_generators(app_dir, monkeypatch, restore_viewer):
+    attach(app_dir, fixture_iri())
+    target = app_dir / "profiles" / PROFILE_DIR.name / "profile.ttl"
+    graph = rdflib.Graph().parse(target, format="turtle")
+    kept = sorted(str(o) for o in graph.objects(fixture_iri(), SEAM.usesGenerator))[0]
+    unconfigured = "not-in-the-project"
+    graph.remove((fixture_iri(), SEAM.usesGenerator, None))
+    graph.add((fixture_iri(), SEAM.usesGenerator, rdflib.Literal(kept)))
+    graph.add((fixture_iri(), SEAM.usesGenerator, rdflib.Literal(unconfigured)))
+    graph.serialize(target, format="turtle")
+    client = open_viewer(app_dir, monkeypatch)
+
+    response = client.get("/edit/preview")
+    assert response.status_code == 200
+    generators = set(re.findall(r"<summary><code>[^<]+</code> \(([^)]+)\)</summary>", response.text))
+    assert generators == {kept}
+    assert f'data-generators="{" ".join(sorted([kept, unconfigured]))}"' in response.text
+    assert f'class="preview-unconfigured" data-generator="{unconfigured}"' in response.text
+    assert 'class="preview-error"' not in response.text
+
+
+def test_preview_with_every_profile_generator_matches_no_profile(app_dir, tmp_path, monkeypatch, restore_viewer):
+    plain_dir = chapter_copy(tmp_path / "plain")
+    client = open_viewer(plain_dir, monkeypatch)
+    plain_paths = re.findall(r'data-path="([^"]+)"', client.get("/edit/preview").text)
+
+    attach(app_dir, fixture_iri())
+    client = open_viewer(app_dir, monkeypatch)
+    profiled_paths = re.findall(r'data-path="([^"]+)"', client.get("/edit/preview").text)
+    assert plain_paths and profiled_paths == plain_paths
+
+
+def test_a_resolution_error_is_a_health_fact(app_dir, monkeypatch, restore_viewer, caplog):
+    missing = URIRef(str(fixture_iri()) + "-missing")
+    attach(app_dir, missing)
+    client = open_viewer(app_dir, monkeypatch)
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        page = root_page(client)
+    error = viewer_app.model_health(viewer_app.get_graph())["profile"]["error"]
+    assert error["subject"] == str(seams_root(app_dir / "expenses.trig"))
+    assert error["predicate"] == str(SEAM.conformsTo)
+    assert str(missing) in error["detail"]
+    assert f'class="health-profile-error" role="alert" data-subject="{error["subject"]}"' in page
+    assert f'data-predicate="{SEAM.conformsTo}"' in page
+    assert html.escape(error["detail"]) in page
+    assert 'class="edit-palette"' not in page
+    assert any("profile not resolved" in r.getMessage() for r in caplog.records)
+    # The viewer carries on as if no profile were attached.
+    assert viewer_app.get_profile() is None
+    assert "data-generators=" not in client.get("/edit/preview").text
+
+
+def test_no_profile_means_no_change(plain, app_dir, caplog):
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        page = root_page(plain)
+    assert viewer_app.get_profile() is None
+    assert not any(r.getMessage().startswith("profile") for r in caplog.records)
+    assert 'class="edit-palette"' not in page
+    assert 'class="health-profile' not in page
+    health = viewer_app.model_health(viewer_app.get_graph())
+    assert "profile" not in health
+    assert health == {
+        **validation.get_model_conformance(viewer_app.get_graph()),
+        "liftedIris": validation.get_lifted_iri_health(viewer_app.get_graph(), app_dir),
+    }
+    preview = plain.get("/edit/preview").text
+    assert "data-generators=" not in preview and 'class="preview-error"' not in preview
+    shape_cls = next(iter(resolved().shapes.objects(None, rdflib.SH.targetClass)))
+    assert isinstance(shape_cls, URIRef)
+    element = instance_of(shape_cls)
+    assert editing.form_fields(viewer_app.get_graph(), element) == viewer_app._form_fields(element)

@@ -297,6 +297,37 @@ generator's fault. A model with no `seams.toml` beside it shows *no project* and
 reason instead. The server log records each preview with the project, the number of
 outputs and faults, and how long it took.
 
+### Domain profiles
+
+A model can attach to a domain profile with one triple in its seams graph,
+`seam:conformsTo <profile IRI>` ([ADR-0018](/adr/0018-domain-profiles)). The profile is a
+package in the model's directory, `profiles/<name>/profile.ttl`: the viewer reads every
+`profiles/*/profile.ttl` and uses the one that states `<profile IRI> a seam:Profile`. It
+is kept apart from the model, so attaching or changing a profile leaves the model hash,
+the generators' input and `seams.lock` unchanged. In edit mode a profile changes four
+things:
+
+- **The palette.** Above the preview pane, a list of the classes the profile offers
+  (`seam:offersClass`), in IRI order, under the profile's labels: `skos:prefLabel`, else
+  `rdfs:label`, else the label the editor shows without a profile.
+- **Out-of-profile classes are flagged, not refused.** Health adds one warning per
+  element whose `rdf:type` is neither a class the profile offers nor a subclass of one.
+  Saves still go through ([principle 5](/project/principles)).
+- **The profile's shapes join health and the forms.** The shapes files the profile names
+  with `seam:profileShapes` are merged with the seam shapes, so their violations show on
+  the health badge, and a property they give a path to gets a field in the element's form.
+- **The preview runs only the profile's generators.** Only the project's generators named
+  by `seam:usesGenerator` run. A listed name the project's `seams.toml` does not configure
+  is shown as not configured. `seams generate` and `seams check` ignore profiles.
+
+The health panel names the attached profile with its class and generator counts, and the
+server log records one line when the model loads, naming the profile IRI and the same
+counts. A profile that cannot be resolved (no `profile.ttl` declares the IRI, two do, the
+model names two profiles, or a file does not parse) shows in the health panel in red with
+the subject, the predicate and the detail, and the viewer carries on as if no profile were
+attached. A model with no `seam:conformsTo` behaves as before: no palette, the same health
+and every configured generator in the preview.
+
 ## URLs
 
 Every state is a URL, so any view can be bookmarked or shared. The browser's Back and
@@ -329,4 +360,4 @@ renderer does not yet draw containment as nesting. Edit mode edits one field of 
 element at a time through forms, and BPMN and DMN only through their modelers: it does
 not create or delete seams-graph elements, or edit the C4, IFML or statechart diagrams
 yet. The modelers do not lift a new BPMN or DMN element into the seams graph, and its
-undo history lasts only as long as the viewer runs. The live preview shows the generated text, not the page served, and a form save waits for it, so a project with slow generators makes saves slow. The [backlog](/backlog) lists what comes next for the viewer.
+undo history lasts only as long as the viewer runs. A domain profile's palette lists the classes on offer, but the editor cannot yet add an element from it. The live preview shows the generated text, not the page served, and a form save waits for it, so a project with slow generators makes saves slow. The [backlog](/backlog) lists what comes next for the viewer.

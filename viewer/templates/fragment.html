@@ -374,6 +374,19 @@
     <p><strong>Sequence:</strong> <a class="sequence-link" data-event="{{ e.iri }}" href="{{ e.href }}" hx-get="{{ e.href }}" hx-target="#sequence-view">{{ e.label }}</a></p>
     {% endfor %}
 
+    {% if generated %}
+      {# Generated section (backlog T3, M020/S02): the outputs whose trace
+         sidecars cite this element. Per-view, so it lives in the fragment (MEM009). #}
+      <section id="generated" class="generated" aria-label="Generated">
+        <h4><a href="{{ generation_href }}">Generated</a></h4>
+        <ul>
+          {% for g in generated %}
+            <li><a class="generated-row" href="{{ g.href }}" data-output="{{ g.output }}" data-lines="{{ g.lines }}" title="{{ g.generator }}"><code>{{ g.output }}</code></a> {{ g.lines }} line{{ "" if g.lines == 1 else "s" }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
     {% if outgoing %}
       <h4>Outgoing seam edges</h4>
       <ul>

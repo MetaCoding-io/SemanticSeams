@@ -1163,6 +1163,12 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         # Edit mode: BPMN and DMN open in the bpmn.io modelers, saving to /edit/payload.
         "modeler": edit_enabled() and render_kind in PAYLOAD_RENDERERS and bool(view["renderPayload"]),
         "save_payload_url": f"/edit/payload/{quote(focus, safe='')}",
+        # Generated section (backlog T3, M020/S02): the outputs whose trace
+        # lines cite the focus, each opening the generation view. Template-only.
+        "generated": generation.generated(
+            generation.get_index(MODEL_DIR), focus, lambda out, n: generation_href(focus, out, n)
+        ),
+        "generation_href": generation_href(focus),
     }
 
     if render_kind == "c4":

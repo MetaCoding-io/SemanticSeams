@@ -163,6 +163,41 @@ target, resolved like any click, and the [layer mode](#layer-mode) page draws th
 all at once. Each row shows the other end's layer colour, the predicate, an arrow
 for direction and the label. Empty groups are left out.
 
+**Generated.** In the inspector, the generated files whose
+[trace sidecars](/adr/0019-generation-trace) cite the element, each with the number
+of its lines that do, e.g. ConversationShape in `generated/chat_api.py` and two
+templates. The heading and each row open the [generation view](#generation-view),
+a row on that file's first citing line. An element no generated line cites has no
+Generated section.
+
+## Generation view
+
+`/generation/{iri}` shows how one element became code, read from the
+`<output>.trace.json` sidecars `seams generate` writes beside each output
+([ADR-0019](/adr/0019-generation-trace)) and listed in `seams.lock`. It is read-only
+and has three panes:
+
+- **Model**: the element, then every model term the shown output cites, each with its
+  layer colour, its qname and how many of the output's lines cite it.
+- **Template**: the source of each template the shown output came from, with the lines
+  behind the selected output line marked.
+- **Output**: the generated file, one row per line. Lines citing the element are
+  marked, and the selected line is highlighted.
+
+Click an output line, a template line or a model term and every line the trace links
+to it is highlighted in the other two panes. Below the panes, the **fan-out** lists
+every generated line, in every output, that cites the element, grouped by file with
+its generator. Each entry opens the view on that file and line
+(`?output=…&line=…`); with no query the view opens the first citing line.
+
+Nothing here fails on a bad file. A missing `seams.lock`, a missing or malformed
+sidecar, an output that cannot be read and a template that cannot be found are each
+one notice above the panes naming the file, and the rest of the view is built
+without it. An element no generated line cites gets a notice saying so and no panes.
+Outputs of a generator with no `trace` hook have no sidecar by design and get no
+notice. The index is read once per viewer process, so regenerate and restart the
+viewer to see new traces.
+
 ## Layer mode
 
 `/layers` (the **Layers** link in the page header) draws the whole loaded model at
@@ -376,6 +411,7 @@ the diagram comes back drawn and clickable.
 | `/queries/{name}/{focus_iri}` | One query's rows for one focus element. |
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
+| `/generation/{iri}?output=…&line=…` | The [generation view](#generation-view) of an element: model, template and output panes joined by the trace sidecars, and the fan-out of every generated line citing it. `output` and `line` pick the file and line shown; an unknown one falls back to the first citing line. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
 | `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel and live preview. |
 | `/edit/payload/{iri}` | Edit mode only: `POST` with JSON `{"xml": …, "renames": [{"old": …, "new": …}]}` renames each id through the seams graph and saves the BPMN or DMN model's XML; returns JSON with the files touched, or a 409 naming the subject, predicate and reason when nothing was written. |

@@ -360,3 +360,85 @@ def test_generation_view_names_a_malformed_sidecar(client, tmp_path, monkeypatch
     assert resp.status_code == 200
     assert 'data-file="out.py.trace.json"' in resp.text
     assert "trace sidecar is malformed" in resp.text
+
+
+# -- the inspector's Generated section (T03) -------------------------------------
+
+
+def _view_url(iri: str) -> str:
+    return f"/view/{quote(iri, safe='')}"
+
+
+def _lands_on_itself(iri: str) -> bool:
+    """GET /view/{iri} focuses ``iri`` itself: no detail views, no navigation target."""
+    from viewer import app as viewer_app
+
+    nav = viewer_app.resolve_navigation(iri)
+    return not nav["candidates"] and (nav["target"] or iri) == iri
+
+
+def _self_landing_api_iri() -> str:
+    """A chat_api.py term that /view lands on itself (MEM012) and other outputs cite too."""
+
+    index = generation.get_index(CHAT)
+    terms = sorted({t for e in _api_sidecar()["lines"] for t in e["terms"]})
+    landing = [t for t in terms if _lands_on_itself(t) and len({p for p, _ in index.citing(t)}) > 1]
+    assert landing, "a chat_api.py term self-lands and is cited by more than one output"
+    return landing[0]
+
+
+def test_generated_rows_count_each_outputs_citing_lines():
+    iri = _self_landing_api_iri()
+    index = generation.get_index(CHAT)
+    rows = generation.generated(index, iri, lambda out, n: f"{out}#{n}")
+    citing = index.citing(iri)
+    assert [r.output for r in rows] == sorted({p for p, _ in citing})
+    for row in rows:
+        own = [n for p, n in citing if p == row.output]
+        assert row.lines == len(own)
+        assert row.href == f"{row.output}#{own[0]}"
+        assert row.generator == next(o.generator for o in index.outputs if o.path == row.output)
+
+
+def test_generated_rows_are_empty_for_an_uncited_iri():
+    rows = generation.generated(generation.get_index(CHAT), "https://example.invalid/never-traced", lambda o, n: "")
+    assert rows == ()
+
+
+@pytest.mark.parametrize("hx", [False, True])
+def test_inspector_lists_the_outputs_citing_the_element(client, hx):
+    iri = _self_landing_api_iri()
+    rows = generation.generated(
+        generation.get_index(CHAT), iri, lambda out, n: _url(iri, f"?output={quote(out, safe='')}&line={n}")
+    )
+    resp = client.get(_view_url(iri), headers={"hx-request": "true"} if hx else {})
+    assert resp.status_code == 200
+    body = resp.text
+    assert f"<code>{iri}</code>" in body  # the element landed on itself
+    assert 'id="generated"' in body
+    assert f'<h4><a href="{escape(_url(iri))}">Generated</a></h4>' in body
+    assert body.count('class="generated-row"') == len(rows)
+    for row in rows:
+        assert f'href="{escape(row.href)}" data-output="{row.output}" data-lines="{row.lines}"' in body
+
+
+def test_inspector_link_opens_the_generation_view_on_that_output(client):
+    iri = _self_landing_api_iri()
+    row = generation.generated(
+        generation.get_index(CHAT), iri, lambda out, n: _url(iri, f"?output={quote(out, safe='')}&line={n}")
+    )[-1]
+    resp = client.get(row.href)
+    assert resp.status_code == 200
+    assert f'data-output="{row.output}"' in resp.text
+
+
+def test_inspector_omits_generated_when_no_line_cites_the_element(client, tmp_path, monkeypatch):
+    from viewer import app as viewer_app
+
+    iri = _self_landing_api_iri()
+    monkeypatch.setattr(viewer_app, "MODEL_DIR", _project(tmp_path, sidecar=_sidecar([])))
+    resp = client.get(_view_url(iri))
+    assert resp.status_code == 200
+    assert f"<code>{iri}</code>" in resp.text
+    assert 'id="generated"' not in resp.text
+    assert "generated-row" not in resp.text

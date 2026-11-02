@@ -387,3 +387,30 @@ def view(
         fanout=tuple(groups),
         notices=tuple(sorted(notices, key=lambda n: (n.file, n.message))),
     )
+
+
+# -- the inspector's Generated section (T03) ---------------------------------------
+
+
+@dataclass(frozen=True)
+class GeneratedRow:
+    output: str
+    generator: str
+    lines: int  # lines of the output citing the element
+    href: str  # the generation view opened on the output's first citing line
+
+
+def generated(index: GenerationIndex, iri: str, href: Href) -> tuple[GeneratedRow, ...]:
+    """Per output citing ``iri``, sorted by output path: how many of its lines
+    cite it, linked into the generation view. Empty when no line cites it."""
+    by_output: dict[str, list[int]] = {}
+    for path, line in index.citing(iri):
+        by_output.setdefault(path, []).append(line)
+    rows: list[GeneratedRow] = []
+    for path in sorted(by_output):
+        out = index.output(path)
+        if out is None:
+            continue
+        lines = sorted(by_output[path])
+        rows.append(GeneratedRow(output=path, generator=out.generator, lines=len(lines), href=href(path, lines[0])))
+    return tuple(rows)

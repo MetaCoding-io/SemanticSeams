@@ -203,7 +203,8 @@
       })();
     </script>
   {% elif render_kind == "bpmn" %}
-    <div id="payload-canvas" class="payload-canvas" data-layer="process" style="height:480px;border:1px solid #ccc;"></div>
+    {% if modeler %}{% include "modeler-bar.html" %}{% endif %}
+    <div id="payload-canvas" class="payload-canvas" data-layer="process"{% if modeler %} data-modeler="bpmn"{% endif %} style="height:480px;border:1px solid #ccc;"></div>
     <script>
       (function () {
         var elementMap = {{ element_map | tojson }};
@@ -211,23 +212,32 @@
         var viewer = new BpmnJS({ container: "#payload-canvas", zoomScroll: { enabled: false } });
         fetch("{{ payload_url }}")
           .then(function (res) { return res.text(); })
-          .then(function (xml) { return viewer.importXML(xml); })
+          .then(function (xml) {
+            {% if modeler %}
+            window.seamsModelerBar(document.querySelector("#modeler-bar"), "{{ save_payload_url }}", xml, function () { return viewer; })(viewer);
+            {% endif %}
+            return viewer.importXML(xml);
+          })
           .then(function () {
             var canvas = viewer.get("canvas");
             canvas.zoom("fit-viewport");
             window.seamsDecorateDiagram(viewer, elementSeams, elementMap, "{{ next_path_qs }}", "{{ carried_level }}");
+            {% if not modeler %}
+            // In the modeler a click selects; the seam badges still navigate.
             viewer.get("eventBus").on("element.click", function (e) {
               var iri = elementMap[e.element.id];
               if (iri) {
                 window.seamsNavigate(iri, "{{ next_path_qs }}", "{{ carried_level }}");
               }
             });
+            {% endif %}
           })
           .catch(function (err) { console.error("bpmn-js render failed:", err); });
       })();
     </script>
   {% elif render_kind == "dmn" %}
-    <div id="payload-canvas" class="payload-canvas" data-layer="decision" style="height:480px;border:1px solid #ccc;"></div>
+    {% if modeler %}{% include "modeler-bar.html" %}{% endif %}
+    <div id="payload-canvas" class="payload-canvas" data-layer="decision"{% if modeler %} data-modeler="dmn"{% endif %} style="height:480px;border:1px solid #ccc;"></div>
     <script>
       (function () {
         var elementMap = {{ element_map | tojson }};
@@ -235,6 +245,7 @@
         var container = document.querySelector("#payload-canvas");
         var viewer = new DmnJS({ container: container, drd: { zoomScroll: { enabled: false } } });
         var drdWired = false;
+        var wireModeler = null; // edit mode: wires the modeler bar to each DRD
         function navigateTo(elementId) {
           var iri = elementMap[elementId];
           if (iri) {
@@ -249,7 +260,9 @@
             var activeViewer = viewer.getActiveViewer();
             activeViewer.get("canvas").zoom("fit-viewport");
             window.seamsDecorateDiagram(activeViewer, elementSeams, elementMap, "{{ next_path_qs }}", "{{ carried_level }}");
-            if (!drdWired) {
+            if (wireModeler) {
+              wireModeler(activeViewer);
+            } else if (!drdWired) {
               drdWired = true;
               activeViewer.get("eventBus").on("element.click", function (e) {
                 navigateTo(e.element.id);
@@ -269,7 +282,12 @@
         viewer.on("views.changed", wireActiveView);
         fetch("{{ payload_url }}")
           .then(function (res) { return res.text(); })
-          .then(function (xml) { return viewer.importXML(xml); })
+          .then(function (xml) {
+            {% if modeler %}
+            wireModeler = window.seamsModelerBar(document.querySelector("#modeler-bar"), "{{ save_payload_url }}", xml, function () { return viewer; });
+            {% endif %}
+            return viewer.importXML(xml);
+          })
           .then(wireActiveView)
           .catch(function (err) { console.error("dmn-js render failed:", err); });
       })();

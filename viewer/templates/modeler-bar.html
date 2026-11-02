@@ -1,0 +1,10 @@
+{# Edit mode (ADR-0017): the BPMN/DMN modeler's controls, wired by
+   window.seamsModelerBar in page.html. Rename id changes the selected element's
+   id in the modeler; Save posts the XML and the renames to the edit route. #}
+<div id="modeler-bar" class="modeler-bar" data-save="{{ save_payload_url }}" data-renames="[]">
+  <label>Element id <input type="text" class="modeler-id" disabled></label>
+  <button type="button" class="modeler-rename">Rename id</button>
+  <button type="button" class="modeler-save">Save</button>
+  {% if undo_count %}<button type="button" class="edit-undo" hx-post="/edit/undo" hx-swap="none" data-undo="{{ undo_count }}">Undo</button>{% endif %}
+  <span class="modeler-status" role="status"></span>
+</div>

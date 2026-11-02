@@ -7,7 +7,9 @@ file, the one byte span it changed with the bytes before and after. ``undo`` put
 before bytes back while the files still hold the after bytes at those spans, and
 otherwise applies the inverse patch through the writer. A record may also hold a
 BPMN or DMN payload file's span (``seams_edit.xml``), which undo puts back the same
-way. The record is the session's history; nothing about it is written to disk.
+way. ``combine`` folds the records of edits made one after another into one record,
+so a modeler save that renamed ids undoes as one edit. The record is the session's
+history; nothing about it is written to disk.
 """
 
 import os
@@ -219,3 +221,41 @@ def undo(record: EditRecord) -> EditRecord:
         inverse,
         tuple(FileEdit(e.path, e.patch.inverse(), e.start, e.after, e.before, e.payload) for e in record.files),
     )
+
+
+def _then(first: Patch, second: Patch) -> Patch:
+    """The patch with the effect of ``first`` and then ``second``."""
+    a1, r1, a2, r2 = set(first.adds), set(first.removes), set(second.adds), set(second.removes)
+    return Patch(adds=(a1 - r2) | (a2 - r1), removes=(r1 - a2) | (r2 - a1))
+
+
+def combine(records: Iterable[EditRecord]) -> EditRecord:
+    """One record for ``records``, edits applied in that order and none since.
+
+    Each file's edit is the span from its bytes before the first record that changed it
+    to its bytes now, with its shares of the patches folded in order; ``undo`` reverses
+    them all at once. Raises PatchError, reading only, when a file no longer holds the
+    after bytes of its last edit.
+    """
+    records = list(records)
+    patch = Patch()
+    for record in records:
+        patch = _then(patch, record.patch)
+    edits: dict[Path, list[FileEdit]] = {}
+    for record in records:
+        for edit in record.files:
+            edits.setdefault(edit.path, []).append(edit)
+    files: list[FileEdit] = []
+    for path, chain in sorted(edits.items()):
+        now = path.read_bytes()
+        data = now
+        for edit in reversed(chain):
+            if data[edit.start : edit.start + len(edit.after)] != edit.after:
+                raise PatchError(path, f"byte {edit.start}", "the file changed after the edit; cannot combine")
+            data = data[: edit.start] + edit.before + data[edit.start + len(edit.after) :]
+        share = Patch()
+        for edit in chain:
+            share = _then(share, edit.patch)
+        if data != now:
+            files.append(span(path, share, data, now, payload=any(e.payload for e in chain)))
+    return EditRecord(patch, tuple(files))

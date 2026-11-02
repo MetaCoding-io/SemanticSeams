@@ -1055,6 +1055,9 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         # Edit mode (ADR-0017): an Edit control only for an element some shape targets.
         "edit_href": _edit_href(focus) if edit_enabled() and editing.form_fields(get_graph(), focus) else None,
         "undo_count": len(_undo_stack),
+        # Edit mode: BPMN and DMN open in the bpmn.io modelers, saving to /edit/payload.
+        "modeler": edit_enabled() and render_kind in PAYLOAD_RENDERERS and bool(view["renderPayload"]),
+        "save_payload_url": f"/edit/payload/{quote(focus, safe='')}",
     }
 
     if render_kind == "c4":
@@ -1197,6 +1200,82 @@ def edit_undo(request: Request):
         # both show the restored model.
         response.headers["HX-Refresh"] = "true"
     return response
+
+
+@edit_router.post("/edit/payload/{iri:path}")
+async def edit_payload(request: Request, iri: str):
+    """Save a BPMN or DMN model's payload from the modeler (ADR-0017, ADR-0002 rule 5).
+
+    The body is JSON ``{"xml": ..., "renames": [{"old": ..., "new": ...}]}``: the
+    modeler's XML, and each element id the user changed, from the id in the file to the
+    id in ``xml``. Each rename goes through seams_edit.rename_id, which moves the quads
+    naming ``iri#old`` to ``iri#new``; then save_payload writes ``xml``. The records are
+    combined into one, so one undo reverses the save. A PatchError is a 409 naming the
+    subject, the predicate and the reason, after any rename already written is undone.
+    """
+    model_iri = unquote(iri)
+    payload_iri = render_payload_of(model_iri) if notation_of(model_iri) in PAYLOAD_RENDERERS else None
+    if payload_iri is None:
+        raise HTTPException(status_code=404, detail=f"{model_iri} is not a BPMN or DMN model with a payload")
+    payload = resolve_payload_path(payload_iri)
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="the body is not JSON") from None
+    xml = body.get("xml") if isinstance(body, dict) else None
+    renames = body.get("renames", []) if isinstance(body, dict) else None
+    if (
+        not isinstance(xml, str)
+        or not isinstance(renames, list)
+        or not all(
+            isinstance(r, dict) and isinstance(r.get("old"), str) and isinstance(r.get("new"), str) for r in renames
+        )
+    ):
+        raise HTTPException(
+            status_code=400, detail='the body must be {"xml": str, "renames": [{"old": str, "new": str}]}'
+        )
+    files = get_model().files
+    records: list[seams_edit.EditRecord] = []
+    try:
+        for r in renames:
+            records.append(seams_edit.rename_id(files, payload, model_iri, r["old"], r["new"]))
+        records.append(seams_edit.save_payload(files, payload, xml))
+        record = seams_edit.combine(records)
+    except (seams_edit.PatchError, OSError) as err:
+        rollback = _roll_back(records)
+        if records:
+            reload_model()
+        logger.warning("payload save refused for %s: %s%s", model_iri, err, rollback)
+        if isinstance(err, seams_edit.PatchError):
+            error = {"subject": err.subject, "predicate": err.predicate, "detail": err.detail + rollback}
+        else:
+            error = {
+                "subject": str(payload),
+                "predicate": "file",
+                "detail": f"could not write the model: {err}{rollback}",
+            }
+        return JSONResponse({"saved": False, "error": error}, status_code=409)
+    shares = _shares(record)
+    if record.files:
+        _undo_stack.append(record)
+        reload_model()
+    logger.info(
+        "payload saved %s (%s): %s",
+        model_iri,
+        ", ".join(f"{r['old']} -> {r['new']}" for r in renames) or "no renames",
+        ", ".join(f"{f['file']} (+{f['adds']} -{f['removes']})" for f in shares) or "no change",
+    )
+    return JSONResponse({"saved": True, "renames": renames, "files": shares, "undo": len(_undo_stack)})
+
+
+def _roll_back(records: list[seams_edit.EditRecord]) -> str:
+    """Undo the records already written, newest first; '' or a note of what was left."""
+    for done in reversed(records):
+        try:
+            seams_edit.undo(done)
+        except (seams_edit.PatchError, OSError) as err:
+            return f" (and undoing the earlier renames failed: {err})"
+    return ""
 
 
 @edit_router.get("/edit/{iri:path}")

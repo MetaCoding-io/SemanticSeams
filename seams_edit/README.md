@@ -142,6 +142,15 @@ must be the model that renders it.
   writes nothing; when only a model file changed, the model files take the inverse
   patch through the writer and the payload gets its span back.
 
+- `combine(records)`: one record for edits made one after another, with nothing
+  written in between. Each file's edit spans from its bytes before the first record
+  that changed it to its bytes now, and the patches (and each file's shares) fold in
+  order. The viewer's modeler save is renames then a payload save; it combines their
+  records so one undo reverses the lot. Raises `PatchError`, reading only, when a file
+  no longer holds its last edit's after bytes. A quad with a `[ ]` node that one record
+  adds and the next removes does not cancel (each rename writes the node under a new
+  label), which only matters to the inverse fallback of `undo`.
+
 The renamed subject's statement is removed and added through the TriG writer, so it
 moves to the end of its graph block, laid out canonically; comments stay where they were.
 

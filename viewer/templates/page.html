@@ -19,6 +19,11 @@
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-decision-table.css">
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-literal-expression.css">
   <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-font/css/dmn.css">
+  {% if edit_enabled() %}
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-decision-table-controls.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-boxed-expression.css">
+  <link rel="stylesheet" href="https://unpkg.com/dmn-js@16/dist/assets/dmn-js-boxed-expression-controls.css">
+  {% endif %}
   <style>
     /* One layer palette shared by CSS (seam dots, pills) and canvas drawing
        (window.seamsLayerColours below). Hues follow
@@ -105,6 +110,9 @@
     .health-panel .health-lifted { margin-left: 0.75rem; color: #b71c1c; background: #fdecea; border: 1px solid #ef9a9a; border-radius: 3px; padding: 0 0.4rem; font-weight: 600; }
     .health-panel .health-notes { margin-left: 0.75rem; color: #555; }
     .edit-controls button, .edit-actions button, .edit-actions a { margin-right: 0.5rem; }
+    .modeler-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.35rem 0; }
+    .modeler-bar .modeler-status[data-state="error"] { color: #b71c1c; }
+    .modeler-bar .modeler-status[data-state="saved"] { color: #1b5e20; }
     .edit-form { border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; margin: 0.5rem 0; }
     .edit-form .edit-field { margin: 0.35rem 0; }
     .edit-form .edit-error { color: #b71c1c; }
@@ -196,8 +204,15 @@
   </style>
 </head>
 <body>
+  {% if edit_enabled() %}
+  {# Edit mode (ADR-0017): the modeler bundles define the same BpmnJS and DmnJS
+     globals as the viewers, so every BPMN or DMN view opens editable. #}
+  <script src="https://unpkg.com/bpmn-js@17/dist/bpmn-modeler.production.min.js"></script>
+  <script src="https://unpkg.com/dmn-js@16/dist/dmn-modeler.production.min.js"></script>
+  {% else %}
   <script src="https://unpkg.com/bpmn-js@17/dist/bpmn-navigated-viewer.production.min.js"></script>
   <script src="https://unpkg.com/dmn-js@16/dist/dmn-navigated-viewer.production.min.js"></script>
+  {% endif %}
   <script>
     // Shared by every renderer's click handler (ELK/SVG, vis-network, bpmn-js, dmn-js).
     // Defined once here so it survives htmx swaps of #view-content.
@@ -258,6 +273,81 @@
           console.error("seam badge overlay failed:", id, err);
         }
       });
+    };
+    // Edit mode (ADR-0017): the bar above a BPMN or DMN modeler. It renames the
+    // selected element's id through the modeler, so the diagram's references
+    // follow, and keeps each id from the file -> its id now. Save posts the
+    // modeler's XML and those renames; the server moves the seam edges of every
+    // renamed lifted IRI (ADR-0002 rule 5), then the page reloads.
+    window.seamsModelerBar = function (bar, saveUrl, xml, getModeler) {
+      var fileIds = {};
+      new DOMParser().parseFromString(xml, "application/xml").querySelectorAll("[id]").forEach(function (el) {
+        fileIds[el.getAttribute("id")] = true;
+      });
+      var origin = {}; // id now -> id in the file, for ids renamed this session
+      var selected = null;
+      var input = bar.querySelector(".modeler-id");
+      var status = bar.querySelector(".modeler-status");
+      function say(text, state) {
+        status.textContent = text;
+        status.setAttribute("data-state", state || "");
+      }
+      function renames() {
+        return Object.keys(origin).sort().filter(function (now) { return origin[now] !== now; })
+          .map(function (now) { return { old: origin[now], new: now }; });
+      }
+      function wire(diagram) {
+        if (!diagram || diagram.__seamsWired) return;
+        diagram.__seamsWired = true;
+        var eventBus = diagram.get("eventBus");
+        eventBus.on("element.updateId", function (e) {
+          var was = e.element.id;
+          var first = was in origin ? origin[was] : (fileIds[was] ? was : null);
+          delete origin[was];
+          if (first !== null) origin[e.newId] = first;
+          bar.setAttribute("data-renames", JSON.stringify(renames()));
+        });
+        eventBus.on("selection.changed", function (e) {
+          selected = e.newSelection.length === 1 ? e.newSelection[0] : null;
+          input.value = selected ? selected.id : "";
+          input.disabled = !selected;
+        });
+        bar.__diagram = diagram;
+      }
+      bar.querySelector(".modeler-rename").addEventListener("click", function () {
+        var diagram = bar.__diagram;
+        var id = input.value.trim();
+        if (!diagram || !selected || !id || id === selected.id) return;
+        if (diagram.get("elementRegistry").get(id)) {
+          say("an element already has the id " + id, "error");
+          return;
+        }
+        diagram.get("modeling").updateProperties(selected, { id: id });
+        say("renamed to " + id + " (not saved)", "");
+      });
+      bar.querySelector(".modeler-save").addEventListener("click", function () {
+        say("saving…", "");
+        getModeler().saveXML({ format: true })
+          .then(function (result) {
+            return fetch(saveUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ xml: result.xml, renames: renames() }),
+            });
+          })
+          .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+          .then(function (r) {
+            if (!r.ok || !r.body.saved) {
+              var err = (r.body && r.body.error) || {};
+              say("not saved: " + [err.subject, err.predicate, err.detail || r.body.detail].filter(Boolean).join(": "), "error");
+              return;
+            }
+            say("saved: " + (r.body.files.map(function (f) { return f.file; }).join(", ") || "no change"), "saved");
+            location.reload();
+          })
+          .catch(function (err) { say("not saved: " + err, "error"); });
+      });
+      return wire;
     };
     // The IFML canvas (M007/S04, D023) is drawn by the module script below,
     // which runs after classic scripts. ifml.html waits on this promise, so

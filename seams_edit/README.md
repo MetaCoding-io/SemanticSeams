@@ -9,8 +9,8 @@ read-only; the viewer, the CLI and any later tool that edits the model call
 
 ## Boundary
 
-- Owns the patch value, the TriG text writer, and file apply and undo. The XML
-  payload writer for BPMN and DMN comes with backlog I4.
+- Owns the patch value, the TriG text writer, file apply and undo, and the XML payload
+  writer for BPMN and DMN (backlog I4): saving a payload and renaming an element id.
 - Writes model files only through the writer below; nothing else in the repository
   writes them.
 - Depends on `semanticseams`, rdflib and lxml, and imports only public `seams` names.
@@ -103,6 +103,48 @@ written anywhere but the model files. The inverse fallback has the writer's blan
 limit (above): it cannot remove a `[ ]` node the patch added, since its label changed
 with the text.
 
+## BPMN and DMN payloads
+
+```python
+from seams_edit import rename_id, save_payload, undo
+
+model = seams.load("examples/chat-app")
+record = save_payload(model.files, model.payload_path(process), new_xml)
+record = rename_id(model.files, model.payload_path(process), process, "old_id", "new_id")
+undo(record)
+```
+
+The payload and the model IRI come from the loaded model: the payload must be a file
+that one of `model_files` names by `seam:renderPayload`, and for a rename the model IRI
+must be the model that renders it.
+
+- `save_payload(model_files, payload_path, new_xml)`: parses `new_xml` (text or bytes)
+  with lxml, entities unexpanded and no network, then writes it exactly as given, so a
+  modeler's layout is its own. The same bytes write nothing. The record holds one
+  payload edit: the span that changed.
+- `rename_id(model_files, payload_path, model_iri, old, new)`: an element id rename
+  under ADR-0002's atomic update (rule 5). In the payload it rewrites, at the byte
+  level, the element's `id="old"` and every reference to it: `...Ref` attributes other
+  than `typeRef` (sourceRef, targetRef, attachedToRef, dmnElementRef and the rest),
+  `bpmnElement`, `default`, `calledElement`, `sourceElement`, `targetElement`, DMN's
+  `href="#old"`, and the text of `incoming`, `outgoing` and `...Ref`/`...Refs`
+  elements. Comments, CDATA and every other byte stay as they were. It checks that the
+  edited text parses to the old payload with the same rename made in the tree (by
+  canonical XML), and raises otherwise. In the model it builds a patch that replaces
+  every quad with `<model_iri#old>` as subject or object by the same quad with
+  `<model_iri#new>`; a `[ ]` object of the old IRI moves with all its triples. A
+  decision `seam:inModel` the model whose `dec:payloadElement` is `old` gets `new`, so a
+  DMN decision rename keeps its binding. The payload and every model file the patch
+  touches are written together, or none of them.
+- Records: a payload's `FileEdit` has `payload=True` and an empty share of the patch.
+  `undo` puts its span back with the model files' spans. A payload has no patch to
+  invert, so when it no longer holds its after bytes undo raises `PatchError` and
+  writes nothing; when only a model file changed, the model files take the inverse
+  patch through the writer and the payload gets its span back.
+
+The renamed subject's statement is removed and added through the TriG writer, so it
+moves to the end of its graph block, laid out canonically; comments stay where they were.
+
 ## Errors
 
 `PatchError(subject, predicate, detail)` names the quad and the reason, and the writer
@@ -118,6 +160,11 @@ returns nothing:
 - from `apply` and `undo`: a graph declared in more than one model file, an added quad
   whose graph no file declares in a model of several files, a removed quad no file (or
   more than one) states, a model file that is not UTF-8. Nothing is written.
+- from `save_payload` and `rename_id`: XML that is not well-formed (the detail names the
+  line), a payload no model file names, a model IRI that does not render the payload,
+  an `old` id the payload lacks, a `new` id it already has or that is not an XML name,
+  an edit that does not parse to the renamed payload; from `undo`, a payload changed
+  after the edit. Nothing is written.
 
 These are writer faults, not shape faults. An edit that only breaks the shapes is
 applied and flagged (principle 5).

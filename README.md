@@ -73,7 +73,9 @@ Each app keeps a `seams.toml` project file next to its model naming the generato
 their output directories; `seams generate --project examples/chat-app` (installed by
 `uv sync --all-packages`) runs them all and rewrites the committed chat-app outputs and
 `examples/chat-app/seams.lock`, which records each output's generator version, file hash
-and source model elements. Generators are `seams_gen.protocol.Generator` objects found
+and source model elements. Each output also gets an `<output>.trace.json` naming the
+template line and model elements behind every line
+([ADR-0019](docs/adr/0019-generation-trace.md)). Generators are `seams_gen.protocol.Generator` objects found
 through the `seams.generators` entry-point group, so one from another package runs the same
 way, may name SHACL shapes the model must pass first, and is locked with its own version
 ([ADR-0016](docs/adr/0016-generator-protocol.md),

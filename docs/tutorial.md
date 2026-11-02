@@ -77,11 +77,13 @@ model declares: `compose.development.yaml` and `compose.production.yaml`
 [seams CLI reference](/reference/seams-cli) describes the file. To run a single generator,
 `python -m seams_gen <generator>` still works. It also rewrites
 [`examples/chat-app/seams.lock`](../examples/chat-app/seams.lock), which records the model
-hash, generator version, file hash and source elements of every output. On an unchanged
-model the command produces no diff:
+hash, generator version, file hash and source elements of every output, and writes an
+`<output>.trace.json` beside each output naming the template line and model elements
+behind every line ([ADR-0019](adr/0019-generation-trace.md)). On an unchanged model the
+command produces no diff:
 
 ```
-git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock compose.development.yaml compose.production.yaml
+git diff --exit-code -- examples/chat-app/generated examples/chat-app/seams.lock compose.development.yaml compose.production.yaml compose.development.yaml.trace.json compose.production.yaml.trace.json
 ```
 
 `seams check` confirms the same without writing anything. It also validates the model

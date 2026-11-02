@@ -197,8 +197,9 @@ This writes into the chapter 3 checkpoint directory. To generate from your copy,
 `fastapi` writes `expense_api.py`, the route module of `:expense_api`, the container that
 exposes the operation the form submits to. `htmx` writes the landmark page
 (`expenses_page.html`) and the list partials the routes render. The command also writes
-`seams.lock` next to `seams.toml`, recording each output's generator version, file hash
-and the model elements it came from. The checkpoint's generated files and lock are
+an `<output>.trace.json` beside each output, naming for every line the template line and
+the model elements it came from, and `seams.lock` next to `seams.toml`, recording each
+file's generator version, file hash and those model elements. The checkpoint's generated files and lock are
 committed, so `git diff` after regenerating shows nothing, and CI fails if they ever
 differ.
 

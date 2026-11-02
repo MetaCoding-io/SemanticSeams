@@ -75,6 +75,9 @@ Files are written as UTF-8 with `\n` newlines, byte-for-byte what
 The command also writes `seams.lock` next to `seams.toml` and prints its path
 last. The lock is deterministic JSON recording, per output, the generator and that
 generator's own `version` (`seams_gen.__version__` for the built-ins), the model hash, the file's sha256 and the source element IRIs (D043);
+a generator with a `trace` hook also writes `<output>.trace.json` beside each output
+(ADR-0019), locked as an output of the same generator, and both entries' sources are
+the union of the trace's terms;
 `lockfile.py` reads, builds and audits it. An output the old lock lists but no
 generator writes any more is deleted (`removed <path>` on stdout) when it is a
 regular file still matching its locked hash; otherwise it is kept. Hand-edited,

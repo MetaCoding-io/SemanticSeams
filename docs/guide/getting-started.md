@@ -142,7 +142,9 @@ and explains everything else on the page.
 
 - [Quick start: the chat app](/tutorial): regenerate the chat app from its model and run
   it with Docker Compose.
-- [The seams CLI](/reference/seams-cli): `seams generate` regenerates a project's outputs
+- [The seams CLI](/reference/seams-cli): `seams generate` regenerates a project's outputs,
+  each with an `<output>.trace.json` naming the template line and model elements behind
+  every line, and records them in `seams.lock`
   (`seams generate --lenient` previews a model that still breaks a generator's
   preconditions, writing what it can and flagging the lock) and `seams check` confirms
   they are current and unflagged, in CI and as a pre-commit hook; `seams status`

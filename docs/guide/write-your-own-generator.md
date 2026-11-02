@@ -226,7 +226,8 @@ A `Generator` has a `name`, a `version`, a one-line `help` and three functions:
 - `render(view)` turns that view model into `{relative file name: text}`. It does not
   read the model.
 - `sources(trig, out)` gives, for each file `render` writes, the IRIs of the model
-  elements it comes from. `seams.lock` records them.
+  elements it comes from. `seams.lock` records them, unless the generator has a
+  `trace` hook (below), whose terms take their place.
 
 It can also name `preconditions`: the full IRIs of the SHACL node shapes the model must
 conform to before it runs, and a `trace(view)` function giving, per file `render`
@@ -234,8 +235,11 @@ writes, a `seams_gen.trace.Trace`: the template line and model IRIs behind each 
 ([ADR-0019](/adr/0019-generation-trace)). A Jinja2 generator gets one from
 `seams_gen.trace.trace_template`, rendering its template a second time with a
 `TracingEnvironment` built with the same options; strings read off view objects with an
-`iri` field supply the terms. Leave `trace` out (it defaults to `None`) and the
-generator writes no trace.
+`iri` field supply the terms: that IRI and, if the object has an `origins` tuple, the
+other model elements it was derived from. `seams generate` writes each trace beside its file as
+`<file>.trace.json`, locks it as an output of the generator, and records the trace's
+terms as both files' `sources`. Leave `trace` out (it defaults to `None`) and the
+generator writes no trace; `sources` is what `seams.lock` records.
 
 Put the checklist in its own package, here
 `seams_checklist/__init__.py`, and import the `checklist` function from the module

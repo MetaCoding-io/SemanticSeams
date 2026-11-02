@@ -10,6 +10,9 @@
   {% if model_conformance.warnings %}
   <span class="health-warnings" data-warnings="{{ model_conformance.warnings | length }}">&#9888; {{ model_conformance.warnings | length }} warning(s)</span>
   {% endif %}
+  {% if model_conformance.liftedIris %}
+  <span class="health-lifted" data-lifted-iris="{{ model_conformance.liftedIris | length }}">&#9888; {{ model_conformance.liftedIris | length }} lifted IRI(s) missing from the XML</span>
+  {% endif %}
   {% for n in model_conformance.notes %}
   <span class="health-notes">Note: {{ n.message }}</span>
   {% endfor %}
@@ -29,6 +32,16 @@
     <ul>
       {% for w in model_conformance.warnings %}
       <li>{{ w.message }} — <code>{{ w.focusNode }}</code></li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% if model_conformance.liftedIris %}
+  <details class="health-lifted-list">
+    <summary>Lifted IRIs missing from the XML</summary>
+    <ul>
+      {% for f in model_conformance.liftedIris %}
+      <li>{{ f.message }} — <code>{{ f.iri or f.model }}</code></li>
       {% endfor %}
     </ul>
   </details>

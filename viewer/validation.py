@@ -20,6 +20,12 @@ into sh:in, sh:class pointing at a shape, shapes without sh:targetClass and
 undeclared sh:path IRIs. They flag the model for review and never change
 ``conforms``, not even when the check itself fails.
 
+The lifted-IRI check of ADR-0002 rule 4 (get_lifted_iri_health()) is read-only
+and separate from ``conforms``: for each BPMN or DMN model with a
+seam:renderPayload, every IRI of the dataset starting with ``modelIRI#`` must
+name an ``id`` in the payload XML, so an edit that drops or renames an id
+without its quads shows up here.
+
 Results are cached per Dataset identity: the model is loaded once per process,
 so each dataset is validated at most once.
 """
@@ -31,20 +37,28 @@ from pathlib import Path
 import pyshacl
 import rdflib
 import seams
-from rdflib import Namespace
+from lxml import etree
+from rdflib import Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 ONTOLOGY_FILES = sorted((ROOT / "ontology").glob("*.ttl"))
 SHAPES_FILE = ROOT / "ontology" / "shapes" / "seam-shapes.ttl"
 
 SH = Namespace("http://www.w3.org/ns/shacl#")
+SEAM = Namespace("https://w3id.org/seams/seam#")
 
-# Conformance cache keyed by id(ds); the viewer holds one Dataset per process.
+# Notations whose model elements are lifted from a payload's XML ids (ADR-0002).
+LIFTED_NOTATIONS = (SEAM.BPMN, SEAM.DMN)
+
+# Conformance and lifted-IRI caches keyed by id(ds); the viewer holds one Dataset
+# per process. Python recycles id() values, so both are cleared together (MEM010).
 _cache: dict[int, dict] = {}
+_lifted_cache: dict[int, list[dict]] = {}
 
 
 def _clear_cache() -> None:
     _cache.clear()
+    _lifted_cache.clear()
 
 
 def _short_name(term) -> str:
@@ -172,3 +186,61 @@ def get_model_conformance(ds: rdflib.Dataset) -> dict:
     }
     _cache[key] = summary
     return summary
+
+
+def _payload_ids(path: Path) -> set[str]:
+    """Every ``id`` attribute in the payload XML, entities unexpanded, no network."""
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    root = etree.parse(str(path), parser).getroot()
+    return {
+        str(value)
+        for el in root.iter()
+        if isinstance(el.tag, str)
+        for name, value in el.attrib.items()
+        if etree.QName(name).localname == "id"
+    }
+
+
+def _lifted_finding(iri: str | None, model: str, message: str) -> dict:
+    return {"iri": iri, "model": model, "message": message}
+
+
+def get_lifted_iri_health(ds: rdflib.Dataset, base_dir: Path) -> list[dict]:
+    """IRIs lifted from a BPMN or DMN payload whose fragment is no id of the XML.
+
+    For each subject with seam:notation seam:BPMN or seam:DMN and a
+    seam:renderPayload (resolved with seams.payload_path against ``base_dir``,
+    the directory the viewer resolves payloads against), every subject or object
+    IRI of ``ds`` that starts with ``modelIRI#`` must have its fragment as an
+    ``id`` in the payload (ADR-0002 rule 4). Returns one {"iri", "model",
+    "message"} per dangling IRI, sorted by model then IRI. A payload that is
+    missing or not well-formed XML is one finding with ``iri`` None, so the check
+    never takes the page down. Cached per dataset like get_model_conformance().
+    """
+    key = id(ds)
+    if key in _lifted_cache:
+        return _lifted_cache[key]
+
+    iris = {
+        term for s, _p, o, _ctx in ds.quads((None, None, None, None)) for term in (s, o) if isinstance(term, URIRef)
+    }
+    findings: list[dict] = []
+    models = sorted({m for notation in LIFTED_NOTATIONS for m in ds.subjects(SEAM.notation, notation)}, key=str)
+    for model in models:
+        payload = ds.value(model, SEAM.renderPayload)
+        if payload is None:
+            continue
+        path = seams.payload_path(payload, base_dir)
+        try:
+            ids = _payload_ids(path)
+        except (OSError, etree.XMLSyntaxError) as err:
+            findings.append(_lifted_finding(None, str(model), f"payload {path.name} cannot be read: {err}"))
+            continue
+        prefix = f"{model}#"
+        for iri in sorted(str(i) for i in iris if str(i).startswith(prefix)):
+            fragment = iri[len(prefix) :]
+            if fragment not in ids:
+                findings.append(_lifted_finding(iri, str(model), f'{path.name} has no element with id "{fragment}"'))
+
+    _lifted_cache[key] = findings
+    return findings

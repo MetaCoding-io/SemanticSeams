@@ -34,7 +34,7 @@ from viewer import editing, ifml, layers, legend, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.shapegraph import shapegraph_graph_data
-from viewer.validation import get_model_conformance
+from viewer.validation import get_lifted_iri_health, get_model_conformance
 
 # uvicorn configures handlers for its own loggers only, so log through
 # uvicorn.error to have the startup line show up in the server output.
@@ -171,6 +171,13 @@ def get_model() -> seams.Model:
 def get_graph() -> Dataset:
     """The loaded model's merged Dataset (default_union)."""
     return get_model().ds
+
+
+def model_health(ds: Dataset) -> dict:
+    """The health panel's facts: the cached SHACL conformance summary plus
+    ``liftedIris``, the BPMN/DMN lifted IRIs with no matching id in their payload
+    XML (ADR-0002 rule 4), resolved against MODEL_DIR as payloads are."""
+    return {**get_model_conformance(ds), "liftedIris": get_lifted_iri_health(ds, MODEL_DIR)}
 
 
 def root_iri() -> str:
@@ -760,7 +767,7 @@ def build_view(
         "breadcrumbs": [{"iri": a, "label": label(a)} for a in breadcrumb_trail],
         "detailedByCandidates": detailed_by_candidates or [],
         "warnings": warnings,
-        "modelConformance": get_model_conformance(get_graph()),
+        "modelConformance": model_health(get_graph()),
         # Derived IFML notation diagram for the SVG renderer (M006/S05, D011).
         "ifml": ifml.ifml_diagram(iri) if notation == "ifml" else None,
     }
@@ -822,7 +829,7 @@ def layers_endpoint(request: Request):
     ctx = {
         "request": request,
         "label": "Layers",
-        "model_conformance": get_model_conformance(get_graph()),
+        "model_conformance": model_health(get_graph()),
         "content_template": "layers.html",
         "planes": planes,
         "seams": seams,
@@ -1150,7 +1157,7 @@ def _edit_context(request: Request, iri: str, **extra) -> dict:
             for i, f in enumerate(fields)
         ],
         "undo_count": len(_undo_stack),
-        "model_conformance": get_model_conformance(ds),
+        "model_conformance": model_health(ds),
         "saved": None,
         "error": None,
         **extra,

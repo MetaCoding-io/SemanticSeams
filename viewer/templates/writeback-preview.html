@@ -1,0 +1,53 @@
+{# Write-back from output (backlog T4, M021/S01): the fragment the generation
+   view's line editor swaps in. POST /generation/writeback/preview and /apply in
+   viewer/app.py compute everything (viewer/writeback.py); this template only
+   shows it: the refusal naming the fact, or the one-triple patch, the
+   regeneration check, every other output line the patch changes and the apply
+   button, or what apply wrote. #}
+<div class="writeback-result" id="writeback-result"
+     data-status="{{ 'refused' if refusal else 'applied' if applied else 'drafted' }}"
+     data-output="{{ output }}" data-line="{{ line }}">
+  {% if refusal %}
+  <p class="writeback-refusal" role="alert">
+    Refused: {{ refusal.detail }} —
+    <code class="subject">{{ refusal.subject }}</code> <code class="predicate">{{ refusal.predicate }}</code>
+  </p>
+  {% else %}
+  {% set wb = writeback %}
+  <p class="writeback-patch" data-subject="{{ wb.subject }}" data-predicate="{{ wb.predicate }}" data-graph="{{ wb.graph }}">
+    <code title="{{ wb.subject }}">{{ wb.subject_qname }}</code>
+    <code title="{{ wb.predicate }}">{{ wb.predicate_qname }}</code>
+    <del class="old">{{ wb.old }}</del> → <ins class="new">{{ wb.new }}</ins>
+    in {% for f in wb.files %}<code class="file">{{ f }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+  <p class="writeback-check">Regenerating with this patch gives <code>{{ output }}</code> line {{ line }} as edited.</p>
+  {% if wb.effects %}
+  <p>It also changes {{ wb.effects | length }} other line{% if wb.effects | length != 1 %}s{% endif %}:</p>
+  <ol class="writeback-effects">
+    {% for e in wb.effects %}
+    <li class="effect" data-output="{{ e.output }}" data-line="{{ e.line }}">
+      <code>{{ e.output }}:{{ e.line }}</code>
+      <del>{{ e.before }}</del> → <ins>{{ e.after }}</ins>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="writeback-effects-none">No other output line changes.</p>
+  {% endif %}
+  {% if applied %}
+  <p class="writeback-applied" role="status">
+    Applied to {% for f in applied.files %}<code>{{ f.file }}</code> (+{{ f.adds }} −{{ f.removes }}){% if not loop.last %}, {% endif %}{% endfor %}.
+    The outputs on disk change when the project is generated again.
+    <button type="button" hx-post="/edit/undo" hx-swap="none">Undo ({{ applied.undo }})</button>
+  </p>
+  {% else %}
+  <form class="writeback-apply" hx-post="/generation/writeback/apply" hx-target="#writeback-result" hx-swap="outerHTML">
+    <input type="hidden" name="iri" value="{{ iri }}">
+    <input type="hidden" name="output" value="{{ output }}">
+    <input type="hidden" name="line" value="{{ line }}">
+    <input type="hidden" name="text" value="{{ text }}">
+    <button type="submit">Apply to the model</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>

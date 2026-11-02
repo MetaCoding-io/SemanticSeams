@@ -33,7 +33,7 @@ from starlette.routing import BaseRoute
 import seams_edit
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, validation
+from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, validation, writeback
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.profiles import Profile, resolve_profile
@@ -1514,6 +1514,126 @@ async def edit_ifml(request: Request, iri: str):
             "oob": oob,
         }
     )
+
+
+# --- Write-back from output (backlog T4, M021/S01, ADR-0019) -----------------
+#
+# The generation view's output pane posts an edited line here. viewer/writeback.py
+# locates the one literal behind the changed span, drafts the one-triple patch and
+# regenerates a temporary copy of the model with it; only an edit that regenerates
+# to itself is offered, with every other output line it changes. Apply runs the
+# same check again on the current model before seams_edit.apply writes the patch.
+
+
+async def _writeback_form(request: Request) -> tuple[str, int, str, str]:
+    """(output, line, text, iri) from the posted form; a 400 when one is missing."""
+    form = parse_qs((await request.body()).decode("utf-8"), keep_blank_values=True)
+    output = (form.get("output") or [""])[0]
+    text = form.get("text")
+    try:
+        line = int((form.get("line") or [""])[0])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="the form must give an integer line") from None
+    if not output or text is None:
+        raise HTTPException(status_code=400, detail="the form must give output, line and text")
+    return output, line, text[0], (form.get("iri") or [""])[0]
+
+
+def _writeback_context(request: Request, output: str, line: int, text: str, iri: str, **extra) -> dict:
+    return {
+        "request": request,
+        "output": output,
+        "line": line,
+        "text": text,
+        "iri": iri,
+        "writeback": None,
+        "refusal": None,
+        "applied": None,
+        **extra,
+    }
+
+
+def _writeback_facts(wb: writeback.WriteBack) -> dict:
+    """What the preview fragment shows of a drafted write-back, precomputed."""
+    return {
+        "subject": wb.subject,
+        "subject_qname": qname(wb.subject),
+        "predicate": wb.predicate,
+        "predicate_qname": qname(wb.predicate),
+        "graph": wb.graph,
+        "old": wb.old.n3(),
+        "new": wb.new.n3(),
+        "before": wb.before,
+        "after": wb.after,
+        "files": list(wb.files),
+        "effects": [vars(e) for e in wb.effects],
+    }
+
+
+def _refusal_facts(err: writeback.Refusal) -> dict:
+    return {"subject": err.subject, "predicate": err.predicate, "detail": err.detail}
+
+
+def _draft_writeback(output: str, line: int, text: str) -> writeback.WriteBack:
+    """writeback.write_back on the loaded model, its project and its trace index."""
+    return writeback.write_back(generation.get_index(MODEL_DIR), get_graph(), MODEL_DIR, MODEL_PATH, output, line, text)
+
+
+@edit_router.post("/generation/writeback/preview")
+async def writeback_preview(request: Request):
+    """Draft the write-back of one edited output line: the patch triple, the
+    regeneration check and the effects on other outputs, or the refusal naming
+    the fact. Nothing is written."""
+    output, line, text, iri = await _writeback_form(request)
+    try:
+        wb = _draft_writeback(output, line, text)
+    except writeback.Refusal as err:
+        ctx = _writeback_context(request, output, line, text, iri, refusal=_refusal_facts(err))
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    ctx = _writeback_context(request, output, line, text, iri, writeback=_writeback_facts(wb))
+    return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+
+
+@edit_router.post("/generation/writeback/apply")
+async def writeback_apply(request: Request):
+    """Check the write-back again on the current model, then write its patch with
+    seams_edit.apply and put it on the undo stack. A refusal writes nothing."""
+    output, line, text, iri = await _writeback_form(request)
+    try:
+        wb = _draft_writeback(output, line, text)
+    except writeback.Refusal as err:
+        ctx = _writeback_context(request, output, line, text, iri, refusal=_refusal_facts(err))
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    try:
+        record = seams_edit.apply(get_model().files, wb.patch)
+    except seams_edit.PatchError as err:
+        logger.warning("write-back not applied %s:%s: %s %s: %s", output, line, err.subject, err.predicate, err.detail)
+        refusal = {"subject": err.subject, "predicate": err.predicate, "detail": err.detail}
+        ctx = _writeback_context(request, output, line, text, iri, refusal=refusal)
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    except OSError as err:
+        logger.warning("write-back not written %s:%s: %s", output, line, err)
+        refusal = {"subject": wb.subject, "predicate": wb.predicate, "detail": f"could not write the model: {err}"}
+        ctx = _writeback_context(request, output, line, text, iri, refusal=refusal)
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    if record.files:
+        _undo_stack.append(record)
+        reload_model()
+        generation._clear_cache()
+    shares = _shares(record)
+    logger.info(
+        "write-back applied %s:%s: %s %s %s -> %s in %s",
+        output,
+        line,
+        wb.subject,
+        wb.predicate,
+        wb.old.n3(),
+        wb.new.n3(),
+        ", ".join(f"{f['file']} (+{f['adds']} -{f['removes']})" for f in shares) or "no change",
+    )
+    applied = {"files": shares, "undo": len(_undo_stack)}
+    ctx = _writeback_context(request, output, line, text, iri, writeback=_writeback_facts(wb), applied=applied)
+    return templates.TemplateResponse(request, "writeback-preview.html", ctx)
 
 
 @edit_router.get("/edit/{iri:path}")

@@ -10,6 +10,7 @@
 <head>
   <meta charset="utf-8">
   <title>SemanticSeams Viewer — Generated from {{ label }}</title>
+  {% if edit_enabled() %}<script src="https://unpkg.com/htmx.org@2.0.3"></script>{% endif %}
   <style>
     :root {
       --bg: #f3f6f8; --panel: #fff; --ink: #15222a; --muted: #586a75; --rule: #d9e1e6;
@@ -63,6 +64,13 @@
     .fan a:hover { background: var(--brand-soft); }
     .fan a.selected { background: var(--hit); }
     .muted { color: var(--muted); }
+    .writeback { border-top: 1px solid var(--rule); padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+    .writeback form { display: flex; gap: 6px; align-items: center; }
+    .writeback input[name="text"] { flex: 1; min-width: 0; font: 12.5px var(--font-code); padding: 3px 6px; }
+    .writeback-result code, .writeback-result del, .writeback-result ins { font-family: var(--font-code); font-size: 12.5px; overflow-wrap: anywhere; }
+    .writeback-result p { margin: 4px 0; }
+    .writeback-effects { margin: 0; padding-left: 18px; }
+    .writeback-refusal { color: var(--warn); }
     @media (max-width: 960px) { .panes { grid-template-columns: 1fr; } .scroll { height: min(46vh, 420px); } }
   </style>
 </head>
@@ -122,6 +130,21 @@
           {%- endfor %}
         </div>
       </div>
+      {% if edit_enabled() and gv.line %}
+      {# Write-back (backlog T4): edit the selected line; the preview drafts the
+         one-triple patch or names why not. Clicking another line selects it. #}
+      <div class="writeback" id="writeback">
+        <form id="writeback-form" hx-post="/generation/writeback/preview" hx-target="#writeback-result" hx-swap="outerHTML">
+          <input type="hidden" name="iri" value="{{ gv.iri }}">
+          <input type="hidden" name="output" value="{{ gv.output.path }}">
+          <input type="hidden" name="line" value="{{ gv.line }}">
+          <label for="writeback-text">Line <span id="writeback-line">{{ gv.line }}</span></label>
+          <input type="text" id="writeback-text" name="text" value="{{ gv.lines[gv.line - 1].text }}" spellcheck="false">
+          <button type="submit">Preview write-back</button>
+        </form>
+        <div class="writeback-result" id="writeback-result"></div>
+      </div>
+      {% endif %}
     </div>
   </section>
   {% endif %}
@@ -161,11 +184,24 @@
       const terms = new Set(outs.flatMap((el) => words(el, "data-terms")));
       show(outs, origins, terms);
     }
+    // In edit mode the write-back form edits the clicked output line.
+    const form = document.getElementById("writeback-form");
+    function select(out) {
+      if (!form) return;
+      form.elements.line.value = out.dataset.line;
+      form.elements.text.value = out.querySelector(".txt").textContent;
+      document.getElementById("writeback-line").textContent = out.dataset.line;
+      const result = document.getElementById("writeback-result");
+      if (result) result.replaceChildren();
+    }
     panes.addEventListener("click", (ev) => {
       const out = ev.target.closest(".oline");
       const tpl = ev.target.closest(".tline");
       const term = ev.target.closest(".term");
-      if (out) linked([out]);
+      if (out) {
+        linked([out]);
+        select(out);
+      }
       else if (tpl) {
         const outs = all(".oline").filter((el) => words(el, "data-template").includes(tpl.dataset.origin));
         show(outs, new Set([tpl.dataset.origin]), new Set(outs.flatMap((el) => words(el, "data-terms"))));

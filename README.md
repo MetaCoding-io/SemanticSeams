@@ -31,10 +31,10 @@ ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
   shapes/   seam-shapes.ttl — SHACL constraints on the seams themselves (the project's own methodology, applied to itself)
 examples/   checkout.ttl    — worked example exercising every non-reserved seam edge; the ontology smoke test
 packages/   seams/          — the read-only `seams` model library (rdflib + lxml only): loader, typed views per layer, BPMN flow walks and DMN tables (lxml), SPARQL helpers, model hash, payloads, and ModelGraph (the resolver facade over the views)
-seams_edit/ the model's one write path (ADR-0017): quad patches applied by editing the TriG text in place, so comments and layout survive, with undo
+seams_edit/ the model's one write path (ADR-0017): quad patches applied by editing the TriG text in place, so comments and layout survive, BPMN/DMN payload saves and id renames, with undo
 tests/      executable acceptance test: parse everything, validate against the shapes, assert the canned queries' rows
 site/       the public project page (GitHub Pages, no build step)
-viewer/     the multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js); read-only unless SEAMS_EDIT=1 turns on edit mode (forms from shapes, saves through seams_edit)
+viewer/     the multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js); read-only unless SEAMS_EDIT=1 turns on edit mode (forms from shapes, the BPMN/DMN modelers with id renames that move seam edges, saves through seams_edit)
 ```
 
 Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. Fragment naming serves renderer dispatch only — membership is data: every lifted element carries `seam:inModel`, the edge cross-layer SPARQL actually traverses. The thin `proc:`/`dec:` index vocabulary types only these seam-participating elements. The data layer needs no vocabulary at all — SHACL *is* the vocabulary.

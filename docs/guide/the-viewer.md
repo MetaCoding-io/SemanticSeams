@@ -104,8 +104,14 @@ and a `sh:path` nothing declares a property. Each names the shape or path (the
 *focusNode*) and the fact (the *path*); the chat app shows eleven of them beside the
 replica cap. Warnings and notes leave the badge at *Conforms*, and a review check that
 fails is itself one warning.
+A lifted IRI whose fragment is no `id` in its model's BPMN or DMN XML
+([ADR-0002](/adr/0002-iri-identity-and-migration) rule 4), such as a seam edge left pointing at a task
+removed from the diagram, is listed under *Lifted IRIs missing from the XML* with its
+own red count; a payload file that is missing or not well-formed XML is one entry
+naming the file. These findings leave the SHACL verdict as it is. Every committed
+example has none.
 The JSON view's `modelConformance` carries the same `violations`, `warnings` and
-`notes`.
+`notes`, and the lifted-IRI findings as `liftedIris`.
 
 **Breadcrumbs.** The path you clicked, not a fixed hierarchy: the same element can be
 reached from more than one parent. Each crumb is a link back.
@@ -248,6 +254,30 @@ with the element, the field, the file and the quads added and removed.
 for byte, and reloads the page. The history is held in memory, so it ends when the
 viewer stops. **Done** closes the form and shows the refreshed view.
 
+**BPMN and DMN open in the modelers.** In edit mode a BPMN view loads the bpmn-js
+modeler and a DMN view the dmn-js modeler in place of the viewers, with a bar above the
+canvas. Edit the diagram there as in any bpmn.io tool, then press **Save**: the
+modeler's XML goes to `POST /edit/payload/{model}`, and `seams_edit` checks it is
+well-formed and writes it over the payload file. XML that does not parse is refused with
+a message naming the file and the reason, and nothing is written.
+
+**Renaming an element id rewrites its seam edges.** Select an element, type the new id in
+the bar's *Element id* field and press **Rename id**, then Save. Because a lifted
+element's IRI is the model IRI plus its id ([ADR-0002](/adr/0002-iri-identity-and-migration)), the save
+renames it everywhere at once: the `id` and every reference to it in the XML
+(`sourceRef`, `targetRef`, `href="#…"`, `bpmnElement` and the rest), every quad in the
+seams graph whose subject or object is the old IRI, and a decision's `dec:payloadElement`
+when it names the old id. On the chat app, renaming `persist_user_msg` in the message
+processing model moves its `seam:inModel`, `seam:invokes`, `seam:writes` and `seam:fires`
+edges to the new IRI. An id that is
+not in the XML, or a new id already in use, is refused naming the element, and any
+rename the save had already written is rolled back. The XML and the TriG files change
+together or not at all, and the server log records each save with its renames and the
+files touched. After a save the page reloads; one **Undo** reverses the whole save, renames
+included, byte for byte. An id changed in the XML outside the viewer does not move the
+seam edges, and the health badge then lists the old IRI under *Lifted IRIs missing
+from the XML*.
+
 ## URLs
 
 Every state is a URL, so any view can be bookmarked or shared. The browser's Back and
@@ -263,6 +293,7 @@ the diagram comes back drawn and clickable.
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
 | `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel. |
+| `/edit/payload/{iri}` | Edit mode only: `POST` with JSON `{"xml": …, "renames": [{"old": …, "new": …}]}` renames each id through the seams graph and saves the BPMN or DMN model's XML; returns JSON with the files touched, or a 409 naming the subject, predicate and reason when nothing was written. |
 | `/edit/undo` | Edit mode only: `POST` reverses the newest edit of the session. |
 
 ## Current limits
@@ -275,6 +306,7 @@ files sit beside the file, or in the directory. The root view is
 the model's single C4 `seam:Model`, or `SEAMS_VIEWER_ROOT` when set; with no C4 model,
 or more than one, the viewer refuses to start and names the candidates. The statechart
 renderer does not yet draw containment as nesting. Edit mode edits one field of one
-element at a time through forms: it does not create or delete elements, edit BPMN or
-DMN, or edit on the diagrams yet, and its undo history lasts only as long as the
-viewer runs. The [backlog](/backlog) lists what comes next for the viewer.
+element at a time through forms, and BPMN and DMN only through their modelers: it does
+not create or delete seams-graph elements, or edit the C4, IFML or statechart diagrams
+yet. The modelers do not lift a new BPMN or DMN element into the seams graph, and its
+undo history lasts only as long as the viewer runs. The [backlog](/backlog) lists what comes next for the viewer.

@@ -47,6 +47,8 @@ RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 # fails once a fixture uses one, as the reminder to drop it from this set.
 PENDING_PREDICATES: set = set()
 EXPENSES_CHAPTER_9_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
+# The profile terms of ADR-0018 are stated in a profile package, never in a model.
+PROFILE_TTL = ROOT / "tests" / "fixtures" / "profiles" / "expense" / "profile.ttl"
 
 
 def load(*paths: Path) -> rdflib.Graph:
@@ -134,14 +136,15 @@ def test_every_nonreserved_seam_predicate_is_exercised(dataset):
     """Verify all declared seam predicates appear in a fixture model. The chat app
     counts too: its LLM call is the cross-container operation that exercises
     seam:implementedBy (ADR-0012); checkout and the human-task fixture serve every
-    operation in-process."""
+    operation in-process. The sample domain profile counts for the profile terms
+    (ADR-0018), which only a profile.ttl states."""
     declared = {
         p for p in load(ROOT / "ontology" / "seam.ttl").subjects(RDF.type, RDF.Property) if str(p).startswith(str(SEAM))
     }
     missing = declared - RESERVED_PREDICATES - PENDING_PREDICATES - exercised_seam_predicates(dataset)
     assert not missing, (
-        "seam predicates never exercised by checkout.trig, the human-task fixture, the chat app "
-        f"or expense chapter 9: {sorted(missing)}"
+        "seam predicates never exercised by checkout.trig, the human-task fixture, the chat app, "
+        f"expense chapter 9, or the sample profile: {sorted(missing)}"
     )
 
 
@@ -162,6 +165,9 @@ def exercised_seam_predicates(dataset) -> set:
         for _s, p, _o, _g in fixture.quads((None, None, None, None)):
             if str(p).startswith(str(SEAM)):
                 used.add(p)
+    for _s, p, _o in load(PROFILE_TTL):
+        if str(p).startswith(str(SEAM)):
+            used.add(p)
     return used
 
 

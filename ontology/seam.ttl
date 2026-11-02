@@ -313,6 +313,28 @@ seam:conformsTo a rdf:Property ;
     rdfs:label "conforms to" ;
     rdfs:range seam:Profile .
 
+seam:offersClass a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "offers class" ;
+    rdfs:domain seam:Profile ;
+    rdfs:comment """Profile -> a class the editor offers when adding an element, one triple
+per class (ADR-0018). Stated in the profile's profile.ttl, never in the model. Labels
+for the offered class come from skos:prefLabel, else rdfs:label, in the same file.""" .
+
+seam:usesGenerator a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "uses generator" ;
+    rdfs:domain seam:Profile ;
+    rdfs:comment """Profile -> the name (a string) of a generator the editor previews: a
+seams.generators entry-point name as written in seams.toml (ADR-0016, ADR-0018).""" .
+
+seam:profileShapes a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "profile shapes" ;
+    rdfs:domain seam:Profile ;
+    rdfs:comment """Profile -> a shapes file (a string path relative to the profile
+directory) merged into the viewer's health check (ADR-0018).""" .
+
 seam:realizes a rdf:Property ;
     seam:reveal seam:Layer ;
     rdfs:label "realizes" ;

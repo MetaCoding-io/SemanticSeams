@@ -1,0 +1,27 @@
+# Sample domain profile for the expense tutorial (ADR-0018, M019/S06).
+#
+# A model attaches to it with `seam:conformsTo <https://example.org/profiles/expense>`
+# and keeps it in profiles/expense/ beside the model. The editor then offers only the
+# classes below, under these labels, merges shapes.ttl into health and previews only
+# the listed generators. tests/test_viewer_profiles.py resolves it with tests/fixtures/
+# as the model directory.
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix seam: <https://w3id.org/seams/seam#> .
+@prefix ifml: <https://w3id.org/seams/ifml#> .
+@prefix proc: <https://w3id.org/seams/proc#> .
+
+<https://example.org/profiles/expense> a seam:Profile ;
+    rdfs:label "Expense approval" ;
+    seam:offersClass ifml:ViewContainer , ifml:Form , ifml:Parameter , ifml:Event ,
+        proc:UserTask , proc:ServiceTask ;
+    seam:usesGenerator "htmx" , "fastapi" ;
+    seam:profileShapes "shapes.ttl" .
+
+# skos:prefLabel wins over rdfs:label; a class with neither keeps the editor's label.
+ifml:ViewContainer skos:prefLabel "Expense page" .
+ifml:Form skos:prefLabel "Expense form" ; rdfs:label "Form" .
+ifml:Event skos:prefLabel "Submit action" .
+proc:UserTask rdfs:label "Approval task" .
+proc:ServiceTask skos:prefLabel "Automatic step" .

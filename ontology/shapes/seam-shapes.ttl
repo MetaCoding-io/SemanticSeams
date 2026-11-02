@@ -14,6 +14,7 @@
 @prefix deploy: <https://w3id.org/seams/deploy#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix verify: <https://w3id.org/seams/verify#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
 
 <https://w3id.org/seams/shapes> a owl:Ontology ;
@@ -111,6 +112,9 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:catches ,
         seam:governedBy ,
         seam:conformsTo ,
+        seam:offersClass ,
+        seam:usesGenerator ,
+        seam:profileShapes ,
         seam:realizes ;
     sh:property [
         sh:path seam:reveal ;
@@ -1002,6 +1006,43 @@ seamsh:PolicyShape a sh:NodeShape ;
 # Not targeted: applied through seamsh:PolicyShape to each permission.
 seamsh:PermissionShape a sh:NodeShape ;
     sh:property [ sh:path odrl:target ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+#################################################################
+# Domain profiles (ADR-0018)
+#################################################################
+
+# A profile lives in profiles/<name>/profile.ttl beside the model, never in the model,
+# so these shapes validate the profile graph the viewer resolves.
+seamsh:ProfileShape a sh:NodeShape ;
+    sh:targetClass seam:Profile ;
+    sh:property [
+        sh:path seam:offersClass ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A seam:Profile's seam:offersClass values are class IRIs." ;
+    ] ;
+    sh:property [
+        sh:path seam:usesGenerator ;
+        sh:datatype xsd:string ;
+        sh:message "A seam:Profile's seam:usesGenerator values are generator names, as strings." ;
+    ] ;
+    sh:property [
+        sh:path seam:profileShapes ;
+        sh:datatype xsd:string ;
+        sh:message "A seam:Profile's seam:profileShapes values are paths relative to the profile directory, as strings." ;
+    ] .
+
+seamsh:OfferedClassShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:offersClass ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:maxCount 1 ;
+        sh:message "A class a profile offers has at most one skos:prefLabel." ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:maxCount 1 ;
+        sh:message "A class a profile offers has at most one rdfs:label." ;
+    ] .
 
 #################################################################
 # Scenarios and examples (ADR-0014)

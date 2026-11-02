@@ -1,0 +1,15 @@
+# Shapes of the sample expense profile (ADR-0018): merged into the viewer's health
+# check when a model conforms to the profile.
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix ifml: <https://w3id.org/seams/ifml#> .
+@prefix exp:  <https://example.org/profiles/expense/shapes#> .
+
+exp:ExpenseFormShape a sh:NodeShape ;
+    sh:targetClass ifml:Form ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "An expense form has a label the approver can read." ;
+    ] .

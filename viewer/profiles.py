@@ -50,7 +50,7 @@ def _attachment(ds: rdflib.Dataset) -> tuple[URIRef, URIRef] | None:
     if not pairs:
         return None
     subject = pairs[0][0]
-    profiles = sorted({o for _s, o in pairs})
+    profiles = sorted({o for _s, o in pairs}, key=str)
     if len(profiles) > 1:
         raise ResolutionError(
             subject, SEAM.conformsTo, f"the model states more than one profile: {', '.join(map(str, profiles))}"

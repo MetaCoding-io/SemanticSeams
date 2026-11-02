@@ -18,20 +18,22 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 import seams
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.routing import BaseRoute
 from fastapi.templating import Jinja2Templates
 from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
+from rdflib.term import IdentifiedNode
+from starlette.routing import BaseRoute
 
 import seams_edit
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import editing, ifml, ifml_edit, layers, legend, preview, validation
+from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.profiles import Profile, resolve_profile
@@ -313,7 +315,11 @@ def ontology_reveal() -> dict[str, str]:
         g = Graph()
         for p in sorted((BASE_DIR.parent / "ontology").glob("*.ttl")):
             g.parse(p, format="turtle")
-        _ontology_reveal = {str(s): REVEAL_MODES[o] for s, o in g.subject_objects(SEAM.reveal) if o in REVEAL_MODES}
+        _ontology_reveal = {
+            str(s): REVEAL_MODES[o]
+            for s, o in g.subject_objects(SEAM.reveal)
+            if isinstance(o, URIRef) and o in REVEAL_MODES
+        }
     return _ontology_reveal
 
 
@@ -321,7 +327,7 @@ def reveal_mode(p) -> str:
     """Reveal mode of a predicate: a model-graph seam:reveal wins, then the
     ontology default, then "layer" (unannotated predicates never navigate)."""
     local = get_graph().value(URIRef(str(p)), SEAM.reveal)
-    if local in REVEAL_MODES:
+    if isinstance(local, URIRef) and local in REVEAL_MODES:
         return REVEAL_MODES[local]
     return ontology_reveal().get(str(p), "layer")
 
@@ -357,7 +363,9 @@ def notation_of(iri: str) -> str:
     val = get_graph().value(URIRef(iri), SEAM.notation)
     if val is None:
         return "none"
-    return NOTATION_LABELS.get(val, short_name(str(val)))
+    if isinstance(val, URIRef) and val in NOTATION_LABELS:
+        return NOTATION_LABELS[val]
+    return short_name(str(val))
 
 
 def focused_model(iri: str) -> str | None:
@@ -629,6 +637,7 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         visible |= {o for o, p in parents.items() if p in visible}
 
     nested_via: dict[str, str] = {}
+    nested_layers: dict[str, str] = {}
     if spec.nest:
         nested_via, nested_layers = _nest_targets(visible, parents)
         visible |= set(nested_via) | {o for o, p in parents.items() if p in nested_via}
@@ -980,6 +989,43 @@ def sequence_endpoint(request: Request, event_iri: str):
         return JSONResponse(result)
     ctx = {"request": request, **result, "json_href": f"/sequence/{quote(iri, safe='')}"}
     return templates.TemplateResponse(request, "sequence.html", ctx)
+
+
+def generation_href(iri: str, output: str = "", line: int = 0) -> str:
+    href = f"/generation/{quote(iri, safe='')}"
+    if output:
+        href += f"?output={quote(output, safe='')}&line={line}"
+    return href
+
+
+@app.get("/generation/{iri:path}")
+def generation_endpoint(request: Request, iri: str, output: str = "", line: int = 0):
+    """The generation view (backlog T3, M020/S02): the element's model terms,
+    the templates and the generated output, joined line by line by the
+    ADR-0019 trace sidecars, plus every output line citing the element. An
+    element no line cites, or a missing or malformed sidecar, is a notice, not
+    an error."""
+    focus = unquote(iri)
+
+    def describe(term: str) -> tuple[str, str, str]:
+        return label(term), qname(term), layer_of(term)
+
+    gen_view = generation.view(
+        generation.get_index(MODEL_DIR),
+        focus,
+        describe,
+        lambda out, n: generation_href(focus, out, n),
+        output=output,
+        line=line,
+    )
+    ctx = {
+        "request": request,
+        "gv": gen_view,
+        "label": label(focus),
+        "qname": qname(focus),
+        "view_href": f"/view/{quote(focus, safe='')}",
+    }
+    return templates.TemplateResponse(request, "generation.html", ctx)
 
 
 # Relations panel (M007/S02): the focused element's seam edges grouped by
@@ -1395,7 +1441,8 @@ def _writer_dataset(files) -> Dataset:
     ds = Dataset(default_union=True)
     for path in sorted({Path(p).resolve() for p in files}):
         for s, p, o, g in seams_edit.text_quads(path.read_text(encoding="utf-8"), base=path.as_uri()):
-            ds.add((s, p, o, g))
+            # text_quads names each graph by its TriG label, an IRI or a blank node.
+            ds.add((s, p, o, ds.get_context(cast(IdentifiedNode, g))))
     return ds
 
 

@@ -38,7 +38,7 @@ from seams import IFML
 STEREOTYPES = {IFML.List: "«List»", IFML.Details: "«Details»", IFML.Form: "«Form»"}
 # seams Page flags (ifml:isLandmark, ifml:isXOR, ifml:isDefault) and their markers.
 MARKERS = [("is_landmark", "[L]"), ("is_xor", "[XOR]"), ("is_default", "[D]")]
-FIELD_KINDS = {
+FIELD_KINDS: dict[URIRef | None, str] = {
     XSD.string: "text",
     XSD.dateTime: "datetime",
     XSD.integer: "number",

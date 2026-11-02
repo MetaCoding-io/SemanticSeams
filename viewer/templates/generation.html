@@ -1,0 +1,182 @@
+<!doctype html>
+{# The generation view (backlog T3, M020/S02), after
+   docs/research/mockups/generation-trace.html: model terms | template |
+   generated output, joined by the ADR-0019 trace sidecars. Everything is
+   computed in viewer/generation.py view(); this template only loops. Each
+   output line carries data-template and data-terms, each template line
+   data-origin and each term row data-term, and the script at the bottom
+   highlights the lines linked to whatever is clicked. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SemanticSeams Viewer — Generated from {{ label }}</title>
+  <style>
+    :root {
+      --bg: #f3f6f8; --panel: #fff; --ink: #15222a; --muted: #586a75; --rule: #d9e1e6;
+      --brand: #1f6f8b; --brand-soft: rgba(31, 111, 139, 0.12); --hit: rgba(31, 111, 139, 0.22); --warn: #b45309;
+      --layer-architecture: #2563eb; --layer-interaction: #d97706; --layer-process: #7c3aed;
+      --layer-decision: #e11d48; --layer-data: #16a34a; --layer-lifecycle: #0d9488; --layer-other: #8b98a3;
+      --font-code: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, sans-serif; }
+    .wrap { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    .crumbs { color: var(--muted); font-size: 13px; }
+    .crumbs a { color: var(--brand); }
+    h1 { font-size: 22px; font-weight: 600; margin: 0; }
+    h1 code, h2 code { font-family: var(--font-code); font-weight: 500; }
+    h2 { font-size: 15px; margin: 0 0 8px; }
+    .notices { background: color-mix(in srgb, var(--warn) 10%, var(--panel)); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--rule)); border-radius: 8px; padding: 10px 14px; }
+    .notices ul { margin: 4px 0 0; padding-left: 18px; }
+    .notices code { font-family: var(--font-code); }
+    .panes { display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.1fr) minmax(320px, 1.35fr); gap: 16px; }
+    .pane { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; display: flex; flex-direction: column; min-width: 0; }
+    .pane header { padding: 9px 12px 8px; border-bottom: 1px solid var(--rule); }
+    .pane header .k { display: block; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .pane header .v { font: 500 13px var(--font-code); overflow-wrap: anywhere; }
+    .scroll { overflow: auto; height: min(64vh, 640px); }
+    .term { display: grid; grid-template-columns: 4px 1fr auto; gap: 0 9px; padding: 5px 12px 5px 0; cursor: pointer; }
+    .term .bar { border-radius: 0 2px 2px 0; background: var(--layer-other); }
+    .term[data-layer="architecture"] .bar { background: var(--layer-architecture); }
+    .term[data-layer="interaction"] .bar { background: var(--layer-interaction); }
+    .term[data-layer="process"] .bar { background: var(--layer-process); }
+    .term[data-layer="decision"] .bar { background: var(--layer-decision); }
+    .term[data-layer="data"] .bar { background: var(--layer-data); }
+    .term[data-layer="lifecycle"] .bar { background: var(--layer-lifecycle); }
+    .term .label { font-weight: 500; overflow-wrap: anywhere; }
+    .term .curie, .term .n { font: 12px var(--font-code); color: var(--muted); overflow-wrap: anywhere; }
+    .term .n { align-self: center; }
+    .term.focus .label::after { content: " · this element"; font-weight: 400; color: var(--muted); font-size: 12px; }
+    .tpl-name { font: 600 12px var(--font-code); color: var(--muted); padding: 8px 12px 2px; border-top: 1px solid var(--rule); }
+    .tpl-name:first-child { border-top: 0; }
+    .code { font: 12.5px/1.6 var(--font-code); padding: 4px 0 10px; }
+    .oline, .tline { display: grid; grid-template-columns: 3.2em 1fr; gap: 0 8px; padding-right: 10px; white-space: pre; cursor: pointer; }
+    .ln { color: var(--muted); text-align: right; user-select: none; }
+    .oline.cites { box-shadow: inset 3px 0 0 var(--brand); }
+    .term:hover, .oline:hover, .tline:hover { background: var(--brand-soft); }
+    .term.on, .oline.on, .tline.on { background: var(--hit); }
+    .fan { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; }
+    .fan h3 { font: 600 13px var(--font-code); margin: 10px 0 4px; }
+    .fan h3 .gen { font: 12px system-ui, sans-serif; color: var(--muted); font-weight: 400; }
+    .fan ol { list-style: none; margin: 0; padding: 0; font: 12.5px/1.6 var(--font-code); }
+    .fan a { display: grid; grid-template-columns: 3.2em 1fr; gap: 0 8px; color: var(--ink); text-decoration: none; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+    .fan a:hover { background: var(--brand-soft); }
+    .fan a.selected { background: var(--hit); }
+    .muted { color: var(--muted); }
+    @media (max-width: 960px) { .panes { grid-template-columns: 1fr; } .scroll { height: min(46vh, 420px); } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumbs">
+    <a href="{{ view_href }}">{{ label }}</a> › <b>Generated</b>
+  </nav>
+  <h1>Generation trace · {{ label }} <code>{{ qname }}</code></h1>
+
+  {% if gv.notices %}
+  <section class="notices" id="generation-notices" role="status">
+    <strong>Notices</strong>
+    <ul>
+      {% for n in gv.notices %}
+      <li class="notice" data-file="{{ n.file }}"><code>{{ n.file }}</code>: {{ n.message }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if gv.output %}
+  <section class="panes" id="generation-panes" data-iri="{{ gv.iri }}" data-output="{{ gv.output.path }}">
+    <div class="pane" id="pane-model">
+      <header><span class="k">Model elements</span><span class="v">cited in {{ gv.output.path }}</span></header>
+      <div class="scroll">
+        {% for t in gv.terms %}
+        <div class="term{% if t.focus %} focus{% endif %}" data-term="{{ t.iri }}" data-layer="{{ t.layer }}" tabindex="0" title="{{ t.iri }}">
+          <span class="bar"></span>
+          <span class="name"><span class="label">{{ t.label }}</span><br><span class="curie">{{ t.qname }}</span></span>
+          <span class="n">{{ t.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="pane" id="pane-template">
+      <header><span class="k">Generator template</span><span class="v">{{ gv.output.generator }}</span></header>
+      <div class="scroll">
+        {% for tp in gv.templates %}
+        <div class="tpl-name">{{ tp.name }}</div>
+        <div class="code" data-template-name="{{ tp.name }}">
+          {%- for l in tp.lines %}
+          <div class="tline{% if l.on %} on{% endif %}" data-origin="{{ tp.name }}:{{ l.number }}"><span class="ln">{{ l.number }}</span><span class="txt">{{ l.text }}</span></div>
+          {%- endfor %}
+        </div>
+        {% else %}
+        <p class="muted" style="padding: 0 12px">No template source for this output.</p>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="pane" id="pane-output">
+      <header><span class="k">Generated output</span><span class="v">{{ gv.output.path }}</span></header>
+      <div class="scroll">
+        <div class="code">
+          {%- for l in gv.lines %}
+          <div class="oline{% if l.cites %} cites{% endif %}{% if l.on %} on{% endif %}" id="L{{ l.number }}" data-line="{{ l.number }}" data-template="{{ l.templates | join(' ') }}" data-terms="{{ l.terms | join(' ') }}"><span class="ln">{{ l.number }}</span><span class="txt">{{ l.text }}</span></div>
+          {%- endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="fan" id="generation-fanout">
+    <h2>Fan-out: every generated line citing <code>{{ qname }}</code></h2>
+    {% for g in gv.fanout %}
+    <h3>{{ g.output }} <span class="gen">{{ g.generator }} · {{ g.entries | length }} line{% if g.entries | length != 1 %}s{% endif %}</span></h3>
+    <ol>
+      {% for e in g.entries %}
+      <li><a class="fanout-entry{% if e.selected %} selected{% endif %}" href="{{ e.href }}" data-output="{{ e.output }}" data-line="{{ e.line }}"><span class="ln">{{ e.line }}</span><span>{{ e.text }}</span></a></li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted">No generated line cites this element.</p>
+    {% endfor %}
+  </section>
+</div>
+<script>
+  // Click an output line, a template line or a model term: every line linked
+  // to it by the trace gets .on. Links are read from the data attributes only.
+  (function () {
+    const panes = document.getElementById("generation-panes");
+    if (!panes) return;
+    const all = (sel) => Array.from(panes.querySelectorAll(sel));
+    const words = (el, attr) => (el.getAttribute(attr) || "").split(" ").filter(Boolean);
+    function show(outs, origins, terms) {
+      all(".on").forEach((el) => el.classList.remove("on"));
+      outs.forEach((el) => el.classList.add("on"));
+      all(".tline").forEach((el) => origins.has(el.dataset.origin) && el.classList.add("on"));
+      all(".term").forEach((el) => terms.has(el.dataset.term) && el.classList.add("on"));
+      const first = [outs[0], panes.querySelector(".tline.on"), panes.querySelector(".term.on")];
+      first.forEach((el) => el && el.scrollIntoView({ block: "nearest" }));
+    }
+    function linked(outs) {
+      const origins = new Set(outs.flatMap((el) => words(el, "data-template")));
+      const terms = new Set(outs.flatMap((el) => words(el, "data-terms")));
+      show(outs, origins, terms);
+    }
+    panes.addEventListener("click", (ev) => {
+      const out = ev.target.closest(".oline");
+      const tpl = ev.target.closest(".tline");
+      const term = ev.target.closest(".term");
+      if (out) linked([out]);
+      else if (tpl) {
+        const outs = all(".oline").filter((el) => words(el, "data-template").includes(tpl.dataset.origin));
+        show(outs, new Set([tpl.dataset.origin]), new Set(outs.flatMap((el) => words(el, "data-terms"))));
+      } else if (term) {
+        const outs = all(".oline").filter((el) => words(el, "data-terms").includes(term.dataset.term));
+        show(outs, new Set(outs.flatMap((el) => words(el, "data-template"))), new Set([term.dataset.term]));
+      }
+    });
+    const start = panes.querySelector(".oline.on");
+    if (start) linked([start]);
+  })();
+</script>
+</body>
+</html>

@@ -55,7 +55,7 @@ class IfmlEdit:
     patch: Patch
 
 
-def _types(ds: Dataset, iri: URIRef) -> set[Node]:
+def _types(ds: Dataset, iri: Node) -> set[Node]:
     return set(ds.objects(iri, RDF.type))
 
 
@@ -194,7 +194,7 @@ def _connect(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
 
 
 def _descendants(ds: Dataset, iri: URIRef) -> set[Node]:
-    return set(ds.transitive_objects(iri, IFML.contains))
+    return {o for o in ds.transitive_objects(iri, IFML.contains) if o is not None}
 
 
 def _move(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
@@ -208,6 +208,7 @@ def _move(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
     removes: list[Quad] = [
         (s, IFML.contains, element, g)
         for s, _p, _o, g in ds.quads((None, IFML.contains, element, None))
+        if g is not None
         if s == model or (s, SEAM.inModel, model) in ds
     ]
     if any(s == parent for s, _p, _o, _g in removes):
@@ -222,6 +223,11 @@ def _move(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
     return IfmlEdit("move", str(element), Patch(adds=adds, removes=removes))
 
 
+def _named_quads(ds: Dataset, subject: Node | None, obj: Node | None) -> list[Quad]:
+    """The quads with ``subject`` and ``obj`` (None matches any) that a named graph states."""
+    return [(s, p, o, g) for s, p, o, g in ds.quads((subject, None, obj, None)) if g is not None]
+
+
 def _tree(ds: Dataset, quads: set[Quad]) -> set[Quad]:
     """``quads`` with every quad of the blank nodes they hold, so a ``[ ]`` or ``( )``
     goes whole; a quad about a blank node takes the statement that holds the node."""
@@ -233,9 +239,9 @@ def _tree(ds: Dataset, quads: set[Quad]) -> set[Quad]:
         done.add(quad)
         s, _p, o, _g = quad
         if isinstance(s, BNode):
-            todo.extend(q for q in ds.quads((None, None, s, None)) if q[3] is not None)
+            todo.extend(_named_quads(ds, None, s))
         if isinstance(o, BNode):
-            todo.extend(q for q in ds.quads((o, None, None, None)) if q[3] is not None)
+            todo.extend(_named_quads(ds, o, None))
     return done
 
 
@@ -258,8 +264,8 @@ def _delete(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
             gone.update(f for f in ds.subjects(end, x) if any(t in FLOWS for t in _types(ds, f)))
     stated: set[Quad] = set()
     for x in gone:
-        stated.update(q for q in ds.quads((x, None, None, None)) if q[3] is not None)
-        stated.update(q for q in ds.quads((None, None, x, None)) if q[3] is not None)
+        stated.update(_named_quads(ds, x, None))
+        stated.update(_named_quads(ds, None, x))
     return IfmlEdit("delete", str(element), Patch(removes=_tree(ds, stated)))
 
 
@@ -294,8 +300,8 @@ def _remove_field(ds: Dataset, model: URIRef, op: dict) -> IfmlEdit:
     }
     stated: set[Quad] = {(shape, SH.property, prop, graph)}
     for param in inputs:
-        stated.update(q for q in ds.quads((param, None, None, None)) if q[3] is not None)
-        stated.update(q for q in ds.quads((None, None, param, None)) if q[3] is not None)
+        stated.update(_named_quads(ds, param, None))
+        stated.update(_named_quads(ds, None, param))
     return IfmlEdit("remove_field", str(form), Patch(removes=_tree(ds, stated)))
 
 

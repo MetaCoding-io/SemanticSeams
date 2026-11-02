@@ -8,7 +8,9 @@ projects are built in tmp_path: each bad file is one notice naming it.
 
 import json
 import sys
+from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -197,3 +199,164 @@ def test_malformed_lock_is_a_notice(tmp_path):
     index = generation.get_index(tmp_path)
     assert [n.file for n in index.notices] == ["seams.lock"]
     assert "cannot be read" in index.notices[0].message
+
+
+# -- the generation view route (T02) ----------------------------------------------
+
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+
+    from viewer import app as viewer_app
+
+    return TestClient(viewer_app.app)
+
+
+def _url(iri: str, query: str = "") -> str:
+    return f"/generation/{quote(iri, safe='')}{query}"
+
+
+def _api_sidecar() -> dict:
+    return json.loads((CHAT / f"{CHAT_API}.trace.json").read_text(encoding="utf-8"))
+
+
+def _attrs(entry: dict) -> str:
+    return (
+        f'data-line="{entry["line"]}" data-template="{" ".join(entry["templates"])}" '
+        f'data-terms="{" ".join(sorted(set(entry["terms"])))}"'
+    )
+
+
+def _api_iri() -> str:
+    """A term of chat_api.py's trace that other outputs cite too, so the fan-out spans files."""
+    index = generation.get_index(CHAT)
+    terms = sorted({t for e in _api_sidecar()["lines"] for t in e["terms"]})
+    spanning = [t for t in terms if len({p for p, _ in index.citing(t)}) > 1]
+    assert spanning, "a chat_api.py term is cited by more than one output"
+    return spanning[0]
+
+
+def test_generation_view_has_three_panes_with_trace_attributes(client):
+    iri = _api_iri()
+    citing = generation.get_index(CHAT).citing(iri)
+    first_output, first_line = citing[0]
+    resp = client.get(_url(iri))
+    assert resp.status_code == 200
+    body = resp.text
+    for pane in ("pane-model", "pane-template", "pane-output"):
+        assert f'id="{pane}"' in body
+    assert f'data-output="{first_output}"' in body
+    # the element heads the model pane, and the first citing line is selected
+    assert f'class="term focus" data-term="{iri}"' in body
+    assert f'class="oline cites on" id="L{first_line}"' in body
+    assert "generation-notices" not in body
+    sidecar = json.loads((CHAT / f"{first_output}.trace.json").read_text(encoding="utf-8"))
+    for entry in sidecar["lines"]:
+        assert _attrs(entry) in body, entry["line"]
+
+
+def test_generation_view_template_pane_marks_the_selected_lines_origins(client):
+    iri = _api_iri()
+    entry = next(e for e in _api_sidecar()["lines"] if iri in e["terms"])
+    resp = client.get(_url(iri, f"?output={quote(CHAT_API, safe='')}&line={entry['line']}"))
+    assert resp.status_code == 200
+    body = resp.text
+    assert _attrs(entry) in body
+    assert f'data-output="{CHAT_API}"' in body
+    for origin in entry["templates"]:
+        assert f'class="tline on" data-origin="{origin}"' in body
+    name = entry["templates"][0].rpartition(":")[0]
+    source = (ROOT / "seams_gen" / "templates" / name).read_text(encoding="utf-8")
+    assert body.count(f'data-origin="{name}:') == len(source.splitlines())
+
+
+def test_generation_view_fanout_lists_every_citing_line(client):
+    iri = _api_iri()
+    citing = generation.get_index(CHAT).citing(iri)
+    body = client.get(_url(iri)).text
+    assert body.count('class="fanout-entry') == len(citing)
+    for path, line in citing:
+        href = _url(iri, f"?output={quote(path, safe='')}&line={line}")
+        assert f'href="{escape(href)}" data-output="{path}" data-line="{line}"' in body
+    assert body.count("fanout-entry selected") == 1
+
+
+def test_generation_view_follows_a_fanout_link_into_another_output(client):
+    iri = _api_iri()
+    path, line = next((p, n) for p, n in generation.get_index(CHAT).citing(iri) if p != CHAT_API)
+    body = client.get(_url(iri, f"?output={quote(path, safe='')}&line={line}")).text
+    assert f'data-output="{path}"' in body
+    assert f'class="oline cites on" id="L{line}"' in body
+
+
+@pytest.mark.parametrize("query", ["?output=no/such/file.py&line=3", "?output=generated/chat_api.py&line=99999"])
+def test_generation_view_ignores_an_unknown_output_or_line(client, query):
+    iri = _api_iri()
+    citing = generation.get_index(CHAT).citing(iri)
+    resp = client.get(_url(iri, query))
+    assert resp.status_code == 200
+    shown = CHAT_API if "chat_api" in query else citing[0][0]
+    first = next(n for p, n in citing if p == shown)
+    assert f'data-output="{shown}"' in resp.text
+    assert f'id="L{first}"' in resp.text and ' on" id="L' in resp.text
+
+
+def _untraced_model_iri() -> str:
+    """An element of the chat model that no generated line cites."""
+    from rdflib import URIRef
+
+    from viewer import app as viewer_app
+
+    fanout = generation.get_index(CHAT).fanout
+    subjects = sorted({str(s) for s in viewer_app.get_graph().subjects() if isinstance(s, URIRef)})
+    uncited = [s for s in subjects if s not in fanout]
+    assert uncited, "the chat model has an element no output cites"
+    return uncited[0]
+
+
+@pytest.mark.parametrize("which", ["unknown", "untraced"])
+def test_generation_view_of_an_uncited_iri_is_a_notice(client, which):
+    iri = "https://example.invalid/never-traced" if which == "unknown" else _untraced_model_iri()
+    resp = client.get(_url(iri))
+    assert resp.status_code == 200
+    assert 'id="generation-notices"' in resp.text
+    assert f"<code>{iri}</code>: no generated line cites this element" in resp.text
+    assert 'id="generation-panes"' not in resp.text
+    assert "fanout-entry" not in resp.text
+
+
+def test_generation_view_names_a_missing_sidecar(client, tmp_path, monkeypatch):
+    from viewer import app as viewer_app
+
+    lines = [{"line": 1, "templates": [], "terms": ["https://example.invalid/a"]}]
+    base = _project(tmp_path, sidecar=_sidecar(lines))
+    (base / "seams.lock").write_text(
+        json.dumps(
+            {
+                "lockfile_version": 1,
+                "outputs": [
+                    {"path": "out.py", "generator": "fastapi", "sources": []},
+                    {"path": "other.py", "generator": "fastapi", "sources": []},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (base / "other.py").write_text("b = 2\n", encoding="utf-8")
+    monkeypatch.setattr(viewer_app, "MODEL_DIR", base)
+    resp = client.get(_url("https://example.invalid/a"))
+    assert resp.status_code == 200
+    assert '<li class="notice" data-file="other.py.trace.json"><code>other.py.trace.json</code>' in resp.text
+    assert 'data-output="out.py"' in resp.text
+    assert 'data-line="1" data-template="" data-terms="https://example.invalid/a"' in resp.text
+
+
+def test_generation_view_names_a_malformed_sidecar(client, tmp_path, monkeypatch):
+    from viewer import app as viewer_app
+
+    monkeypatch.setattr(viewer_app, "MODEL_DIR", _project(tmp_path, sidecar="{not json"))
+    resp = client.get(_url("https://example.invalid/a"))
+    assert resp.status_code == 200
+    assert 'data-file="out.py.trace.json"' in resp.text
+    assert "trace sidecar is malformed" in resp.text

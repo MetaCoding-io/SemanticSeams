@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib.resources import files
 from pathlib import Path
@@ -218,3 +219,171 @@ def get_index(base_dir: Path) -> GenerationIndex:
     if key not in _cache:
         _cache[key] = _build(base_dir)
     return _cache[key]
+
+
+# -- the generation view (T02) ---------------------------------------------------
+#
+# view() computes everything generation.html renders: the template only loops.
+# Model facts (label, qname, layer) come from the caller's ``describe`` so this
+# module never reads the graph; links come from its ``href``.
+
+
+@dataclass(frozen=True)
+class TermRow:
+    iri: str
+    label: str
+    qname: str
+    layer: str
+    count: int  # lines of the shown output citing the term
+    focus: bool  # the element the view was opened for
+
+
+@dataclass(frozen=True)
+class CodeLine:
+    number: int
+    text: str
+    templates: tuple[str, ...] = ()  # "name.j2:N" origins, output lines only
+    terms: tuple[str, ...] = ()  # cited IRIs, output lines only
+    cites: bool = False  # cites the focused element
+    on: bool = False  # the selected line (output) or one of its origins (template)
+
+
+@dataclass(frozen=True)
+class TemplatePane:
+    name: str
+    lines: tuple[CodeLine, ...]
+
+
+@dataclass(frozen=True)
+class FanoutEntry:
+    output: str
+    line: int
+    text: str
+    href: str
+    selected: bool
+
+
+@dataclass(frozen=True)
+class FanoutGroup:
+    output: str
+    generator: str
+    entries: tuple[FanoutEntry, ...]
+
+
+@dataclass(frozen=True)
+class GenerationView:
+    iri: str
+    output: GeneratedOutput | None  # the output shown, None when nothing cites the IRI
+    line: int | None  # the selected output line
+    terms: tuple[TermRow, ...]
+    templates: tuple[TemplatePane, ...]
+    lines: tuple[CodeLine, ...]
+    fanout: tuple[FanoutGroup, ...]
+    notices: tuple[Notice, ...]
+
+
+# (label, qname, layer) of a model term, and the view's link to an output line.
+Describe = Callable[[str], tuple[str, str, str]]
+Href = Callable[[str, int], str]
+
+
+def _text_lines(out: GeneratedOutput) -> list[str]:
+    return [] if out.text is None else out.text.splitlines()
+
+
+def view(
+    index: GenerationIndex,
+    iri: str,
+    describe: Describe,
+    href: Href,
+    output: str = "",
+    line: int = 0,
+) -> GenerationView:
+    """The generation view of ``iri``: the shown output is ``output`` when the
+    index has it, else the first output citing ``iri``; the selected line is
+    ``line`` when the output has it, else the output's first line citing ``iri``.
+    An IRI no line cites gets no output and one notice saying so."""
+    citing = index.citing(iri)
+    shown = index.output(output) if output else None
+    if shown is None and citing:
+        shown = index.output(citing[0][0])
+    notices = list(index.notices)
+    if not citing:
+        notices.append(Notice(iri, "no generated line cites this element"))
+
+    selected: int | None = None
+    lines: list[CodeLine] = []
+    terms: tuple[TermRow, ...] = ()
+    panes: list[TemplatePane] = []
+    if shown is not None:
+        texts = _text_lines(shown)
+        own = [n for p, n in citing if p == shown.path]
+        selected = line if 1 <= line <= len(texts) else (own[0] if own else None)
+        focus_line = shown.line(selected) if selected is not None else None
+        on_origins = set(focus_line.templates) if focus_line is not None else set()
+        for number, text in enumerate(texts, start=1):
+            tl = shown.line(number)
+            lines.append(
+                CodeLine(
+                    number=number,
+                    text=text,
+                    templates=tl.templates if tl is not None else (),
+                    terms=tl.terms if tl is not None else (),
+                    cites=tl is not None and iri in tl.terms,
+                    on=number == selected,
+                )
+            )
+        counts: dict[str, int] = {}
+        for tl in shown.lines:
+            for term in tl.terms:
+                counts[term] = counts.get(term, 0) + 1
+        rows = [TermRow(t, *describe(t), count=n, focus=t == iri) for t, n in counts.items()]
+        if iri not in counts:
+            rows.append(TermRow(iri, *describe(iri), count=0, focus=True))
+        terms = tuple(sorted(rows, key=lambda r: (not r.focus, r.label, r.iri)))
+        cited = sorted({_template_name(o) for tl in shown.lines for o in tl.templates})
+        for name in cited:
+            source = index.templates.get(name)
+            if source is None:
+                continue  # its notice is already in the index
+            panes.append(
+                TemplatePane(
+                    name=name,
+                    lines=tuple(
+                        CodeLine(number=n, text=t, on=f"{name}:{n}" in on_origins)
+                        for n, t in enumerate(source.splitlines(), start=1)
+                    ),
+                )
+            )
+    else:
+        terms = (TermRow(iri, *describe(iri), count=0, focus=True),)
+
+    groups: list[FanoutGroup] = []
+    for path in sorted({p for p, _ in citing}):
+        out = index.output(path)
+        if out is None:
+            continue
+        texts = _text_lines(out)
+        entries = tuple(
+            FanoutEntry(
+                output=path,
+                line=n,
+                text=texts[n - 1] if n <= len(texts) else "",
+                href=href(path, n),
+                selected=shown is not None and path == shown.path and n == selected,
+            )
+            for p, n in citing
+            if p == path
+        )
+        groups.append(FanoutGroup(output=path, generator=out.generator, entries=entries))
+
+    return GenerationView(
+        iri=iri,
+        output=shown,
+        line=selected,
+        terms=terms,
+        templates=tuple(panes),
+        lines=tuple(lines),
+        fanout=tuple(groups),
+        notices=tuple(sorted(notices, key=lambda n: (n.file, n.message))),
+    )

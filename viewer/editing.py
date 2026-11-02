@@ -89,8 +89,8 @@ class FormField:
 def subject_graphs(ds: Dataset, iri: str) -> list[Node]:
     """The graphs that state triples about ``iri``, the one with its rdf:type first."""
     subject = URIRef(iri)
-    typed = {g for _s, _p, _o, g in ds.quads((subject, RDF.type, None, None)) if g is not None}
-    every = {g for _s, _p, _o, g in ds.quads((subject, None, None, None)) if g is not None}
+    typed: set[Node] = {g for _s, _p, _o, g in ds.quads((subject, RDF.type, None, None)) if g is not None}
+    every: set[Node] = {g for _s, _p, _o, g in ds.quads((subject, None, None, None)) if g is not None}
     return sorted(typed, key=str) + sorted(every - typed, key=str)
 
 
@@ -105,8 +105,8 @@ def _classes(ds: Dataset, subject: URIRef) -> set[Node]:
     ontology = _ontology_graph()
     found: set[Node] = set()
     for t in set(ds.objects(subject, RDF.type)):
-        found.update(ontology.transitive_objects(t, RDFS.subClassOf))
-        found.update(ds.transitive_objects(t, RDFS.subClassOf))
+        found.update(c for c in ontology.transitive_objects(t, RDFS.subClassOf) if c is not None)
+        found.update(c for c in ds.transitive_objects(t, RDFS.subClassOf) if c is not None)
     return found
 
 

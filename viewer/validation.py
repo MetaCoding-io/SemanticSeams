@@ -199,6 +199,8 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
 
     union = _build_union(ds, profile)
     conforms, results_graph, _text = pyshacl.validate(union, shacl_graph=_shapes(profile), inference="none")
+    if not isinstance(results_graph, rdflib.Graph):
+        raise TypeError(f"pyshacl returned a {type(results_graph).__name__} report, not a results graph")
 
     violations: list[dict] = []
     for result in results_graph.subjects(rdflib.RDF.type, SH.ValidationResult):

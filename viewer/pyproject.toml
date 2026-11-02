@@ -9,6 +9,8 @@ dependencies = [
     "semanticseams",
     # edit mode saves every change through the one write path (ADR-0017)
     "semanticseams-edit",
+    # edit mode re-runs the project's generators, in memory, after each save (I3)
+    "semanticseams-cli",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     # backs fastapi.templating.Jinja2Templates
@@ -23,3 +25,4 @@ package = false
 [tool.uv.sources]
 semanticseams = { workspace = true }
 semanticseams-edit = { workspace = true }
+semanticseams-cli = { workspace = true }

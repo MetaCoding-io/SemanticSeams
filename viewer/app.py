@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -30,7 +31,7 @@ from rdflib.namespace import SH
 import seams_edit
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import editing, ifml, layers, legend, validation
+from viewer import editing, ifml, layers, legend, preview, validation
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.shapegraph import shapegraph_graph_data
@@ -1276,6 +1277,29 @@ def _roll_back(records: list[seams_edit.EditRecord]) -> str:
         except (seams_edit.PatchError, OSError) as err:
             return f" (and undoing the earlier renames failed: {err})"
     return ""
+
+
+def preview_context() -> dict:
+    """The live preview of the loaded model (viewer/preview.py), logged with its
+    project, output count, fault count and duration."""
+    start = time.perf_counter()
+    facts = preview.preview(MODEL_PATH, MODEL_DIR)
+    logger.info(
+        "preview %s: %d output(s), %d fault(s) in %.2fs%s",
+        facts["project"] or MODEL_DIR,
+        len(facts["files"]),
+        len(facts["faults"]),
+        time.perf_counter() - start,
+        f" ({facts['error']})" if facts["error"] else "",
+    )
+    return facts
+
+
+@edit_router.get("/edit/preview")
+def edit_preview(request: Request, oob: bool = False):
+    """The project's generators re-run in lenient mode on the edited model, in
+    memory (backlog I3): nothing is written."""
+    return templates.TemplateResponse(request, "preview-panel.html", {"preview": preview_context(), "oob": oob})
 
 
 @edit_router.get("/edit/{iri:path}")

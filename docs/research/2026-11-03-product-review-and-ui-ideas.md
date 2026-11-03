@@ -9,6 +9,9 @@ runs the viewer in edit mode on the expense tutorial's chapter 9 model. The pers
 product designer who comes from model-based systems engineering (MBSE) tooling rather than
 from application development.*
 
+*Revision, 2026-11-03: the candidate rows at the end were added to the backlog as V1 to V10
+under "Not yet scheduled".*
+
 ## The questions
 
 What has the project built, measured as a modelling product? What would an application
@@ -310,7 +313,7 @@ onward deepens the thread for people who have not yet been able to start a model
 
 ## Candidate backlog rows
 
-Not added to the backlog by this note. Each names the query or principle it serves, as
+Added to the [backlog](../backlog.md) as V1 to V10 on 2026-11-03 (see the revision note above). Each names the query or principle it serves, as
 [principle 4](../project/principles.md#_4-vocabulary-is-earned) asks.
 
 | # | Item | Size | Depends on | Vocabulary impact |

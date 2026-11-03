@@ -76,7 +76,7 @@ lifecycle guard and policy hook ask it, or the view elements it hands back
 
 ## Verification harness
 
-`seams_runtime.verify` is what the `tests` generator's output runs on
+`seams_runtime.verify` is what the `tests`, `smoke` and `acceptance` generators' output runs on
 ([ADR-0014](../docs/adr/0014-scenarios-and-derived-tests.md)). The generated files
 hold the model's data and call these, so they stay thin:
 
@@ -94,6 +94,12 @@ hold the model's data and call these, so they stay thin:
 | `smoke(model, probe, caller, timeout=10.0, client=None)` | What the `smoke` generator's tests call (backlog A9). Sends a `Probe` (one operation: method, filled path, form data, the shapes it answers with) to `caller.base_url` with the caller's identity headers, and returns a `Check` (`ok`, `detail`). A 2xx passes, and for a JSON operation its body must conform to `returns`; any other status must be one of the probe's declared `errors`, with a body that conforms to that status's shape. No answer (a connection error or timeout), an undeclared status, a non-JSON body where one is checked, or a body that does not conform fails; the detail names the method, URL, identity and status, with pyshacl's report. `client` (e.g. a `TestClient`) replaces the httpx request. |
 | `smoke_caller(env=None)` / `smoke_required(env=None)` | The `Caller` from `SEAMS_SMOKE_BASE_URL`, `SEAMS_SMOKE_USER` and comma-separated `SEAMS_SMOKE_GROUPS` (None without a base URL), and whether `SEAMS_E2E=1` makes a missing base URL a failure rather than a skip. |
 | `smoke_skip(probe, caller)` | Why `caller` cannot send `probe`, or None: the probe's own skip (no example fills a path variable or the body), or a governing policy no assignee of which is the caller's user or one of its groups (by IRI or local name, as `RoleEvaluator` admits). The reason names the policy CURIEs. |
+| `Handler(handler, implementation, accepts, returns)` | One `comm:PythonHandler` function the `acceptance` generator's tests check (backlog C2): its `comm:handler` dotted path, the implementation IRI, and per operation the fields of the accepted and returned shapes (None: the operation states no `seam:acceptsShape` or `seam:returnsShape`). |
+| `resolve_handler(model, handler, handlers=None)` / `handlers_dir_for(model, handlers=None)` | The callable the handler names, and the handlers package directory, found as the runtime finds them (`handlers`, else `SEAMS_HANDLERS`, else `handlers/` beside the model). An import failure is `ResolutionError(implementation, comm:handler)`. |
+| `handler_types(model, handler, handlers=None)` | A `Check` of the signature: one positional entity parameter annotated `dict` or a TypedDict whose keys and required-ness are the accepted shape's fields, and a return annotation of `dict`, such a TypedDict of the returned shape, or `None` when the operation returns no shape. |
+| `handler_result(model, handler, operation, example, handlers=None)` | Calls the handler with a `verify:validExample` of the accepted shape, prepared as the worker passes it, and checks the answer as the worker does: a dict the runtime's validator accepts for `seam:returnsShape`, or an `OperationError` whose code is one of the operation's `hydra:possibleStatus` with a body conforming to that status's error shape. |
+| `transition_guard(model, task, transition)` | The lifecycle guard the worker runs before `task`: from the transition's `state:from` the task runs and the entity moves to `state:to`; from any other state of the lifecycle it is refused with `LifecycleViolation`. |
+| `decision_route(model, task, example, db, handlers=None)` | Runs the task's process in process with the hand-written handlers, started from the triggering operation's first valid example with the decision example's givens. The task must be reached exactly when the example's outputs route a gateway flow into it, and when reached its trace row must fire the task's `seam:fires` transition, unless a boundary caught a declared error. |
 
 ## Store
 

@@ -142,7 +142,9 @@ against thresholds; the chat app fails by design.
 `python -m seams_gen.stubs <model.trig>` writes a stub for each `comm:PythonHandler`
 whose module is missing from the model's `handlers/` package, and never overwrites a file
 there: hand-written handlers are owned code
-([ADR-0012](docs/adr/0012-operation-implementation.md)).
+([ADR-0012](docs/adr/0012-operation-implementation.md)). Each stub is typed from its
+operation's shapes, names the task, decision and transition behind it, and has a
+`.trace.json` sidecar linking its lines to the model.
 
 ## v1: the viewer
 

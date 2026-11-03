@@ -13,6 +13,16 @@ Send Now in expenses chapter 9 is the worked example in the
 [authoring guide](../guide/authoring-a-model.md#what-a-task-depends-on-seams-context).
 The text below is unchanged.*
 
+*Revision, 2026-11-02: C1 is built (M022/S02). `python -m seams_gen.stubs` writes each
+`comm:PythonHandler` stub once with a `TypedDict` per accepted and returned shape, a
+signature using them, docstring lines naming the invoking task, its decision and fired
+transition (from `seams.context_for`), a `# context-hash:` header line, and a write-once
+`<module>.trace.json` sidecar that links each stub line to its model IRIs. The stubs live
+in the handlers package of ADR-0012, and the sidecar is not yet in `seams.lock` (C5).
+Expenses chapter 9 shows the
+[stub for Notify manager](../tutorials/expenses/09-hand-written-code.md#write-the-stub-once).
+The text below is unchanged.*
+
 ## The question
 
 Template generators can write compose files, FastAPI route modules and htmx pages,

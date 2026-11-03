@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.bar{display:flex;gap:0.8rem;align-items:center;margin-bottom:0.8rem;font-size:0.85rem}
+.seg{display:inline-flex;border:1px solid #bbb;border-radius:6px;overflow:hidden}
+.seg span{padding:0.3rem 0.8rem;background:#fff}
+.seg span.on{background:var(--navy);color:#fff;font-weight:600}
+.layout{display:grid;grid-template-columns:1fr 290px;gap:1rem}
+.canvas{border:1px solid var(--line);border-radius:6px;position:relative;height:470px;background:#fff}
+.page{position:absolute;border:2px solid var(--ui);border-radius:6px;background:#fff8ee;padding:0.4rem 0.5rem;font-size:0.72rem}
+.page h5{margin:0 0 0.3rem;font-size:0.8rem}
+.comp{border:1px solid #d9a85a;border-radius:4px;background:#fff;padding:0.25rem 0.4rem;margin-bottom:0.3rem;display:flex;justify-content:space-between;gap:0.6rem}
+.ev{font-size:0.65rem;background:var(--ui);color:#fff;border-radius:999px;padding:0.02rem 0.4rem}
+.dim{opacity:0.22;filter:grayscale(1)}
+.deny{position:absolute;font-size:0.66rem;color:#b91c1c;background:#fff;border:1px solid #f0a3a3;border-radius:999px;padding:0.05rem 0.4rem}
+.link{position:absolute;height:2px;background:#d9a85a}
+.legend{font-size:0.78rem;display:flex;gap:1rem;margin-top:0.5rem}
+.sw{display:inline-block;width:12px;height:12px;vertical-align:middle;margin-right:0.3rem;border:1px solid #999}
+.list{font-size:0.82rem;padding-left:1.1rem}
+.list li{margin-bottom:0.3rem}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span>Layers</span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span></div>
+<div class="crumbs">Expense Architecture › Employee Portal › <b>Expense Interface</b></div>
+<main>
+<div class="bar"><b>Viewing as</b> <span class="seg"><span>Everyone</span><span>Employee</span><span class="on">Manager</span><span>Finance</span></span> <span style="color:var(--muted)">Policies: Managers may approve · Everyone may list · (3 of 9 permissions apply)</span></div>
+<div class="layout">
+<div>
+<div class="canvas">
+  <div class="page" style="left:20px;top:20px;width:230px"><h5>Expenses page</h5>
+    <div class="comp">My Expenses <span class="ev">list</span></div>
+    <div class="comp dim">New Expense form <span class="ev">Submit Expense</span></div>
+    <div class="deny" style="left:200px;top:62px">denied · employees only</div>
+    <div class="comp">Expense Details <span class="ev">details</span></div>
+  </div>
+  <div class="page" style="left:330px;top:20px;width:250px"><h5>Approvals</h5>
+    <div class="comp">Awaiting Approval <span class="ev">list</span></div>
+    <div class="comp" style="box-shadow:0 0 0 3px rgba(217,119,6,0.3)">Approve form <span class="ev">Submit Approval</span></div>
+    <div class="comp dim">Finance approve form <span class="ev">Submit Finance Approval</span></div>
+    <div class="deny" style="left:150px;top:100px">denied · finance only</div>
+  </div>
+  <div class="page dim" style="left:660px;top:20px;width:220px"><h5>Finance console</h5>
+    <div class="comp">Paid Expenses <span class="ev">list</span></div>
+    <div class="comp">Record Payment <span class="ev">Submit Payment</span></div>
+    <div class="comp">Payouts <span class="ev">Add to Batch</span></div>
+  </div>
+  <div class="deny" style="left:660px;top:150px">whole screen denied · finance only</div>
+  <div class="link" style="left:250px;top:52px;width:80px"></div>
+  <div class="link dim" style="left:580px;top:52px;width:80px"></div>
+
+  <div style="position:absolute;left:20px;top:250px;right:20px;border-top:1px dashed #ccc;padding-top:0.5rem;font-size:0.78rem;color:var(--muted)">What a Manager can reach that eventually writes data</div>
+  <div style="position:absolute;left:20px;top:285px;display:flex;gap:0.5rem;align-items:center;font-size:0.75rem">
+    <span class="card" style="border-left-color:var(--ui)">Submit Approval</span>→<span class="card" style="border-left-color:var(--proc)">Approve Expense</span>→<span class="card" style="border-left-color:var(--data)">writes Approval</span>→<span class="card" style="border-left-color:var(--life)">fires approve / reject</span>
+  </div>
+  <div style="position:absolute;left:20px;top:345px;display:flex;gap:0.5rem;align-items:center;font-size:0.75rem" class="dim">
+    <span class="card" style="border-left-color:var(--ui)">Submit Payment</span>→<span class="card" style="border-left-color:var(--proc)">Pay Expense</span>→<span class="card" style="border-left-color:var(--data)">writes Payment</span>
+  </div>
+  <div class="deny" style="left:420px;top:352px">unreachable as Manager</div>
+</div>
+<div class="legend"><span><span class="sw" style="background:#fff8ee"></span>reachable as Manager</span><span><span class="sw" style="background:#eee"></span>denied by a policy</span><span><span class="sw" style="background:#fff;border-color:#b91c1c"></span>red badge names the policy</span></div>
+</div>
+<div class="inspector"><h3>Manager</h3><span class="pill">odrl:Party</span>
+  <p style="font-size:0.82rem">Granted by <b>Managers may approve</b> and <b>Everyone may list</b>.</p>
+  <h4 style="margin:0.8rem 0 0.3rem;font-size:0.85rem">Can reach</h4>
+  <ul class="list"><li>3 screens, 2 events, 1 user task</li><li>Writes <b>Approval</b>; moves Expense out of <i>submitted</i></li></ul>
+  <h4 style="margin:0.8rem 0 0.3rem;font-size:0.85rem">Cannot reach</h4>
+  <ul class="list"><li>Finance console (whole screen)</li><li>Submit Expense, Submit Payment</li></ul>
+  <h4 style="margin:0.8rem 0 0.3rem;font-size:0.85rem">Deny tests</h4>
+  <ul class="list"><li class="ok" style="color:#15803d">✓ manager denied Submit Payment</li><li style="color:#b45309">⚠ no deny test for Add to Batch</li></ul>
+</div>
+</div>
+</main></body></html>

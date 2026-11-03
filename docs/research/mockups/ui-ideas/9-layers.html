@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.ctl{display:flex;gap:0.8rem;align-items:center;margin-bottom:0.5rem;font-size:0.85rem}
+.layout{display:grid;grid-template-columns:1fr 290px;gap:1rem}
+.stack{border:1px solid var(--line);border-radius:6px;position:relative;height:520px;background:#fff;overflow:hidden}
+.plane{position:absolute;left:40px;width:760px;height:96px;transform:skewX(-28deg);border:1.5px solid var(--c);background:color-mix(in srgb,var(--c) 6%,white)}
+.plane.col{height:26px;background:color-mix(in srgb,var(--c) 14%,white)}
+.pl{position:absolute;left:14px;font-size:0.72rem;font-weight:700;color:var(--c)}
+.pl small{font-weight:400;color:#777;margin-left:0.4rem}
+.el{position:absolute;font-size:0.62rem;border:1px solid var(--c);background:#fff;padding:0.05rem 0.35rem;border-radius:3px;color:#333;opacity:0.18}
+.el.hot{opacity:1;font-weight:600;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 30%,transparent)}
+.el.on{opacity:1}
+.link{position:absolute;width:2px;opacity:0.9}
+.list{font-size:0.8rem;padding-left:1.1rem}
+.list li{margin-bottom:0.3rem}
+.nd{border:1px solid var(--line);border-radius:6px;padding:0.5rem 0.7rem;font-size:0.78rem;margin-top:0.6rem;background:#fff}
+.nd b{display:block;margin-bottom:0.3rem}
+.nd span{display:inline-block;border:1px solid #ccc;border-radius:999px;padding:0 0.4rem;margin:0 0.2rem 0.2rem 0;font-size:0.7rem}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span><b style="border-bottom:2px solid #fff">Layers</b></span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span></div>
+<div class="crumbs">Layers › tracing <b>Approve Expense</b></div>
+<main>
+<div class="ctl"><b>Focus</b> <span class="card" style="display:inline-block;border-left-color:var(--proc);padding:0.1rem 0.5rem">Approve Expense</span> <span class="btn">Clear</span> <span style="color:var(--muted)">Everything not on its seams is dimmed. Click a plane title to collapse it to a bar; click a dimmed element to refocus.</span></div>
+<div class="layout">
+<div class="stack">
+  <div class="plane" style="top:20px;--c:var(--arch)"></div><div class="pl" style="top:24px;--c:var(--arch)">Architecture <small>Expense Architecture</small></div>
+  <div class="el" style="left:200px;top:50px;--c:var(--arch)">Development</div><div class="el on" style="left:360px;top:44px;--c:var(--arch)">Expense API</div><div class="el" style="left:470px;top:60px;--c:var(--arch)">Expense Store</div><div class="el on" style="left:300px;top:78px;--c:var(--arch)">Employee Portal</div><div class="el" style="left:560px;top:40px;--c:var(--arch)">db01</div><div class="el" style="left:620px;top:80px;--c:var(--arch)">app01</div>
+
+  <div class="plane" style="top:140px;--c:var(--ui)"></div><div class="pl" style="top:144px;--c:var(--ui)">Interaction <small>Expense Interface · Finance Console</small></div>
+  <div class="el" style="left:120px;top:170px;--c:var(--ui)">Expenses Page</div><div class="el" style="left:230px;top:190px;--c:var(--ui)">New Expense</div><div class="el on" style="left:420px;top:166px;--c:var(--ui)">Approve form</div><div class="el on" style="left:520px;top:196px;--c:var(--ui)">Submit Approval</div><div class="el" style="left:650px;top:170px;--c:var(--ui)">Payouts</div><div class="el" style="left:300px;top:214px;--c:var(--ui)">My Expenses</div>
+
+  <div class="plane" style="top:260px;--c:var(--proc)"></div><div class="pl" style="top:264px;--c:var(--proc)">Process <small>Expense Approval · Expense Payout</small></div>
+  <div class="el" style="left:140px;top:290px;--c:var(--proc)">Route Expense</div><div class="el" style="left:260px;top:310px;--c:var(--proc)">Notify Manager</div><div class="el hot" style="left:400px;top:296px;--c:var(--proc)">Approve Expense</div><div class="el" style="left:540px;top:290px;--c:var(--proc)">Record Approval</div><div class="el" style="left:620px;top:320px;--c:var(--proc)">Send Now</div>
+
+  <div class="plane col" style="top:380px;--c:var(--dec)"></div><div class="pl" style="top:382px;--c:var(--dec)">Decision <small>collapsed · 2 elements · 0 on this trace ▸</small></div>
+
+  <div class="plane" style="top:420px;--c:var(--data)"></div><div class="pl" style="top:424px;--c:var(--data)">Data <small>Expense Data</small></div>
+  <div class="el on" style="left:430px;top:452px;--c:var(--data)">Approval</div><div class="el on" style="left:300px;top:470px;--c:var(--data)">Expense</div><div class="el" style="left:560px;top:470px;--c:var(--data)">Payment</div><div class="el" style="left:180px;top:450px;--c:var(--data)">Notification</div>
+
+  <div class="plane col" style="top:530px;--c:var(--life)"></div>
+
+  <div class="link" style="left:440px;top:52px;height:116px;background:var(--arch)"></div>
+  <div class="link" style="left:460px;top:176px;height:124px;background:var(--ui)"></div>
+  <div class="link" style="left:548px;top:206px;height:96px;background:var(--ui)"></div>
+  <div class="link" style="left:450px;top:310px;height:144px;background:var(--proc)"></div>
+  <div class="link" style="left:330px;top:310px;height:162px;background:var(--proc)"></div>
+  <div class="callout" style="left:580px;top:400px;width:200px">Collapsed plane keeps its title and counts; its seams are drawn as a bar crossing, not as lines.</div>
+</div>
+<div class="inspector"><h3>Approve Expense</h3><span class="pill">User task</span>
+  <ul class="list" style="margin-top:0.6rem"><li><span class="dot" style="background:var(--arch)"></span>executed by Expense API</li><li><span class="dot" style="background:var(--ui)"></span>completed on Approve form · Submit Approval</li><li><span class="dot" style="background:var(--data)"></span>writes Approval · reads Expense</li><li><span class="dot" style="background:var(--life)"></span>fires approve, reject</li><li><span class="dot" style="background:#555"></span>governed by Managers may approve</li></ul>
+  <div class="nd"><b>Not drawn · 18 elements</b><span>3 policies</span><span>6 operations</span><span>4 channels</span><span>5 environments</span><div style="margin-top:0.3rem;color:var(--muted)">Now a list you can open, not a warning. Choose a plane to put each kind on.</div></div>
+</div>
+</div>
+</main></body></html>

@@ -1,0 +1,69 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.ctl{display:flex;gap:0.6rem;align-items:center;margin-bottom:0.7rem;font-size:0.85rem}
+.seg{display:inline-flex;border:1px solid #bbb;border-radius:6px;overflow:hidden}
+.seg span{padding:0.25rem 0.7rem;background:#fff}.seg span.on{background:var(--navy);color:#fff;font-weight:600}
+.steps{display:flex;gap:3px;margin-left:auto}
+.steps span{width:28px;height:8px;background:#ddd;border-radius:2px}.steps span.done{background:var(--proc)}.steps span.cur{background:var(--dec)}
+.layout{display:grid;grid-template-columns:1fr 330px;gap:1rem}
+.seq{border:1px solid var(--line);border-radius:6px;position:relative;height:470px;background:#fff;overflow:hidden}
+.ll{position:absolute;top:12px;width:110px;text-align:center;font-size:0.72rem}
+.ll .h{border:1px solid #999;border-radius:4px;padding:0.3rem 0.2rem;background:#f7f7f7;font-weight:600;border-top:3px solid var(--c)}
+.ll .v{position:absolute;left:55px;top:40px;width:0;height:420px;border-left:1px dashed #aaa}
+.msg{position:absolute;height:0;border-top:2px solid #555;font-size:0.68rem}
+.msg::after{content:"";position:absolute;right:-1px;top:-5px;border:4px solid transparent;border-left:7px solid #555}
+.msg.back{border-top-style:dashed}
+.msg.cur{border-top-color:var(--dec);border-top-width:3px}.msg.cur::after{border-left-color:var(--dec)}
+.msg.todo{opacity:0.3}
+.msg span{position:absolute;top:-16px;left:6px;white-space:nowrap;background:#fff;padding:0 2px}
+.note{position:absolute;font-size:0.66rem;background:#fff9db;border:1px solid #e6c84a;padding:0.1rem 0.4rem;border-radius:3px}
+.panel{border:1px solid var(--line);border-radius:6px;padding:0.6rem 0.8rem;font-size:0.8rem;margin-bottom:0.7rem}
+.panel h4{margin:0 0 0.4rem;font-size:0.82rem}
+table{border-collapse:collapse;width:100%;font-size:0.72rem}
+td,th{border:1px solid #ddd;padding:0.15rem 0.35rem;text-align:left}
+tr.hit td{background:#ffe3ea;font-weight:600}
+.st{display:flex;gap:0.3rem;align-items:center;font-size:0.72rem}
+.st span{padding:0.1rem 0.4rem;border:1px solid var(--life);border-radius:4px;color:var(--life)}
+.st span.on{background:var(--life);color:#fff}
+pre{margin:0;font-size:0.7rem;background:#f6f6f6;padding:0.4rem;border-radius:4px}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span>Layers</span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span></div>
+<div class="crumbs">Expense Approval › Scenarios › <b>Manager approved</b></div>
+<main>
+<div class="ctl"><b>Scenario</b> <span class="seg"><span>Auto approved</span><span class="on">Manager approved</span><span>Finance approved</span></span>
+  <span class="seg" style="margin-left:0.6rem"><span class="on">As designed</span><span>As executed · run 8f3a (today 09:14)</span></span>
+  <span class="btn">⏮</span><span class="btn">◀</span><span class="btn primary">Step ▶</span><span class="btn">⏭</span>
+  <span style="color:var(--muted)">step 5 of 9 · Route Approval</span>
+  <div class="steps"><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="cur"></span><span></span><span></span><span></span><span></span></div></div>
+<div class="layout">
+<div class="seq">
+  <div class="ll" style="left:10px;--c:#555"><div class="h">Employee</div><div class="v"></div></div>
+  <div class="ll" style="left:170px;--c:var(--ui)"><div class="h">Employee Portal</div><div class="v"></div></div>
+  <div class="ll" style="left:330px;--c:var(--arch)"><div class="h">Expense API</div><div class="v"></div></div>
+  <div class="ll" style="left:490px;--c:var(--dec)"><div class="h">Route Approval</div><div class="v"></div></div>
+  <div class="ll" style="left:650px;--c:var(--data)"><div class="h">Expense Store</div><div class="v"></div></div>
+  <div class="msg" style="left:65px;top:80px;width:160px"><span>Submit Expense (240.00)</span></div>
+  <div class="msg" style="left:225px;top:115px;width:160px"><span>POST /expenses [Expense]</span></div>
+  <div class="msg" style="left:385px;top:150px;width:320px"><span>Persist Expense · writes Expense</span></div>
+  <div class="note" style="left:400px;top:170px">fires submit · draft → submitted</div>
+  <div class="msg cur" style="left:385px;top:215px;width:160px"><span style="color:var(--dec)">Route Approval(amount = 240.00)</span></div>
+  <div class="msg cur back" style="left:385px;top:250px;width:160px"><span style="color:var(--dec)">route = "manager"</span></div>
+  <div class="note" style="left:400px;top:270px;border-color:var(--dec)">gateway Route? → manager path</div>
+  <div class="msg todo" style="left:385px;top:315px;width:160px"><span>Notify Manager</span></div>
+  <div class="msg todo back" style="left:225px;top:350px;width:160px"><span>Approve form opens (task)</span></div>
+  <div class="msg todo" style="left:225px;top:385px;width:160px"><span>Submit Approval</span></div>
+  <div class="msg todo" style="left:385px;top:420px;width:320px"><span>Record Approval · writes Approval · fires approve</span></div>
+</div>
+<div>
+  <div class="panel"><h4>Decision at this step · Route Approval</h4>
+    <table><tr><th>amount</th><th>route</th><th></th></tr><tr><td>&lt; 50</td><td>"auto"</td><td></td></tr><tr class="hit"><td>[50..500]</td><td>"manager"</td><td>hit</td></tr><tr><td>&gt; 500</td><td>"finance"</td><td></td></tr></table></div>
+  <div class="panel"><h4>Expense lifecycle</h4><div class="st"><span>draft</span>→<span class="on">submitted</span>→<span>approved</span>→<span>paid</span></div></div>
+  <div class="panel"><h4>Payload on this arrow</h4><pre>{ "amount": 240.00,
+  "description": "Train to Utrecht",
+  "date": "2026-10-28",
+  "status": "submitted" }</pre></div>
+  <div class="panel" style="border-color:#c9d4f0"><h4>Compare with run 8f3a</h4><span style="color:#b45309">⚠ As executed called Notify Manager twice.</span> The model places one arrow.</div>
+</div>
+</div>
+</main></body></html>

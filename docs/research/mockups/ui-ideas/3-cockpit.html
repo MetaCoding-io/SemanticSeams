@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.hdr{display:flex;gap:1.5rem;align-items:center;margin-bottom:1rem;font-size:0.85rem;color:var(--muted)}
+.hdr b{color:var(--fg)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0.9rem}
+.q{border:1px solid var(--line);border-radius:8px;padding:0.8rem 0.9rem;background:#fff;position:relative;min-height:118px}
+.q .n{font-size:2rem;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.q .l{font-size:0.9rem;font-weight:600;margin:0.3rem 0 0.2rem}
+.q .s{font-size:0.75rem;color:var(--muted)}
+.q.red{border-color:#f0a3a3;background:#fff5f5}.q.red .n{color:#b91c1c}
+.q.amber{border-color:#f3cf7a;background:#fffaf0}.q.amber .n{color:#b45309}
+.q.green .n{color:#15803d}
+.q .tag{position:absolute;top:0.6rem;right:0.7rem;font-size:0.65rem;font-weight:600;padding:0.05rem 0.4rem;border-radius:999px;background:#eee;color:#555}
+.q.red .tag{background:#fecaca;color:#7f1d1d}.q.amber .tag{background:#fde68a;color:#78350f}
+.row2{display:grid;grid-template-columns:2fr 1fr;gap:0.9rem;margin-top:0.9rem}
+.panel{border:1px solid var(--line);border-radius:8px;padding:0.7rem 0.9rem;font-size:0.82rem}
+.panel h4{margin:0 0 0.4rem;font-size:0.85rem}
+.bar{display:flex;gap:2px;height:10px;margin:0.3rem 0 0.5rem}
+.bar span{display:block;height:100%}
+.list li{margin-bottom:0.25rem}
+.trend{display:inline-block;width:70px;height:18px;vertical-align:middle;margin-left:0.4rem}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span><b style="border-bottom:2px solid #fff">Home</b></span><span>Layers</span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span><span style="color:var(--muted)">Outputs current · lock <span class="mono">sha256:8c1f…</span></span><span style="color:#b45309">● app01 behind by 2 model versions</span></div>
+<main>
+<div class="hdr"><b style="font-size:1.3rem">Expense Approval</b><span>6 layers · 11 models · 142 elements · 58 seams</span><span>branch <b class="mono">feat/payout-batch</b> vs <b class="mono">main</b></span></div>
+<div class="grid">
+  <div class="q red"><span class="tag">gate</span><div class="n">2</div><div class="l">Writes with no policy</div><div class="s">Record Payment, Add to Batch write Payment ungoverned</div></div>
+  <div class="q red"><span class="tag">breaking</span><div class="n">1</div><div class="l">Breaking contract change vs main</div><div class="s">Expense gains required field <i>currency</i></div></div>
+  <div class="q amber"><span class="tag">coverage</span><div class="n">3</div><div class="l">Transitions nothing fires</div><div class="s">reject, batch, cancel in two lifecycles</div></div>
+  <div class="q amber"><span class="tag">coverage</span><div class="n">1</div><div class="l">Paths no scenario runs</div><div class="s">Expense Approval › finance path</div></div>
+  <div class="q green"><span class="tag">gate</span><div class="n">0</div><div class="l">Permissions without a deny test</div><div class="s">9 permissions, 9 deny tests</div></div>
+  <div class="q"><span class="tag">impact</span><div class="n">4</div><div class="l">Screens that can write Expense</div><div class="s">by 3 roles through 2 tasks</div></div>
+  <div class="q"><span class="tag">impact</span><div class="n">7</div><div class="l">Things that break if db01 goes</div><div class="s">2 containers, 2 processes, 3 contracts</div></div>
+  <div class="q amber"><span class="tag">review</span><div class="n">21</div><div class="l">Model review warnings</div><div class="s">5 shapes name no class, 2 copied state lists</div></div>
+</div>
+<div class="row2">
+  <div class="panel"><h4>Since last Tuesday</h4>
+    <ul class="list" style="padding-left:1.1rem;margin:0">
+      <li><span class="dot" style="background:var(--ui)"></span>Added screen <b>Payouts</b> and event <b>Add to Batch</b> (feat/payout-batch)</li>
+      <li><span class="dot" style="background:var(--data)"></span>Changed contract <b>Expense</b>: required <i>currency</i> · <span style="color:#b91c1c">breaking for 31 stored rows</span></li>
+      <li><span class="dot" style="background:var(--proc)"></span>Workflow <b>Expense Payout</b> gained task <b>Add to Batch</b> · no scenario yet</li>
+      <li><span class="dot" style="background:var(--arch)"></span>Nothing deployed since <span class="mono">v1.4</span> · app01 is behind</li>
+    </ul></div>
+  <div class="panel"><h4>Open questions</h4>
+    <div style="font-size:0.78rem;color:var(--muted)">Pinned by you</div>
+    <ul class="list" style="padding-left:1.1rem;margin:0.3rem 0 0"><li>Which screens can Finance use that write Payment?</li><li>What moves an expense out of <i>submitted</i>?</li><li>+ Ask a new question (SPARQL or plain words)</li></ul>
+  </div>
+</div>
+</main></body></html>

@@ -1,0 +1,67 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.layout{display:grid;grid-template-columns:1fr 300px;gap:1rem;height:440px}
+.canvas{border:1px solid var(--line);border-radius:6px;position:relative;background:#fff}
+.task{position:absolute;width:120px;height:64px;border:2px solid var(--proc);border-radius:8px;background:#f3eefb;font-size:0.75rem;display:flex;align-items:center;justify-content:center;text-align:center;padding:0.2rem}
+.task.sel{box-shadow:0 0 0 4px rgba(124,58,237,0.25);background:#e9dffa}
+.gw{position:absolute;width:40px;height:40px;border:2px solid var(--proc);transform:rotate(45deg);background:#fff}
+.ev{position:absolute;width:30px;height:30px;border:2px solid var(--proc);border-radius:50%;background:#fff}
+.fl{position:absolute;height:2px;background:#777}
+.badges{position:absolute;top:-6px;right:6px;display:flex;gap:2px}
+.badges span{width:10px;height:10px;border-radius:50%;border:1px solid #fff;display:block}
+.strip{margin-top:0.8rem;border:1px solid var(--line);border-top:3px solid var(--proc);border-radius:6px;background:#fafbfc;padding:0.6rem 0.9rem}
+.strip .title{font-size:0.8rem;color:var(--muted);margin-bottom:0.4rem}
+.strip .title b{color:var(--fg);font-size:0.95rem}
+.chips{display:flex;gap:0;align-items:stretch;overflow:hidden}
+.chip{flex:1;border-left:1px solid var(--line);padding:0.2rem 0.8rem;font-size:0.78rem;min-width:0}
+.chip:first-child{border-left:0;padding-left:0}
+.chip .k{font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);display:block}
+.chip .v{font-weight:600;display:block;font-size:0.85rem}
+.chip .s{color:var(--muted);display:block}
+.ok{color:#15803d}.warn{color:#b45309}.bad{color:#b91c1c}
+.arrowline{position:absolute;left:0;right:0;top:-14px;height:12px;border-top:1px dashed #bbb;border-left:1px dashed #bbb;border-right:1px dashed #bbb;margin:0 0.9rem}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span>Layers</span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span></div>
+<div class="crumbs">Expense Architecture › Expense API › Expense Approval (BPMN) › <b>Approve Expense</b></div>
+<main>
+<h1>Expense Approval <small>workflow · 8 tasks · 2 gateways</small></h1>
+<div class="layout">
+  <div class="canvas">
+    <div class="ev" style="left:20px;top:120px"></div>
+    <div class="fl" style="left:52px;top:135px;width:30px"></div>
+    <div class="task" style="left:84px;top:103px">Route Expense<div class="badges"><span style="background:var(--dec)"></span></div></div>
+    <div class="fl" style="left:206px;top:135px;width:30px"></div>
+    <div class="gw" style="left:242px;top:115px"></div>
+    <div class="fl" style="left:290px;top:135px;width:40px"></div>
+    <div class="task" style="left:332px;top:103px">Notify Manager<div class="badges"><span style="background:var(--arch)"></span><span style="background:var(--data)"></span></div></div>
+    <div class="fl" style="left:454px;top:135px;width:30px"></div>
+    <div class="task sel" style="left:486px;top:103px">Approve Expense<div class="badges"><span style="background:var(--ui)"></span><span style="background:var(--data)"></span><span style="background:var(--life)"></span><span style="background:#555"></span></div></div>
+    <div class="fl" style="left:608px;top:135px;width:30px"></div>
+    <div class="gw" style="left:644px;top:115px"></div>
+    <div class="fl" style="left:692px;top:135px;width:40px"></div>
+    <div class="task" style="left:734px;top:60px">Record Approval<div class="badges"><span style="background:var(--data)"></span><span style="background:var(--life)"></span></div></div>
+    <div class="task" style="left:734px;top:150px">Record Rejection<div class="badges"><span style="background:var(--data)"></span><span style="background:var(--life)"></span></div></div>
+    <div class="fl" style="left:290px;top:135px;width:2px;height:120px"></div>
+    <div class="fl" style="left:290px;top:255px;width:200px"></div>
+    <div class="task" style="left:486px;top:223px">Finance Approve<div class="badges"><span style="background:var(--ui)"></span><span style="background:var(--data)"></span></div></div>
+  </div>
+  <div class="inspector"><h3>Approve Expense</h3>
+    <span class="pill">User task</span> <span class="pill" style="background:#e6f7f5;color:#0d6b62">Manager</span>
+    <p style="font-size:0.82rem">Completed on <b>Approve form</b>. Writes <b>Approval</b>, fires <b>approve</b> or <b>reject</b> on Expense. Governed by <b>Managers may approve</b>.</p>
+    <p style="font-size:0.78rem;color:var(--muted)">The thread below follows this task wherever you go: it stays docked while the canvas above changes notation.</p>
+  </div>
+</div>
+<div class="strip">
+  <div class="title">Thread for <b>Approve Expense</b> · model → generated → locked → deployed → run → verified</div>
+  <div class="chips">
+    <div class="chip"><span class="k">Model</span><span class="v ok">Conforms</span><span class="s">1 review warning</span></div>
+    <div class="chip"><span class="k">Generated</span><span class="v">3 files</span><span class="s">approve_form.html · expense_api.py · test_scenarios.py</span></div>
+    <div class="chip"><span class="k">Lock</span><span class="v ok">Current</span><span class="s">htmx 0.6.0 · fastapi 0.6.0</span></div>
+    <div class="chip"><span class="k">Deployed</span><span class="v warn">app01 behind</span><span class="s">runs v1.4, model is 2 ahead</span></div>
+    <div class="chip"><span class="k">Open instances</span><span class="v">12 waiting</span><span class="s">oldest 3 d · last completed 4 min ago</span></div>
+    <div class="chip"><span class="k">Scenarios</span><span class="v warn">2 of 3 paths</span><span class="s">reject path has no scenario</span></div>
+    <div class="chip"><span class="k">Policy tests</span><span class="v ok">allow + deny</span><span class="s">employee denied, finance denied</span></div>
+  </div>
+</div>
+</main></body></html>

@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.layout{display:grid;grid-template-columns:1fr 340px;gap:1rem}
+.canvas{border:1px solid var(--line);border-radius:6px;position:relative;height:480px;background:#fff}
+.page{position:absolute;border:2px solid var(--ui);border-radius:6px;background:#fff8ee;padding:0.4rem 0.5rem;font-size:0.72rem;width:220px}
+.page h5{margin:0 0 0.3rem;font-size:0.8rem}
+.comp{border:1px solid #d9a85a;border-radius:4px;background:#fff;padding:0.25rem 0.4rem;margin-bottom:0.3rem;display:flex;justify-content:space-between}
+.ev{font-size:0.65rem;background:var(--ui);color:#fff;border-radius:999px;padding:0.02rem 0.4rem}
+.add{border-color:#16a34a !important;background:#ecfdf3 !important}
+.add::before{content:"+ added";white-space:nowrap;position:absolute;right:6px;top:-9px;font-size:0.62rem;background:#16a34a;color:#fff;padding:0 0.35rem;border-radius:999px}
+.del{border-color:#dc2626 !important;border-style:dashed !important;background:#fff1f1 !important;opacity:0.85}
+.del::before{content:"− removed";white-space:nowrap;position:absolute;right:6px;top:-9px;font-size:0.62rem;background:#dc2626;color:#fff;padding:0 0.35rem;border-radius:999px}
+.chg{box-shadow:0 0 0 3px rgba(245,158,11,0.45)}
+.seam{position:absolute;height:0;border-top:2px solid #888}
+.seam.add{border-top-color:#16a34a}.seam.del{border-top:2px dashed #dc2626;background:none !important}.seam.chg{border-top:2px dashed #d97706;box-shadow:none}
+.seam span{position:absolute;top:-15px;left:8px;font-size:0.64rem;background:#fff;padding:0 2px}
+.shape{position:absolute;border:2px solid var(--data);border-radius:6px;background:#f0fdf4;padding:0.4rem 0.5rem;font-size:0.72rem;width:170px}
+.shape h5{margin:0 0 0.2rem;font-size:0.8rem}
+.shape div{display:flex;justify-content:space-between}
+.shape .new{color:#15803d;font-weight:600}
+.plan{border:1px solid var(--line);border-radius:6px;padding:0.7rem 0.9rem;font-size:0.8rem;background:#fafbfc}
+.plan h4{margin:0 0 0.4rem;font-size:0.9rem}
+.plan ul{padding-left:1.1rem;margin:0 0 0.6rem}
+.plan li{margin-bottom:0.3rem}
+.tag{font-size:0.65rem;font-weight:600;padding:0.03rem 0.4rem;border-radius:999px}
+.tag.b{background:#fecaca;color:#7f1d1d}.tag.c{background:#dcfce7;color:#14532d}
+.tab{display:flex;gap:0.3rem;margin-bottom:0.6rem;font-size:0.8rem}
+.tab span{padding:0.2rem 0.6rem;border:1px solid #bbb;border-radius:4px}
+.tab span.on{background:var(--navy);color:#fff}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span>Layers</span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span style="font-weight:600">Reviewing pull request #42</span><span style="color:var(--muted)"><span class="mono">feat/payout-batch</span> → <span class="mono">main</span> · 3 layers touched · 1 breaking change</span><span class="warn">✗ seams check: breaking</span></div>
+<div class="crumbs">Change review › <b>Expense Interface</b> and <b>Expense Data</b></div>
+<main>
+<div class="tab"><span>Architecture</span><span class="on">Interaction · 3 changes</span><span>Process · 1</span><span class="on">Data · 1</span><span>Lifecycle</span></div>
+<div class="layout">
+<div class="canvas">
+  <div class="page" style="left:20px;top:20px"><h5>Expenses page</h5><div class="comp">My Expenses <span class="ev">list</span></div><div class="comp chg">New Expense form <span class="ev">Submit Expense</span></div><div class="comp">Expense Details</div></div>
+  <div class="page" style="left:300px;top:20px"><h5>Approvals</h5><div class="comp">Awaiting Approval</div><div class="comp">Approve form <span class="ev">Submit Approval</span></div><div class="comp del" style="position:relative">Reject button <span class="ev">Reject Expense</span></div></div>
+  <div class="page add" style="left:580px;top:20px"><h5>Payouts</h5><div class="comp add" style="position:relative">Payout batch <span class="ev">Add to Batch</span></div><div class="comp">Paid Expenses</div></div>
+  <div class="seam add" style="left:690px;top:160px;width:0;height:120px;border-top:0;border-left:2px solid #16a34a"><span style="left:8px;top:40px">triggers Expense Payout</span></div>
+  <div class="seam chg" style="left:130px;top:150px;width:0;height:110px;border-top:0;border-left:2px dashed #d97706"><span style="left:8px;top:40px">accepts Expense (changed)</span></div>
+  <div class="shape chg" style="left:40px;top:290px"><h5>Expense</h5><div><span>description</span><span>string</span></div><div><span>amount</span><span>decimal</span></div><div><span>date</span><span>date</span></div><div class="new"><span>+ currency</span><span>required</span></div><div><span>status</span><span>in 5</span></div></div>
+  <div class="callout" style="left:230px;top:300px;border-color:#dc2626;background:#fff5f5">Breaking: 31 stored rows have no <b>currency</b>. Deploy will refuse unless a default or a migration is declared.</div>
+  <div class="card" style="position:absolute;left:580px;top:300px;border-left-color:var(--proc);width:200px"><span class="t">Process · added task</span><b>Add to Batch</b>no scenario covers it</div>
+</div>
+<div class="plan"><h4>Change plan <span style="font-weight:400;color:var(--muted)">(generated, same as the CI summary)</span></h4>
+  <b>Data</b><ul><li><span class="tag b">breaking</span> Expense gains required field <i>currency</i></li></ul>
+  <b>Screens</b><ul><li><span class="tag c">compatible</span> New screen <b>Payouts</b> with event <b>Add to Batch</b></li><li><span class="tag c">compatible</span> Event <b>Reject Expense</b> removed from Approvals</li></ul>
+  <b>Workflow</b><ul><li><span class="tag c">compatible</span> Expense Payout gains task <b>Add to Batch</b> · <span style="color:#b45309">0 scenarios</span></li></ul>
+  <b>Contracts</b><ul><li><span class="tag b">breaking</span> POST /expenses accepts Expense (changed)</li></ul>
+  <b>Generated output</b><ul><li>7 files change · 2 new · 0 hand edits</li></ul>
+  <div style="display:flex;gap:0.4rem;margin-top:0.4rem"><span class="btn">Open in Turtle</span><span class="btn">Walk the 5 changes</span></div>
+</div>
+</div>
+</main></body></html>

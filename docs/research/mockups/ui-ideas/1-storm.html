@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.layout{display:grid;grid-template-columns:150px 1fr 230px;gap:1rem;height:600px}
+.palette{border:1px solid var(--line);border-radius:6px;padding:0.6rem;font-size:0.78rem;background:#fafbfc}
+.palette h4{margin:0 0 0.5rem;font-size:0.8rem}
+.palette .sticky{margin-bottom:0.45rem;cursor:grab}
+.board{border:1px solid var(--line);border-radius:6px;background:#fff;position:relative;overflow:hidden;background-image:linear-gradient(#f3f3f3 1px,transparent 1px),linear-gradient(90deg,#f3f3f3 1px,transparent 1px);background-size:24px 24px}
+.sticky{display:inline-block;padding:0.4rem 0.45rem;font-size:0.7rem;line-height:1.2;box-shadow:1px 2px 4px rgba(0,0,0,0.18);width:96px;min-height:56px;border-radius:2px;position:absolute}
+.palette .sticky{position:static;width:100%;min-height:40px}
+.sticky small{display:block;font-size:0.62rem;opacity:0.7;margin-bottom:0.15rem}
+.orange{background:#ffb74d}.blue{background:#90caf9}.yellow{background:#fff176}.yellowL{background:#fff59d;width:136px;min-height:80px;font-weight:600}.purple{background:#ce93d8}.green{background:#a5d6a7}.pink{background:#f8bbd0}.red{background:#ef9a9a}
+.lane{position:absolute;left:0;right:0;border-top:1px dashed #ccc;font-size:0.65rem;color:#999;padding-left:0.4rem}
+.drop{position:absolute;border:2px dashed #90caf9;border-radius:4px;width:96px;height:56px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#5b7fa8;background:rgba(144,202,249,0.12)}
+.arrow{position:absolute;height:2px;background:#9aa;}
+.side h4{margin:0 0 0.4rem;font-size:0.85rem}
+.side ul{margin:0 0 0.8rem;padding-left:1.1rem;font-size:0.78rem}
+.side li{margin-bottom:0.25rem}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span>Layers</span><span><b style="border-bottom:2px solid #fff">Storm</b></span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span><span style="color:var(--muted)">Round trip: 14 of 14 stickies derive back from the model</span></div>
+<div class="crumbs">Expense Approval › <b>Storm board</b></div>
+<main>
+<h1>Expense Approval <small>a timeline per process, derived from the graph; drop a sticky to add a fact</small></h1>
+<div class="layout">
+  <div class="palette"><h4>Palette</h4>
+    <div class="sticky orange"><small>Event</small>something happened</div>
+    <div class="sticky blue"><small>Command</small>someone asks</div>
+    <div class="sticky yellow"><small>Actor</small>who</div>
+    <div class="sticky purple"><small>Policy</small>whenever…</div>
+    <div class="sticky green"><small>Read model</small>what they see</div>
+    <div class="sticky pink"><small>External</small>outside system</div>
+    <div class="sticky red"><small>Hot spot</small>open question</div>
+  </div>
+  <div class="board">
+    <div class="lane" style="top:14px">Actors and commands</div>
+    <div class="sticky yellow" style="left:18px;top:34px"><small>Actor · odrl:Party</small>Employee</div>
+    <div class="sticky blue" style="left:103px;top:34px"><small>Command · POST</small>Submit Expense</div>
+    <div class="sticky yellow" style="left:296px;top:34px"><small>Actor</small>Manager</div>
+    <div class="sticky blue" style="left:381px;top:34px"><small>Command · user task</small>Approve Expense</div>
+    <div class="sticky yellow" style="left:539px;top:34px"><small>Actor</small>Finance</div>
+    <div class="drop" style="left:623px;top:34px">+ command</div>
+
+    <div class="lane" style="top:126px">Aggregates and events</div>
+    <div class="sticky yellowL" style="left:18px;top:148px"><small>Aggregate · shape + lifecycle</small>Expense<br><span style="font-weight:400;font-size:0.65rem">draft › submitted › approved › paid</span></div>
+    <div class="sticky orange" style="left:137px;top:148px"><small>Event · t_submit</small>Expense submitted</div>
+    <div class="sticky purple" style="left:224px;top:148px"><small>Policy · DMN</small>Route Approval<br><span style="font-size:0.62rem">amount &lt; 50 → auto</span></div>
+    <div class="sticky orange" style="left:381px;top:148px"><small>Event · t_approve</small>Expense approved</div>
+    <div class="sticky orange" style="left:468px;top:148px"><small>Event · channel</small>Payout requested</div>
+    <div class="sticky purple" style="left:556px;top:148px"><small>Policy · starts process</small>Expense Payout</div>
+    <div class="sticky orange" style="left:643px;top:148px"><small>Event · t_pay</small>Expense paid</div>
+
+    <div class="lane" style="top:248px">Read models and systems</div>
+    <div class="sticky green" style="left:103px;top:270px"><small>Read model · List</small>My Expenses</div>
+    <div class="sticky green" style="left:381px;top:270px"><small>Read model · List</small>Awaiting Approval</div>
+    <div class="sticky pink" style="left:556px;top:270px"><small>External · HTTP</small>Bank gateway</div>
+    <div class="sticky red" style="left:643px;top:270px"><small>Hot spot</small>Who pays twice?</div>
+
+    <div class="lane" style="top:356px">Not yet placed by the model</div>
+    <div class="sticky orange" style="left:18px;top:378px;opacity:0.7;border:2px dashed #b36b00"><small>gap: no fact</small>Expense rejected notified?</div>
+    <div class="callout" style="left:109px;top:386px">A sticky the model cannot derive is a missing fact. Drag it onto a lane to make it one.</div>
+  </div>
+  <div class="side inspector">
+    <h4>Selected sticky</h4>
+    <div class="card" style="border-left-color:var(--dec)"><span class="t">Policy</span><b>Route Approval</b>DMN table, 3 rules</div>
+    <ul style="margin-top:0.6rem"><li>Reads <b>Expense.amount</b></li><li>Feeds gateway <b>Route?</b></li><li>Rows with no scenario: <b>1</b></li></ul>
+    <h4>Becomes, in the model</h4>
+    <ul><li>Orange → state transition or channel publish</li><li>Blue → POST operation and its event</li><li>Large yellow → shape with a lifecycle</li><li>Purple → decision or channel-started process</li><li>Green → List or Details with a GET</li></ul>
+    <span class="btn primary">Save as model patch</span>
+  </div>
+</div>
+</main></body></html>

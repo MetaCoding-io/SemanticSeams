@@ -1,0 +1,26 @@
+:root { --arch:#2563eb; --ui:#d97706; --proc:#7c3aed; --dec:#e11d48; --data:#16a34a; --life:#0d9488; --other:#9ca3af; --navy:#14213d; --line:#ddd; --fg:#1a1a1a; --muted:#666; }
+* { box-sizing: border-box; }
+html, body { margin:0; width:1200px; height:720px; overflow:hidden; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--fg); background:#fff; font-size:14px; }
+header.top { display:flex; align-items:center; gap:1.5rem; padding:0.6rem 1.25rem; background:var(--navy); color:#fff; font-weight:600; }
+header.top .nav { font-weight:400; font-size:0.9rem; opacity:0.9; }
+header.top .nav span { margin-right:1rem; }
+header.top .spacer { flex:1; }
+header.top .search { background:#1f3260; border-radius:4px; padding:0.3rem 0.6rem; font-weight:400; font-size:0.85rem; width:260px; color:#c9d2e8; }
+.health { display:flex; gap:1rem; align-items:center; padding:0.4rem 1.25rem; background:#f0faf1; border-bottom:1px solid var(--line); font-size:0.85rem; }
+.health .ok { color:#15803d; font-weight:600; }
+.health .warn { color:#8a5300; background:#fff3cd; padding:0.1rem 0.5rem; border-radius:3px; font-weight:600; }
+.crumbs { padding:0.5rem 1.25rem; background:#f4f5f7; border-bottom:1px solid var(--line); font-size:0.85rem; color:var(--navy); }
+main { padding:1rem 1.25rem; }
+h1 { font-size:1.4rem; margin:0 0 0.6rem; }
+h1 small { font-weight:400; color:var(--muted); font-size:0.9rem; }
+.pill { display:inline-block; padding:0.05rem 0.5rem; border-radius:999px; background:#eef0f3; color:#444; font-size:0.7rem; font-weight:600; }
+.dot { display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; background:var(--other); margin-right:0.3rem; vertical-align:middle; }
+.card { border:1px solid var(--line); border-radius:6px; background:#fff; padding:0.5rem 0.7rem; border-left:4px solid var(--other); font-size:0.8rem; }
+.card .t { font-size:0.65rem; color:var(--muted); display:block; }
+.card b { display:block; font-size:0.85rem; }
+.btn { display:inline-block; border:1px solid #bbb; border-radius:4px; padding:0.25rem 0.6rem; background:#fff; font-size:0.8rem; }
+.btn.primary { background:var(--navy); color:#fff; border-color:var(--navy); }
+.inspector { border:1px solid var(--line); border-radius:6px; background:#fafbfc; padding:0.75rem 1rem; font-size:0.85rem; }
+.inspector h3 { margin:0 0 0.5rem; font-size:1rem; }
+.callout { position:absolute; background:#fffbe6; border:1px solid #e6c84a; border-radius:4px; padding:0.3rem 0.6rem; font-size:0.78rem; box-shadow:0 2px 6px rgba(0,0,0,0.12); max-width:260px; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }

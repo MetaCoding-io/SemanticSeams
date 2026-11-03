@@ -30,10 +30,16 @@ sh:class pointing at a sh:NodeShape, shapes without sh:targetClass and
 sh:path IRIs nothing declares a property. A ``ReviewFinding`` flags the
 model for review; it never refuses it.
 
+``seams.context`` assembles the context of a service task (backlog C3):
+``context_for(model, task)`` returns a ``Manifest`` of hashed
+``ContextItem``s (the model facts and native file fragments its code
+depends on, narrowed to the ones it uses) and a context hash.
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
 
+from .context import ContextItem, Manifest, context_for
 from .coverage import (
     ProcessPath,
     UndeniedPermission,
@@ -132,6 +138,7 @@ __all__ = [
     "ChannelStart",
     "Component",
     "Container",
+    "ContextItem",
     "DASH",
     "DEC",
     "DEPLOY",
@@ -161,6 +168,7 @@ __all__ = [
     "Interfaces",
     "Lifecycle",
     "Lifecycles",
+    "Manifest",
     "Many",
     "MessageStart",
     "Model",
@@ -210,6 +218,7 @@ __all__ = [
     "Volume",
     "bpmn_start_event_ids",
     "condition_findings",
+    "context_for",
     "decision_findings",
     "decision_table",
     "dmn_decision_ids",

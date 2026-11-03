@@ -20,7 +20,10 @@ import pytest
 import seams
 from seams_cli import Finding, load_project, run_check
 from seams_cli.__main__ import main
-from seams_cli.check import ADVISORY_KINDS, check_review
+from seams_cli.check import ADVISORY_KINDS, check_drafts, check_review
+from seams_cli.lockfile import Draft, read_lock, render_lock, with_draft
+from seams_cli.project import resolve_model
+from seams_cli.propose import build_prompt
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
@@ -420,3 +423,60 @@ def test_the_coverage_gates_report_the_chat_app_gaps(tmp_path, capsys):
         f"gate ../../docs/queries/coverage/unfired-transitions.rq {chat}message_lifecycle {chat}t_fail_send",
         f"gate ../../docs/queries/coverage/unfired-transitions.rq {chat}message_lifecycle {chat}t_fail_stream",
     ]
+
+
+DRAFT_TASK = "notify_manager"
+
+
+@pytest.fixture
+def drafted(tmp_path: Path) -> Path:
+    """Chapter 9 with its handlers/notify.py recorded in seams.lock as an accepted draft."""
+    root = _copy(Path("examples/expenses/chapter-09"), tmp_path)
+    toml = root / "seams.toml"
+    toml.write_text(toml.read_text(encoding="utf-8").replace("../../../docs", str(ROOT / "docs")), encoding="utf-8")
+    project = load_project(root)
+    model = resolve_model(project, None)
+    prompt = build_prompt(project, None, DRAFT_TASK)
+    digest = hashlib.sha256((root / prompt.handler_path).read_bytes()).hexdigest()
+    record = Draft(prompt.task, prompt.handler_path, prompt.context_hash, prompt.template, "fake", digest)
+    (root / "seams.lock").write_text(render_lock(with_draft(project, model, read_lock(project), record)))
+    return root
+
+
+def _draft_findings(root: Path) -> list[Finding]:
+    project = load_project(root)
+    return check_drafts(project, resolve_model(project, None))
+
+
+def test_a_recorded_draft_that_still_matches_gives_no_findings(drafted):
+    assert _draft_findings(drafted) == []
+    assert [f for f in run_check(load_project(drafted), drafted / "expenses.trig") if f.kind.startswith("draft")] == []
+
+
+def test_a_changed_shape_the_task_depends_on_makes_the_draft_stale(drafted):
+    trig = drafted / "expenses.trig"
+    text = trig.read_text(encoding="utf-8")
+    trig.write_text(text.replace('rdfs:label "Notification"', 'rdfs:label "Notice"'), encoding="utf-8")
+    task = "https://example.org/expenses/approval_bpmn#notify_manager"
+    assert _draft_findings(drafted) == [Finding("draft-stale", f"{task} handlers/notify.py")]
+
+
+def test_an_edited_draft_is_hand_edited(drafted):
+    module = drafted / "handlers" / "notify.py"
+    module.write_text(module.read_text(encoding="utf-8") + "\n# edited\n", encoding="utf-8")
+    task = "https://example.org/expenses/approval_bpmn#notify_manager"
+    assert _draft_findings(drafted) == [Finding("draft-hand-edited", f"{task} handlers/notify.py")]
+
+
+def test_a_deleted_draft_is_hand_edited_and_missing(drafted):
+    (drafted / "handlers" / "notify.py").unlink()
+    task = "https://example.org/expenses/approval_bpmn#notify_manager"
+    assert _draft_findings(drafted) == [Finding("draft-hand-edited", f"{task} handlers/notify.py missing")]
+
+
+def test_a_draft_whose_task_no_longer_resolves_is_stale(drafted):
+    lock = json.loads((drafted / "seams.lock").read_text(encoding="utf-8"))
+    lock["drafts"][0]["task"] = "no_such_task"
+    (drafted / "seams.lock").write_text(json.dumps(lock), encoding="utf-8")
+    [finding] = _draft_findings(drafted)
+    assert finding.kind == "draft-stale" and finding.detail.startswith("no_such_task handlers/notify.py ")

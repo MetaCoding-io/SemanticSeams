@@ -293,6 +293,8 @@ pre-commit hook (D044):
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
 | `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
+| `draft-stale` | A `seams propose` draft recorded in `seams.lock` whose task's context hash has changed (or whose task no longer resolves): review it again. The detail is the task IRI and the module path. |
+| `draft-hand-edited` | A recorded draft whose file's sha256 differs from the record, or whose file is missing (detail ends `missing`). |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
 the working directory when they lie below it. A closing count of the problems,

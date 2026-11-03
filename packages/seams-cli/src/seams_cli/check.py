@@ -35,6 +35,13 @@ is reported and nothing is written.
 - ``coverage``: with ``coverage = ["paths"]`` in the project file, one finding
   per BPMN path no verify:Scenario runs (``seams.coverage``, D054): the
   process IRI, then the path's flow node IRIs.
+- drafts: one pass over the ``drafts`` seams.lock records (``seams propose``,
+  ADR-0020, M022/S05). ``draft-stale``: the task's context hash
+  (``seams.context_for``, as ``build_prompt`` computes it) differs from the
+  recorded one, or the task no longer resolves; the draft must be reviewed
+  again. ``draft-hand-edited``: the file's sha256 differs from the recorded
+  one, or the file is missing. The detail is the task IRI and the lock path,
+  then for a missing file or an unresolved task the reason.
 
 A model that cannot be loaded, a missing, unparsable or non-SELECT gate, and a
 malformed seams.lock raise ProjectError.
@@ -55,7 +62,7 @@ import seams_gen
 
 from .coverage import path_gaps
 from .generate import generate_project, next_lock
-from .lockfile import audit, locate, lock_path, read_lock, relative, render_lock
+from .lockfile import audit, locate, lock_path, read_lock, relative, render_lock, sha256_file
 from .project import Project, ProjectError
 
 ONTOLOGY_DIR = Path(seams_gen.__file__).resolve().parents[1] / "ontology"
@@ -174,11 +181,36 @@ def check_review(model: Path) -> list[Finding]:
     return [Finding("review", f"{f.subject} {f.fact} {f.message}") for f in seams.review_findings(seams.load(model))]
 
 
+def check_drafts(project: Project, model: Path) -> list[Finding]:
+    """``draft-stale`` and ``draft-hand-edited`` findings for the lock's ``seams propose`` drafts."""
+    lock = read_lock(project)
+    if lock is None or not lock.drafts:
+        return []
+    graph = seams.ModelGraph(model, seams.load(model).ds)
+    findings = []
+    for draft in lock.drafts:
+        name = f"{draft.task} {draft.path}"
+        try:
+            context_hash = seams.context_for(graph, draft.task).context_hash
+        except seams.ResolutionError as err:
+            findings.append(Finding("draft-stale", f"{name} {err}"))
+        else:
+            if context_hash != draft.context_hash:
+                findings.append(Finding("draft-stale", name))
+        path = locate(project, draft.path)
+        if not path.is_file():
+            findings.append(Finding("draft-hand-edited", f"{name} missing"))
+        elif sha256_file(path) != draft.sha256:
+            findings.append(Finding("draft-hand-edited", name))
+    return findings
+
+
 def run_check(project: Project, model: Path) -> list[Finding]:
     """Every finding of the checks, sorted by kind and detail."""
     graph = model_graph(model)
     findings = check_gates(project, graph) + check_shapes(graph) + check_outputs(project, model)
     findings += check_decisions(model) + check_review(model) + check_coverage(project, model)
+    findings += check_drafts(project, model)
     return sorted(findings)
 
 
@@ -187,6 +219,7 @@ __all__ = [
     "Finding",
     "check_coverage",
     "check_decisions",
+    "check_drafts",
     "check_gates",
     "check_outputs",
     "check_review",

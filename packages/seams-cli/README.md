@@ -125,7 +125,10 @@ memory, leniently, to compare the outputs with the disk and `seams.lock`. Each f
 faults from `seams generate --lenient`; the lock path and `N fault(s)`), `decision` (the decision or
 sequence flow IRI, the fact and a message), `review` (the shape or path IRI,
 the fact and a message) and, with `coverage = ["paths"]`,
-`coverage` (the process IRI and the node IRIs of an unexercised path), followed by
+`coverage` (the process IRI and the node IRIs of an unexercised path),
+`draft-stale` (a `seams propose` draft in `seams.lock` whose task's context hash
+changed; the task IRI and module path) and `draft-hand-edited` (the draft file's
+sha256 differs from the record, or the file is `missing`), followed by
 `seams check: N problem(s)` on stderr. `review` findings are warnings
 (`ADVISORY_KINDS`): they print but are not counted, and when they are the only
 findings stderr says `seams check: N review warning(s)` and the exit code is 0.

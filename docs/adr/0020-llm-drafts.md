@@ -48,6 +48,19 @@ review.
 6. **Never in CI.** CI runs the acceptance tests against committed handlers; it calls no
    provider. The tests of `seams propose` use fake provider scripts.
 
+## Lock record and staleness
+
+C5 (M022/S05) records each accepted draft in `seams.lock` under a top-level `drafts`
+list, sorted by task: the task IRI, the module path relative to the project root, the
+task's context hash, the template, the provider command and the hex sha256 of the
+written file. Only an accepted draft is recorded; a rejection leaves the lock alone,
+and `seams generate` carries the records forward. `seams check` recomputes each
+task's context hash with `seams.context_for`, as `build_prompt` does, and reports
+`draft-stale` when it differs or the task no longer resolves, so a draft is reviewed
+again whenever a fact it was written from changes. It reports `draft-hand-edited`
+when the file's sha256 differs from the record or the file is missing. Both are
+problems, not warnings; accepting a new draft (`--force`) refreshes the record.
+
 ## Consequences
 
 - The command prints `task`, `context`, `template`, `provider`, `cache hit|miss` and

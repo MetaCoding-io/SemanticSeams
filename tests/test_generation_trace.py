@@ -54,7 +54,7 @@ def _traces(generator, trig: Path) -> tuple[dict[str, str], dict[str, Trace]]:
 
 
 def test_the_built_in_generators_with_a_trace():
-    assert sorted(g.name for g in TRACED) == ["compose", "dockerfile", "fastapi", "htmx"]
+    assert sorted(g.name for g in TRACED) == ["acceptance", "compose", "dockerfile", "fastapi", "htmx"]
 
 
 @pytest.mark.parametrize("model", sorted(MODELS))

@@ -1,0 +1,50 @@
+[#- test_<module>.py (seams_gen.acceptance, backlog C2): one acceptance test file per
+    handlers module. Expects `t` (an AcceptanceModel) and `m` (an AcceptanceModule);
+    every value is a pre-rendered Python literal or call. -#]
+[% include "tests_header.py.j2" %]
+"""Acceptance tests for handlers/[[ m.path ]]: the hand-written body against the model.
+
+Each test calls one check of seams_runtime.verify and asserts what it returns:
+the handler's types against its shapes (handler_types), its result for each
+valid example (handler_result), the lifecycle guard of the transition its task
+fires (transition_guard), and whether a decision example's route reaches its
+task when the process runs in-process with the handlers package
+(decision_route). A failing check names the model fact.
+"""
+
+import pytest
+from seams_cli.project import find_project, load_project, resolve_model
+from seams_runtime.verify import [[ m.imports ]]
+
+[% include "tests_project.py.j2" %]
+
+
+@pytest.fixture(scope="module")
+def model():
+    return load_model(MODEL, MODEL_HASH)
+[% for h in m.handlers %]
+
+
+[% for line in h.comment %]
+# [[ line ]]
+[% endfor %]
+[[ h.constant ]] = Handler(
+    handler=[[ h.handler ]],
+    implementation=[[ h.implementation ]],
+    accepts=[[ h.accepts ]],
+    returns=[[ h.returns ]],
+)
+[% endfor %]
+[% for test in m.tests %]
+
+
+[% for line in test.comment %]
+# [[ line ]]
+[% endfor %]
+def [[ test.name ]]([[ test.params ]]):
+[% if test.skip %]
+    pytest.skip([[ test.skip ]])
+[% endif %]
+    check = [[ test.call ]]
+    assert check.ok, check.detail
+[% endfor %]

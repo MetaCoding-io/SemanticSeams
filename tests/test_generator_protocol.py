@@ -17,6 +17,7 @@ from seams import load
 import seams_gen
 from seams_gen import GeneratorError
 from seams_gen.__main__ import GENERATORS
+from seams_gen.acceptance import generate_acceptance
 from seams_gen.builtin import BUILTINS
 from seams_gen.compose import generate_compose_environments
 from seams_gen.dockerfile import generate_dockerfiles
@@ -52,6 +53,7 @@ LEGACY = {
     "smoke": lambda trig, out: generate_smoke(trig),
     "dockerfile": lambda trig, out: generate_dockerfiles(trig),
     "ifmledit": _legacy_ifmledit,
+    "acceptance": lambda trig, out: generate_acceptance(trig),
 }
 CASES = [(name, model) for name in LEGACY for model in MODELS]
 

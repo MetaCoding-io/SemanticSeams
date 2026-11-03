@@ -23,6 +23,7 @@ seams = "seams_cli.__main__:main"
 # metadata (D033), so its entry points are declared here, in the one installed
 # member that imports it. A third-party generator declares the same group.
 [project.entry-points."seams.generators"]
+acceptance = "seams_gen.builtin:acceptance"
 compose = "seams_gen.builtin:compose"
 dockerfile = "seams_gen.builtin:dockerfile"
 fastapi = "seams_gen.builtin:fastapi"

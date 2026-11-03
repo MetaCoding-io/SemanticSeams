@@ -537,10 +537,326 @@ def smoke(model: ModelGraph, probe: Probe, caller: Caller, timeout: float = DEFA
     return Check(True, f"{answered}; the body conforms to {shape}")
 
 
+# ── acceptance checks (backlog C2): a hand-written handler against the model ──
+
+#: (sh:path local name, required) for each field of a shape, by name.
+Fields = tuple[tuple[str, bool], ...]
+
+
+@dataclass(frozen=True)
+class Handler:
+    """One ``comm:PythonHandler`` function the acceptance tests check:
+    ``handler`` its ``comm:handler`` dotted path in the handlers package,
+    ``implementation`` the implementation IRI, and per operation it
+    implements the fields of the shape it accepts and of the shape it
+    returns (None: the operation states no seam:acceptsShape or
+    seam:returnsShape)."""
+
+    handler: str
+    implementation: str
+    accepts: tuple[Fields | None, ...] = ()
+    returns: tuple[Fields | None, ...] = ()
+
+
+def resolve_handler(model: ModelGraph, handler: Handler, handlers: Path | None = None):
+    """The callable ``handler`` names in the handlers package of ``model``
+    (``handlers``, else as the runtime finds it: SEAMS_HANDLERS, else
+    ``handlers/`` beside the model). ``ResolutionError(implementation,
+    comm:handler)`` when it cannot be imported."""
+    from .handlers import HandlersPackage, handlers_dir
+
+    package = HandlersPackage(handlers_dir(model.path, handlers))
+    return package.resolve(URIRef(handler.implementation), handler.handler)
+
+
+def _members(annotation: object) -> list[object]:
+    """The members of a union annotation, else the annotation alone."""
+    import types
+    import typing
+
+    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+        return list(typing.get_args(annotation))
+    return [annotation]
+
+
+def _typed_fields(cls: object) -> Fields:
+    required = getattr(cls, "__required_keys__", frozenset())
+    return tuple(sorted((key, key in required) for key in getattr(cls, "__annotations__", {})))
+
+
+def _annotation_fault(annotation: object, expected: tuple[Fields | None, ...], what: str) -> str | None:
+    """Why ``annotation`` does not fit the shapes ``expected`` (None: it does).
+    A plain ``dict`` fits a shape; a TypedDict must have the shape's keys
+    with the same required-ness; ``None`` fits only an operation with no
+    shape on the returns side (``what`` "the return")."""
+    import typing
+
+    shapes = {tuple(sorted(f)) for f in expected if f is not None}
+    for member in _members(annotation):
+        if member is None or member is type(None):
+            if what == "the return" and None in expected:
+                continue
+            return f"{what} annotation admits None, but every operation states a shape"
+        if member is dict or typing.get_origin(member) is dict:
+            if what == "the return" and not shapes:
+                return f"{what} annotation is a dict, but no operation states a seam:returnsShape"
+            continue
+        if typing.is_typeddict(member):
+            found = _typed_fields(member)
+            if found in shapes:
+                continue
+            want = " or ".join(repr(s) for s in sorted(shapes)) or "no shape"
+            name = getattr(member, "__name__", repr(member))
+            return f"{what} annotation {name} has the keys (name, required) {found!r}; the model's shape has {want}"
+        return f"{what} annotation {member!r} is neither dict nor a TypedDict of the shape"
+    return None
+
+
+def handler_types(model: ModelGraph, handler: Handler, handlers: Path | None = None) -> Check:
+    """The handler's signature against the model: exactly one positional
+    entity parameter, annotated ``dict`` or a TypedDict whose keys and
+    required-ness are the accepted shape's fields, and a return annotation
+    that is ``dict`` or such a TypedDict of the returned shape, or ``None``
+    for an operation with no seam:returnsShape (as the stub generator
+    writes them)."""
+    import inspect
+    import typing
+
+    what = f"{handler.implementation} ({handler.handler})"
+    try:
+        target = resolve_handler(model, handler, handlers)
+    except Exception as err:  # noqa: BLE001 - a handler that does not import fails the check, named
+        return Check(False, f"{what}: {err}")
+    params = list(inspect.signature(target).parameters.values())
+    positional = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    if len(params) != 1 or params[0].kind not in positional:
+        return Check(False, f"{what}: takes {[p.name for p in params]}; the runtime passes one entity argument")
+    try:
+        hints = typing.get_type_hints(target)
+    except Exception as err:  # noqa: BLE001 - an annotation that does not resolve fails the check
+        return Check(False, f"{what}: its annotations do not resolve: {type(err).__name__}: {err}")
+    entity = params[0].name
+    if entity not in hints or "return" not in hints:
+        return Check(
+            False, f"{what}: annotate the entity parameter and the return (seam:acceptsShape, seam:returnsShape)"
+        )
+    for annotation, expected, side, predicate in (
+        (hints[entity], handler.accepts, "the entity", "seam:acceptsShape"),
+        (hints["return"], handler.returns, "the return", "seam:returnsShape"),
+    ):
+        fault = _annotation_fault(annotation, expected, side)
+        if fault is not None:
+            return Check(False, f"{what}: {fault} ({predicate})")
+    return Check(True, f"{what}: its signature fits the model")
+
+
+def _call(target, entity: dict) -> object:
+    """Call a handler as the worker does: an async def is awaited."""
+    import asyncio
+    import inspect
+
+    if inspect.iscoroutinefunction(target):
+        return asyncio.run(target(entity))
+    result = target(entity)
+    if inspect.isawaitable(result):
+
+        async def _await() -> object:
+            return await result
+
+        return asyncio.run(_await())
+    return result
+
+
+def handler_result(
+    model: ModelGraph, handler: Handler, operation: str, example: str, handlers: Path | None = None
+) -> Check:
+    """Call the handler with ``example`` (a verify:validExample of the
+    operation's seam:acceptsShape), validated and stripped of its lifecycle
+    status as the worker passes it, and check the answer as the worker
+    does: a dict that the runtime's validator accepts for the
+    seam:returnsShape (None when the operation states none), or an
+    ``OperationError`` whose code is one of the operation's
+    hydra:possibleStatus, with a problem body that conforms to the
+    status's error shape."""
+    from .contracts import problem_body, validate
+    from .errors import OperationError, RuntimeModelError
+
+    op = model.operations.by_iri(URIRef(operation))
+    what = f"{handler.handler} on {example} ({operation})"
+    accepts, returns = op.accepts, op.returns
+    if accepts is None:
+        return Check(False, f"{what}: {operation} states no seam:acceptsShape to take an example from")
+    payload: dict[str, object] = {}
+    for f, v in accepts.example_values(URIRef(example)):
+        payload.setdefault(f.name, str(v))
+    try:
+        entity = dict(validate(model, accepts.iri, payload, operation=op.iri))
+        target = resolve_handler(model, handler, handlers)
+    except Exception as err:  # noqa: BLE001 - the example or the handler cannot be used: named
+        return Check(False, f"{what}: {err}")
+    if model.has_lifecycle(accepts.iri):
+        entity.pop("status", None)
+    try:
+        result = _call(target, entity)
+    except OperationError as err:
+        codes = sorted(s.error_code for s in op.errors if s.error_code is not None)
+        if err.code not in codes:
+            return Check(False, f"{what}: raised OperationError({err.code!r}); hydra:possibleStatus declares {codes}")
+        try:
+            problem_body(model, op.iri, err.code, err.detail, err.extensions)
+        except RuntimeModelError as fault:
+            return Check(False, f"{what}: raised OperationError({err.code!r}), but {fault}")
+        return Check(True, f"{what}: raised the declared error {err.code!r}")
+    except Exception as err:  # noqa: BLE001 - any other fault fails the instance at run time
+        return Check(False, f"{what}: raised {type(err).__name__}: {err}; only a declared OperationError may be raised")
+    if returns is None:
+        if result is not None:
+            return Check(False, f"{what}: returned a {type(result).__name__}; {operation} states no seam:returnsShape")
+        return Check(True, f"{what}: returned None")
+    if not isinstance(result, dict):
+        return Check(False, f"{what}: returned a {type(result).__name__}, expected a dict of {returns.iri}")
+    try:
+        validate(model, returns.iri, result, operation=op.iri)
+    except RuntimeModelError as fault:
+        return Check(False, f"{what}: the result does not conform to {returns.iri} (seam:returnsShape): {fault}")
+    return Check(True, f"{what}: the result conforms to {returns.iri}")
+
+
+def transition_guard(model: ModelGraph, task: str, transition: str) -> Check:
+    """The lifecycle guard the worker runs before ``task`` (rule 1): with
+    the entity in the transition's state:from the task may run and the
+    entity moves to state:to; in any other state of the lifecycle the
+    task is refused (``LifecycleViolation``), so it never runs."""
+    from .errors import LifecycleViolation
+    from .lifecycle import LifecycleGuard
+
+    fired = model.task_element(URIRef(task)).fires
+    if fired is None or str(fired.iri) != transition:
+        found = None if fired is None else str(fired.iri)
+        return Check(False, f"{task}: seam:fires {found}, but the tests expect {transition}; regenerate them")
+    guard = LifecycleGuard(model)
+    shape = model.lifecycle_shape(URIRef(transition))
+    lifecycle = model.lifecycle_for(shape)
+    source, target = lifecycle.states[fired.from_state.iri], lifecycle.states[fired.to_state.iri]
+    try:
+        moved = guard.apply(shape, source, URIRef(transition))
+    except LifecycleViolation as err:
+        return Check(False, f"{task}: {transition} is refused in its own state:from {source!r}: {err}")
+    if moved != target:
+        return Check(False, f"{task}: {transition} moves {source!r} to {moved!r}, not to its state:to {target!r}")
+    for state in sorted(set(lifecycle.states.values()) - {source}):
+        try:
+            guard.check(shape, state, URIRef(transition))
+        except LifecycleViolation:
+            continue
+        return Check(False, f"{task}: {transition} is enabled in {state!r}, not only in its state:from {source!r}")
+    return Check(True, f"{task}: {transition} moves {source!r} to {target!r} and is refused in every other state")
+
+
+def _expected_route(model: ModelGraph, task, example) -> tuple[bool, list[str]]:
+    """(whether the example's expected outputs take a gateway flow into
+    ``task``, the flows read). Each output becomes its dec:processVariable,
+    and each conditioned flow from a gateway is evaluated by Spiff's
+    ``PythonScriptEngine``, as the workflow evaluates it; a flow with no condition is taken."""
+    from SpiffWorkflow.bpmn.script_engine import PythonScriptEngine
+
+    script = PythonScriptEngine()
+    element = model.task_element(task)
+    process = element.process
+    node = next(fn for fn in process.nodes() if fn.iri == element.iri)
+    gateways = {fn.bpmn_id for fn in process.nodes() if fn.node.is_gateway}
+    variables = {}
+    names = {o.variable: o.process_variable for o in example.decision.outputs}
+    for out in example.expected:
+        variables[names.get(out.variable, out.variable)] = out.value.toPython()
+    taken, flows = False, []
+    for flow in node.incoming:
+        if flow.source not in gateways:
+            continue
+        flows.append(str(process.element_iri(flow.id)))
+        if not flow.condition or script.environment.evaluate(flow.condition, dict(variables)):
+            taken = True
+    return taken, flows
+
+
+def decision_route(model: ModelGraph, task: str, example: str, db: Path, handlers: Path | None = None) -> Check:
+    """Run the task's process in-process with the hand-written handlers:
+    started with the first verify:validExample of the triggering
+    operation's seam:acceptsShape, its fields set from the decision
+    example's givens. The task must be reached exactly when the example's
+    expected outputs take a gateway flow into it; when reached, its trace
+    row must fire the task's seam:fires transition (none when it fires
+    none), unless a boundary caught a declared error. A failed instance
+    fails the check with its error."""
+    import asyncio
+
+    from .runtime import Runtime
+    from .store import SQLiteStore
+
+    found = [e for e in model.decision_examples if str(e.iri) == example]
+    if not found:
+        return Check(False, f"{example}: no such verify:DecisionExample; regenerate the tests")
+    ex = found[0]
+    element = model.task_element(URIRef(task))
+    process = element.process
+    what = f"{task} on {example} ({ex.decision.iri})"
+    try:
+        op = model.triggering_operation(process.iri)
+        accepts = model.shape(model.accepted_shape(op))
+    except Exception as err:  # noqa: BLE001 - a process with no form starting it: named
+        return Check(False, f"{what}: {err}")
+    payload: dict[str, object] = {}
+    if accepts.valid_examples:
+        for f, v in accepts.example_values(accepts.valid_examples[0]):
+            payload.setdefault(f.name, str(v))
+    for given in ex.givens:
+        payload[local_name(given.field)] = str(given.value)
+    expected, flows = _expected_route(model, URIRef(task), ex)
+
+    async def _run() -> tuple[str, object, list[dict]]:
+        runtime = Runtime(model, SQLiteStore(Path(db)), handlers=handlers_dir_for(model, handlers))
+        instance = await runtime.start_process(process.iri, payload, local_name(example))
+        result = await instance.wait()
+        return result["status"], result.get("error"), list(instance.state["trace"])
+
+    try:
+        status, error, trace = asyncio.run(_run())
+    except Exception as err:  # noqa: BLE001 - a start that is refused: named
+        return Check(False, f"{what}: the process did not start: {type(err).__name__}: {err}")
+    if status == FAILED:
+        return Check(False, f"{what}: the instance failed: {error}")
+    rows = [r for r in trace if r["iri"] == task]
+    reached = bool(rows)
+    if reached != expected:
+        verb = "reached" if reached else "not reached"
+        return Check(
+            False,
+            f"{what}: the task was {verb}, but the expected outputs {'take' if expected else 'do not take'} {flows}",
+        )
+    if not reached:
+        return Check(True, f"{what}: not reached, as {flows} expect")
+    row = rows[0]
+    if "boundary" in row:
+        return Check(True, f"{what}: reached; a boundary caught {row['error']['code']!r}")
+    fired = element.fires
+    want = None if fired is None else str(fired.iri)
+    if row.get("fires") != want:
+        return Check(False, f"{what}: reached and fired {row.get('fires')}, but seam:fires is {want}")
+    return Check(True, f"{what}: reached through {flows}, firing {want}")
+
+
+def handlers_dir_for(model: ModelGraph, handlers: Path | None = None) -> Path:
+    """The handlers package directory the runtime would use for ``model``."""
+    from .handlers import handlers_dir
+
+    return handlers_dir(model.path, handlers)
+
+
 __all__ = [
     "DEFAULT_TIMEOUT",
     "E2E_ENV",
     "FAILED",
+    "Fields",
     "SMOKE_BASE_URL_ENV",
     "SMOKE_GROUPS_ENV",
     "SMOKE_USER_ENV",
@@ -548,6 +864,7 @@ __all__ = [
     "Caller",
     "Check",
     "Engine",
+    "Handler",
     "ModelHashMismatch",
     "Probe",
     "Request",
@@ -558,8 +875,13 @@ __all__ = [
     "Target",
     "attempt",
     "decide",
+    "decision_route",
+    "handler_result",
+    "handler_types",
+    "handlers_dir_for",
     "identity",
     "load_model",
+    "resolve_handler",
     "response_conforms",
     "run_scenario",
     "serve",
@@ -568,5 +890,6 @@ __all__ = [
     "smoke_caller",
     "smoke_required",
     "smoke_skip",
+    "transition_guard",
     "value",
 ]

@@ -33,6 +33,7 @@ if str(ROOT) not in sys.path:
 from seams import ModelGraph  # noqa: E402
 
 from seams_gen import ifmledit  # noqa: E402
+from seams_gen.acceptance import extract_acceptance  # noqa: E402
 from seams_gen.compose import compose_file_name, environments, extract_compose  # noqa: E402
 from seams_gen.dockerfile import extract_dockerfile  # noqa: E402
 from seams_gen.fastapi import extract_routes  # noqa: E402
@@ -130,6 +131,7 @@ GENERATORS = {
     "compose": _compose,
     "dockerfile": extract_dockerfile,
     "stubs": extract_stubs,
+    "acceptance": extract_acceptance,
 }
 
 
@@ -1024,6 +1026,7 @@ GENERATOR_ONLY: dict[Site, str] = {
     ),
     Site("tests", "_unique", "predicate"): f"Two tests named alike: {_NAMES}.",
     Site("smoke", "extract_smoke", "HYDRA.Operation"): f"Two probes named alike: {_NAMES}.",
+    Site("acceptance", "_unique", "COMM.handler"): f"Two acceptance files or tests named alike: {_NAMES}.",
     Site("sequence", "find_event", "'ifml:Event'"): (
         "The event is the command-line argument naming the diagram to derive; no or several matching events "
         "is a fault of the argument, not of the model."

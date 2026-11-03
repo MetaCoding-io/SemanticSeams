@@ -27,6 +27,9 @@ ambiguous fact raises the same ``GeneratorError``:
 - ``smoke``: each operation it calls, the shapes it accepts and returns (and
   its error statuses'), the examples it sends and the policies and parties
   governing it.
+- ``acceptance``: per handlers module's test file, each function's
+  implementations, operations and shapes, and the examples, transitions,
+  states, tasks, decisions and gateway flows its tests read.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ from seams import PROC, Model, ProcessElement, load
 from seams import Component as ComponentView
 
 from ._views import only, optional, view_errors
+from .acceptance import acceptance_sources
 from .compose import DEVELOPMENT, _resolve_environment, compose_file_name, environments, extract_compose
 from .dockerfile import dockerfile_name, extract_dockerfile
 from .fastapi import extract_routes, route_module
@@ -123,6 +127,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "smoke": lambda trig, out: smoke_sources(trig),
     "dockerfile": _dockerfile,
     "ifmledit": lambda trig, out: ifmledit_sources(load(trig)),
+    "acceptance": lambda trig, out: acceptance_sources(trig),
 }
 
 

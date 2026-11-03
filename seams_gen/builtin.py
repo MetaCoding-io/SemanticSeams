@@ -5,8 +5,8 @@ each at ``seams_gen.__version__`` and with its ``sources`` from
 ``seams_gen.sources.SOURCES``. Each ``extract`` loads the model and runs the
 generator's own extract step; each ``render`` is its render step, so
 ``generate`` returns the same bytes as the generator's old ``generate``
-function. ``htmx``, ``fastapi``, ``compose`` and ``dockerfile`` also have a
-``trace`` (ADR-0019).
+function. ``htmx``, ``fastapi``, ``compose``, ``dockerfile`` and
+``acceptance`` also have a ``trace`` (ADR-0019).
 """
 
 from __future__ import annotations
@@ -14,9 +14,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from seams import load
+from seams import ModelGraph, load
 
 from . import __version__
+from .acceptance import AcceptanceModel, extract_acceptance, render_acceptance, trace_acceptance
 from .compose import ComposeFile, extract_compose_environments, render_compose_environments, trace_compose_environments
 from .dockerfile import DockerfileModel, extract_dockerfile, render_dockerfile, trace_dockerfile
 from .fastapi import RoutesModel, extract_route_module, render_routes, trace_routes
@@ -52,6 +53,11 @@ def _tests_extract(trig: Path, out: Path) -> TestsModel:
 def _smoke_extract(trig: Path, out: Path) -> SmokeModel:
     """One probe per hydra:Operation with a method and a path."""
     return extract_smoke(load(trig))
+
+
+def _acceptance_extract(trig: Path, out: Path) -> AcceptanceModel:
+    """One acceptance module per handlers module the comm:PythonHandlers name."""
+    return extract_acceptance(ModelGraph.load(trig))
 
 
 def _dockerfile_extract(trig: Path, out: Path) -> DockerfileModel:
@@ -125,6 +131,16 @@ smoke = Generator(
     sources=SOURCES["smoke"],
 )
 
+acceptance = Generator(
+    name="acceptance",
+    version=__version__,
+    help="pytest files checking each hand-written comm:PythonHandler against its shapes, transitions and decisions",
+    extract=_acceptance_extract,
+    render=render_acceptance,
+    sources=SOURCES["acceptance"],
+    trace=trace_acceptance,
+)
+
 dockerfile = Generator(
     name="dockerfile",
     version=__version__,
@@ -144,6 +160,6 @@ ifmledit = Generator(
     sources=SOURCES["ifmledit"],
 )
 
-BUILTINS: tuple[Generator, ...] = (htmx, fastapi, compose, tests, smoke, dockerfile, ifmledit)
+BUILTINS: tuple[Generator, ...] = (htmx, fastapi, compose, tests, smoke, dockerfile, ifmledit, acceptance)
 
-__all__ = ["BUILTINS", "compose", "dockerfile", "fastapi", "htmx", "ifmledit", "smoke", "tests"]
+__all__ = ["BUILTINS", "acceptance", "compose", "dockerfile", "fastapi", "htmx", "ifmledit", "smoke", "tests"]

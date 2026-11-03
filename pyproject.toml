@@ -40,10 +40,11 @@ line-length = 120
 target-version = "py312"
 # Committed generated route modules come from seams_gen templates and are
 # checked byte-for-byte by the golden and drift tests: never reformat them.
-# The same holds for the golden generator output under docs/generation/golden.
+# The same holds for the golden generator output under docs/generation/golden
+# and tests/golden/acceptance.
 # Markdown is excluded because ruff would otherwise reformat Python code blocks in
 # prose docs, including historical records under docs/research and docs/adr.
-extend-exclude = ["examples/**/generated", "docs/generation/golden", "*.md", "spikes", "orig_convo", "tmp", "site"]
+extend-exclude = ["examples/**/generated", "docs/generation/golden", "tests/golden/acceptance", "*.md", "spikes", "orig_convo", "tmp", "site"]
 
 [tool.ruff.lint]
 # Explicit families so the gate stays stable across ruff releases.

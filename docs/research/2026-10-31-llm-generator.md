@@ -6,6 +6,13 @@ Builds on the [generation trace note](2026-10-31-generation-trace.md) (T1 to T5)
 [generator kit note](2026-10-30-domain-ide-and-generator-kit.md) (K3) and backlog item U6.
 Written against `main` at `752020a`.*
 
+*Revision, 2026-11-02: C3 is built (M022/S01). `seams.context_for(model, task)` assembles
+a service task's context with the rules of section 3.2 and returns a manifest of hashed
+items with a context hash; `seams context TASK [--json]` prints it as a review report.
+Send Now in expenses chapter 9 is the worked example in the
+[authoring guide](../guide/authoring-a-model.md#what-a-task-depends-on-seams-context).
+The text below is unchanged.*
+
 ## The question
 
 Template generators can write compose files, FastAPI route modules and htmx pages,

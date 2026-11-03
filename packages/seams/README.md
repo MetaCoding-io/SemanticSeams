@@ -85,5 +85,43 @@ predicate. The operation view's `implemented_by` lists the nodes.
 sequence flows live only in the XML), `unfired_transitions` and
 `policies_without_deny` (the `coverage/` canned questions).
 
+## Context assembly
+
+`seams.context_for(model, task)` (backlog C3, `context.py`) gathers the model
+facts the code of a service task depends on. `model` is a `Model` or a
+`ModelGraph`; `task` is a BPMN id, CURIE or IRI. It returns a `Manifest`
+(`task`, `items`, `context_hash`) whose `items` are `ContextItem`s (`kind`,
+`ref`, `hash`, and the hashed `content`) sorted by (kind, ref). Each item is
+narrowed to the facts the task uses:
+
+- **task**: the task's own triples: what it reads, writes, fires and invokes.
+- **shape**: each shape it reads or writes, with its type, label, comment and
+  `sh:` triples down to its property shapes; its `seam:` joins are left out.
+- **transition** and **state**: the transition it fires, with its from and to
+  states.
+- **process**: its process's type, label, comment, `seam:detailedBy` and
+  `proc:correlationKey`, with the correlation parameter's type and label.
+- **decision**: each decision an upstream business-rule task is
+  `seam:decidedBy` whose `dec:processVariable` an incoming gateway condition
+  reads, with its inputs and outputs.
+- **container**: the container that `seam:executes` the process, narrowed to
+  its type, label, `arch:technology` and the `deploy:key` of each binding,
+  shared and per override. Binding values, secret references and file paths
+  are never read.
+- **bpmn**: the task's element, its incoming sequence flows (they carry the
+  gateway conditions) and the gateways they come from.
+- **dmn**: the `decision` element of each decision above.
+
+A graph item's ref is its IRI and its hash covers its triples, blank nodes
+canonicalised, serialised as N-Triples with the lines sorted. An XML item's
+ref is the payload's model-relative path, `#` and the element id, and its hash
+covers the element's exclusive C14N without its tail. Every hash is
+`sha256:<hex>`. `context_hash` is sha256 over the items in (kind, ref) order,
+each framed as `kind NUL ref NUL hash \n`, so the same model gives the same
+hash and a changed fact changes its item's hash and the context hash. An
+unknown task, a task that is not a `proc:ServiceTask` or a missing hop raises
+`ResolutionError(subject, predicate, detail)`. `seams context` prints the
+manifest as a review report.
+
 The full API, views, SPARQL and model-hash reference is
 [The seams library](../../docs/reference/seams-library.md) on the docs site.

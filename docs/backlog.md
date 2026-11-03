@@ -218,7 +218,7 @@ nothing else and can start now.
 | T5 | **Structural edit proposals**: drafted model patches accepted only when regeneration reproduces the edit; start with adding and removing form fields | M | T4 | none | done (M021/S02): in edit mode the generation view's **Edit output** text area takes a whole edited output; `viewer/structural.py` requires one changed block that adds or removes one named form control inside one traced `ifml:Form` with `seam:writes`, drafts the `ifml:Parameter` patch (plus a blank-node `sh:property` and `rdf:Property` for a path new to the written shape, its values copied from the control), accepts it only when regenerating reproduces the edited block, lists the lines it changes elsewhere, and applies through `seams_edit`, undoably ([guide](guide/the-viewer.md#structural-edits-adding-or-removing-a-form-input)) |
 | C1 | **Implementation stub generator**: per service task, a deterministic, traced stub with data classes from the read and written shapes, the signature, and a docstring naming the decision and transition. [Note](research/2026-10-31-llm-generator.md) | S | U6 (ADR first), T1 | none | planned (M022/S02) |
 | C2 | **Acceptance tests from the model**: shape conformance, legal-transition state, decision-branch scenarios, and a type check against the stub | M | U5, A9, C1 | none | planned (M022/S03) |
-| C3 | **Context assembly**: per-kind rules narrowed to the facts used, canonical hashing of each element and native file, and a manifest with a context hash; useful as a review report before any LLM is involved | S | none | none | planned (M022/S01) |
+| C3 | **Context assembly**: per-kind rules narrowed to the facts used, canonical hashing of each element and native file, and a manifest with a context hash; useful as a review report before any LLM is involved | S | none | none | done (M022/S01): `seams.context_for(model, task)` returns a `Manifest` of hashed `ContextItem`s (the task, its shapes, transition and states, process, upstream decision, the container narrowed to its technology and binding keys, and the BPMN and DMN fragments) with a context hash, and `seams context TASK [--json]` prints it ([reference](reference/seams-library.md#context-assembly), [guide](guide/authoring-a-model.md#what-a-task-depends-on-seams-context)) |
 | C4 | **LLM draft generator**: provider-agnostic call, versioned prompt templates, writes only to the U6 location, `seams propose`, accepted only when C2's tests pass; model text quoted as data, binding names but never values, never run in CI | M | C1 to C3, K3, U6 | none | planned (M022/S04) |
 | C5 | **Drafts in the lockfile, `seams check` and the generation view**: an `llm-draft` record, staleness from the context hash, hand-edit detection, and the draft node in T3 ([mockup](research/2026-10-31-llm-generator.md)) | S | A1, A2, T3, C3 | none | planned (M022/S05) |
 | O1 | **Ontology notation**: `seam:Ontology` model graphs, gist imports, a class view in the viewer, and model-health checks for imports and versions. [Note](research/2026-10-31-data-centric-model-and-copilot.md) | M | ADR first; K6 for versions | a notation value | planned (M023/S03) |
@@ -509,7 +509,9 @@ UI work must not eat M3.*
      whole output becomes an `ifml:Parameter` patch, with a `sh:property` for a new path,
      applied only when regenerating reproduces the edited block.*
    - **M022, Code the Templates Cannot Write** (C3, C1, C2, C4, C5). Depends on M014 (U6),
-     M015 (U5, A9) and M020.
+     M015 (U5, A9) and M020. *Context assembly done, M022/S01: `seams context` lists, for a
+     service task, the model facts and native file fragments its code depends on, each
+     hashed, with a context hash.*
    - **M023, Data-Centric Model** (K6, O1, O2, O3): vocabulary versions first, so they land
      before O2's first change that is not widening. Depends on M018.
    - **M024, SemPKM** (O4, O5, O6), opening with an ADR on SemPKM as a store. Depends on

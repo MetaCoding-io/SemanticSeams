@@ -1,8 +1,8 @@
 """Run chapter 9's generated tests in CI (M015/S03, ADR-0014).
 
 pytest only collects tests/ (``testpaths``), so the tests the ``tests``
-generator writes to examples/expenses/chapter-09/generated/tests would not
-run in CI's ``uv run pytest -q`` step. This module runs them once, in a
+and ``acceptance`` generators write to examples/expenses/chapter-09/generated/tests
+and generated/acceptance (M022/S03, backlog C2) would not run in CI's ``uv run pytest -q`` step. This module runs them once, in a
 subprocess with its own rootdir so their conftest-free imports and module
 names cannot clash with this suite, and reads the outcome of each generated
 test from a JUnit report. One test per generated file asserts that every
@@ -20,8 +20,10 @@ import xml.etree.ElementTree as ET
 import pytest
 from expense_app import ROOT, chapter_dir
 
-GENERATED = chapter_dir("chapter-09") / "generated" / "tests"
-FILES = sorted(p.name for p in GENERATED.glob("test_*.py"))
+GENERATED = chapter_dir("chapter-09") / "generated"
+# The generators' output directories whose tests this module runs.
+DIRECTORIES = ("acceptance", "tests")
+FILES = sorted(f"{d}/{p.name}" for d in DIRECTORIES for p in (GENERATED / d).glob("test_*.py"))
 TIMEOUT = 600
 
 
@@ -34,7 +36,7 @@ def outcomes(tmp_path_factory) -> dict[str, dict[str, str]]:
             sys.executable,
             "-m",
             "pytest",
-            str(GENERATED),
+            *(str(GENERATED / d) for d in DIRECTORIES),
             "-q",
             "-p",
             "no:cacheprovider",
@@ -53,19 +55,26 @@ def outcomes(tmp_path_factory) -> dict[str, dict[str, str]]:
     )
     by_file: dict[str, dict[str, str]] = {}
     for case in ET.parse(report).getroot().iter("testcase"):
-        module = case.get("classname", "").rsplit(".", 1)[-1]
+        # classname is the dotted path of the file below the rootdir.
+        parts = case.get("classname", "").split(".")
         outcome = "passed"
         for tag in ("failure", "error", "skipped"):
             if case.find(tag) is not None:
                 outcome = tag if tag != "failure" else "failed"
-        by_file.setdefault(f"{module}.py", {})[case.get("name", "")] = outcome
+        by_file.setdefault(f"{parts[-2]}/{parts[-1]}.py", {})[case.get("name", "")] = outcome
     if result.returncode not in (pytest.ExitCode.OK, pytest.ExitCode.TESTS_FAILED):
         pytest.fail(f"the generated tests did not run cleanly (exit {result.returncode}):\n{result.stdout[-4000:]}")
     return by_file
 
 
 def test_every_generator_output_is_run():
-    assert FILES == ["test_decisions.py", "test_policies.py", "test_scenarios.py", "test_shape_examples.py"]
+    assert FILES == [
+        "acceptance/test_notify.py",
+        "tests/test_decisions.py",
+        "tests/test_policies.py",
+        "tests/test_scenarios.py",
+        "tests/test_shape_examples.py",
+    ]
 
 
 @pytest.mark.parametrize("name", FILES)

@@ -74,6 +74,52 @@
       ]
     },
     {
+      "generator": "acceptance",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:a13fe61ea9f61e671cb3b5354897b972dc00f09a5840cb1da1df3546d7c9c970",
+      "path": "generated/acceptance/test_notify.py",
+      "sha256": "e278fa9eaac9b64b2cb669ab2c46a29781fc1b80add53143af9b708e8b480ecb",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/NotificationShape",
+        "https://example.org/expenses/NotifyProblemShape",
+        "https://example.org/expenses/approval_bpmn#flow_manager",
+        "https://example.org/expenses/approval_bpmn#notify_manager",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approval_routing",
+        "https://example.org/expenses/expense_train",
+        "https://example.org/expenses/notify_failed",
+        "https://example.org/expenses/notify_manager_impl",
+        "https://example.org/expenses/notify_manager_op",
+        "https://example.org/expenses/routes_above_1000_to_finance",
+        "https://example.org/expenses/routes_up_to_1000_to_manager",
+        "https://example.org/expenses/routes_up_to_100_automatically"
+      ]
+    },
+    {
+      "generator": "acceptance",
+      "generator_version": "0.1.0",
+      "model_hash": "sha256:a13fe61ea9f61e671cb3b5354897b972dc00f09a5840cb1da1df3546d7c9c970",
+      "path": "generated/acceptance/test_notify.py.trace.json",
+      "sha256": "ae4254bbc4575a4dac2dc00df0c74e0c4632faee4b960c88c0d1eb6f3e1724a5",
+      "sources": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/NotificationShape",
+        "https://example.org/expenses/NotifyProblemShape",
+        "https://example.org/expenses/approval_bpmn#flow_manager",
+        "https://example.org/expenses/approval_bpmn#notify_manager",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approval_routing",
+        "https://example.org/expenses/expense_train",
+        "https://example.org/expenses/notify_failed",
+        "https://example.org/expenses/notify_manager_impl",
+        "https://example.org/expenses/notify_manager_op",
+        "https://example.org/expenses/routes_above_1000_to_finance",
+        "https://example.org/expenses/routes_up_to_1000_to_manager",
+        "https://example.org/expenses/routes_up_to_100_automatically"
+      ]
+    },
+    {
       "generator": "dockerfile",
       "generator_version": "0.1.0",
       "model_hash": "sha256:a13fe61ea9f61e671cb3b5354897b972dc00f09a5840cb1da1df3546d7c9c970",

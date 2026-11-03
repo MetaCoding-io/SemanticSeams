@@ -713,7 +713,11 @@ even the package.
 nothing written. So is a property whose `sh:datatype` is not in the type table
 (`GeneratorError(shape, sh:datatype)`, naming the property and the mapped datatypes), two
 properties of a shape with the same `sh:path` local name, a shape or path local name that
-is not a Python identifier, and two shapes of one module with the same local name. A
+is not a Python identifier, two shapes of one module with the same local name, and a
+shape whose local name is also a function of its module. `seamsh:HandlerShapeShape` in
+`ontology/shapes/seam-shapes.ttl` states each of these for the shapes a
+`comm:PythonHandler` operation accepts or returns, so a model that passes the shapes
+writes its stubs (the parity cases are in `tests/test_shape_generator_parity.py`). A
 `ResolutionError` from `context_for` becomes a `GeneratorError` with the same subject and
 predicate. A model that does not parse also exits 2. A model file that cannot be
 read or a handlers path that cannot be written exits **1**. Reports exit 0.

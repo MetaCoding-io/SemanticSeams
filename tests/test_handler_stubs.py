@@ -17,10 +17,11 @@ import sys
 from pathlib import Path
 
 import httpx
+from rdflib import RDF, Dataset, URIRef
 from seams import ModelGraph, context_for, model_hash
 
-from seams_gen.stubs import main
-from seams_gen.testing import golden_target
+from seams_gen.stubs import extract_stubs, main
+from seams_gen.testing import SHAPES_FILE, assert_shapes_catch, golden_target, shape_violations
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAT_DIR = ROOT / "examples" / "chat-app"
@@ -29,6 +30,7 @@ EXPENSES = "https://example.org/expenses/"
 CHAT = "https://example.org/chat/"
 COMM_HANDLER = "https://w3id.org/seams/comm#handler"
 GOLDEN = ROOT / "tests" / "golden" / "handler_stubs" / "notify.py"
+ONTOLOGY_FILES = sorted((ROOT / "ontology").glob("*.ttl"))
 
 LLM_IMPL = ':completion_impl a comm:LLMCompletion ; rdfs:label "LLM completion" .'
 NOTIFY = (
@@ -434,3 +436,49 @@ def test_an_unmapped_datatype_exits_2_and_writes_nothing(tmp_path, capsys):
     assert err.startswith(f"python -m seams_gen.stubs: {CHAT}LinkShape: http://www.w3.org/ns/shacl#datatype: ")
     assert ":href: no Python type for http://www.w3.org/2001/XMLSchema#anyURI" in err
     assert not (trig.parent / "handlers").exists()
+
+
+def test_a_keyword_shape_name_is_a_shape_violation(tmp_path):
+    trig = chat_model(
+        tmp_path,
+        '    :import a sh:NodeShape ; rdfs:label "Import" ;\n'
+        "        sh:property [ sh:path :href ; sh:datatype xsd:string ; sh:minCount 1 ] .\n"
+        '    :import_op a hydra:Operation ; rdfs:label "import" ; seam:acceptsShape :import ;\n'
+        "        seam:implementedBy :import_impl .\n"
+        '    :import_impl a comm:PythonHandler ; rdfs:label "import handler" ; comm:handler "imports.run" .',
+    )
+    ds = Dataset(default_union=True)
+    ds.parse(trig, format="trig")
+    assert_shapes_catch(
+        extract_stubs,
+        ds,
+        subject=URIRef(f"{CHAT}import"),
+        predicate=RDF.type,
+        focus=URIRef(f"{CHAT}import"),
+        match="not a Python identifier",
+        model_path=trig,
+    )
+
+
+def test_same_named_shapes_in_different_modules_generate(tmp_path, capsys):
+    trig = chat_model(
+        tmp_path,
+        '    :LinkShape a sh:NodeShape ; rdfs:label "Link" ;\n'
+        "        sh:property [ sh:path :href ; sh:datatype xsd:string ; sh:minCount 1 ] .\n"
+        '    <https://example.org/other/LinkShape> a sh:NodeShape ; rdfs:label "Other link" ;\n'
+        "        sh:property [ sh:path :rel ; sh:datatype xsd:string ; sh:minCount 1 ] .\n"
+        '    :link_op a hydra:Operation ; rdfs:label "link" ; seam:acceptsShape :LinkShape ;\n'
+        "        seam:implementedBy :link_impl .\n"
+        '    :link_impl a comm:PythonHandler ; rdfs:label "link handler" ; comm:handler "links.follow" .\n'
+        '    :rel_op a hydra:Operation ; rdfs:label "rel" ; seam:acceptsShape <https://example.org/other/LinkShape> ;\n'
+        "        seam:implementedBy :rel_impl .\n"
+        '    :rel_impl a comm:PythonHandler ; rdfs:label "rel handler" ; comm:handler "rels.follow" .',
+    )
+    ds = Dataset(default_union=True)
+    ds.parse(trig, format="trig")
+    assert not [r for r in shape_violations(ds, SHAPES_FILE, ONTOLOGY_FILES) if "handler" in r[2]]
+    code, _, err = stubs(capsys, trig)
+    assert (code, err) == (0, "")
+    handlers = trig.parent / "handlers"
+    assert "    href: str" in (handlers / "links.py").read_text(encoding="utf-8")
+    assert "    rel: str" in (handlers / "rels.py").read_text(encoding="utf-8")

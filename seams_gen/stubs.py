@@ -66,6 +66,7 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import itertools
 import json
 import keyword
 import sys
@@ -359,12 +360,13 @@ def _with_operations(cls: StubClass, functions: tuple[StubFunction, ...]) -> Stu
 
 def _module(path: str, header: tuple[str, ...], functions: list[StubFunction], classes: dict[str, StubClass]):
     fns = tuple(sorted(functions, key=lambda f: f.name))
-    used = {name for fn in fns for name in (*fn.accepts.split(" | "), *fn.returns.split(" | "))}
-    own = sorted((c for c in classes.values() if c.name in used), key=lambda c: c.name)
+    used = {shape for fn in fns for shape, _ in fn.shape_operations}
+    own = sorted((c for c in classes.values() if c.iri in used), key=lambda c: (c.name, c.iri))
     own = [_with_operations(c, fns) for c in own]
-    if len({c.name for c in own}) != len(own):
-        shapes = sorted(c.iri for c in own)
-        raise GeneratorError(shapes[0], RDF.type, f"two shapes of {path} share a local name: {', '.join(shapes)}")
+    for first, second in itertools.pairwise(own):
+        if first.name == second.name:
+            shapes = f"{first.iri}, {second.iri}"
+            raise GeneratorError(first.iri, RDF.type, f"two shapes of {path} share a local name: {shapes}")
     for c in own:
         if any(fn.name == c.name for fn in fns):
             raise GeneratorError(c.iri, RDF.type, f"the shape's local name is also a function of {path}")

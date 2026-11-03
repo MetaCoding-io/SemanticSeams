@@ -1,4 +1,5 @@
 """Command line: ``seams generate|check|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+``seams propose TASK [--provider CMD] [--force]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
@@ -108,6 +109,16 @@ unknown task, one that is not a service task, or a missing hop prints
 ``seams context: <message>`` to stderr and exits 1; a model that cannot be
 loaded exits 2. It writes nothing.
 
+``seams propose TASK [--provider CMD] [--force]`` (M022/S04, backlog C4, D059)
+sends the task's draft prompt to the provider command, runs the handlers
+module's acceptance tests against the draft in a scratch copy and prints
+``task``, ``context``, ``template``, ``provider``, ``cache hit|miss`` and
+``draft <sha256>`` lines. On pass it prints ``tests passed`` and ``wrote
+<handlers module>`` and exits 0; on failure one ``failed <test>`` line per
+failing test, the pytest output on stderr, writes nothing and exits 1. A
+failed provider exits 1; no provider, an unknown task or an existing module
+without ``--force`` exits 2.
+
 ``seams new-generator NAME --reference FILE [--out DIR]`` (M018/S04, backlog
 K5) writes a generator package for the reference output FILE into DIR
 (default ``./seams-<NAME>``): pyproject.toml with its ``seams.generators``
@@ -142,6 +153,7 @@ from .lockfile import locate
 from .new_generator import NewGeneratorError, new_generator
 from .plan import render, resolve
 from .project import ProjectError, load_project, resolve_model
+from .propose import ProposeError, propose
 from .secrets import EXAMPLE, example_environment, render_example, run_secrets
 from .sequence import run_sequence
 from .status import run_status
@@ -252,6 +264,18 @@ def build_parser() -> argparse.ArgumentParser:
     _project_arguments(context)
     context.add_argument("--json", action="store_true", help="print the manifest as JSON")
     context.set_defaults(run=_context)
+    prop = sub.add_parser(
+        "propose",
+        help="draft a service task's handler body with an LLM command; keep it only if its acceptance tests pass",
+        description="Send the task's draft prompt to the provider command, test the draft and write it on pass.",
+    )
+    prop.add_argument("task", help="the service task: a BPMN id (send_now), CURIE or full IRI")
+    _project_arguments(prop)
+    prop.add_argument(
+        "--provider", help="the provider command (prompt on stdin, draft on stdout); overrides seams.toml"
+    )
+    prop.add_argument("--force", action="store_true", help="replace an existing handlers module")
+    prop.set_defaults(run=_propose)
     new = sub.add_parser(
         "new-generator",
         help="scaffold a generator package, with a passing golden test, from a reference output file",
@@ -425,6 +449,30 @@ def _context(args: argparse.Namespace) -> int:
         print(json.dumps(context_json(manifest), indent=2, sort_keys=True))
     else:
         sys.stdout.write(render_context(manifest))
+    return 0
+
+
+def _propose(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    try:
+        result = propose(project, args.model, args.task, args.provider, args.force)
+    except ProposeError as err:
+        print(f"seams propose: {err}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    print(f"task {result.task}")
+    print(f"context {result.context_hash}")
+    print(f"template {result.template}")
+    print(f"provider {result.provider}")
+    print(f"cache {'hit' if result.cache_hit else 'miss'}")
+    print(f"draft {result.sha256}")
+    if not result.passed:
+        for name in result.failures:
+            print(f"failed {name}")
+        sys.stderr.write(result.output)
+        print(f"seams propose: {len(result.failures)} acceptance test(s) failed; nothing written", file=sys.stderr)
+        return EXIT_IO_ERROR
+    print("tests passed")
+    print(f"wrote {result.written}")
     return 0
 
 

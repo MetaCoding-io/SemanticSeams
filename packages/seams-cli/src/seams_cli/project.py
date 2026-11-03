@@ -27,6 +27,8 @@ also fails on; the only one is ``paths``, the BPMN paths no scenario runs
 (D054; the transition and policy reports are gate queries). Each ``[environments.<name>]`` may carry an
 ``endpoints`` table, a runtime container's local name to the base URL whose
 /healthz ``seams status`` reads (D045); its other keys are still ignored.
+``[propose] provider`` is the command ``seams propose`` sends its prompt to
+(D059); ``--provider`` overrides it.
 """
 
 from __future__ import annotations
@@ -70,6 +72,7 @@ class Project:
     gates: tuple[Path, ...] = ()
     endpoints: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
     coverage: tuple[str, ...] = ()
+    provider: str | None = None
 
 
 def _known_generators() -> dict:
@@ -143,6 +146,13 @@ def load_project(path: Path | str) -> Project:
                 f"{path}: `coverage[{index}]` is {check!r}; known coverage checks: {', '.join(COVERAGE_CHECKS)}"
             )
 
+    propose = data.get("propose", {})
+    if not isinstance(propose, dict):
+        raise ProjectError(f"{path}: `propose` must be a table ([propose])")
+    provider = propose.get("provider")
+    if provider is not None and (not isinstance(provider, str) or not provider.strip()):
+        raise ProjectError(f"{path}: `propose.provider` must be a non-empty command string")
+
     return Project(
         path=path,
         root=root,
@@ -152,6 +162,7 @@ def load_project(path: Path | str) -> Project:
         gates=tuple(root / gate for gate in gates),
         endpoints=endpoints,
         coverage=tuple(dict.fromkeys(coverage)),
+        provider=provider,
     )
 
 

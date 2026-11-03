@@ -19,12 +19,29 @@ Paths are relative to the project root; no value of a binding is read.
 A model that cannot be loaded raises ProjectError; an unknown task, a missing
 context hop or a task whose operations have no ``comm:PythonHandler`` raises
 ResolutionError naming the fact; a stub or acceptance fault, GeneratorError.
+
+``propose`` is the other half (D059). It sends the prompt on stdin to the
+provider command (``--provider`` or seams.toml ``[propose] provider``; split
+with shlex, never a shell) and reads the draft from stdout, stripping one
+fenced code block around it. The raw response is cached in
+``.seams/drafts/<sha256(context hash, template, provider)>.py`` under the
+project root, so an unchanged context does not call the provider again. The
+draft is written at the handler path of a scratch copy of the project, the
+module's acceptance tests run there with pytest in a subprocess, and only when
+they pass is it written to the project's handlers module; an existing module is
+kept unless ``force``. Nothing is written outside the handlers directory.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -43,7 +60,14 @@ TEMPLATE_VERSION = 1
 TEMPLATE_FILE = f"{TEMPLATE_NAME}-v{TEMPLATE_VERSION}.txt"
 ACCEPTANCE_GENERATOR = "acceptance"
 
+CACHE_DIR = Path(".seams") / "drafts"
+PROVIDER_TIMEOUT = 600
+TEST_TIMEOUT = 600
+
 _BACKTICKS = re.compile(r"`+")
+_FENCED = re.compile(r"\A\s*(`{3,})[^\n`]*\n(.*?\n)\1\s*\Z", re.DOTALL)
+_FAILED = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
+_SCRATCH_IGNORE = shutil.ignore_patterns(".seams", "__pycache__", ".pytest_cache")
 
 
 @dataclass(frozen=True)
@@ -128,4 +152,123 @@ def build_prompt(project: Project, model: Path | None, task: str) -> Prompt:
         module=module.path,
         acceptance=acceptance.file,
         acceptance_text=acceptance_text,
+    )
+
+
+class ProposeError(Exception):
+    """The provider failed or the draft cannot be accepted; the message says why."""
+
+
+@dataclass(frozen=True)
+class Proposal:
+    """What ``propose`` did. ``failures`` names the failing acceptance tests;
+    ``written`` is the handlers module written (relative to the project root) or
+    None, and ``sha256`` the draft's hash, for S05's record."""
+
+    task: str
+    context_hash: str
+    template: str
+    provider: str
+    cache_hit: bool
+    passed: bool
+    failures: tuple[str, ...]
+    written: str | None
+    sha256: str
+    output: str
+
+
+def extract_draft(response: str) -> str:
+    """``response`` without one fenced code block around it."""
+    match = _FENCED.match(response)
+    return match.group(2) if match else response
+
+
+def cache_key(context_hash: str, template: str, provider: str) -> str:
+    return hashlib.sha256("\n".join((context_hash, template, provider)).encode("utf-8")).hexdigest()
+
+
+def _call_provider(provider: str, text: str) -> str:
+    argv = shlex.split(provider)
+    if not argv:
+        raise ProposeError("the provider command is empty")
+    try:
+        done = subprocess.run(
+            argv, input=text, capture_output=True, text=True, encoding="utf-8", timeout=PROVIDER_TIMEOUT, check=False
+        )
+    except FileNotFoundError as err:
+        raise ProposeError(f"provider {provider!r}: command not found: {err.filename}") from err
+    except subprocess.TimeoutExpired as err:
+        raise ProposeError(f"provider {provider!r}: no answer in {PROVIDER_TIMEOUT}s") from err
+    if done.returncode != 0:
+        detail = done.stderr.strip().splitlines()[-1:] or ["no stderr"]
+        raise ProposeError(f"provider {provider!r} exited {done.returncode}: {detail[0]}")
+    if not done.stdout.strip():
+        raise ProposeError(f"provider {provider!r} returned no draft")
+    return done.stdout
+
+
+def _run_acceptance(project: Project, prompt: Prompt, draft: str) -> tuple[bool, tuple[str, ...], str]:
+    with tempfile.TemporaryDirectory(prefix="seams-propose-") as tmp:
+        scratch = Path(tmp) / "project"
+        shutil.copytree(project.root, scratch, ignore=_SCRATCH_IGNORE, symlinks=True)
+        (scratch / prompt.handler_path).parent.mkdir(parents=True, exist_ok=True)
+        (scratch / prompt.handler_path).write_text(draft, encoding="utf-8")
+        test = scratch / _acceptance_path(project, prompt.acceptance)
+        test.parent.mkdir(parents=True, exist_ok=True)
+        test.write_text(prompt.acceptance_text, encoding="utf-8")
+        argv = [sys.executable, "-m", "pytest", "-q", "-rfE", "-p", "no:cacheprovider", str(test)]
+        try:
+            done = subprocess.run(argv, cwd=scratch, capture_output=True, text=True, timeout=TEST_TIMEOUT, check=False)
+        except subprocess.TimeoutExpired as err:
+            raise ProposeError(f"the acceptance tests ran over {TEST_TIMEOUT}s") from err
+        output = done.stdout.replace(str(scratch) + os.sep, "")
+        failures = tuple(sorted({m.split("::")[-1] for m in _FAILED.findall(output)}))
+        if done.returncode != 0 and not failures:
+            failures = (f"pytest exited {done.returncode}",)
+        return done.returncode == 0, failures, output
+
+
+def _handlers_target(project: Project, model: Path | None, prompt: Prompt) -> Path:
+    handlers = (resolve_model(project, model).parent / DEFAULT_HANDLERS).resolve()
+    target = (project.root / prompt.handler_path).resolve()
+    if not target.is_relative_to(handlers) or target == handlers:
+        raise ProjectError(f"{prompt.handler_path}: not inside the handlers directory {handlers}")
+    return target
+
+
+def propose(
+    project: Project, model: Path | None, task: str, provider: str | None = None, force: bool = False
+) -> Proposal:
+    """Draft, test and (on pass) write the handlers module of service task ``task``."""
+    provider = provider if provider is not None else project.provider
+    if provider is None or not provider.strip():
+        raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
+    prompt = build_prompt(project, model, task)
+    target = _handlers_target(project, model, prompt)
+    if target.exists() and not force:
+        raise ProjectError(f"{prompt.handler_path}: already exists; pass --force to replace it")
+    cached = project.root / CACHE_DIR / f"{cache_key(prompt.context_hash, prompt.template, provider)}.py"
+    cache_hit = cached.is_file()
+    if cache_hit:
+        response = cached.read_text(encoding="utf-8")
+    else:
+        response = _call_provider(provider, prompt.text)
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text(response, encoding="utf-8")
+    draft = extract_draft(response)
+    passed, failures, output = _run_acceptance(project, prompt, draft)
+    if passed:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(draft, encoding="utf-8")
+    return Proposal(
+        task=prompt.task,
+        context_hash=prompt.context_hash,
+        template=prompt.template,
+        provider=provider,
+        cache_hit=cache_hit,
+        passed=passed,
+        failures=failures,
+        written=prompt.handler_path if passed else None,
+        sha256="sha256:" + hashlib.sha256(draft.encode("utf-8")).hexdigest(),
+        output=output,
     )

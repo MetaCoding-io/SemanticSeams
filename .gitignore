@@ -58,3 +58,6 @@ docs/generated/
 
 # ── GSD baseline (auto-generated) ──
 coverage/
+
+# seams propose response cache (D059)
+.seams/

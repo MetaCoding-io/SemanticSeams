@@ -23,10 +23,12 @@ Multiverse, Classifier request, Assessment source, and so on) with subclass edge
 object properties and datatype properties. It is kept out of the repository, as the
 author's media, and this note describes it.
 
-**Posts 2 and 3 of the thread were not retrieved.** X serves them only to signed-in
-clients, and the mirror APIs carry the first post alone. The author's blog
-([dearlordylord.com](https://www.dearlordylord.com/)) had no write-up on the date of
-this note. Two of its posts give the author's frame for "specs":
+**Posts 2 and 3 of the thread were not retrieved** when this note was first written. X
+serves them only to signed-in clients, and the mirror APIs carry the first post alone.
+See the revision note at the end: they were supplied from a screenshot the same day.
+The author's blog ([dearlordylord.com](https://www.dearlordylord.com/)) had no
+write-up on the date of this note. Two of its posts give the author's frame for
+"specs":
 
 - *Formally Specifying Dungeons and Dragons rulebooks*: a Quint specification of the
   combat rules, used as a test oracle, with about a thousand assertions extracted from
@@ -111,14 +113,67 @@ anything a shape does not already say.
 
 ## Open questions
 
-- What posts 2 and 3 of the thread propose. If the author describes the lifting
-  step or a tool, this note should get a revision note.
+- What posts 2 and 3 of the thread propose. Answered in the revision note below.
 - Whether C6's file is the `CLAUDE.md` of a generated application or a file it
   includes. A generated `CLAUDE.md` would also carry the owned-code rule (ADR-0012)
   and the regeneration rule (principle 8), which are not vocabulary.
 - Whether R4 should read the model's own comments too. The TriG files carry
   explanatory comments that name terms, and a term used in a comment but declared
   nowhere is the same discrepancy.
+
+## Revision note, 2026-11-03: posts 2 and 3, and tottle
+
+Posts 2 and 3 of the thread, read from a screenshot supplied the same day. Paraphrased:
+
+- **Post 2.** TypeScript 7.1's content mappers can infer types from the resulting
+  domain-language graph, which binds the domain-language documentation to the code,
+  so the coding agent speaks the language the author understands. The image is a
+  large class-diagram-style rendering of the same vocabulary.
+- **Post 3.** The diagrams describe a real-time transcription-and-suggestion loop for
+  a domain-heavy conversation under strict universe rules, the Dungeons and Dragons
+  tabletop game being the example. For the TypeScript 7.1 Turtle mapper, the author
+  points at "tottle" on npm. The image is a screenshot of that application: a
+  scenario view of combat rounds with per-actor state cards, and a form that takes one
+  utterance at a time.
+
+**tottle** is [`@tottle/tottle`](https://github.com/dearlordylord/tottle) (MIT), the
+author's own package: a TypeScript content mapper that lets the compiler import a
+`.ttl` file as a typed vocabulary. From the README: for each named `owl:Class` or
+`rdfs:Class` it produces a branded role type keyed by local name, for each object and
+datatype property an entry with its IRI, domains and ranges, plus `classIris` and
+`propertyIris` maps and helper types. Nothing is written to disk and the Turtle is not
+loaded at runtime. It needs Node 24 and the TypeScript 7.1 beta with
+`--runExternalCode`. It parses with N3. Its stated limits: no SHACL, so no
+cardinality, required fields or disjointness; subclass relationships not inferred;
+anonymous classes excluded; no runtime validator, the application establishes the
+role. Content mappers themselves are the TypeScript 7.1 plugin mechanism that lets
+tooling present non-TypeScript files to the compiler, first used for Vue single-file
+components and by typed loaders for TOML, YAML and CSV.
+
+**What this changes in the reading above.** The thread's pipeline is markdown
+glossary, to Turtle ontology, to TypeScript types by content mapper, to agent-written
+code that can only name declared classes and properties. Its last step is the
+TypeScript counterpart of this project's rule that generated code holds no domain
+literal, achieved by the compiler rather than by generation: a misspelled class is a
+compile error. Two consequences for the backlog:
+
+- The `seams` library's typed views are the Python version of what tottle gives
+  TypeScript, with SHACL and the seams included. A generated TypeScript vocabulary
+  module from the ontology and shapes, for a front end or a hand-written handler in
+  TypeScript, is a small generator in the same family as C6 and the JSON-LD context
+  generator (O3); tottle's typed-loader approach would make it unnecessary to generate
+  anything when TypeScript 7.1 ships, since the model's own ontology graph could be
+  imported directly. Noted on C6, not a separate row until a TypeScript consumer exists.
+- tottle's limits are the project's argument: types from classes alone carry no
+  cardinality, no required fields and no lifecycle. The shapes are where those live,
+  and the `seams` views read them. A TypeScript consumer of the model would want the
+  shapes, which is O3's JSON-LD context plus a SHACL-aware mapper, not tottle alone.
+
+One reply in the thread, from an account whose profile reads as a generic engagement
+account, says the graph can be "dimensionalized with intention geometry". The phrase
+matches no established method; the nearest published use is a speculative
+philosophy-of-consciousness framework with no software, and the author's reply was a
+single emoji. Nothing in it bears on this note.
 
 ## Sources
 
@@ -129,6 +184,12 @@ anything a shape does not already say.
   https://www.dearlordylord.com/blog/dnd-quint/
 - dearlordylord, *Vibe code isn't meant to be reviewed*:
   https://www.dearlordylord.com/blog/vibe-code-how-to-stay-in-control/
+- dearlordylord, tottle: https://github.com/dearlordylord/tottle and
+  https://www.npmjs.com/package/@tottle/tottle
+- TypeScript 7.1 beta content mappers: Visual Studio Magazine,
+  [TypeScript 7.1 beta improves support for embedded code](https://visualstudiomagazine.com/articles/2026/10/23/typescript-7-1-beta-improves-support-for-embedded-code-import-attributes.aspx);
+  the [Motherload](https://github.com/colinhacks/motherload/wiki) typed loaders built
+  on them.
 - This repository: the [LLM generator note](2026-10-31-llm-generator.md) section 3.2,
   the [data-centric model note](2026-10-31-data-centric-model-and-copilot.md)
   sections 1, 4.1 and 5.1, [ADR-0012](../adr/0012-operation-implementation.md) and

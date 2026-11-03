@@ -624,7 +624,9 @@ The provider is any command that reads the prompt on stdin and prints the draft;
 the model's labels reach it only as quoted data, and binding values never. A draft
 that fails a test is not written, and each failing test is named. One that passes is
 written to `handlers/notify.py` and is yours from then on, like code you typed, so
-read it before you commit it. See the [CLI reference](../../reference/seams-cli.md#seams-propose).
+read it before you commit it. `seams propose` also records the draft in `seams.lock`,
+so `seams check` tells you when the model facts it was written from change
+(`draft-stale`) or when the file no longer matches it (`draft-hand-edited`). See the [CLI reference](../../reference/seams-cli.md#seams-propose).
 
 ## Checkpoint
 

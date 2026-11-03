@@ -326,7 +326,10 @@ provider` or `--provider` (shlex-split, no shell, prompt on stdin, draft on
 stdout). Successful responses are cached in `.seams/drafts/` keyed by
 sha256(context hash, template, provider). The draft is tested with the
 module's acceptance tests in a scratch copy and written to the handlers module
-only on pass (an existing one only with `--force`). Exit 0 on accept, 1 on
+only on pass (an existing one only with `--force`). An accepted draft's record
+(task, path, context hash, template, provider, sha256) is upserted by task into
+the `drafts` list of `seams.lock` (`lockfile.with_draft`), which `seams check`
+audits for `draft-stale` and `draft-hand-edited`. Exit 0 on accept, 1 on
 failed tests or a failed provider, 2 on a project error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-propose).
 

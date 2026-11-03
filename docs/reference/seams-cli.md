@@ -127,6 +127,7 @@ level holds:
 | `model_hash` | `seams.model_hash` of the model, `sha256:<hex>`. |
 | `outputs` | One entry per generated file, sorted by `path`. |
 | `faults` | Only after `seams generate --lenient` found faults: one `{focus, generator, message, shape}` object per fault, sorted. A lock with this key is flagged. |
+| `drafts` | Only once [`seams propose`](#seams-propose) has accepted a draft: one `{context_hash, path, provider, sha256, task, template}` object per accepted draft, sorted by task. `seams generate` carries it forward unchanged; [`seams check`](#seams-check) reports `draft-stale` and `draft-hand-edited` from it. |
 
 Each output entry records the generator, its version, the model hash, the
 file's sha256 and the full IRIs of the model elements the file came from. For a
@@ -1070,8 +1071,10 @@ A successful response is cached in `.seams/drafts/` (gitignored), keyed by the
 context hash, the template and the provider, so the same context runs again
 without calling the provider. The draft is tested in a scratch copy of the
 project; only on pass is it written to the handlers module, never outside the
-handlers package, and an existing module only with `--force`. `seams propose`
-is never run in CI.
+handlers package, and an existing module only with `--force`. An accepted draft
+is recorded in the `drafts` list of [`seams.lock`](#the-lockfile) (task, path,
+context hash, template, provider and sha256), replacing any earlier record of the
+same task; a rejected one leaves the lock alone. `seams propose` is never run in CI.
 
 ### Output
 

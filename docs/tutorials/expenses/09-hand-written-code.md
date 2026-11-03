@@ -580,6 +580,36 @@ policy, for example `:manager_approval_policy`. Without
 `SEAMS_SMOKE_BASE_URL` every test is skipped. `tests/test_expense_e2e.py` runs these tests
 against the stack in CI's `tutorial-e2e` job.
 
+### Acceptance tests for your handler
+
+The tests above check the process; nothing yet checks the handler you wrote against the
+model. The `acceptance` generator does. For every module of the handlers package it writes
+`generated/acceptance/test_<module>.py`, here `test_notify.py`, from the same facts the
+stub was written from. Each test asks one question of `notify_manager`:
+
+- **Types.** It takes one entity, and its annotations are `dict` or TypedDicts with the
+  keys and required-ness of `:ExpenseShape` and `:NotificationShape`.
+- **Shape conformance.** Called with `:expense_train`, it returns a notification that
+  conforms to `:NotificationShape`, or raises the declared `:notify_failed` error.
+- **Decision branches.** For each decision example of `:approval_routing`, the process run
+  in process reaches Notify manager exactly when the routing sends the expense to the
+  manager.
+- **Legal transitions.** A task that fires a lifecycle transition is also checked to run
+  only in the transition's from-state. Notify manager fires none, so its decision tests
+  check that its run moves no state instead.
+
+Add it to `seams.toml` (`name = "acceptance"`, `out = "generated/acceptance"`), run
+`seams generate`, then:
+
+```sh
+pytest examples/expenses/chapter-09/generated/acceptance
+```
+
+The tests import your handler from the project's handlers package, so they test the code
+you own, not the stub. A failing test names the model fact it checks, for example the
+shape the result breaks. Like the other generated files, `test_notify.py` is regenerated
+on every `seams generate` and must not be edited.
+
 ## Checkpoint
 
 Your files should now match

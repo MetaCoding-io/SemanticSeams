@@ -23,6 +23,15 @@ Expenses chapter 9 shows the
 [stub for Notify manager](../tutorials/expenses/09-hand-written-code.md#write-the-stub-once).
 The text below is unchanged.*
 
+*Revision, 2026-11-03: C2 is built (M022/S03). The `acceptance` generator writes, per
+module of the handlers package, `generated/acceptance/test_<module>.py`: a type check
+against the stub's TypedDicts, shape conformance of the result per valid example (or a
+declared error status), the legal-transition guard of the fired transition, and the
+decision routing to the task, run in process through `seams_runtime.verify`. These are
+the tests a C4 draft must pass. Expenses chapter 9 runs them against the hand-written
+[notify handler](../tutorials/expenses/09-hand-written-code.md#acceptance-tests-for-your-handler).
+The text below is unchanged.*
+
 ## The question
 
 Template generators can write compose files, FastAPI route modules and htmx pages,

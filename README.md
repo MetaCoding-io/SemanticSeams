@@ -125,6 +125,8 @@ against the compose stack. The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).
+`seams context TASK` prints the model facts and BPMN and DMN fragments a service task's
+code depends on, each hashed, with a context hash over them (`--json` for the manifest).
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 

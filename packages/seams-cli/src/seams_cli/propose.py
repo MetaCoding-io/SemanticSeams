@@ -29,7 +29,10 @@ project root, so an unchanged context does not call the provider again. The
 draft is written at the handler path of a scratch copy of the project, the
 module's acceptance tests run there with pytest in a subprocess, and only when
 they pass is it written to the project's handlers module; an existing module is
-kept unless ``force``. Nothing is written outside the handlers directory.
+kept unless ``force``. On acceptance the draft's record (task, path, context
+hash, template, provider, sha256) is upserted into seams.lock (S05); the lock
+is read before anything is written, so a malformed one raises LockError and
+writes nothing. Nothing else is written outside the handlers directory.
 """
 
 from __future__ import annotations
@@ -53,6 +56,7 @@ from seams import SEAM, ModelGraph, ResolutionError
 from seams_gen.acceptance import extract_acceptance, render_acceptance
 from seams_gen.stubs import DEFAULT_HANDLERS, StubModule, extract_stubs, render_module
 
+from .lockfile import Draft, lock_path, read_lock, render_lock, with_draft
 from .project import Project, ProjectError, resolve_model
 
 TEMPLATE_NAME = "draft"
@@ -245,6 +249,7 @@ def propose(
         raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
     prompt = build_prompt(project, model, task)
     target = _handlers_target(project, model, prompt)
+    lock = read_lock(project)
     if target.exists() and not force:
         raise ProjectError(f"{prompt.handler_path}: already exists; pass --force to replace it")
     cached = project.root / CACHE_DIR / f"{cache_key(prompt.context_hash, prompt.template, provider)}.py"
@@ -257,9 +262,14 @@ def propose(
         cached.write_text(response, encoding="utf-8")
     draft = extract_draft(response)
     passed, failures, output = _run_acceptance(project, prompt, draft)
+    digest = hashlib.sha256(draft.encode("utf-8")).hexdigest()
     if passed:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(draft, encoding="utf-8")
+        record = Draft(prompt.task, prompt.handler_path, prompt.context_hash, prompt.template, provider, digest)
+        text = render_lock(with_draft(project, resolve_model(project, model), lock, record))
+        with open(lock_path(project), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
     return Proposal(
         task=prompt.task,
         context_hash=prompt.context_hash,
@@ -269,6 +279,6 @@ def propose(
         passed=passed,
         failures=failures,
         written=prompt.handler_path if passed else None,
-        sha256="sha256:" + hashlib.sha256(draft.encode("utf-8")).hexdigest(),
+        sha256="sha256:" + digest,
         output=output,
     )

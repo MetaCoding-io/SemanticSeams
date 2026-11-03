@@ -43,12 +43,13 @@ malformed seams.lock raise ProjectError.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 import pyshacl
 import rdflib
 import seams
 from rdflib.plugins.sparql import prepareQuery
+from rdflib.query import ResultRow
 
 import seams_gen
 
@@ -90,7 +91,8 @@ def model_graph(model: Path) -> rdflib.Graph:
 
 
 def check_shapes(graph: rdflib.Graph) -> list[Finding]:
-    _conforms, results, _text = pyshacl.validate(graph, shacl_graph=str(SHAPES_FILE), inference="none")
+    _conforms, report, _text = pyshacl.validate(graph, shacl_graph=str(SHAPES_FILE), inference="none")
+    results = cast(rdflib.Graph, report)
     findings = []
     for result in results.subjects(rdflib.RDF.type, SH.ValidationResult):
         parts = (results.value(result, key) for key in (SH.focusNode, SH.resultPath, SH.resultMessage))
@@ -117,7 +119,7 @@ def check_gates(project: Project, graph: rdflib.Graph) -> list[Finding]:
     for gate, query in queries:
         name = relative(project, gate)
         for row in graph.query(query):
-            values = " ".join(str(v) if v is not None else "-" for v in row)
+            values = " ".join(str(v) if v is not None else "-" for v in cast(ResultRow, row))
             findings.append(Finding("gate", f"{name} {values}"))
     return findings
 

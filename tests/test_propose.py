@@ -3,12 +3,15 @@ copy of the expense tutorial's chapter 9 without its handlers/notify.py. No netw
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shlex
 import shutil
 import sys
 from pathlib import Path
 
 import pytest
+from seams_cli import LockError, read_lock
 from seams_cli.__main__ import main
 from seams_cli.project import ProjectError, load_project
 from seams_cli.propose import CACHE_DIR, extract_draft, propose
@@ -134,3 +137,54 @@ def test_unknown_task_exits_2(app, capsys):
 )
 def test_extract_draft_strips_one_fence(response, draft):
     assert extract_draft(response) == draft
+
+
+def _drafts(app: Path) -> list[dict]:
+    return json.loads((app / "seams.lock").read_text(encoding="utf-8")).get("drafts", [])
+
+
+def test_an_accepted_draft_is_recorded_in_the_lock(app):
+    (app / "seams.lock").unlink(missing_ok=True)
+    result = propose(load_project(app), None, TASK, _provider("good_provider.py"))
+    written = (app / "handlers" / "notify.py").read_bytes()
+    assert _drafts(app) == [
+        {
+            "context_hash": result.context_hash,
+            "path": "handlers/notify.py",
+            "provider": _provider("good_provider.py"),
+            "sha256": hashlib.sha256(written).hexdigest(),
+            "task": result.task,
+            "template": "draft-v1",
+        }
+    ]
+    assert read_lock(load_project(app)).drafts[0].sha256 == result.sha256.removeprefix("sha256:")
+
+
+def test_a_rejected_draft_leaves_the_lock_unchanged(app):
+    lock = app / "seams.lock"
+    before = lock.read_bytes() if lock.exists() else None
+    assert not propose(load_project(app), None, TASK, _provider("bad_provider.py")).passed
+    assert (lock.read_bytes() if lock.exists() else None) == before
+
+
+def test_a_second_acceptance_replaces_the_record(app):
+    propose(load_project(app), None, TASK, _provider("good_provider.py"))
+    once = (app / "seams.lock").read_bytes()
+    propose(load_project(app), None, TASK, _provider("good_provider.py"), force=True)
+    assert (app / "seams.lock").read_bytes() == once
+    assert len(_drafts(app)) == 1
+
+
+def test_generate_keeps_the_draft_record(app, capsys):
+    propose(load_project(app), None, TASK, _provider("good_provider.py"))
+    drafts = _drafts(app)
+    assert main(["generate", "--project", str(app)]) == 0, capsys.readouterr()
+    assert _drafts(app) == drafts
+
+
+def test_a_malformed_lock_writes_nothing(app):
+    (app / "seams.lock").write_text("{not json", encoding="utf-8")
+    with pytest.raises(LockError, match="invalid JSON"):
+        propose(load_project(app), None, TASK, _provider("good_provider.py"))
+    assert not (app / "handlers" / "notify.py").exists()
+    assert not (app / CACHE_DIR).exists()

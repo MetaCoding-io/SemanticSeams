@@ -30,6 +30,12 @@ result and GeneratorError it collected instead of raising. A lock with faults
 is flagged; without faults the key is absent, so the bytes are those of a
 strict run.
 
+``seams propose`` (M022/S05) adds a top-level ``drafts`` list, sorted by task,
+of ``{"context_hash", "path", "provider", "sha256", "task", "template"}``
+objects: one per accepted LLM draft of a handlers module (ADR-0020), upserted
+by task. ``seams generate`` carries the old lock's drafts forward unchanged.
+Without drafts the key is absent, so a lock without drafts keeps its bytes.
+
 Paths are posix and relative to the project root; a target outside it (the
 chat app's ``../..``) gives paths starting with ``../``. ``audit`` compares a
 lock, the files on disk and the files produced now; ``seams generate`` uses it
@@ -43,9 +49,9 @@ import json
 import os
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from seams import model_hash as hash_model
 
@@ -81,6 +87,19 @@ class Fault(NamedTuple):
     message: str
 
 
+class Draft(NamedTuple):
+    """An accepted ``seams propose`` draft: the task IRI, the handlers module
+    (relative to the project root), the task's context hash, the prompt
+    template, the provider command and the hex sha256 of the draft written."""
+
+    task: str
+    path: str
+    context_hash: str
+    template: str
+    provider: str
+    sha256: str
+
+
 @dataclass(frozen=True)
 class LockedOutput:
     path: str
@@ -97,6 +116,7 @@ class Lock:
     model_hash: str
     outputs: tuple[LockedOutput, ...]
     faults: tuple[Fault, ...] = ()
+    drafts: tuple[Draft, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -135,15 +155,19 @@ def locate(project: Project, rel: str) -> Path:
     return Path(os.path.normpath(project.root / rel))
 
 
-def _require(path: Path, value: object, key: str, kind: type) -> object:
+def _require[T](path: Path, value: object, key: str, kind: type[T]) -> T:
     if not isinstance(value, kind):
         raise LockError(f"{path}: `{key}` must be a {kind.__name__}, got {type(value).__name__}")
     return value
 
 
-def _output(path: Path, index: int, entry: object) -> LockedOutput:
+def _mapping(path: Path, value: object, key: str) -> dict[str, Any]:
+    return _require(path, value, key, dict)
+
+
+def _output(path: Path, index: int, item: object) -> LockedOutput:
     key = f"outputs[{index}]"
-    _require(path, entry, key, dict)
+    entry = _mapping(path, item, key)
     fields = {
         name: _require(path, entry.get(name), f"{key}.{name}", str)
         for name in ("path", "generator", "generator_version", "model_hash", "sha256")
@@ -156,10 +180,19 @@ def _output(path: Path, index: int, entry: object) -> LockedOutput:
     return LockedOutput(sources=tuple(sources), **fields)
 
 
-def _fault(path: Path, index: int, entry: object) -> Fault:
+def _fault(path: Path, index: int, item: object) -> Fault:
     key = f"faults[{index}]"
-    _require(path, entry, key, dict)
+    entry = _mapping(path, item, key)
     return Fault(**{name: _require(path, entry.get(name), f"{key}.{name}", str) for name in Fault._fields})
+
+
+def _draft(path: Path, index: int, item: object) -> Draft:
+    key = f"drafts[{index}]"
+    entry = _mapping(path, item, key)
+    draft = Draft(**{name: _require(path, entry.get(name), f"{key}.{name}", str) for name in Draft._fields})
+    if not _SHA256.fullmatch(draft.sha256):
+        raise LockError(f"{path}: `{key}.sha256` must be 64 lowercase hex digits")
+    return draft
 
 
 def read_lock(project: Project) -> Lock | None:
@@ -179,7 +212,23 @@ def read_lock(project: Project) -> Lock | None:
     entries = _require(path, data.get("outputs"), "outputs", list)
     outputs = tuple(_output(path, i, entry) for i, entry in enumerate(entries))
     faults = _require(path, data.get("faults", []), "faults", list)
-    return Lock(model, model_hash, outputs, tuple(_fault(path, i, entry) for i, entry in enumerate(faults)))
+    drafts = _require(path, data.get("drafts", []), "drafts", list)
+    return Lock(
+        model,
+        model_hash,
+        outputs,
+        tuple(_fault(path, i, entry) for i, entry in enumerate(faults)),
+        tuple(sorted(_draft(path, i, entry) for i, entry in enumerate(drafts))),
+    )
+
+
+def with_draft(project: Project, model: Path, lock: Lock | None, draft: Draft) -> Lock:
+    """``lock`` with ``draft`` replacing any record of the same task; without a
+    lock, a lock of no outputs for ``model``."""
+    if lock is None:
+        lock = build_lock(project, model, {})
+    kept = [d for d in lock.drafts if d.task != draft.task]
+    return replace(lock, drafts=tuple(sorted((*kept, draft))))
 
 
 def build_lock(project: Project, model: Path, outputs: Mapping[Path, Output], faults: Iterable[Fault] = ()) -> Lock:
@@ -220,6 +269,8 @@ def render_lock(lock: Lock) -> str:
     }
     if lock.faults:
         data["faults"] = [f._asdict() for f in sorted(lock.faults)]
+    if lock.drafts:
+        data["drafts"] = [d._asdict() for d in sorted(lock.drafts)]
     return json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
@@ -245,6 +296,7 @@ def audit(project: Project, lock: Lock | None, files: Mapping[Path, str]) -> Aud
 __all__ = [
     "LOCK_FILE",
     "Audit",
+    "Draft",
     "Fault",
     "Lock",
     "LockError",
@@ -254,4 +306,5 @@ __all__ = [
     "build_lock",
     "read_lock",
     "render_lock",
+    "with_draft",
 ]

@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import cast
 
 from rdflib import Graph
 
@@ -142,7 +143,7 @@ def shape_results(model: Path, shapes: Graph) -> Graph:
     from .check import model_graph
 
     _conforms, results, _text = pyshacl.validate(model_graph(model), shacl_graph=shapes, inference="none")
-    return results
+    return cast(Graph, results)
 
 
 def write_outputs(files: dict[Path, Output]) -> None:
@@ -158,8 +159,10 @@ def _write(path: Path, text: str) -> None:
 
 def next_lock(project: Project, model: Path, generated: Generated, old: Lock | None, report: Audit) -> Lock:
     """The lock ``apply`` writes: the generated outputs and faults, plus the old
-    entry of every orphan whose generator faulted this run."""
+    entry of every orphan whose generator faulted this run and the old drafts."""
     lock = build_lock(project, model, generated.files, generated.faults)
+    if old is not None and old.drafts:
+        lock = replace(lock, drafts=old.drafts)
     faulted = {fault.generator for fault in generated.faults}
     entries = {entry.path: entry for entry in old.outputs} if old else {}
     carried = [entries[rel] for rel in report.orphans if entries[rel].generator in faulted]

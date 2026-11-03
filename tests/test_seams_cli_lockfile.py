@@ -6,6 +6,7 @@ its outputs and lockfile, so the committed files are never touched.
 
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -275,3 +276,52 @@ def test_each_output_records_its_own_generator_version(app, capsys, generator_di
     entry = next(o for o in _lock(app)["outputs"] if o["generator"] == "example-gen")
     assert entry["sources"] == ["https://example.org/expenses/expense_api"]
     assert entry["sha256"] == _sha(app / "generated/example/example.txt")
+
+
+DRAFT = {
+    "context_hash": "sha256:" + "a" * 64,
+    "path": "handlers/notify.py",
+    "provider": "fake-llm",
+    "sha256": "b" * 64,
+    "task": "https://example.org/t#b",
+    "template": "draft-v1",
+}
+
+
+def test_a_lock_without_drafts_has_no_drafts_key(app, capsys):
+    _generate(app, capsys)
+    assert "drafts" not in _lock(app)
+    assert read_lock(load_project(app)).drafts == ()
+
+
+def test_drafts_round_trip_byte_for_byte_sorted_by_task(app, capsys):
+    from seams_cli.lockfile import render_lock
+
+    _generate(app, capsys)
+    other = {**DRAFT, "task": "https://example.org/t#a", "path": "handlers/a.py"}
+    text = json.dumps({**_lock(app), "drafts": [DRAFT, other]}, indent=2, sort_keys=True) + "\n"
+    (app / "seams.lock").write_text(text, encoding="utf-8")
+    lock = read_lock(load_project(app))
+    assert [d.task for d in lock.drafts] == ["https://example.org/t#a", "https://example.org/t#b"]
+    expected = json.dumps({**_lock(app), "drafts": [other, DRAFT]}, indent=2, sort_keys=True) + "\n"
+    assert render_lock(lock) == expected
+    _generate(app, capsys)
+    assert (app / "seams.lock").read_text(encoding="utf-8") == expected
+
+
+@pytest.mark.parametrize(
+    ("drafts", "key"),
+    [
+        ({}, "`drafts`"),
+        ([1], "`drafts[0]`"),
+        ([{**DRAFT, "task": None}], "`drafts[0].task`"),
+        ([{**DRAFT, "provider": 3}], "`drafts[0].provider`"),
+        ([{**DRAFT, "sha256": "xyz"}], "`drafts[0].sha256`"),
+    ],
+    ids=["list", "entry", "task", "provider", "sha256"],
+)
+def test_a_malformed_draft_names_the_key(app, capsys, drafts, key):
+    _generate(app, capsys)
+    (app / "seams.lock").write_text(json.dumps({**_lock(app), "drafts": drafts}), encoding="utf-8")
+    with pytest.raises(LockError, match=re.escape(key)):
+        read_lock(load_project(app))

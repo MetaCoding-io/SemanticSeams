@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|status|sequence|secrets [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+"""Command line: ``seams generate|check|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
@@ -99,6 +99,15 @@ development, else the first environment: keys sorted, plain values with their
 model literal, secrets blank under a ``# secret: <kind> <source>`` comment. An
 unknown environment or a model fault (ResolutionError) exits 2.
 
+``seams context TASK [--json]`` (M022/S01, backlog C3) prints the context
+manifest of a service task (a BPMN id, CURIE or IRI): ``task <iri>``, one
+``<kind> <ref> <hash>`` line per model fact or native file fragment its code
+depends on, sorted by (kind, ref), then ``context <hash>``. ``--json`` prints
+the same with sorted keys. Refs are IRIs or model-relative ``path#id``. An
+unknown task, one that is not a service task, or a missing hop prints
+``seams context: <message>`` to stderr and exits 1; a model that cannot be
+loaded exits 2. It writes nothing.
+
 ``seams new-generator NAME --reference FILE [--out DIR]`` (M018/S04, backlog
 K5) writes a generator package for the reference output FILE into DIR
 (default ``./seams-<NAME>``): pyproject.toml with its ``seams.generators``
@@ -122,6 +131,9 @@ import seams
 from seams_gen import GeneratorError
 
 from .check import ADVISORY_KINDS, FILE_KINDS, run_check
+from .context import render as render_context
+from .context import run_context
+from .context import to_json as context_json
 from .coverage import coverage_report, summary
 from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
@@ -231,6 +243,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     coverage.add_argument("--json", action="store_true", help="print the three lists and their counts as JSON")
     coverage.set_defaults(run=_coverage)
+    context = sub.add_parser(
+        "context",
+        help="list the model facts and file fragments a service task's code depends on, each hashed",
+        description="Print the context manifest of a service task: per-item hashes and a context hash.",
+    )
+    context.add_argument("task", help="the service task: a BPMN id (send_now), CURIE or full IRI")
+    _project_arguments(context)
+    context.add_argument("--json", action="store_true", help="print the manifest as JSON")
+    context.set_defaults(run=_context)
     new = sub.add_parser(
         "new-generator",
         help="scaffold a generator package, with a passing golden test, from a reference output file",
@@ -390,6 +411,20 @@ def _coverage(args: argparse.Namespace) -> int:
     if gaps:
         print(f"seams coverage: {summary(gaps)}", file=sys.stderr)
         return 1
+    return 0
+
+
+def _context(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    try:
+        manifest = run_context(project, args.model, args.task)
+    except seams.ResolutionError as err:
+        print(f"seams context: {err}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    if args.json:
+        print(json.dumps(context_json(manifest), indent=2, sort_keys=True))
+    else:
+        sys.stdout.write(render_context(manifest))
     return 0
 
 

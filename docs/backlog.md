@@ -189,6 +189,15 @@ export the model in its textual notation, and borrow the terms it has that the g
 | V4 | **Snapshot vocabulary for the as-observed graph**: individual, snapshot and timeslice terms (SysML v2's) for trace rows and monitoring facts, so the as-executed and as-deployed graphs share one shape with the model | M | U4, ADR-0001 | a small vocabulary for the as-deployed graph | proposed |
 | V5 | **Model API shaped like the Systems Modeling API**: projects, commits and branches over the write path, elements addressed per commit, the query catalog as resources read with HTTP QUERY | L | ADR-0017, O4; ADR first | none | proposed |
 
+*Added 2026-11-03 from the [domain vocabulary as spec note](research/2026-11-03-domain-vocabulary-as-spec.md):
+the glossary a coding agent is given is a projection of the model, never its source, and
+hand-written specs are checked against the model's terms.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| C6 | **Glossary generator**: the domain vocabulary as one markdown file for coding agents, from the ontology and shapes: per class and property its label, definition, gist anchor, the shapes that target it, its lifecycle and the processes, operations and screens that touch it, each with its IRI; traced and listed in `seams.toml`. Sits beside C3 in M022 | S | O1, O2, ADR-0016, ADR-0019 | none | proposed |
+| R4 | **Spec-term check**: terms in hand-written markdown in the model directory (`CLAUDE.md`, specs, READMEs) that match no label or local name in the model, and model classes and shapes no document mentions, reported by `seams check` alongside R1's checks | S | R1 | none | proposed |
+
 ## Generator kit and domain IDE
 
 *Added 2026-10-30 from the [generator kit and domain IDE note](research/2026-10-30-domain-ide-and-generator-kit.md),

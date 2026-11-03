@@ -48,6 +48,7 @@ out = "generated/templates"
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. Use the local names of the model's `arch:Environment`s (`development`, `production`), so `seams status --env development` and the generated `compose.development.yaml` name the same environment. |
+| `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose) sends its prompt to; `--provider` overrides it. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
@@ -1040,6 +1041,52 @@ binding value, and the same model gives the same bytes.
 | 2 | The project file is missing or malformed, no model was given, or the model cannot be loaded. |
 
 Errors print to stderr as `seams context: <message>`.
+
+## seams propose
+
+```sh
+seams propose send_now --project examples/expenses/chapter-09 --provider "my-llm --model some-model"
+seams propose send_now --project examples/expenses/chapter-09 --force
+```
+
+It asks an LLM for the body of one service task's handler and keeps the draft
+only if the task's acceptance tests pass (backlog C4,
+[ADR-0020](/adr/0020-llm-drafts)). The provider is a command: `[propose]
+provider` in `seams.toml`, or `--provider`, split like a shell line but run
+without a shell. The prompt goes to its stdin; the draft is read from its
+stdout, with one fenced code block stripped. The prompt is built from the
+task's [context manifest](#seams-context), its stub and its acceptance tests
+with the versioned template `draft-v1`; model text is quoted as data and
+bindings are named, never valued.
+
+```toml
+[propose]
+provider = "my-llm --model some-model"
+```
+
+A successful response is cached in `.seams/drafts/` (gitignored), keyed by the
+context hash, the template and the provider, so the same context runs again
+without calling the provider. The draft is tested in a scratch copy of the
+project; only on pass is it written to the handlers module, never outside the
+handlers package, and an existing module only with `--force`. `seams propose`
+is never run in CI.
+
+### Output
+
+`task <iri>`, `context <hash>`, `template <name>`, `provider <command>`,
+`cache hit` or `cache miss`, `draft sha256:<hex>`; then `tests passed` and
+`wrote <handlers module>`, or one `failed <test>` line per failing test with the
+pytest output on stderr.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The tests passed and the handlers module was written. |
+| 1 | The tests failed (nothing written), or the provider failed: non-zero exit, no output or a timeout. |
+| 2 | No provider, an unknown task or one with no handler, an existing module without `--force`, or a project error. |
+
+Errors print to stderr as `seams propose: <message>`.
 
 ## seams new-generator
 

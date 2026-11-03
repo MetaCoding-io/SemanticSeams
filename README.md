@@ -129,6 +129,8 @@ runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off 
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).
 `seams context TASK` prints the model facts and BPMN and DMN fragments a service task's
 code depends on, each hashed, with a context hash over them (`--json` for the manifest).
+`seams propose TASK` sends a draft prompt for that task to an LLM command and writes the
+handler only when its acceptance tests pass.
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 

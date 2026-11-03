@@ -610,6 +610,22 @@ you own, not the stub. A failing test names the model fact it checks, for exampl
 shape the result breaks. Like the other generated files, `test_notify.py` is regenerated
 on every `seams generate` and must not be edited.
 
+### Draft it with an LLM (optional)
+
+You can ask an LLM for the body instead of writing it. `seams propose` builds a prompt
+from the task's context, the stub and these tests, sends it to a command you name, and
+keeps the draft only if the tests pass:
+
+```sh
+seams propose send_now --project examples/expenses/chapter-09 --provider "my-llm" --force
+```
+
+The provider is any command that reads the prompt on stdin and prints the draft;
+the model's labels reach it only as quoted data, and binding values never. A draft
+that fails a test is not written, and each failing test is named. One that passes is
+written to `handlers/notify.py` and is yours from then on, like code you typed, so
+read it before you commit it. See the [CLI reference](../../reference/seams-cli.md#seams-propose).
+
 ## Checkpoint
 
 Your files should now match

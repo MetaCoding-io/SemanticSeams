@@ -32,6 +32,14 @@ the tests a C4 draft must pass. Expenses chapter 9 runs them against the hand-wr
 [notify handler](../tutorials/expenses/09-hand-written-code.md#acceptance-tests-for-your-handler).
 The text below is unchanged.*
 
+*Revision, 2026-11-03: C4 is built (M022/S04, [ADR-0020](../adr/0020-llm-drafts.md)).
+The providers open question is settled by D059: any provider, as a command named in
+`seams.toml` or `--provider` (prompt on stdin, draft on stdout), not pinned; the
+response is cached by sha256 of the context hash, the prompt template's name and
+version and the provider, so a re-run of the same context is free and repeatable.
+`seams propose` writes the draft to the handlers package only when the C2 tests pass in
+a scratch copy. The text below is unchanged.*
+
 ## The question
 
 Template generators can write compose files, FastAPI route modules and htmx pages,

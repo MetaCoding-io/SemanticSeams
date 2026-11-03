@@ -37,6 +37,8 @@ out = "generated/templates"
   rows.
 - `coverage` (array of strings, optional): `["paths"]` makes `seams check`
   report each BPMN path no scenario runs as a `coverage` finding (D054).
+- `propose` (table, optional): `provider`, the command `seams propose` sends
+  its prompt to (D059); `--provider` overrides it.
 - `environments` (table of tables, optional): environment names, the local
   names of the model's `arch:Environment`s (the compose generator writes
   `compose.<name>.yaml` for each, ADR-0015). An environment may carry an `endpoints` inline table, container local name to
@@ -305,6 +307,25 @@ never read. It exits 0 on success, 1 when the task is unknown, is not a
 `proc:ServiceTask` or a fact it needs is missing (`seams context: <message>` on
 stderr), and 2 on a project error or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-context).
+
+## seams propose
+
+```sh
+seams propose send_now --project examples/expenses/chapter-09 --provider "my-llm"
+```
+
+It drafts the handler body of one service task with an LLM (backlog C4,
+`propose.py`, D059, [ADR-0020](../../docs/adr/0020-llm-drafts.md)).
+`build_prompt` fills the versioned template `prompts/draft-v1.txt` from the
+context manifest, the stub and the acceptance tests, with model text in DATA
+fences and bindings named only. The provider is the command in `[propose]
+provider` or `--provider` (shlex-split, no shell, prompt on stdin, draft on
+stdout). Successful responses are cached in `.seams/drafts/` keyed by
+sha256(context hash, template, provider). The draft is tested with the
+module's acceptance tests in a scratch copy and written to the handlers module
+only on pass (an existing one only with `--force`). Exit 0 on accept, 1 on
+failed tests or a failed provider, 2 on a project error. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-propose).
 
 ## seams new-generator
 

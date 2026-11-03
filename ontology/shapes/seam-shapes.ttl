@@ -40,7 +40,8 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
                [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
                [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] ,
-               [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] .
+               [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] ,
+               [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ] .
 
 #################################################################
 # Navigation backbone
@@ -525,6 +526,80 @@ seamsh:PythonHandlerShape a sh:NodeShape ;
     sh:property [ sh:path comm:handler ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
         sh:pattern "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$" ;
         sh:message "A comm:PythonHandler has exactly one comm:handler, a dotted path of Python identifiers inside the handlers package." ] .
+
+# The handler stub generator (seams_gen.stubs) writes a TypedDict per shape that
+# a comm:PythonHandler operation accepts or returns: the class is named after the
+# shape's local name, its keys after the sh:path local names, typed from
+# sh:datatype. A module is the comm:handler path without its last segment.
+seamsh:HandlerShapeShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:acceptsShape , seam:returnsShape ;
+    sh:sparql [
+        # The datatypes of seams_gen.stubs.PYTHON_TYPES; keep the two in step.
+        sh:message "A field of a shape a comm:PythonHandler operation accepts or returns has an sh:datatype the handler stub generator maps to a Python type: xsd:string, xsd:integer, xsd:decimal, xsd:double, xsd:boolean, xsd:date or xsd:dateTime." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler .
+                $this sh:property/sh:datatype ?value .
+                FILTER(?value NOT IN (xsd:string, xsd:integer, xsd:decimal, xsd:double,
+                                      xsd:boolean, xsd:date, xsd:dateTime))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A shape a comm:PythonHandler operation accepts or returns has a local name, and sh:path local names, that are Python identifiers and not keywords: the handler stub's TypedDict and its keys." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler .
+                { BIND($this AS ?named) } UNION { $this sh:property/sh:path ?named }
+                BIND(REPLACE(STR(?named), "^.*[#/]", "") AS ?value)
+                FILTER(!REGEX(?value, "^[A-Za-z_][A-Za-z0-9_]*$")
+                       || ?value IN ("False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The sh:path local names of a shape a comm:PythonHandler operation accepts or returns are distinct: each is a key of the handler stub's TypedDict." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler .
+                $this sh:property ?a , ?b .
+                ?a sh:path ?pa . ?b sh:path ?pb .
+                FILTER(?a != ?b)
+                BIND(REPLACE(STR(?pa), "^.*[#/]", "") AS ?value)
+                FILTER(?value = REPLACE(STR(?pb), "^.*[#/]", ""))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "Two shapes the comm:PythonHandler operations of one handler module accept or return have different local names: each is a TypedDict of the module." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler ; comm:handler ?handler .
+                ?other_op seam:acceptsShape|seam:returnsShape ?value ; seam:implementedBy ?other_impl .
+                ?other_impl a comm:PythonHandler ; comm:handler ?other_handler .
+                FILTER(?value != $this)
+                FILTER(REPLACE(STR(?handler), "[.]?[^.]*$", "") = REPLACE(STR(?other_handler), "[.]?[^.]*$", ""))
+                FILTER(REPLACE(STR($this), "^.*[#/]", "") = REPLACE(STR(?value), "^.*[#/]", ""))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A shape a comm:PythonHandler operation accepts or returns has a local name that is not a function of the same handler module (the last segment of a comm:handler there): the stub module would bind the name twice." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler ; comm:handler ?handler .
+                ?other_op seam:implementedBy ?other_impl .
+                ?other_impl a comm:PythonHandler ; comm:handler ?value .
+                FILTER(REPLACE(STR(?handler), "[.]?[^.]*$", "") = REPLACE(STR(?value), "[.]?[^.]*$", ""))
+                FILTER(REPLACE(STR($this), "^.*[#/]", "") = REPLACE(STR(?value), "^.*[.]", ""))
+            }""" ;
+    ] .
 
 # Separate shape so a model with no implementations at all is still checked: the
 # operation is the target, and the query finds a remote invocation with none.

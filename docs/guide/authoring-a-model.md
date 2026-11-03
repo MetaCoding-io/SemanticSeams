@@ -632,6 +632,43 @@ seams plan main:expenses.trig expenses.trig --output CHANGES.md
 
 It exits like `seams diff`. See the [seams CLI reference](/reference/seams-cli#seams-plan).
 
+## What a task depends on: seams context
+
+Before you write or review the code behind a service task, list the model facts that
+code depends on. For Send Now in expenses chapter 9:
+
+```sh
+seams context send_now --project examples/expenses/chapter-09
+```
+
+```
+task https://example.org/expenses/payout_bpmn#send_now
+bpmn payout.bpmn#flow_now sha256:58e4ac37…
+bpmn payout.bpmn#method_gateway sha256:b69e98b9…
+bpmn payout.bpmn#send_now sha256:f734f7d6…
+container https://example.org/expenses/expense_api sha256:254b0a1d…
+decision https://example.org/expenses/payout_method sha256:3cf9c21d…
+dmn payout.dmn#payout_method sha256:82801fbd…
+process https://example.org/expenses/payout_process sha256:2fe4d2bc…
+shape https://example.org/expenses/PaymentShape sha256:a10f90b3…
+state https://example.org/expenses/s_scheduled sha256:f13d65dd…
+state https://example.org/expenses/s_sent sha256:fa182a32…
+task https://example.org/expenses/payout_bpmn#send_now sha256:309cbe92…
+transition https://example.org/expenses/t_send sha256:2ba638b6…
+context sha256:39ee1a2f…
+```
+
+(Hashes are shortened here; the command prints them in full.) Each line is one fact the
+task uses: the task itself, the shape it writes, the transition it fires with its from
+and to states, its process and correlation key, the payout decision whose output the
+incoming gateway condition reads, the container that runs it, narrowed to its
+technology and binding names, and the BPMN and DMN fragments. Binding values are never
+read. Every item is hashed canonically, so saving the same model again changes nothing,
+while changing a fact, say a `sh:datatype` on `PaymentShape`, changes that item's hash
+and the context hash. Keep the output beside a hand-written implementation and compare
+it after a model change to see which facts moved. `--json` prints the same as JSON. See
+the [seams CLI reference](/reference/seams-cli#seams-context).
+
 ## View it
 
 The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your

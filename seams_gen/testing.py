@@ -38,6 +38,7 @@ _MARKER_WITH_SPACE = re.compile(r"\s*" + MARKER.pattern)
 # so `:chat_bpmn#frag` inside a comment does not count as an opener.
 _HASH_OPENER = re.compile(r"(?:^|(?<=\s))#")
 PLACEHOLDER_HASH = "sha256:<model-hash>"
+PLACEHOLDER_CONTEXT_HASH = "sha256:<context-hash>"
 
 _SYNTAX = {".html": ("{#", "#}"), ".py": ("#", ""), ".yaml": ("#", ""), ".yml": ("#", "")}
 
@@ -79,17 +80,23 @@ def strip_markers(text: str, suffix: str) -> str:
     return "\n".join(_strip_line(line, opener, closer) for line in lines)
 
 
-def golden_target(path, model_hash: str) -> str:
+def golden_target(path, model_hash: str, context_hash: str | None = None) -> str:
     """The exact text a generator must emit for the golden at ``path``.
 
     Markers are stripped and every ``sha256:<model-hash>`` placeholder becomes
-    ``model_hash`` (``sha256:<hex>``, as returned by seams.model_hash).
+    ``model_hash`` (``sha256:<hex>``, as returned by seams.model_hash). When
+    ``context_hash`` is given (a ``seams.context_for`` manifest's
+    ``context_hash``), every ``sha256:<context-hash>`` placeholder becomes it.
     """
     path = Path(path)
     if not model_hash.startswith("sha256:"):
         model_hash = "sha256:" + model_hash
-    text = strip_markers(path.read_text(encoding="utf-8"), path.suffix)
-    return text.replace(PLACEHOLDER_HASH, model_hash)
+    text = strip_markers(path.read_text(encoding="utf-8"), path.suffix).replace(PLACEHOLDER_HASH, model_hash)
+    if context_hash is not None:
+        if not context_hash.startswith("sha256:"):
+            context_hash = "sha256:" + context_hash
+        text = text.replace(PLACEHOLDER_CONTEXT_HASH, context_hash)
+    return text
 
 
 def _first_difference(a: list[str], b: list[str]) -> int:
@@ -323,6 +330,7 @@ def assert_shapes_catch(
 
 __all__ = [
     "MARKER",
+    "PLACEHOLDER_CONTEXT_HASH",
     "PLACEHOLDER_HASH",
     "SHAPES_FILE",
     "assert_deterministic",

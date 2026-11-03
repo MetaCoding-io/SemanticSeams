@@ -71,6 +71,11 @@
     .writeback-result p { margin: 4px 0; }
     .writeback-effects { margin: 0; padding-left: 18px; }
     .writeback-refusal { color: var(--warn); }
+    .structural form { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+    .structural textarea { width: 100%; font: 12.5px/1.5 var(--font-code); padding: 4px 6px; white-space: pre; }
+    .structural form button { align-self: flex-start; }
+    .structural-quads { margin: 0; padding-left: 18px; font: 12px var(--font-code); }
+    .structural-quads .muted { font-family: system-ui, sans-serif; }
     @media (max-width: 960px) { .panes { grid-template-columns: 1fr; } .scroll { height: min(46vh, 420px); } }
   </style>
 </head>
@@ -130,10 +135,14 @@
           {%- endfor %}
         </div>
       </div>
-      {% if edit_enabled() and gv.line %}
+      {% if edit_enabled() %}
       {# Write-back (backlog T4): edit the selected line; the preview drafts the
-         one-triple patch or names why not. Clicking another line selects it. #}
+         one-triple patch or names why not. Clicking another line selects it.
+         Structural edit (backlog T5): edit the whole output to add or remove one
+         form input; the preview drafts the model patch or names why not. Both
+         previews swap into #writeback-result. #}
       <div class="writeback" id="writeback">
+        {% if gv.line %}
         <form id="writeback-form" hx-post="/generation/writeback/preview" hx-target="#writeback-result" hx-swap="outerHTML">
           <input type="hidden" name="iri" value="{{ gv.iri }}">
           <input type="hidden" name="output" value="{{ gv.output.path }}">
@@ -142,6 +151,20 @@
           <input type="text" id="writeback-text" name="text" value="{{ gv.lines[gv.line - 1].text }}" spellcheck="false">
           <button type="submit">Preview write-back</button>
         </form>
+        {% endif %}
+        {% if gv.output.text is not none %}
+        <details class="structural" id="structural">
+          <summary>Edit output</summary>
+          <form id="structural-form" hx-post="/generation/structural/preview" hx-target="#writeback-result" hx-swap="outerHTML">
+            <input type="hidden" name="iri" value="{{ gv.iri }}">
+            <input type="hidden" name="output" value="{{ gv.output.path }}">
+            <label for="structural-text">Add or remove one form input in <code>{{ gv.output.path }}</code></label>
+            <textarea id="structural-text" name="text" rows="18" spellcheck="false">
+{{ gv.output.text }}</textarea>
+            <button type="submit">Preview structural edit</button>
+          </form>
+        </details>
+        {% endif %}
         <div class="writeback-result" id="writeback-result"></div>
       </div>
       {% endif %}

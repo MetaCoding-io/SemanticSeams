@@ -115,6 +115,25 @@ def test_each_image_syncs_only_its_own_member(path, package):
     assert "--all-packages" not in text
 
 
+def _workspace_members() -> list[str]:
+    import tomllib
+
+    root = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return root["tool"]["uv"]["workspace"]["members"]
+
+
+@pytest.mark.parametrize("path", DOCKERFILES, ids=lambda p: p.name)
+def test_every_workspace_member_pyproject_is_copied_before_the_lock_check(path):
+    # `uv sync --locked` resolves the whole workspace, so a member whose pyproject.toml
+    # the image lacks fails the build with "references a workspace ... but is not a
+    # workspace member" (backlog A12). Both Dockerfiles list the members by hand.
+    lines = path.read_text(encoding="utf-8").splitlines()
+    sync = next(i for i, line in enumerate(lines) if line.startswith("RUN uv sync --locked"))
+    copied = {part for line in lines[:sync] if line.startswith("COPY ") for part in line.split()[1:-1]}
+    missing = [m for m in _workspace_members() if f"{m}/pyproject.toml" not in copied]
+    assert missing == [], f"{path.name} copies no pyproject.toml for workspace members {missing}"
+
+
 def test_dockerignore_keeps_the_local_venv_out_of_the_images():
     entries = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert ".venv" in entries

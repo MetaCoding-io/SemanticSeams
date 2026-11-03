@@ -149,20 +149,58 @@ starting point:
 python -m seams_gen.stubs examples/expenses/chapter-09/expenses.trig
 ```
 
-It prints the two files it creates, `handlers/__init__.py` and `handlers/notify.py`. The
-module has the signature, a docstring naming the operation and the two shapes, and a body
-that raises:
+It prints the files it creates: `handlers/__init__.py` and `handlers/notify.py`, each with
+a `.trace.json` sidecar beside it. The module has a `TypedDict` for each shape the
+operation accepts or returns, a signature that uses them, a docstring naming the
+operation, the shapes, the service task that invokes it and the decision that routes to
+it, and a body that raises:
 
 ```python
-def notify_manager(entity: dict) -> dict:
+# Generated once by the seams handler stub generator from the expenses model.
+# Owned code from now on: edit it freely. The generator never overwrites this file (ADR-0012).
+# model-hash: sha256:a13fe61ea9f61e671cb3b5354897b972dc00f09a5840cb1da1df3546d7c9c970
+# context-hash: sha256:622fb3abfd7cab3b12cc6bc41d4a34acb84b57e64cb166e961c5511aee9327de
+
+from typing import NotRequired, TypedDict
+
+
+class ExpenseShape(TypedDict):
+    """:ExpenseShape (sh:NodeShape): one key per sh:property."""
+
+    description: str
+    amount: float
+    date: str
+    status: NotRequired[str]
+    id: NotRequired[str]
+
+
+class NotificationShape(TypedDict):
+    """:NotificationShape (sh:NodeShape): one key per sh:property."""
+
+    recipient: str
+    message: str
+
+
+def notify_manager(entity: ExpenseShape) -> NotificationShape:
     """comm:handler "notify.notify_manager" of :notify_manager_impl (comm:PythonHandler).
 
     Implements :notify_manager_op (seam:implementedBy :notify_manager_impl).
     entity: the current :ExpenseShape entity (seam:acceptsShape).
     Returns: a :NotificationShape entity (seam:returnsShape).
+    Invoked by :notify_manager (seam:invokes), a proc:ServiceTask of :approval_process.
+    Decided by :approval_routing (seam:decidedBy): a gateway before the task routes on its output.
     """
     raise NotImplementedError("notify.notify_manager: write the handler for :notify_manager_op")
 ```
+
+The class fields come from the shapes: `xsd:decimal` becomes `float`, `xsd:date` becomes
+`str`, and a property with no `sh:minCount` is `NotRequired`. The notify task fires no
+transition, so there is no `Fires` line. The `.trace.json` sidecar maps each line of the
+stub to the model IRIs behind it, for the generation view.
+
+The committed `handlers/notify.py` in the checkpoint was written by an earlier version of
+the stub generator, before stubs had classes and model context, so its signature is
+`(entity: dict) -> dict`. It is owned code, so it stays as it is.
 
 Run the command again and it writes nothing. A file in the handlers package that exists
 is never opened for writing.
@@ -209,8 +247,10 @@ absent, and from then on the file is yours. It is not one of the generators in
 files. CI's committed-outputs check covers `generated/` and the compose files only.
 `handlers/` is not excluded from ruff, so your code is linted and tested like any other.
 
-The `model-hash` line in the module header records the model the stub was written from.
-Nothing checks it, so it can go stale without harm.
+The `model-hash` line in the module header records the model the stub was written from,
+and the `context-hash` line the context of the task that invokes it (what
+[`seams context`](/guide/authoring-a-model#what-a-task-depends-on-seams-context) prints).
+Nothing checks them, so they can go stale without harm.
 
 If you rename the function in the model, the runtime refuses to load and names
 `:notify_manager_impl` and `comm:handler`. The stub generator reports the missing

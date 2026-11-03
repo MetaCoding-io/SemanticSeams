@@ -25,15 +25,16 @@ import seams
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from rdflib import RDF, RDFS, Dataset, Namespace, URIRef
+from rdflib import RDF, RDFS, BNode, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
-from rdflib.term import IdentifiedNode
+from rdflib.term import IdentifiedNode, Node
 from starlette.routing import BaseRoute
 
 import seams_edit
+from seams_edit.patch import term_text
 from seams_gen import GeneratorError
 from seams_gen.sequence import derive, render
-from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, validation, writeback
+from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, structural, validation, writeback
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.profiles import Profile, resolve_profile
@@ -1547,6 +1548,7 @@ def _writeback_context(request: Request, output: str, line: int, text: str, iri:
         "text": text,
         "iri": iri,
         "writeback": None,
+        "structural": None,
         "refusal": None,
         "applied": None,
         **extra,
@@ -1633,6 +1635,145 @@ async def writeback_apply(request: Request):
     )
     applied = {"files": shares, "undo": len(_undo_stack)}
     ctx = _writeback_context(request, output, line, text, iri, writeback=_writeback_facts(wb), applied=applied)
+    return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+
+
+# --- Structural edit proposals (backlog T5, M021/S02, ADR-0019) --------------
+#
+# The generation view's "Edit output" textarea posts the whole edited output here.
+# viewer/structural.py drafts the patch that adds or removes one form input and
+# regenerates a temporary copy with it; only an edit that regenerates to itself is
+# offered, with every other output line it changes. Apply drafts and checks again on
+# the current model before seams_edit.apply writes the patch.
+
+
+async def _structural_form(request: Request) -> tuple[str, str, str]:
+    """(output, text, iri) from the posted form; a 400 when one is missing. A browser
+    posts a textarea with CRLF line ends; the generated outputs use LF."""
+    form = parse_qs((await request.body()).decode("utf-8"), keep_blank_values=True)
+    output = (form.get("output") or [""])[0]
+    text = form.get("text")
+    if not output or text is None:
+        raise HTTPException(status_code=400, detail="the form must give output and text")
+    return output, text[0].replace("\r\n", "\n"), (form.get("iri") or [""])[0]
+
+
+def _structural_context(request: Request, output: str, text: str, iri: str, **extra) -> dict:
+    return {
+        "request": request,
+        "output": output,
+        "line": "",
+        "text": text,
+        "iri": iri,
+        "writeback": None,
+        "structural": None,
+        "refusal": None,
+        "applied": None,
+        **extra,
+    }
+
+
+def _term_facts(term: Node) -> str:
+    """A patch term as the preview shows it: a qname, a blank node or a literal."""
+    if isinstance(term, URIRef):
+        return qname(term)
+    if isinstance(term, BNode):
+        return f"_:{term}"
+    return term_text(term)
+
+
+def _structural_facts(proposal: structural.Structural) -> dict:
+    """What the preview fragment shows of a drafted structural edit, precomputed."""
+
+    def quads(sign: str, found: tuple[seams_edit.Quad, ...]) -> list[dict]:
+        return [
+            {"sign": sign, "terms": [_term_facts(t) for t in (s, p, o)], "graph": _term_facts(g)}
+            for s, p, o, g in found
+        ]
+
+    return {
+        "kind": proposal.kind,
+        "field": proposal.field,
+        "form": proposal.form,
+        "form_qname": qname(URIRef(proposal.form)),
+        "parameter": proposal.parameter,
+        "parameter_qname": qname(URIRef(proposal.parameter)),
+        "path": proposal.path,
+        "path_qname": qname(URIRef(proposal.path)),
+        "first": proposal.first,
+        "last": proposal.last,
+        "where": (
+            f"lines {proposal.first}–{proposal.last}"
+            if proposal.last >= proposal.first
+            else f"after line {proposal.last}"
+        ),
+        "quads": quads("−", proposal.patch.removes) + quads("+", proposal.patch.adds),
+        "files": list(proposal.files),
+        "effects": [vars(e) for e in proposal.effects],
+    }
+
+
+def _draft_structural(output: str, text: str) -> structural.Structural:
+    """structural.propose on the loaded model, its project and its trace index."""
+    return structural.propose(generation.get_index(MODEL_DIR), get_graph(), MODEL_DIR, MODEL_PATH, output, text)
+
+
+@edit_router.post("/generation/structural/preview")
+async def structural_preview(request: Request):
+    """Draft the structural edit of a whole edited output: the patch adding or
+    removing one form input, the regeneration check and the effects on other
+    outputs, or the refusal naming the fact. Nothing is written."""
+    output, text, iri = await _structural_form(request)
+    try:
+        proposal = _draft_structural(output, text)
+    except writeback.Refusal as err:
+        ctx = _structural_context(request, output, text, iri, refusal=_refusal_facts(err))
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    ctx = _structural_context(request, output, text, iri, structural=_structural_facts(proposal))
+    return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+
+
+@edit_router.post("/generation/structural/apply")
+async def structural_apply(request: Request):
+    """Draft and check the structural edit again on the current model, then write its
+    patch with seams_edit.apply and put it on the undo stack. A refusal writes nothing."""
+    output, text, iri = await _structural_form(request)
+    try:
+        proposal = _draft_structural(output, text)
+    except writeback.Refusal as err:
+        ctx = _structural_context(request, output, text, iri, refusal=_refusal_facts(err))
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    try:
+        record = seams_edit.apply(get_model().files, proposal.patch)
+    except seams_edit.PatchError as err:
+        logger.warning("structural edit not applied %s: %s %s: %s", output, err.subject, err.predicate, err.detail)
+        refusal = {"subject": err.subject, "predicate": err.predicate, "detail": err.detail}
+        ctx = _structural_context(request, output, text, iri, refusal=refusal)
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    except OSError as err:
+        logger.warning("structural edit not written %s: %s", output, err)
+        detail = f"could not write the model: {err}"
+        refusal = {"subject": proposal.parameter, "predicate": str(IFML.hasParameter), "detail": detail}
+        ctx = _structural_context(request, output, text, iri, refusal=refusal)
+        return templates.TemplateResponse(request, "writeback-preview.html", ctx)
+    if record.files:
+        _undo_stack.append(record)
+        reload_model()
+        generation._clear_cache()
+    shares = _shares(record)
+    logger.info(
+        "structural edit applied %s:%s: %s %s %s %s in %s",
+        output,
+        proposal.first,
+        proposal.kind,
+        proposal.parameter,
+        "to" if proposal.kind == "add" else "from",
+        proposal.form,
+        ", ".join(f"{f['file']} (+{f['adds']} -{f['removes']})" for f in shares) or "no change",
+    )
+    applied = {"files": shares, "undo": len(_undo_stack)}
+    facts = _structural_facts(proposal)
+    ctx = _structural_context(request, output, text, iri, structural=facts, applied=applied)
     return templates.TemplateResponse(request, "writeback-preview.html", ctx)
 
 

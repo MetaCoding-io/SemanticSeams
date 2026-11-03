@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.layout{display:grid;grid-template-columns:1fr 420px;gap:1.5rem}
+.sentence{font-size:1.25rem;line-height:2.4;max-width:680px}
+.slot{display:inline-block;border:1px solid #bbb;border-radius:6px;padding:0.1rem 0.6rem;background:#fff;font-size:1rem;vertical-align:middle;line-height:1.6;position:relative;border-left:4px solid var(--other)}
+.slot.ui{border-left-color:var(--ui)}.slot.arch{border-left-color:var(--arch)}.slot.proc{border-left-color:var(--proc)}.slot.data{border-left-color:var(--data)}.slot.dec{border-left-color:var(--dec)}
+.slot .caret{color:#888;margin-left:0.4rem;font-size:0.8rem}
+.slot.empty{border-style:dashed;color:#7a7a7a;background:#fafafa}
+.slot.open{box-shadow:0 0 0 3px rgba(37,99,235,0.25)}
+.menu{position:absolute;left:0;top:2.3rem;background:#fff;border:1px solid #bbb;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.15);width:300px;z-index:5;font-size:0.9rem;line-height:1.4;padding:0.3rem 0}
+.menu .q{padding:0.3rem 0.7rem;color:#666;font-size:0.75rem;border-bottom:1px solid #eee}
+.menu div.i{padding:0.35rem 0.7rem;display:flex;justify-content:space-between}
+.menu div.i.sel{background:#eef2fb}
+.menu small{color:#888}
+.before{margin-top:2.2rem;border-top:1px dashed #ccc;padding-top:0.8rem;font-size:0.8rem;color:var(--muted)}
+.before input{width:300px;font-size:0.75rem;padding:0.15rem 0.3rem;border:1px solid #bbb}
+.issues{font-size:0.85rem}
+.issues li{margin-bottom:0.4rem}
+</style></head><body>
+<header class="top">SemanticSeams Viewer <span class="nav"><span>Home</span><span>Layers</span><span>Storm</span></span><span class="spacer"></span><span class="search">Search elements, questions, files…</span></header>
+<div class="health"><span class="ok">✓ Conforms</span><span class="warn">⚠ 21 warning(s)</span><span style="color:var(--muted)">Edit mode · 3 unsaved patches · Undo</span></div>
+<div class="crumbs">Expense Architecture › Employee Portal › Expense Interface › <b>Submit Expense</b></div>
+<main>
+<h1>Submit Expense <span class="pill" style="background:#fdf1dd;color:#9a5b00">Interaction event</span></h1>
+<div class="layout">
+<div>
+<div class="sentence">
+  When an <span class="slot ui">Employee<span class="caret">▾</span></span> fires <b>Submit Expense</b> on <span class="slot ui">New Expense form<span class="caret">▾</span></span>,<br>
+  it submits to <span class="slot arch">Submit Expense <small style="color:#888">POST /expenses</small><span class="caret">▾</span></span><br>
+  which accepts an <span class="slot data open">Expense<span class="caret">▾</span>
+    <div class="menu"><div class="q">Data contracts in this model · type to filter</div>
+      <div class="i sel"><span>Expense</span><small>4 fields · lifecycle</small></div>
+      <div class="i"><span>Approval</span><small>2 fields</small></div>
+      <div class="i"><span>Payment</span><small>3 fields · lifecycle</small></div>
+      <div class="i"><span>Notification</span><small>2 fields</small></div>
+      <div class="i" style="color:#2563eb">+ New data contract…</div>
+    </div></span>
+  and triggers <span class="slot proc">Expense Approval<span class="caret">▾</span></span>.<br>
+  It is governed by <span class="slot empty">choose a policy…</span> <span style="color:#b45309;font-size:0.8rem">⚠ ungoverned write</span><br>
+  and renders <span class="slot ui">My Expenses<span class="caret">▾</span></span> when it returns.
+</div>
+<div class="before">Today's form for the same facts:<br>
+  accepts shape <input value="https://example.org/expenses/ExpenseShape"> <span class="btn">Save</span><br>
+  <span style="font-size:0.72rem">seam:acceptsShape points at a sh:NodeShape.</span></div>
+</div>
+<div class="inspector">
+  <h3>What this sentence states</h3>
+  <ul class="issues" style="padding-left:1.1rem">
+    <li><span class="dot" style="background:var(--ui)"></span>event on a form <small class="mono">ifml:Event</small></li>
+    <li><span class="dot" style="background:var(--arch)"></span>submits to an operation <small class="mono">seam:submitsTo</small></li>
+    <li><span class="dot" style="background:var(--data)"></span>accepts a data contract <small class="mono">seam:acceptsShape</small></li>
+    <li><span class="dot" style="background:var(--proc)"></span>triggers a workflow <small class="mono">seam:triggers</small></li>
+    <li><span class="dot" style="background:var(--other)"></span>governed by a policy <small class="mono">seam:governedBy</small> · <b style="color:#b45309">missing</b></li>
+  </ul>
+  <h3>Each slot is a picker</h3>
+  <p style="font-size:0.85rem;margin:0 0 0.6rem">Choices come from the shape of the predicate: a slot for a data contract lists only data contracts. A missing value is a placeholder, never an empty IRI box. Vocabulary names appear only on hover.</p>
+  <span class="btn primary">Save patch</span> <span class="btn">Show as Turtle</span>
+</div>
+</div>
+</main></body></html>

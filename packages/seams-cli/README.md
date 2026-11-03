@@ -285,6 +285,27 @@ without a deny test` on stderr, and 2 when the project or model cannot be
 loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-coverage).
 
+## seams context
+
+```sh
+seams context send_now --project examples/expenses/chapter-09
+seams context :send_now --project examples/expenses/chapter-09 --json
+```
+
+It prints the context manifest of one service task (backlog C3, `context.py`,
+`run_context`, over `seams.context_for`): the model facts and native file
+fragments that code written for the task depends on, each hashed, as a review
+report. TASK is a BPMN id, CURIE or full IRI; the model is chosen as for
+`seams generate`. The text output is `task <iri>`, then one `<kind> <ref>
+<hash>` line per item in (kind, ref) order, then `context <hash>`; `--json`
+prints the same as an object with sorted keys (`task`, `items`,
+`context_hash`). Refs are IRIs or model-relative `path#id`, so the output holds
+no absolute path, and the same model gives the same bytes. Binding values are
+never read. It exits 0 on success, 1 when the task is unknown, is not a
+`proc:ServiceTask` or a fact it needs is missing (`seams context: <message>` on
+stderr), and 2 on a project error or a model that cannot be loaded. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-context).
+
 ## seams new-generator
 
 ```sh

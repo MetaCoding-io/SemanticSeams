@@ -21,6 +21,7 @@ COPY pyproject.toml uv.lock .python-version /app/
 COPY packages/seams/pyproject.toml packages/seams/README.md /app/packages/seams/
 COPY seams_runtime/pyproject.toml /app/seams_runtime/
 COPY seams_gen/pyproject.toml /app/seams_gen/
+COPY seams_edit/pyproject.toml /app/seams_edit/
 COPY seams_gateway/pyproject.toml /app/seams_gateway/
 COPY viewer/pyproject.toml /app/viewer/
 COPY packages/seams-cli/pyproject.toml packages/seams-cli/README.md /app/packages/seams-cli/

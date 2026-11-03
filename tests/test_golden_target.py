@@ -100,6 +100,17 @@ def test_hash_substituted(tmp_path):
     assert golden_target(golden, HASH[len("sha256:") :]) == f"{{# model-hash: {HASH} #}}\n<p>\n"
 
 
+def test_context_hash_substituted_only_when_given(tmp_path):
+    golden = tmp_path / "stub.py"
+    golden.write_text("# model-hash: sha256:<model-hash>\n# context-hash: sha256:<context-hash>\n")
+    context = "sha256:" + "b" * 64
+    assert golden_target(golden, HASH, context) == f"# model-hash: {HASH}\n# context-hash: {context}\n"
+    # A bare hex digest gets the sha256: prefix, as the model hash does.
+    assert golden_target(golden, HASH, "b" * 64) == f"# model-hash: {HASH}\n# context-hash: {context}\n"
+    # Without one, the placeholder stays, so a golden that needs it fails to match.
+    assert golden_target(golden, HASH).endswith("# context-hash: sha256:<context-hash>\n")
+
+
 @pytest.mark.parametrize(
     "name", ["chat_page.html", "chat_api.py", "compose.development.yaml", "compose.production.yaml"]
 )

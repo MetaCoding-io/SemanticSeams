@@ -344,9 +344,9 @@
       ]
     },
     {
-      "line": 43,
+      "line": 42,
       "templates": [
-        "runtime.Dockerfile.j2:45"
+        "runtime.Dockerfile.j2:44"
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -380,9 +380,9 @@
       ]
     },
     {
-      "line": 48,
+      "line": 47,
       "templates": [
-        "runtime.Dockerfile.j2:50"
+        "runtime.Dockerfile.j2:49"
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -434,9 +434,9 @@
       ]
     },
     {
-      "line": 55,
+      "line": 54,
       "templates": [
-        "runtime.Dockerfile.j2:57"
+        "runtime.Dockerfile.j2:56"
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -452,9 +452,9 @@
       ]
     },
     {
-      "line": 58,
+      "line": 57,
       "templates": [
-        "runtime.Dockerfile.j2:60"
+        "runtime.Dockerfile.j2:59"
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -473,6 +473,15 @@
       "line": 60,
       "templates": [
         "runtime.Dockerfile.j2:62"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api"
+      ]
+    },
+    {
+      "line": 61,
+      "templates": [
+        "runtime.Dockerfile.j2:63"
       ],
       "terms": [
         "https://example.org/expenses/expense_api"

@@ -172,6 +172,17 @@
   </section>
   {% endif %}
 
+  {% if drafts %}
+  <section class="fan" id="generation-drafts">
+    <h2>LLM drafts (<code>seams propose</code>)</h2>
+    <ul>
+      {% for d in drafts %}
+      <li class="draft" data-task="{{ d.task }}" data-state="{{ d.state }}"><code>{{ d.path }}</code> <span class="gen">{{ d.task }} · {{ d.provider }} · {{ d.template }}</span> <strong class="draft-state">{{ d.state }}</strong></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <section class="fan" id="generation-fanout">
     <h2>Fan-out: every generated line citing <code>{{ qname }}</code></h2>
     {% for g in gv.fanout %}

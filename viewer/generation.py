@@ -12,7 +12,10 @@ sidecars and the template files the traces cite:
   trace lines cite it;
 - ``templates``: each cited template name to its source text, found in the
   ``templates`` directory beside the module that defines the generator's
-  ``render`` (the registry's ``Generator``), else in seams_gen's own.
+  ``render`` (the registry's ``Generator``), else in seams_gen's own;
+- ``drafts``: the lock's ``seams propose`` llm-draft records (ADR-0020), sorted
+  by task; ``draft_rows`` gives each its state (current, stale or hand-edited)
+  by the comparison ``seams check``'s ``check_drafts`` makes.
 
 Nothing here raises for a bad file: a missing or malformed lock, sidecar,
 output or template is one ``Notice`` naming the file, and the rest of the
@@ -25,6 +28,7 @@ that rewrite files (as validation._clear_cache, MEM010).
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 from collections.abc import Callable
@@ -33,6 +37,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+import seams
 from seams_cli import LOCK_FILE
 
 from seams_gen.protocol import Generator
@@ -69,8 +74,24 @@ class GeneratedOutput:
 
 
 @dataclass(frozen=True)
+class Draft:
+    """One llm-draft record of seams.lock (ADR-0020)."""
+
+    task: str
+    path: str  # the lock's project-relative posix path
+    context_hash: str
+    template: str
+    provider: str
+    sha256: str
+
+
+DRAFT_FIELDS = ("context_hash", "path", "provider", "sha256", "task", "template")
+
+
+@dataclass(frozen=True)
 class GenerationIndex:
     outputs: tuple[GeneratedOutput, ...] = ()
+    drafts: tuple[Draft, ...] = ()
     fanout: dict[str, tuple[tuple[str, int], ...]] = field(default_factory=dict)
     templates: dict[str, str] = field(default_factory=dict)
     notices: tuple[Notice, ...] = ()
@@ -104,6 +125,25 @@ def _locked_outputs(base_dir: Path, notices: list[Notice]) -> list[tuple[str, st
         notices.append(Notice(LOCK_FILE, f"cannot be read: {type(err).__name__}: {err}"))
         return []
     return sorted((p, g) for p, g in found if not p.endswith(SIDECAR_SUFFIX))
+
+
+def _locked_drafts(base_dir: Path, notices: list[Notice]) -> list[Draft]:
+    """The lock's draft records sorted by task; a malformed one is a notice."""
+    try:
+        data = json.loads((base_dir / LOCK_FILE).read_text(encoding="utf-8"))
+        entries = data.get("drafts", []) if isinstance(data, dict) else []
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return []  # _locked_outputs already names the lock
+    if not isinstance(entries, list):
+        notices.append(Notice(LOCK_FILE, "`drafts` must be a list"))
+        return []
+    drafts: list[Draft] = []
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict) or not all(isinstance(entry.get(k), str) for k in DRAFT_FIELDS):
+            notices.append(Notice(LOCK_FILE, f"`drafts[{i}]` must be an object of strings {', '.join(DRAFT_FIELDS)}"))
+            continue
+        drafts.append(Draft(**{k: str(entry[k]) for k in DRAFT_FIELDS}))
+    return sorted(drafts, key=lambda d: (d.task, d.path))
 
 
 def _trace_line(entry: object) -> TraceLine:
@@ -160,6 +200,7 @@ def _template_name(origin: str) -> str:
 def _build(base_dir: Path) -> GenerationIndex:
     notices: list[Notice] = []
     locked = _locked_outputs(base_dir, notices)
+    drafts = _locked_drafts(base_dir, notices)
     registered = _registered(notices) if locked else {}
     outputs: list[GeneratedOutput] = []
     for rel, generator in locked:
@@ -207,6 +248,7 @@ def _build(base_dir: Path) -> GenerationIndex:
 
     return GenerationIndex(
         outputs=tuple(outputs),
+        drafts=tuple(drafts),
         fanout={iri: tuple(sorted(pairs)) for iri, pairs in sorted(fanout.items())},
         templates=templates,
         notices=tuple(sorted(notices, key=lambda n: (n.file, n.message))),
@@ -413,4 +455,38 @@ def generated(index: GenerationIndex, iri: str, href: Href) -> tuple[GeneratedRo
             continue
         lines = sorted(by_output[path])
         rows.append(GeneratedRow(output=path, generator=out.generator, lines=len(lines), href=href(path, lines[0])))
+    return tuple(rows)
+
+
+# -- the generation view's drafts (M022/S05) ---------------------------------------
+
+
+@dataclass(frozen=True)
+class DraftRow:
+    task: str
+    path: str
+    provider: str
+    template: str
+    state: str  # "current", or "stale", "hand-edited" or both, comma-separated
+
+
+def draft_rows(index: GenerationIndex, base_dir: Path, model: seams.Model) -> tuple[DraftRow, ...]:
+    """Each lock draft with its state, by ``seams check``'s comparison: stale when
+    the task's context hash differs from the record (or the task no longer
+    resolves), hand-edited when the file's sha256 differs (or it is missing)."""
+    rows: list[DraftRow] = []
+    for draft in index.drafts:
+        states: list[str] = []
+        try:
+            if seams.context_for(model, draft.task).context_hash != draft.context_hash:
+                states.append("stale")
+        except seams.ResolutionError:
+            states.append("stale")
+        path = base_dir / draft.path
+        try:
+            if hashlib.sha256(path.read_bytes()).hexdigest() != draft.sha256:
+                states.append("hand-edited")
+        except OSError:
+            states.append("hand-edited")
+        rows.append(DraftRow(draft.task, draft.path, draft.provider, draft.template, ", ".join(states) or "current"))
     return tuple(rows)

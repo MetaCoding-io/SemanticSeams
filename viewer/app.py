@@ -1011,8 +1011,9 @@ def generation_endpoint(request: Request, iri: str, output: str = "", line: int 
     def describe(term: str) -> tuple[str, str, str]:
         return label(term), qname(term), layer_of(term)
 
+    index = generation.get_index(MODEL_DIR)
     gen_view = generation.view(
-        generation.get_index(MODEL_DIR),
+        index,
         focus,
         describe,
         lambda out, n: generation_href(focus, out, n),
@@ -1025,6 +1026,7 @@ def generation_endpoint(request: Request, iri: str, output: str = "", line: int 
         "label": label(focus),
         "qname": qname(focus),
         "view_href": f"/view/{quote(focus, safe='')}",
+        "drafts": generation.draft_rows(index, MODEL_DIR, get_model()),
     }
     return templates.TemplateResponse(request, "generation.html", ctx)
 

@@ -40,6 +40,12 @@ version and the provider, so a re-run of the same context is free and repeatable
 `seams propose` writes the draft to the handlers package only when the C2 tests pass in
 a scratch copy. The text below is unchanged.*
 
+*Revision, 2026-11-03: C5 is built (M022/S05). An accepted draft is an llm-draft
+record in `seams.lock` (task, path, context hash, template, provider, sha256);
+`seams check` reports `draft-stale` when the task's context hash changes and
+`draft-hand-edited` when the file's sha256 does, and the generation view lists each
+draft with that state beside the generated outputs. The text below is unchanged.*
+
 ## The question
 
 Template generators can write compose files, FastAPI route modules and htmx pages,

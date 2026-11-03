@@ -198,6 +198,14 @@ Outputs of a generator with no `trace` hook have no sidecar by design and get no
 notice. The index is read once per viewer process, so regenerate and restart the
 viewer to see new traces.
 
+When `seams.lock` records drafts accepted by `seams propose`
+([ADR-0020](/adr/0020-llm-drafts)), an **LLM drafts** list sits above the fan-out. Each
+row gives the draft's file, its service task, provider and prompt template, and its
+state, found by the same comparison `seams check` makes: *current*; *stale* when the
+task's context hash no longer matches the record (a model fact the draft depends on
+changed); *hand-edited* when the file's sha256 differs or the file is missing; or both.
+A malformed draft record is one notice naming `seams.lock`.
+
 ## Layer mode
 
 `/layers` (the **Layers** link in the page header) draws the whole loaded model at

@@ -442,3 +442,80 @@ def test_inspector_omits_generated_when_no_line_cites_the_element(client, tmp_pa
     assert f"<code>{iri}</code>" in resp.text
     assert 'id="generated"' not in resp.text
     assert "generated-row" not in resp.text
+
+
+# -- seams propose drafts in the generation view (M022/S05) ------------------------
+
+CHAPTER_09 = ROOT / "examples" / "expenses" / "chapter-09"
+DRAFT_TASK = "https://example.org/expenses/approval_bpmn#notify_manager"
+DRAFT_PATH = "handlers/notify.py"
+
+
+def _drafted(tmp_path: Path, monkeypatch, extra: object = None) -> Path:
+    """A chapter 9 copy whose seams.lock records handlers/notify.py as a current draft, viewed by the viewer."""
+    import hashlib
+    import shutil
+
+    import seams
+
+    from viewer import app as viewer_app
+
+    base = tmp_path / "chapter-09"
+    shutil.copytree(CHAPTER_09, base, ignore=shutil.ignore_patterns("__pycache__"))
+    model = seams.load(base / "expenses.trig")
+    record = {
+        "context_hash": seams.context_for(model, DRAFT_TASK).context_hash,
+        "path": DRAFT_PATH,
+        "provider": "fake",
+        "sha256": hashlib.sha256((base / DRAFT_PATH).read_bytes()).hexdigest(),
+        "task": DRAFT_TASK,
+        "template": "handler.j2",
+    }
+    lock_file = base / "seams.lock"
+    lock = json.loads(lock_file.read_text(encoding="utf-8"))
+    lock["drafts"] = [record] + ([extra] if extra is not None else [])
+    lock_file.write_text(json.dumps(lock), encoding="utf-8")
+    monkeypatch.setattr(viewer_app, "MODEL_DIR", base)
+    monkeypatch.setattr(viewer_app, "_model", model)
+    return base
+
+
+def _draft_state(client) -> str:
+    html = client.get(f"/generation/{quote(DRAFT_TASK, safe='')}").text
+    assert 'id="generation-drafts"' in html
+    assert f"<code>{DRAFT_PATH}</code>" in html and "fake · handler.j2" in html
+    return html.split('data-state="', 1)[1].split('"', 1)[0]
+
+
+def test_generation_view_shows_a_current_draft(client, tmp_path, monkeypatch):
+    base = _drafted(tmp_path, monkeypatch)
+    assert [d.task for d in generation.get_index(base).drafts] == [DRAFT_TASK]
+    assert _draft_state(client) == "current"
+
+
+def test_generation_view_shows_an_edited_draft_as_hand_edited(client, tmp_path, monkeypatch):
+    base = _drafted(tmp_path, monkeypatch)
+    (base / DRAFT_PATH).write_text("# edited\n", encoding="utf-8")
+    assert _draft_state(client) == "hand-edited"
+
+
+def test_generation_view_shows_a_draft_whose_context_changed_as_stale(client, tmp_path, monkeypatch):
+    import seams
+
+    from viewer import app as viewer_app
+
+    base = _drafted(tmp_path, monkeypatch)
+    trig = base / "expenses.trig"
+    trig.write_text(
+        trig.read_text(encoding="utf-8").replace('rdfs:label "Notification"', 'rdfs:label "Notice"'), encoding="utf-8"
+    )
+    monkeypatch.setattr(viewer_app, "_model", seams.load(trig))
+    assert _draft_state(client) == "stale"
+
+
+def test_a_malformed_draft_is_a_notice_and_never_raises(client, tmp_path, monkeypatch):
+    base = _drafted(tmp_path, monkeypatch, extra={"task": 7})
+    index = generation.get_index(base)
+    assert [d.task for d in index.drafts] == [DRAFT_TASK]
+    assert [(n.file, n.message.startswith("`drafts[1]`")) for n in index.notices] == [("seams.lock", True)]
+    assert _draft_state(client) == "current"

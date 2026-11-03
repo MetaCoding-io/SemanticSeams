@@ -37,8 +37,20 @@ existing file for writing, and it is not a ``GENERATORS`` entry, so neither
   ``seam:returnsShape``, unions when the operations differ), a docstring
   naming the implementation, the operations, their shapes, tasks, decisions
   and transitions, and a body that raises ``NotImplementedError``.
+- ``trace_module`` renders the module a second time with
+  ``seams_gen.trace.trace_template`` (ADR-0019): each field cites its
+  ``sh:path``, its shape and the operations of the module that use the shape;
+  each class line its shape and those operations; the signature, summary and
+  body the implementations, operations and shapes; each docstring line the
+  operation, shape, task, decision or transition it names (the task with its
+  process and operation, the decision with its task, the transition with its
+  task and states). The header lines take every IRI of the module's functions.
 - ``plan_stubs`` compares with the handlers directory: an absent file is
-  written; an existing module that does not bind a function the model names
+  written, with its ``<module>.trace.json`` sidecar (``render_trace_json``)
+  beside it; a package ``__init__.py`` with no functions gets one too. The
+  sidecar is write-once like its module: it is written only when the module
+  is, with mode ``x``, and it is not in ``seams.lock`` (M022/S05 owns lock
+  entries). An existing module that does not bind a function the model names
   is reported (subject the implementation IRI, predicate ``comm:handler``),
   never patched. Existing files are only read, and parsed with ``ast``, never
   imported.
@@ -57,7 +69,7 @@ import hashlib
 import json
 import keyword
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from rdflib import RDF, XSD, URIRef
@@ -66,9 +78,12 @@ from seams import COMM, PROC, SEAM, ModelGraph, context_for, local_name
 
 from . import GeneratorError
 from ._views import view_errors
-from .htmx import _environment
+from .htmx import _environment, _tracing_environment
+from .trace import Trace, render_trace_json, trace_template
 
 TEMPLATE_NAME = "handler_stub.py.j2"
+GENERATOR = "stubs"
+TRACE_SUFFIX = ".trace.json"
 DEFAULT_HANDLERS = "handlers"
 INIT = "__init__.py"
 
@@ -86,6 +101,7 @@ class StubField:
     name: str  # the sh:path local name
     annotation: str  # the Python type, wrapped in NotRequired when not required
     iri: str  # the sh:path IRI
+    origins: tuple[str, ...] = ()  # the shape, then the module's operations that use it (sorted)
 
 
 @dataclass(frozen=True)
@@ -94,20 +110,31 @@ class StubClass:
     iri: str  # the shape IRI
     summary: str  # the class docstring
     fields: tuple[StubField, ...]  # in the shape's fields() order (sh:order, then path IRI)
+    origins: tuple[str, ...] = ()  # the module's operations that use the shape, sorted
+
+
+@dataclass(frozen=True)
+class StubDocLine:
+    text: str  # indented; "" for a blank line
+    iri: str = ""  # the model element the line names ("" for none)
+    origins: tuple[str, ...] = ()  # the further elements the line was read from, sorted
 
 
 @dataclass(frozen=True)
 class StubFunction:
+    iri: str  # the first implementation IRI
+    origins: tuple[str, ...]  # the other implementations, the operations and their shapes, sorted
     name: str
     handler: str  # the comm:handler dotted path
     implementations: tuple[str, ...]  # full IRIs, sorted
     accepts: str  # the entity annotation: shape classes, "dict" where an operation states none
     returns: str  # the return annotation: shape classes, "None" where an operation states none
     summary: str  # the docstring's first line
-    doc: tuple[str, ...]  # the docstring's other lines, indented ("" for a blank line)
+    doc: tuple[StubDocLine, ...]  # the docstring's other lines
     error_text: str  # the NotImplementedError argument, as a Python string literal
     tasks: tuple[str, ...] = ()  # the service tasks that seam:invoke its operations, sorted IRIs
     context_hashes: tuple[str, ...] = ()  # context_for(model, task).context_hash, in ``tasks`` order
+    shape_operations: tuple[tuple[str, str], ...] = ()  # (shape IRI, operation IRI) it accepts or returns, sorted
 
 
 @dataclass(frozen=True)
@@ -128,7 +155,7 @@ class StubsModel:
 
 @dataclass(frozen=True)
 class StubPlan:
-    writes: tuple[tuple[Path, str], ...]  # (absent file, text), sorted by path
+    writes: tuple[tuple[Path, str], ...]  # (absent file, text): each module, then its trace sidecar
     reports: tuple[str, ...]  # one line per function an existing module lacks
 
 
@@ -203,25 +230,40 @@ def _invoking_tasks(model: ModelGraph) -> dict[str, list]:
     return tasks
 
 
-def _task_doc(model: ModelGraph, element) -> tuple[list[str], str]:
+def _task_doc(model: ModelGraph, element, op_iri: str) -> tuple[list[StubDocLine], str]:
     """The docstring lines naming ``element``, its deciding decisions and fired
     transition (from ``context_for``), and its context hash."""
     manifest = context_for(model, element.iri)
     process = element.process
     of = f", a {model.compact(PROC.ServiceTask)} of {model.compact(process.iri)}" if process is not None else ""
-    lines = [f"    Invoked by {model.compact(element.iri)} ({model.compact(SEAM.invokes)}){of}."]
+    task = str(element.iri)
+    invoked = sorted({op_iri, *((str(process.iri),) if process is not None else ())})
+    lines = [
+        StubDocLine(
+            f"    Invoked by {model.compact(element.iri)} ({model.compact(SEAM.invokes)}){of}.", task, tuple(invoked)
+        )
+    ]
     for item in manifest.items:
         if item.kind == "decision":
             lines.append(
-                f"    Decided by {model.compact(URIRef(item.ref))} ({model.compact(SEAM.decidedBy)}):"
-                " a gateway before the task routes on its output."
+                StubDocLine(
+                    f"    Decided by {model.compact(URIRef(item.ref))} ({model.compact(SEAM.decidedBy)}):"
+                    " a gateway before the task routes on its output.",
+                    item.ref,
+                    (task,),
+                )
             )
     transition = element.fires
     for item in manifest.items:
         if item.kind == "transition" and transition is not None and str(transition.iri) == item.ref:
+            states = {str(transition.from_state.iri), str(transition.to_state.iri)}
             lines.append(
-                f"    Fires {model.compact(transition.iri)} ({model.compact(SEAM.fires)}):"
-                f" {model.compact(transition.from_state.iri)} -> {model.compact(transition.to_state.iri)}."
+                StubDocLine(
+                    f"    Fires {model.compact(transition.iri)} ({model.compact(SEAM.fires)}):"
+                    f" {model.compact(transition.from_state.iri)} -> {model.compact(transition.to_state.iri)}.",
+                    item.ref,
+                    tuple(sorted(states | {task})),
+                )
             )
     return lines, manifest.context_hash
 
@@ -231,7 +273,9 @@ def _function(
 ) -> StubFunction:
     """One stub function for the (implementation IRI, operation) pairs that name ``handler``."""
     impls = sorted({str(impl) for impl, _ in served})
-    doc: list[str] = []
+    doc: list[StubDocLine] = []
+    read: set[str] = set(impls)
+    uses: set[tuple[str, str]] = set()
     accepted: list[str | None] = []
     returned: list[str | None] = []
     invokers: dict[str, str] = {}
@@ -241,23 +285,44 @@ def _function(
             if shape is not None and str(shape.iri) not in classes:
                 classes[str(shape.iri)] = _stub_class(model, shape)
             names.append(None if shape is None else classes[str(shape.iri)].name)
+        operation = str(op.iri)
+        shapes = [str(shape.iri) for shape in (accepts, returns) if shape is not None]
+        read.update([operation, *shapes])
+        uses.update((shape, operation) for shape in shapes)
         doc += [
-            "",
-            f"    Implements {model.compact(op.iri)} ({model.compact(SEAM.implementedBy)} {model.compact(impl)}).",
-            f"    entity: the current {model.compact(accepts.iri)} entity ({model.compact(SEAM.acceptsShape)})."
+            StubDocLine(""),
+            StubDocLine(
+                f"    Implements {model.compact(op.iri)} ({model.compact(SEAM.implementedBy)} {model.compact(impl)}).",
+                operation,
+                (str(impl),),
+            ),
+            StubDocLine(
+                f"    entity: the current {model.compact(accepts.iri)} entity ({model.compact(SEAM.acceptsShape)}).",
+                str(accepts.iri),
+                (operation,),
+            )
             if accepts is not None
-            else f"    entity: the operation states no {model.compact(SEAM.acceptsShape)}.",
-            f"    Returns: a {model.compact(returns.iri)} entity ({model.compact(SEAM.returnsShape)})."
+            else StubDocLine(f"    entity: the operation states no {model.compact(SEAM.acceptsShape)}.", operation),
+            StubDocLine(
+                f"    Returns: a {model.compact(returns.iri)} entity ({model.compact(SEAM.returnsShape)}).",
+                str(returns.iri),
+                (operation,),
+            )
             if returns is not None
-            else f"    Returns: None; the operation states no {model.compact(SEAM.returnsShape)}.",
+            else StubDocLine(
+                f"    Returns: None; the operation states no {model.compact(SEAM.returnsShape)}.", operation
+            ),
         ]
-        for element in sorted(tasks.get(str(op.iri), []), key=lambda e: str(e.iri)):
-            lines, invokers[str(element.iri)] = _task_doc(model, element)
+        for element in sorted(tasks.get(operation, []), key=lambda e: str(e.iri)):
+            lines, invokers[str(element.iri)] = _task_doc(model, element, operation)
             doc += lines
     named = ", ".join(model.compact(i) for i in impls)
     operations = ", ".join(sorted({model.compact(op.iri) for _, op in served}))
     ordered = sorted(invokers)
+    read.discard(impls[0])
     return StubFunction(
+        iri=impls[0],
+        origins=tuple(sorted(read)),
         name=name,
         handler=handler,
         implementations=tuple(impls),
@@ -268,6 +333,7 @@ def _function(
         error_text=json.dumps(f"{handler}: write the handler for {operations}"),
         tasks=tuple(ordered),
         context_hashes=tuple(invokers[t] for t in ordered),
+        shape_operations=tuple(sorted(uses)),
     )
 
 
@@ -284,10 +350,18 @@ def context_hash(functions: tuple[StubFunction, ...]) -> str | None:
     return "sha256:" + hashlib.sha256("".join(f"{h}\n" for h in hashes).encode()).hexdigest()
 
 
+def _with_operations(cls: StubClass, functions: tuple[StubFunction, ...]) -> StubClass:
+    """``cls`` with the operations of ``functions`` that accept or return its shape as origins."""
+    ops = tuple(sorted({op for fn in functions for shape, op in fn.shape_operations if shape == cls.iri}))
+    fields = tuple(replace(f, origins=(cls.iri, *ops)) for f in cls.fields)
+    return replace(cls, fields=fields, origins=ops)
+
+
 def _module(path: str, header: tuple[str, ...], functions: list[StubFunction], classes: dict[str, StubClass]):
     fns = tuple(sorted(functions, key=lambda f: f.name))
     used = {name for fn in fns for name in (*fn.accepts.split(" | "), *fn.returns.split(" | "))}
     own = sorted((c for c in classes.values() if c.name in used), key=lambda c: c.name)
+    own = [_with_operations(c, fns) for c in own]
     if len({c.name for c in own}) != len(own):
         shapes = sorted(c.iri for c in own)
         raise GeneratorError(shapes[0], RDF.type, f"two shapes of {path} share a local name: {', '.join(shapes)}")
@@ -351,6 +425,27 @@ def render_module(module: StubModule) -> str:
     return _environment().get_template(TEMPLATE_NAME).render(module=module)
 
 
+def trace_module(module: StubModule, expected: str | None = None) -> Trace:
+    """The trace of ``render_module(module)`` (``expected``, when already
+    rendered). A line no origin-carrying value lands on (the header, the
+    typing import) takes every IRI of the module's functions."""
+    fallback = {iri for fn in module.functions for iri in (fn.iri, *fn.origins, *fn.tasks)}
+    return trace_template(
+        _tracing_environment(),
+        TEMPLATE_NAME,
+        {"module": module},
+        output=module.path,
+        generator=GENERATOR,
+        expected=render_module(module) if expected is None else expected,
+        fallback=sorted(fallback),
+    )
+
+
+def trace_path(path: Path) -> Path:
+    """The ``<module>.trace.json`` sidecar beside ``path``."""
+    return path.with_name(path.name + TRACE_SUFFIX)
+
+
 # ── planning and writing ────────────────────────────────────────────────────
 
 
@@ -374,14 +469,18 @@ def _report(fn: StubFunction, detail: str) -> list[str]:
 
 
 def plan_stubs(stubs: StubsModel, handlers: Path) -> StubPlan:
-    """The absent files to write under ``handlers`` and the reports for existing
-    modules that lack a function. Existing files are read, never written."""
+    """The absent files to write under ``handlers``, each with its trace
+    sidecar, and the reports for existing modules that lack a function.
+    Existing files are read, never written; an existing module gets no
+    sidecar."""
     writes: list[tuple[Path, str]] = []
     reports: list[str] = []
     for module in stubs.modules:
         path = Path(handlers) / module.path
         if not path.exists():
-            writes.append((path, render_module(module)))
+            text = render_module(module)
+            writes.append((path, text))
+            writes.append((trace_path(path), render_trace_json(trace_module(module, text))))
             continue
         if not module.functions:
             continue

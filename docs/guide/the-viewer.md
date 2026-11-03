@@ -174,8 +174,8 @@ Generated section.
 
 `/generation/{iri}` shows how one element became code, read from the
 `<output>.trace.json` sidecars `seams generate` writes beside each output
-([ADR-0019](/adr/0019-generation-trace)) and listed in `seams.lock`. It is read-only
-and has three panes:
+([ADR-0019](/adr/0019-generation-trace)) and listed in `seams.lock`. It is read-only,
+except for [write-back](#write-back-from-output) in edit mode, and has three panes:
 
 - **Model**: the element, then every model term the shown output cites, each with its
   layer colour, its qname and how many of the output's lines cite it.
@@ -367,6 +367,99 @@ generator's fault. A model with no `seams.toml` beside it shows *no project* and
 reason instead. The server log records each preview with the project, the number of
 outputs and faults, and how long it took.
 
+### Write-back from output
+
+In edit mode the generation view's output pane can change the model. Below the output
+sits a one-line editor holding the selected line; click another line to edit that one
+instead. Change the text and press **Preview write-back**. Nothing is written yet: the
+viewer works out which model fact the edit stands for and whether the model, changed
+that way, would generate exactly what you typed.
+
+**One literal, or a refusal.** The changed span is what lies between the line's
+unchanged start and end. The viewer looks at the model terms the line's trace cites
+([ADR-0019](/adr/0019-generation-trace)) and their literal values, and keeps the ones
+written on the old line over the whole span. Exactly one must remain. On the chat app,
+changing `<title>Chat</title>` to `<title>Chat room</title>` in a page template finds
+`:chat_page ifml:title "Chat"@en` and drafts a patch that replaces that one triple with
+`"Chat room"@en`, keeping the language or datatype and the named graph. When no
+literal covers the span, or more than one does (the *Send Message* button's line is
+covered by three), the edit is refused, and the refusal lists the candidates in sorted
+order. Only literal values can be written back this way: labels, titles, paths. An edit
+to fixed template text, or a structural change, is refused.
+
+**The edit must regenerate to itself.** The viewer applies the patch to a temporary
+copy of the model and runs the `seams.toml` project's generators on it. The output you
+edited must come back equal to your edit. The model-hash lines differ as well, and
+they are not counted. When the output comes back different, the edit is refused and
+the first differing line is named. Typing a raw `&` into a page template is refused
+this way, for example, because the template escapes it to `&amp;`. A generator fault
+on the patched model is also a refusal. The model's own files are never opened during
+this check.
+
+**Effects come first.** A drafted write-back shows the patch triple, the files it
+touches, and every other output line that the same patch changes, as before and after
+pairs. Renaming the *Conversations* list in the chat app also changes a line in
+`conversation_list.html`. Read them, then press **Apply to the model**.
+
+**Apply checks again.** Apply runs the whole check again on the model as it is now, so
+a preview left open across other edits cannot write a patch that no longer reproduces
+the edit. The patch is then written through `seams_edit` like any other save: one
+triple in the TriG file, comments and layout kept. It goes on the session's undo
+stack, so **Undo** restores the bytes. Apply changes the model, not the outputs: run
+`seams generate` to rewrite the files in `generated/`. A refusal names the subject,
+the predicate and the reason, and writes nothing. The server log records each drafted,
+refused and applied write-back with the output and line, the subject, the predicate,
+the old and new values and the files.
+
+#### Structural edits: adding or removing a form input
+
+Below the line editor, **Edit output** opens the whole output in one text area. Add or
+remove one form input in a generated htmx page and press **Preview structural edit**. The
+viewer drafts a model patch for it, and accepts the patch by the same rule as a literal:
+regenerating with it must give back what you typed.
+
+**One block, one control.** The viewer diffs the output against your text by line, and
+the change must be one contiguous block. The block may also change the lines beside the
+input, such as the form's *set by the runtime* comment, which lists the fields the form
+leaves out. Inside the block exactly one `input`, `textarea` or `select` with a `name`
+must appear or disappear. The form is found from the trace
+([ADR-0019](/adr/0019-generation-trace)): the nearest traced lines above and below the
+block must both name the same `ifml:Form` with a `seam:writes` shape. An input line
+itself traces only the written shape.
+
+**What the patch contains.** Removing the chat app's message input from the compose
+form drops the form's one `ifml:hasParameter` bound to a path named `content`: every
+triple with `:message_input` as subject, and the `hasParameter` triple, each in its own
+graph. Adding an input mints the parameter `<name>_input` in the form's namespace and
+gives it `a ifml:Parameter`, the label `"<name> input"`, `ifml:boundTo` the path, the
+form's `seam:inModel` and the form's `ifml:hasParameter`, in the form's graph. When the
+written shape already has a `sh:property` path with the control's name, the parameter is
+bound to it. Otherwise the path is minted in the shape's namespace and declared
+`a rdf:Property`, and a blank-node `sh:property` is added to the shape. Its values come
+from the control you typed: `sh:datatype` (and `dash:editor`) from the element, by the
+htmx generator's field kinds read backwards (a `textarea`, an `input type="text"` or an
+`input type="datetime-local"`), `sh:maxLength` from `maxlength`, `sh:minCount 1` from
+`required`, and `sh:name` from the name. Nothing in the patch is a fixed value.
+
+**The edited block must regenerate to itself.** The patch is applied to a temporary
+copy and the generators run, as for a literal. Every line of the output must come back
+as you typed it, model hashes aside. A line outside your block that the patch also
+changes is allowed and listed as an effect: on the chat page a new message field also
+shows in the message thread, a `Details` of the same shape. Effects on other outputs are
+listed too, and all of them come before **Apply to the model**. A new path's
+`sh:property` has no `sh:order`, so the generator puts it after the ordered fields; an
+input typed anywhere else is refused with the first differing line.
+
+**Refusals.** The viewer refuses, naming the subject, the predicate and the reason, and
+writes nothing, when the edit changes more than one block, adds or removes no named
+control or several, lies inside no form with `seam:writes` (an input typed into
+`<head>`, say), regenerates differently, mints a parameter IRI that is already in the
+model, removes a parameter that something other than its form refers to, or adds a new
+path through a control no field kind writes, such as a `select`. Apply checks again on
+the current model and writes the patch through `seams_edit` onto the undo stack. The
+server log records each drafted, refused and applied structural edit with the output,
+the subject, the predicate, the reason or the kind, and the files.
+
 ### Domain profiles
 
 A model can attach to a domain profile with one triple in its seams graph,
@@ -416,6 +509,10 @@ the diagram comes back drawn and clickable.
 | `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel and live preview. |
 | `/edit/payload/{iri}` | Edit mode only: `POST` with JSON `{"xml": …, "renames": [{"old": …, "new": …}]}` renames each id through the seams graph and saves the BPMN or DMN model's XML; returns JSON with the files touched, or a 409 naming the subject, predicate and reason when nothing was written. |
 | `/edit/ifml/{iri}` | Edit mode only: `POST` with JSON `{"op": "create" \| "connect" \| "move" \| "delete" \| "remove_field", …}` applies one [IFML diagram op](#ifml-editing) to the IFML model; returns JSON with the files touched, the redrawn diagram and the health and preview markup, or a 409 naming the subject, predicate and reason when nothing was written. |
+| `/generation/writeback/preview` | Edit mode only: `POST` with form fields `output`, `line` and `text` drafts the [write-back](#write-back-from-output) of one edited output line and returns the patch, the regeneration check and the other lines it changes, or the refusal naming the subject, predicate and reason. Writes nothing. |
+| `/generation/writeback/apply` | Edit mode only: `POST` with the same fields checks the write-back again on the current model, then writes the one-triple patch through `seams_edit` and puts it on the undo stack; a refusal writes nothing. |
+| `/generation/structural/preview` | Edit mode only: `POST` with form fields `output` and `text` (the whole edited output) drafts the [structural edit](#structural-edits-adding-or-removing-a-form-input) that adds or removes one form input and returns the kind, the field, the form, the parameter, every patch triple, the files and the effects, or the refusal naming the subject, predicate and reason. Writes nothing. |
+| `/generation/structural/apply` | Edit mode only: `POST` with the same fields drafts the structural edit again on the current model, then writes its patch through `seams_edit` and puts it on the undo stack; a refusal writes nothing. |
 | `/edit/undo` | Edit mode only: `POST` reverses the newest edit of the session. |
 | `/edit/preview` | Edit mode only: `GET` returns the [live preview](#live-preview): the project's generators re-run in lenient mode, in memory, on the loaded model. Add `oob=true` to mark it for an out-of-band swap. |
 
@@ -431,6 +528,7 @@ or more than one, the viewer refuses to start and names the candidates. The stat
 renderer does not yet draw containment as nesting. Edit mode edits one field of one
 element at a time through forms, BPMN and DMN only through their modelers, and IFML on
 its diagram: it does not create or delete other seams-graph elements, or edit the C4 or
-statechart diagrams yet. The IFML modeler makes navigation flows only (a data flow is
+statechart diagrams yet. Write-back from the generation view changes one literal per edit, or adds or removes
+one form input per edit; other structural edits from the output are not proposed yet. The IFML modeler makes navigation flows only (a data flow is
 made through the route), and does not set a flow's swap. The modelers do not lift a new BPMN or DMN element into the seams graph, and its
 undo history lasts only as long as the viewer runs. A domain profile's palette lists the classes on offer, but the editor cannot yet add an element from it. The live preview shows the generated text, not the page served, and a form save waits for it, so a project with slow generators makes saves slow. The [backlog](/backlog) lists what comes next for the viewer.

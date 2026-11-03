@@ -38,6 +38,7 @@ from seams_gen.dockerfile import extract_dockerfile  # noqa: E402
 from seams_gen.fastapi import extract_routes  # noqa: E402
 from seams_gen.htmx import generate_pages  # noqa: E402
 from seams_gen.smoke import extract_smoke  # noqa: E402
+from seams_gen.stubs import extract_stubs  # noqa: E402
 from seams_gen.testing import SHAPES_FILE, assert_shapes_catch, shape_violations  # noqa: E402
 from seams_gen.tests import extract_tests  # noqa: E402
 
@@ -61,6 +62,8 @@ CHAT = Namespace("https://example.org/chat/")
 EXP = Namespace("https://example.org/expenses/")
 APPROVAL = Namespace("https://example.org/expenses/approval_bpmn#")
 PAYOUT = Namespace("https://example.org/expenses/payout_bpmn#")
+OTHER = Namespace("https://example.org/other/")
+XSD = Namespace("http://www.w3.org/2001/XMLSchema#")
 
 
 class Site(NamedTuple):
@@ -126,6 +129,7 @@ GENERATORS = {
     "smoke": extract_smoke,
     "compose": _compose,
     "dockerfile": extract_dockerfile,
+    "stubs": extract_stubs,
 }
 
 
@@ -246,6 +250,41 @@ def _second_port(ds, container):
     g.add((container, DEPLOY.port, port))
     g.add((port, RDF.type, DEPLOY.Port))
     g.add((port, DEPLOY.containerPort, Literal(9000)))
+
+
+def _exp_data(ds):
+    return _graph(ds, "model:expense_data")
+
+
+def _notification_property(ds, path):
+    """The sh:property node of :NotificationShape whose sh:path is ``path``."""
+    g = _exp_data(ds)
+    (node,) = [p for p in g.objects(EXP.NotificationShape, SH.property) if (p, SH.path, path) in g]
+    return node
+
+
+def _second_handler(ds, handler, shape):
+    """A second operation returning ``shape``, seam:implementedBy a comm:PythonHandler ``handler``."""
+    g = _seams(ds)
+    g.add((EXP.second_op, RDF.type, HYDRA.Operation))
+    g.add((EXP.second_op, RDFS.label, Literal("Second")))
+    g.add((EXP.second_op, SEAM.returnsShape, shape))
+    g.add((EXP.second_op, SEAM.implementedBy, EXP.second_impl))
+    g.add((EXP.second_impl, RDF.type, COMM.PythonHandler))
+    g.add((EXP.second_impl, COMM.handler, Literal(handler)))
+
+
+def _same_named_shape(ds):
+    """:NotificationShape's namesake in another namespace, returned by a second handler of the notify module."""
+    other = OTHER.NotificationShape
+    g = _exp_data(ds)
+    field = BNode()
+    g.add((other, RDF.type, SH.NodeShape))
+    g.add((other, SEAM.inModel, EXP.expense_data))
+    g.add((other, SH.property, field))
+    g.add((field, SH.path, EXP.recipient))
+    g.add((field, SH.datatype, XSD.string))
+    _second_handler(ds, "notify.second", other)
 
 
 BAD_KEY = BNode("bad_key_binding")
@@ -821,6 +860,59 @@ CASES = [
         DEPLOY.port,
         CHAT.llm_gateway,
         DEPLOY.port,
+    ),
+    Case(
+        "handler-shape-field-without-a-python-type",
+        Site("stubs", "_stub_class", "SH.datatype"),
+        EXPENSES_TRIG,
+        lambda ds: _replace(_exp_data(ds), _notification_property(ds, EXP.message), SH.datatype, XSD.anyURI),
+        "stubs",
+        EXP.NotificationShape,
+        SH.datatype,
+        EXP.NotificationShape,
+    ),
+    Case(
+        "handler-shape-key-is-a-keyword",
+        Site("stubs", "_identifier", "predicate"),
+        EXPENSES_TRIG,
+        lambda ds: _replace(_exp_data(ds), _notification_property(ds, EXP.message), SH.path, EXP["class"]),
+        "stubs",
+        EXP.NotificationShape,
+        SH.path,
+        EXP.NotificationShape,
+        match="not a Python identifier",
+    ),
+    Case(
+        "handler-shape-keys-collide",
+        Site("stubs", "_stub_class", "SH.path"),
+        EXPENSES_TRIG,
+        lambda ds: _replace(_exp_data(ds), _notification_property(ds, EXP.message), SH.path, COMM.recipient),
+        "stubs",
+        EXP.NotificationShape,
+        SH.path,
+        EXP.NotificationShape,
+    ),
+    Case(
+        "handler-module-shapes-share-a-local-name",
+        Site("stubs", "_module", "RDF.type", "share"),
+        EXPENSES_TRIG,
+        _same_named_shape,
+        "stubs",
+        EXP.NotificationShape,
+        RDF.type,
+        EXP.NotificationShape,
+        match="share a local name",
+    ),
+    Case(
+        "handler-shape-named-like-a-function",
+        Site("stubs", "_module", "RDF.type", "function"),
+        EXPENSES_TRIG,
+        lambda ds: _replace(_seams(ds), EXP.notify_manager_impl, COMM.handler, Literal("notify.ExpenseShape")),
+        "stubs",
+        EXP.ExpenseShape,
+        RDF.type,
+        EXP.ExpenseShape,
+        match="also a function",
     ),
 ]
 

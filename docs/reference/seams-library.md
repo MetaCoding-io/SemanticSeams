@@ -514,6 +514,23 @@ it never refuses it, and the checks do not raise.
 The chat app has eleven: its `MessageShape` status list, `sh:class
 :MessageShape`, both shapes and all seven paths. Backlog O1 and O2 remove them.
 
+## Context assembly
+
+`seams.context` gathers the model facts that the code of a service task depends on
+(backlog C3). `context_for(model, task)` takes a `Model` or `ModelGraph` and a
+task given as a BPMN id, CURIE or IRI. It returns a `Manifest` with `task` (an
+IRI), `items` (`ContextItem`s sorted by kind and ref) and `context_hash`. Each
+`ContextItem` has a `kind`, a `ref` (an IRI, or a model-relative `path#id` for
+an XML fragment), a `hash` (`sha256:<hex>`) and the `content` that was hashed.
+
+Each item keeps only the facts the task uses. A container is narrowed to its
+technology and the `deploy:key` of each binding. Binding values are never read.
+Graph items hash sorted, canonical N-Triples. XML fragments hash their
+exclusive C14N. `context_hash` is sha256 over the items, each framed as kind,
+NUL, ref, NUL, hash, newline. An unknown task, a task that is not a
+`proc:ServiceTask`, or a missing hop raises `ResolutionError`. The package
+README lists the rules for each kind.
+
 ## The model hash
 
 `"sha256:<hex>"`, where each payload is framed as relative path, NUL, decimal

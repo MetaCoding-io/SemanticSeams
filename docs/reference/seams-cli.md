@@ -10,6 +10,7 @@ operation-contract changes between two model versions as compatible or breaking;
 as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
 and policies no scenario or test exercises; `seams secrets` checks that each
 environment's configuration keys and secrets exist, without reading a value;
+`seams context` prints the hashed model facts a service task's code depends on;
 `seams new-generator` scaffolds a generator package from a reference output. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
@@ -1002,6 +1003,42 @@ reports six paths and exits 1.
 | 2 | The project file is missing or malformed, no model was given, or the model cannot be loaded. |
 
 Errors print to stderr as `seams coverage: <message>`.
+
+## seams context
+
+```sh
+seams context send_now --project examples/expenses/chapter-09
+seams context send_now --project examples/expenses/chapter-09 --json
+```
+
+It prints the context manifest of one service task (backlog C3): the model facts
+and native file fragments that code written for the task depends on, each hashed,
+with a context hash over them. It reads the model only, writes nothing, and calls
+no LLM, so the manifest serves as a review report: keep it beside hand-written
+code and a changed item hash shows which fact moved. TASK is a BPMN id, CURIE or
+full IRI; the model is chosen as for [`seams generate`](#the-model). The rules
+that pick and narrow the items are in the
+[seams library reference](/reference/seams-library#context-assembly).
+
+### Output
+
+The text output is `task <iri>`, then one `<kind> <ref> <hash>` line per item in
+(kind, ref) order, then `context <hash>`. A kind is `bpmn`, `container`,
+`decision`, `dmn`, `process`, `shape`, `state`, `task` or `transition`; a ref is
+an IRI or a model-relative `path#id`; a hash is `sha256:<hex>`. `--json` prints
+an object with `task`, `items` (each with `kind`, `ref` and `hash`) and
+`context_hash`, with sorted keys. Neither form holds an absolute path or a
+binding value, and the same model gives the same bytes.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The manifest was printed. |
+| 1 | The task is unknown, is not a `proc:ServiceTask`, or a fact it needs is missing. |
+| 2 | The project file is missing or malformed, no model was given, or the model cannot be loaded. |
+
+Errors print to stderr as `seams context: <message>`.
 
 ## seams new-generator
 

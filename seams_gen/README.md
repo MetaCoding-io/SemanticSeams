@@ -673,7 +673,8 @@ mocked LLM renders the same lines (`tests/test_sequence_executed.py`).
 
 ```
 python -m seams_gen.stubs app/model.trig
-# -> app/handlers/__init__.py, app/handlers/notify.py   (absent files only, each printed)
+# -> app/handlers/__init__.py, app/handlers/notify.py and a .trace.json beside each
+#    (absent files only, each printed)
 python -m seams_gen.stubs app/model.trig --handlers path/to/handlers
 ```
 
@@ -696,20 +697,34 @@ even the package.
 | Graph fact | Stub |
 |---|---|
 | `comm:handler "a.b.f"` | function `f` in `a/b.py`; `a/__init__.py` and the package `__init__.py` are created when absent. A module that is also a package prefix is that package's `__init__.py`; a one-segment path is a function of the package `__init__.py` (as the runtime imports them). Functions of one module are sorted by name |
-| Header | `# Generated once by the seams handler stub generator from the <stem> model.`, the owned-code line and `# model-hash: sha256:…`. A package `__init__.py` with no functions is the header alone |
-| Signature | `def f(entity: dict) -> dict:`; `-> None` when no operation the handler implements has a `seam:returnsShape`, `-> dict \| None` when only some do |
+| Header | `# Generated once by the seams handler stub generator from the <stem> model.`, the owned-code line, `# model-hash: sha256:…` and `# context-hash: sha256:…`. The context hash is the invoking `proc:ServiceTask`'s `Manifest.context_hash` from [`seams.context_for`](../docs/reference/seams-library.md#context-assembly); with several invoking tasks it is `sha256` over their sorted hashes, each followed by a newline; with none the line is left out. A package `__init__.py` with no functions is the header alone |
+| `seam:acceptsShape`, `seam:returnsShape` | one `TypedDict` per shape the module's functions use, named after the shape's local name, after `from typing import NotRequired, TypedDict` (`NotRequired` only when a field needs it). One key per `sh:property`, in `Shape.fields()` order: the `sh:path` local name |
+| `sh:datatype` of a property | the key's type: `xsd:string` → `str`, `xsd:integer` → `int`, `xsd:decimal` and `xsd:double` → `float`, `xsd:boolean` → `bool`, `xsd:date` and `xsd:dateTime` → `str`. A property without a datatype (`sh:class`, `sh:node`) holds an IRI: `str` |
+| `sh:minCount` absent or `0` | the type wrapped in `NotRequired[…]` |
+| Signature | `def f(entity: <Accepts>) -> <Returns>:` with the shape classes; `entity: dict` when an operation has no `seam:acceptsShape`; `-> None` when no operation the handler implements has a `seam:returnsShape`, `-> <Returns> \| None` when only some do |
 | Docstring | `comm:handler "<path>" of <implementations> (comm:PythonHandler).`, then per operation: `Implements <op> (seam:implementedBy <impl>).`, the `seam:acceptsShape` the entity is and the `seam:returnsShape` the result must be |
+| `seam:invokes` from a `proc:ServiceTask` | docstring lines from the task's `context_for` manifest: `Invoked by <task> (seam:invokes), a proc:ServiceTask of <process>.`, `Decided by <decision> (seam:decidedBy): …` for each decision it lists, and `Fires <transition> (seam:fires): <from> -> <to>.` for the transition the task fires. No lines when no task invokes the operation |
 | Body | `raise NotImplementedError("<path>: write the handler for <operations>")`, so a stubbed operation fails its instance (naming the operation and `PythonHandler`) until it is written |
+| Trace | `<module>.trace.json` beside each written module ([ADR-0019](../docs/adr/0019-generation-trace.md), generator `stubs`): every line cites the model IRIs behind it. Fields cite their `sh:path`, shape and operations; class lines their shape; the signature, summary and body the implementations, operations and shapes; each docstring line the task, decision or transition it names (with its process, task or states); header lines every IRI of the module's functions. Written once, only when its module is, and not recorded in `seams.lock` |
 
 **Errors.** A fact `ModelGraph.operation_implementation` rejects (several
 `seam:implementedBy`, a missing or unknown kind, a missing or non-identifier
 `comm:handler`) is a `GeneratorError` naming the same subject and predicate: exit **2**,
-nothing written. A model that does not parse also exits 2. A model file that cannot be
+nothing written. So is a property whose `sh:datatype` is not in the type table
+(`GeneratorError(shape, sh:datatype)`, naming the property and the mapped datatypes), two
+properties of a shape with the same `sh:path` local name, a shape or path local name that
+is not a Python identifier, two shapes of one module with the same local name, and a
+shape whose local name is also a function of its module. `seamsh:HandlerShapeShape` in
+`ontology/shapes/seam-shapes.ttl` states each of these for the shapes a
+`comm:PythonHandler` operation accepts or returns, so a model that passes the shapes
+writes its stubs (the parity cases are in `tests/test_shape_generator_parity.py`). A
+`ResolutionError` from `context_for` becomes a `GeneratorError` with the same subject and
+predicate. A model that does not parse also exits 2. A model file that cannot be
 read or a handlers path that cannot be written exits **1**. Reports exit 0.
 
 Owned handlers are not in ruff's `extend-exclude`: they are linted and tested like any
 other code. The golden is `tests/golden/handler_stubs/notify.py` (plain text, with the
-`sha256:<model-hash>` placeholder `golden_target` fills).
+`sha256:<model-hash>` and `sha256:<context-hash>` placeholders `golden_target` fills).
 
 ```python
 from seams import ModelGraph

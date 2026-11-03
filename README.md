@@ -34,7 +34,7 @@ packages/   seams/          — the read-only `seams` model library (rdflib + lx
 seams_edit/ the model's one write path (ADR-0017): quad patches applied by editing the TriG text in place, so comments and layout survive, BPMN/DMN payload saves and id renames, with undo
 tests/      executable acceptance test: parse everything, validate against the shapes, assert the canned queries' rows
 site/       the public project page (GitHub Pages, no build step)
-viewer/     the multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js); read-only unless SEAMS_EDIT=1 turns on edit mode (forms from shapes, the BPMN/DMN modelers with id renames that move seam edges, IFML editing on its diagram, saves through seams_edit, a live preview that re-runs the generators in lenient mode, in memory, and domain profiles attached by seam:conformsTo that narrow the palette, health and preview, ADR-0018); its generation view (/generation/{iri}) joins model, template and output line by line through the trace sidecars
+viewer/     the multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js); read-only unless SEAMS_EDIT=1 turns on edit mode (forms from shapes, the BPMN/DMN modelers with id renames that move seam edges, IFML editing on its diagram, saves through seams_edit, a live preview that re-runs the generators in lenient mode, in memory, and domain profiles attached by seam:conformsTo that narrow the palette, health and preview, ADR-0018); its generation view (/generation/{iri}) joins model, template and output line by line through the trace sidecars, and in edit mode writes an edited output line back to the one model literal behind it when regenerating reproduces the edit, and turns adding or removing a form input into an ifml:Parameter patch (with a sh:property for a new path) on the same rule
 ```
 
 Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. Fragment naming serves renderer dispatch only — membership is data: every lifted element carries `seam:inModel`, the edge cross-layer SPARQL actually traverses. The thin `proc:`/`dec:` index vocabulary types only these seam-participating elements. The data layer needs no vocabulary at all — SHACL *is* the vocabulary.
@@ -125,6 +125,8 @@ against the compose stack. The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).
+`seams context TASK` prints the model facts and BPMN and DMN fragments a service task's
+code depends on, each hashed, with a context hash over them (`--json` for the manifest).
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 
@@ -140,7 +142,9 @@ against thresholds; the chat app fails by design.
 `python -m seams_gen.stubs <model.trig>` writes a stub for each `comm:PythonHandler`
 whose module is missing from the model's `handlers/` package, and never overwrites a file
 there: hand-written handlers are owned code
-([ADR-0012](docs/adr/0012-operation-implementation.md)).
+([ADR-0012](docs/adr/0012-operation-implementation.md)). Each stub is typed from its
+operation's shapes, names the task, decision and transition behind it, and has a
+`.trace.json` sidecar linking its lines to the model.
 
 ## v1: the viewer
 

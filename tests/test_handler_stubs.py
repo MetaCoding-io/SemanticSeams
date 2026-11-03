@@ -3,11 +3,13 @@
 ``python -m seams_gen.stubs`` writes a stub for each comm:PythonHandler whose
 module is absent, and never writes a file that exists. Models are the chat app
 copied to tmp_path with handler declarations added; handlers directories are
-in tmp_path too.
+in tmp_path too, as is the expenses chapter-09 checkpoint with its owned
+handlers removed.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -15,16 +17,20 @@ import sys
 from pathlib import Path
 
 import httpx
-from seams import model_hash
+from rdflib import RDF, Dataset, URIRef
+from seams import ModelGraph, context_for, model_hash
 
-from seams_gen.stubs import main
-from seams_gen.testing import golden_target
+from seams_gen.stubs import extract_stubs, main
+from seams_gen.testing import SHAPES_FILE, assert_shapes_catch, golden_target, shape_violations
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAT_DIR = ROOT / "examples" / "chat-app"
+EXPENSES_DIR = ROOT / "examples" / "expenses" / "chapter-09"
+EXPENSES = "https://example.org/expenses/"
 CHAT = "https://example.org/chat/"
 COMM_HANDLER = "https://w3id.org/seams/comm#handler"
 GOLDEN = ROOT / "tests" / "golden" / "handler_stubs" / "notify.py"
+ONTOLOGY_FILES = sorted((ROOT / "ontology").glob("*.ttl"))
 
 LLM_IMPL = ':completion_impl a comm:LLMCompletion ; rdfs:label "LLM completion" .'
 NOTIFY = (
@@ -72,8 +78,11 @@ def test_stub_matches_the_golden(tmp_path, capsys):
     code, out, err = stubs(capsys, trig)
     handlers = trig.parent / "handlers"
     assert (code, err) == (0, "")
-    assert out.splitlines() == [str(handlers / "__init__.py"), str(handlers / "notify.py")]
-    expected = golden_target(GOLDEN, model_hash(trig))
+    assert out.splitlines() == [
+        str(handlers / name) for name in ("__init__.py", "__init__.py.trace.json", "notify.py", "notify.py.trace.json")
+    ]
+    context = context_for(ModelGraph.load(trig), "persist_user_msg").context_hash
+    expected = golden_target(GOLDEN, model_hash(trig), context)
     assert (handlers / "notify.py").read_text(encoding="utf-8") == expected
     # The package __init__.py is the same generated-once header, with no functions.
     assert (handlers / "__init__.py").read_text(encoding="utf-8") == "".join(expected.splitlines(True)[:3])
@@ -143,7 +152,8 @@ def test_an_absent_function_in_a_new_module_is_written_beside_owned_modules(tmp_
     (handlers / "notify.py").write_text("def notify_manager(entity):\n    return entity\n", encoding="utf-8")
     code, out, err = stubs(capsys, trig)
     assert (code, err) == (0, "")
-    assert out.splitlines() == [str(handlers / "audit.py")]
+    # An existing module gets no sidecar; the new one gets its own.
+    assert out.splitlines() == [str(handlers / "audit.py"), str(handlers / "audit.py.trace.json")]
     text = (handlers / "audit.py").read_text(encoding="utf-8")
     # No seam:returnsShape: the handler must return None (ADR-0012).
     assert "def record(entity: dict) -> None:" in text
@@ -156,7 +166,14 @@ def test_nested_handler_paths_get_their_packages(tmp_path, capsys):
     code, _, err = stubs(capsys, trig)
     handlers = trig.parent / "handlers"
     assert (code, err) == (0, "")
-    assert sorted(snapshot(handlers)) == ["__init__.py", "billing/__init__.py", "billing/pay.py"]
+    assert sorted(snapshot(handlers)) == [
+        "__init__.py",
+        "__init__.py.trace.json",
+        "billing/__init__.py",
+        "billing/__init__.py.trace.json",
+        "billing/pay.py",
+        "billing/pay.py.trace.json",
+    ]
     # billing is a package, so billing.refund is a function of billing/__init__.py.
     assert "def refund(entity: dict) -> None:" in (handlers / "billing" / "__init__.py").read_text()
     assert "def pay_expense(entity: dict) -> None:" in (handlers / "billing" / "pay.py").read_text()
@@ -182,6 +199,191 @@ def test_the_chat_app_writes_nothing(tmp_path, capsys):
     code, out, err = stubs(capsys, CHAT_DIR / "chat-app.trig", "--handlers", handlers)
     assert (code, out, err) == (0, "", "")
     assert not handlers.exists()
+
+
+def expenses_model(tmp_path: Path) -> Path:
+    """The chapter-09 checkpoint in ``tmp_path/expenses`` without its owned handlers package."""
+    copy = tmp_path / "expenses"
+    shutil.copytree(EXPENSES_DIR, copy, ignore=shutil.ignore_patterns("handlers", "__pycache__"))
+    return copy / "expenses.trig"
+
+
+def test_an_expenses_stub_is_typed_from_its_shapes(tmp_path, capsys):
+    trig = expenses_model(tmp_path)
+    code, out, err = stubs(capsys, trig)
+    assert (code, err) == (0, "")
+    text = (trig.parent / "handlers" / "notify.py").read_text(encoding="utf-8")
+    # One TypedDict per accepted and returned shape, keys in sh:order, then path IRI.
+    assert "from typing import NotRequired, TypedDict\n" in text
+    assert (
+        "class ExpenseShape(TypedDict):\n"
+        '    """:ExpenseShape (sh:NodeShape): one key per sh:property."""\n'
+        "\n"
+        "    description: str\n"
+        "    amount: float\n"
+        "    date: str\n"
+        "    status: NotRequired[str]\n"
+        "    id: NotRequired[str]\n"
+    ) in text
+    assert "class NotificationShape(TypedDict):" in text
+    assert "    recipient: str\n    message: str\n" in text
+    assert "def notify_manager(entity: ExpenseShape) -> NotificationShape:" in text
+
+
+def test_an_expenses_stub_names_its_task_decision_and_context_hash(tmp_path, capsys):
+    trig = expenses_model(tmp_path)
+    assert stubs(capsys, trig)[0] == 0
+    lines = (trig.parent / "handlers" / "notify.py").read_text(encoding="utf-8").splitlines()
+    manifest = context_for(ModelGraph.load(trig), "notify_manager")
+    assert lines[3] == f"# context-hash: {manifest.context_hash}"
+    assert "    Invoked by :notify_manager (seam:invokes), a proc:ServiceTask of :approval_process." in lines
+    decided = "    Decided by :approval_routing (seam:decidedBy): a gateway before the task routes on its output."
+    assert decided in lines
+    # The notify task fires no transition, so there is no Fires line.
+    assert not [line for line in lines if "seam:fires" in line]
+
+
+def test_a_firing_task_names_its_transition(tmp_path, capsys):
+    trig = firing_expenses_model(tmp_path)
+    assert stubs(capsys, trig)[0] == 0
+    stub = (trig.parent / "handlers" / "submit.py").read_text(encoding="utf-8")
+    assert "    Invoked by :persist_expense (seam:invokes), a proc:ServiceTask of :approval_process.\n" in stub
+    assert "    Fires :t_submit (seam:fires): :s_draft -> :s_submitted.\n" in stub
+    assert "Decided by" not in stub
+    manifest = context_for(ModelGraph.load(trig), "persist_expense")
+    assert f"# context-hash: {manifest.context_hash}\n" in stub
+
+
+def test_an_expenses_stub_is_byte_identical_on_a_second_run(tmp_path, capsys):
+    runs = []
+    for name in ("first", "second"):
+        trig = expenses_model(tmp_path / name)
+        assert stubs(capsys, trig)[0] == 0
+        runs.append(snapshot(trig.parent / "handlers"))
+    assert runs[0] == runs[1]
+    assert sorted(runs[0]) == ["__init__.py", "__init__.py.trace.json", "notify.py", "notify.py.trace.json"]
+
+
+def test_the_typed_stub_compiles_and_its_annotations_resolve(tmp_path, capsys):
+    import typing
+
+    trig = expenses_model(tmp_path)
+    assert stubs(capsys, trig)[0] == 0
+    path = trig.parent / "handlers" / "notify.py"
+    namespace: dict = {}
+    # dont_inherit: this file's ``from __future__ import annotations`` must not apply to the stub.
+    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec", dont_inherit=True), namespace)
+    hints = typing.get_type_hints(namespace["notify_manager"])
+    assert hints == {"entity": namespace["ExpenseShape"], "return": namespace["NotificationShape"]}
+    expense = namespace["ExpenseShape"]
+    assert expense.__required_keys__ == {"description", "amount", "date"}
+    assert expense.__optional_keys__ == {"status", "id"}
+
+
+# ── the trace sidecar ────────────────────────────────────────────────────────
+
+
+def sidecar(module: Path) -> dict[str, list[str]]:
+    """{output line text: its trace terms} from ``module``'s ``.trace.json``, checking its envelope."""
+    trace = json.loads(module.with_name(module.name + ".trace.json").read_text(encoding="utf-8"))
+    assert (trace["generator"], trace["output"], trace["trace_version"]) == ("stubs", module.name, 1)
+    lines = module.read_text(encoding="utf-8").split("\n")
+    assert [entry["line"] for entry in trace["lines"]] == [i for i, t in enumerate(lines, start=1) if t.strip()]
+    for entry in trace["lines"]:
+        assert entry["templates"] and all(t.startswith("handler_stub.py.j2:") for t in entry["templates"])
+    return {lines[entry["line"] - 1]: entry["terms"] for entry in trace["lines"]}
+
+
+def firing_expenses_model(tmp_path: Path) -> Path:
+    """The chapter-09 checkpoint with :submit_expense_op seam:implementedBy a comm:PythonHandler too."""
+    trig = expenses_model(tmp_path)
+    text = trig.read_text(encoding="utf-8")
+    impl = '    :notify_manager_impl a comm:PythonHandler ; rdfs:label "notify manager handler" ;'
+    assert text.count(impl) == 1
+    declaration = (
+        "    :submit_expense_op seam:implementedBy :submit_impl .\n"
+        '    :submit_impl a comm:PythonHandler ; rdfs:label "submit handler" ; comm:handler "submit.persist" .\n'
+    )
+    trig.write_text(text.replace(impl, declaration + impl), encoding="utf-8")
+    return trig
+
+
+def test_the_sidecar_cites_shapes_and_operations_on_the_signature_and_fields(tmp_path, capsys):
+    trig = expenses_model(tmp_path)
+    assert stubs(capsys, trig)[0] == 0
+    terms = sidecar(trig.parent / "handlers" / "notify.py")
+    op, impl = f"{EXPENSES}notify_manager_op", f"{EXPENSES}notify_manager_impl"
+    expense, notification = f"{EXPENSES}ExpenseShape", f"{EXPENSES}NotificationShape"
+    assert terms["def notify_manager(entity: ExpenseShape) -> NotificationShape:"] == sorted(
+        [expense, impl, notification, op]
+    )
+    assert terms["class ExpenseShape(TypedDict):"] == [expense, op]
+    # A field cites its sh:path, its shape and the operation that uses the shape.
+    assert terms["    amount: float"] == [expense, f"{EXPENSES}amount", op]
+    assert terms["    recipient: str"] == [notification, op, f"{EXPENSES}recipient"]
+    assert terms["    entity: the current :ExpenseShape entity (seam:acceptsShape)."] == [expense, op]
+
+
+def test_the_sidecar_cites_the_decision_and_the_transition_on_the_docstring(tmp_path, capsys):
+    trig = firing_expenses_model(tmp_path)
+    assert stubs(capsys, trig)[0] == 0
+    notify = sidecar(trig.parent / "handlers" / "notify.py")
+    task = f"{EXPENSES}approval_bpmn#notify_manager"
+    decided = "    Decided by :approval_routing (seam:decidedBy): a gateway before the task routes on its output."
+    # The decision and the task it decides.
+    assert notify[decided] == [task, f"{EXPENSES}approval_routing"]
+    invoked = "    Invoked by :notify_manager (seam:invokes), a proc:ServiceTask of :approval_process."
+    assert notify[invoked] == [task, f"{EXPENSES}approval_process", f"{EXPENSES}notify_manager_op"]
+    submit = sidecar(trig.parent / "handlers" / "submit.py")
+    fires = "    Fires :t_submit (seam:fires): :s_draft -> :s_submitted."
+    # The transition, its states and the task that fires it.
+    assert set(submit[fires]) == {
+        f"{EXPENSES}approval_bpmn#persist_expense",
+        f"{EXPENSES}s_draft",
+        f"{EXPENSES}s_submitted",
+        f"{EXPENSES}t_submit",
+    }
+
+
+def test_a_bare_package_init_gets_a_sidecar(tmp_path, capsys):
+    trig = expenses_model(tmp_path)
+    assert stubs(capsys, trig)[0] == 0
+    terms = sidecar(trig.parent / "handlers" / "__init__.py")
+    # No functions: the three header lines, with no model elements to cite.
+    assert list(terms.values()) == [[], [], []]
+
+
+def test_an_existing_module_gets_no_sidecar(tmp_path, capsys):
+    trig = expenses_model(tmp_path)
+    handlers = trig.parent / "handlers"
+    handlers.mkdir()
+    (handlers / "notify.py").write_text("def notify_manager(entity):\n    return entity\n", encoding="utf-8")
+    code, out, err = stubs(capsys, trig)
+    assert (code, err) == (0, "")
+    assert out.splitlines() == [str(handlers / "__init__.py"), str(handlers / "__init__.py.trace.json")]
+    assert not (handlers / "notify.py.trace.json").exists()
+
+
+def test_the_sidecar_is_byte_identical_across_runs(tmp_path, capsys):
+    runs = []
+    for seed in ("0", "1"):
+        trig = firing_expenses_model(tmp_path / seed)
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        subprocess.run(
+            [sys.executable, "-m", "seams_gen.stubs", str(trig)], check=True, cwd=ROOT, env=env, capture_output=True
+        )
+        runs.append(snapshot(trig.parent / "handlers"))
+    assert runs[0] == runs[1]
+    assert {"notify.py.trace.json", "submit.py.trace.json"} <= set(runs[0])
+
+
+def test_shapeless_operations_keep_the_dict_and_none_fallbacks(tmp_path, capsys):
+    trig = chat_model(tmp_path, extra("audit", "audit.record"))
+    assert stubs(capsys, trig)[0] == 0
+    text = (trig.parent / "handlers" / "audit.py").read_text(encoding="utf-8")
+    assert "def record(entity: dict) -> None:" in text
+    # No shapes, no invoking task: no classes, no typing import, no context hash.
+    assert "TypedDict" not in text and "context-hash" not in text and "Invoked by" not in text
 
 
 # ── errors ───────────────────────────────────────────────────────────────────
@@ -218,3 +420,65 @@ def test_an_unwritable_handlers_directory_exits_1(tmp_path, capsys):
     code, out, err = stubs(capsys, trig, "--handlers", blocker / "handlers")
     assert (code, out) == (1, "")
     assert err.startswith("python -m seams_gen.stubs: ")
+
+
+def test_an_unmapped_datatype_exits_2_and_writes_nothing(tmp_path, capsys):
+    trig = chat_model(
+        tmp_path,
+        '    :LinkShape a sh:NodeShape ; rdfs:label "Link" ;\n'
+        "        sh:property [ sh:path :href ; sh:datatype xsd:anyURI ; sh:minCount 1 ] .\n"
+        '    :link_op a hydra:Operation ; rdfs:label "link" ; seam:acceptsShape :LinkShape ;\n'
+        "        seam:implementedBy :link_impl .\n"
+        '    :link_impl a comm:PythonHandler ; rdfs:label "link handler" ; comm:handler "links.follow" .',
+    )
+    code, out, err = stubs(capsys, trig)
+    assert (code, out) == (2, "")
+    assert err.startswith(f"python -m seams_gen.stubs: {CHAT}LinkShape: http://www.w3.org/ns/shacl#datatype: ")
+    assert ":href: no Python type for http://www.w3.org/2001/XMLSchema#anyURI" in err
+    assert not (trig.parent / "handlers").exists()
+
+
+def test_a_keyword_shape_name_is_a_shape_violation(tmp_path):
+    trig = chat_model(
+        tmp_path,
+        '    :import a sh:NodeShape ; rdfs:label "Import" ;\n'
+        "        sh:property [ sh:path :href ; sh:datatype xsd:string ; sh:minCount 1 ] .\n"
+        '    :import_op a hydra:Operation ; rdfs:label "import" ; seam:acceptsShape :import ;\n'
+        "        seam:implementedBy :import_impl .\n"
+        '    :import_impl a comm:PythonHandler ; rdfs:label "import handler" ; comm:handler "imports.run" .',
+    )
+    ds = Dataset(default_union=True)
+    ds.parse(trig, format="trig")
+    assert_shapes_catch(
+        extract_stubs,
+        ds,
+        subject=URIRef(f"{CHAT}import"),
+        predicate=RDF.type,
+        focus=URIRef(f"{CHAT}import"),
+        match="not a Python identifier",
+        model_path=trig,
+    )
+
+
+def test_same_named_shapes_in_different_modules_generate(tmp_path, capsys):
+    trig = chat_model(
+        tmp_path,
+        '    :LinkShape a sh:NodeShape ; rdfs:label "Link" ;\n'
+        "        sh:property [ sh:path :href ; sh:datatype xsd:string ; sh:minCount 1 ] .\n"
+        '    <https://example.org/other/LinkShape> a sh:NodeShape ; rdfs:label "Other link" ;\n'
+        "        sh:property [ sh:path :rel ; sh:datatype xsd:string ; sh:minCount 1 ] .\n"
+        '    :link_op a hydra:Operation ; rdfs:label "link" ; seam:acceptsShape :LinkShape ;\n'
+        "        seam:implementedBy :link_impl .\n"
+        '    :link_impl a comm:PythonHandler ; rdfs:label "link handler" ; comm:handler "links.follow" .\n'
+        '    :rel_op a hydra:Operation ; rdfs:label "rel" ; seam:acceptsShape <https://example.org/other/LinkShape> ;\n'
+        "        seam:implementedBy :rel_impl .\n"
+        '    :rel_impl a comm:PythonHandler ; rdfs:label "rel handler" ; comm:handler "rels.follow" .',
+    )
+    ds = Dataset(default_union=True)
+    ds.parse(trig, format="trig")
+    assert not [r for r in shape_violations(ds, SHAPES_FILE, ONTOLOGY_FILES) if "handler" in r[2]]
+    code, _, err = stubs(capsys, trig)
+    assert (code, err) == (0, "")
+    handlers = trig.parent / "handlers"
+    assert "    href: str" in (handlers / "links.py").read_text(encoding="utf-8")
+    assert "    rel: str" in (handlers / "rels.py").read_text(encoding="utf-8")

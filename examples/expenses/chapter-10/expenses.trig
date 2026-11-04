@@ -17,6 +17,17 @@
 # SemPKM. The URL binding becomes an environment entry and the token a
 # secret, as for PostgreSQL.
 #
+# A change made in SemPKM can start a process too (ADR-0027). Vendors are
+# people's data: finance adds and edits them in SemPKM, and no process writes
+# one. The ontology gains :Vendor (so its version moves to 1.1), the data
+# model :VendorShape, seam:storedIn :expense_pkm. The new :vendor_changes
+# channel has comm:transport comm:SemPKMWebhook: SemPKM POSTs its
+# object.changed events to the API at the channel's comm:path, and the API
+# reads the event back from SemPKM with its service token. The new
+# :vendor_review_process has a message start event that seam:subscribesTo the
+# channel, so each changed vendor starts one instance keyed by the vendor's
+# IRI, holding the vendor read from SemPKM.
+#
 # Chapter 9: hand-written code. Chapter 8's graphs are kept; chapter 9 adds
 # one service task whose work
 # is code a person writes. Before the manager's approval task, the approval
@@ -343,6 +354,15 @@
         sh:property [ sh:path :status ; sh:name "status" ; sh:maxCount 1 ; sh:order 2 ;
                       sh:in ( :s_recorded :s_scheduled :s_batched :s_sent ) ] ;
         seam:inModel :expense_data .
+
+    # A company the expenses are paid to. Finance keeps vendors in SemPKM;
+    # the app never writes one, it only reads one when it changes (ADR-0027).
+    :VendorShape a sh:NodeShape ; rdfs:label "Vendor" ;
+        sh:targetClass :Vendor ;
+        sh:property [ sh:path :id ; sh:name "id" ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :name ; sh:name "name" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:maxLength 200 ; sh:order 0 ] ;
+        seam:inModel :expense_data .
 }
 
 #################################################################
@@ -357,8 +377,8 @@
     :expense_ontology a seam:Model , owl:Ontology ;
         rdfs:label "Expense Ontology" ;
         # The package version SemPKM's manifest carries (ADR-0026): three numbers.
-        owl:versionInfo "1.0.0" ;
-        owl:versionIRI <https://example.org/expenses/expense_ontology/1.0> ;
+        owl:versionInfo "1.1.0" ;
+        owl:versionIRI <https://example.org/expenses/expense_ontology/1.1> ;
         owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
 
     # Money an employee spent for the company. gist: a transfer of funds.
@@ -381,6 +401,13 @@
         rdfs:subClassOf gist:Determination ;
         rdfs:label "Approval" ;
         skos:definition "An evaluation that establishes whether an expense is reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # A company that is paid for goods or services. gist: an organization.
+    :Vendor a owl:Class ;
+        rdfs:subClassOf gist:Organization ;
+        rdfs:label "Vendor" ;
+        skos:definition "A company the expenses are paid to, kept by finance in SemPKM." ;
         seam:inModel :expense_ontology .
 
     # States and outcomes are categories, not strings.
@@ -653,6 +680,28 @@
 }
 
 #################################################################
+# Third process model graph (BPMN): the vendor review
+#################################################################
+
+<urn:seams:graph:model:vendor_bpmn> {
+
+    :vendor_bpmn a seam:Model ; rdfs:label "Vendor Review (BPMN)" .
+
+    # Started by SemPKM, not by a person or another process: the message
+    # start event subscribes to the webhook channel (ADR-0027).
+    :vendor_review_process a proc:Process ; rdfs:label "Vendor Review" ;
+        seam:inModel :vendor_bpmn .
+
+    <https://example.org/expenses/vendor_bpmn#vendor_changed> a proc:MessageCatchEvent ;
+        rdfs:label "Vendor Changed" ;
+        seam:inModel :vendor_bpmn .
+
+    <https://example.org/expenses/vendor_bpmn#review_vendor> a proc:ServiceTask ;
+        rdfs:label "Review Vendor" ;
+        seam:inModel :vendor_bpmn .
+}
+
+#################################################################
 # Second lifecycle model graph (statechart): the payment
 #################################################################
 
@@ -794,12 +843,15 @@
         seam:renderPayload <payout.bpmn> .
     :payout_dmn seam:notation seam:DMN ;
         seam:renderPayload <payout.dmn> .
+    :vendor_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <vendor.bpmn> .
     :payment_lifecycle seam:notation seam:Statechart .
     :finance_console seam:notation seam:IFML .
 
     # Architecture to UI and API: the portal presents the screens of both
     # interaction models and calls the operations the API exposes. The API
-    # also exposes the payout channel and runs both processes.
+    # also exposes the payout channel and the vendor webhook channel, and
+    # runs the three processes.
     :employee_portal seam:presents :expense_ifml , :finance_console ;
         seam:consumes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
             :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
@@ -808,8 +860,8 @@
     :expense_api seam:exposes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
             :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
             :pay_expense_op , :list_payments_op , :paid_expenses_op , :payouts ,
-            :notify_manager_op ;
-        seam:executes :approval_process , :payout_process ;
+            :notify_manager_op , :vendor_changes ;
+        seam:executes :approval_process , :payout_process , :vendor_review_process ;
         seam:deployedTo :app01 .
     :expense_db seam:deployedTo :db01 .
     :expense_pkm seam:deployedTo :db01 .
@@ -943,6 +995,17 @@
     <https://example.org/expenses/payout_bpmn#send_now>
         seam:writes :PaymentShape ;
         seam:fires :t_send .
+
+    # The vendor review has no seam:triggers event and no proc:correlationKey:
+    # its message start event subscribes to :vendor_changes, so the runtime
+    # starts one instance per changed vendor, keyed by the vendor's IRI, with
+    # the vendor it read from SemPKM (ADR-0027). The review reads the vendor;
+    # nothing in this container writes a :VendorShape, so the runtime's own
+    # SemPKM writes never start it. Vendors live in SemPKM, like expenses.
+    :vendor_review_process seam:detailedBy :vendor_bpmn .
+    <https://example.org/expenses/vendor_bpmn#vendor_changed> seam:subscribesTo :vendor_changes .
+    <https://example.org/expenses/vendor_bpmn#review_vendor> seam:reads :VendorShape .
+    :VendorShape seam:storedIn :expense_pkm .
 
     # The finance console: the payments, and the expenses they pay. Both
     # blocks are read-only, so the page has no event and no policy.
@@ -1125,6 +1188,19 @@
                     hydra:mapping [ a hydra:IriTemplateMapping ;
                                     hydra:variable "expense" ;
                                     hydra:property :id ] ] .
+
+    # The vendor channel (ADR-0027): SemPKM publishes on it, no process does.
+    # SemPKM POSTs each object.changed event to the API at this path; the
+    # API reads the event back, keeps the changed objects of :VendorShape's
+    # class and starts the subscribed process once per vendor. An owner
+    # registers the webhook in SemPKM's admin pages with the API's public
+    # URL followed by this path.
+    :vendor_changes a comm:Channel ; rdfs:label "vendor changed in SemPKM" ;
+        comm:transport comm:SemPKMWebhook ;
+        comm:eventName "object.changed" ;
+        seam:acceptsShape :VendorShape ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/sempkm/vendor-changes" ] .
 
     # Scenarios (ADR-0014): an employee submits an expense, the named parties
     # complete the user tasks in order, and the expense ends in the expected

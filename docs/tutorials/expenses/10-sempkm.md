@@ -12,6 +12,10 @@ Moving a shape there takes three things in the model: a store container of kind
 `deploy:SemPKM`, two bindings on the API that reach it, and a `seam:storedIn` edge. No
 generated code changes, and no line of Python changes either.
 
+At the end, the other direction works too. A vendor that finance changes in SemPKM
+starts a process in the app, through a webhook channel
+([ADR-0027](/adr/0027-sempkm-webhook-channel)).
+
 ## The store and its triplestore
 
 SemPKM is two services: its API, and the RDF4J triplestore that holds its data. Declare
@@ -142,13 +146,15 @@ out = "generated/mental-model"
 ```
 
 It writes the Mental Model of the ontology chapter 9 added, so the ontology needs one
-more fact, the version SemPKM's manifest carries, as three numbers:
+more fact, the version SemPKM's manifest carries, as three numbers. It is `"1.0.0"` at
+first. The checkpoint shows `"1.1.0"`, because the vendor class at the end of this
+chapter moves it:
 
 ```trig
     :expense_ontology a seam:Model , owl:Ontology ;
         rdfs:label "Expense Ontology" ;
         # The package version SemPKM's manifest carries (ADR-0026): three numbers.
-        owl:versionInfo "1.0.0" ;
+        owl:versionInfo "1.1.0" ;
 ```
 
 `seams generate` then writes four files under `generated/mental-model`:
@@ -247,11 +253,131 @@ To work without SemPKM, set `SEAMS_STORE_OVERRIDE=sqlite`. The expenses then sta
 embedded SQLite with everything else, and the runtime logs a warning naming the SemPKM
 store it skipped. The test harness runs every chapter this way.
 
+## Start a process from SemPKM
+
+So far the runtime writes to SemPKM and reads from it. The other direction works too: a
+change someone makes in SemPKM can start a process. SemPKM sends a webhook for every
+`object.changed`, and [ADR-0027](../../adr/0027-sempkm-webhook-channel.md) makes that a
+channel. A process whose message start event `seam:subscribesTo` the channel starts once
+for each changed object, just as chapter 8's payout starts from `:payouts`.
+
+The channel must listen to data that people keep in SemPKM and that no process writes.
+Otherwise every write the runtime makes would start a process again. Expenses won't do,
+so this chapter adds **vendors**, the companies expenses are paid to, which finance keeps
+in SemPKM. The ontology gains a class. Its classes have changed, so its version moves to
+1.1:
+
+```trig
+        owl:versionInfo "1.1.0" ;
+        owl:versionIRI <https://example.org/expenses/expense_ontology/1.1> ;
+```
+
+```trig
+    :Vendor a owl:Class ;
+        rdfs:subClassOf gist:Organization ;
+        rdfs:label "Vendor" ;
+        skos:definition "A company the expenses are paid to, kept by finance in SemPKM." ;
+        seam:inModel :expense_ontology .
+```
+
+The data model gets a shape for it:
+
+```trig
+    :VendorShape a sh:NodeShape ; rdfs:label "Vendor" ;
+        sh:targetClass :Vendor ;
+        sh:property [ sh:path :id ; sh:name "id" ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :name ; sh:name "name" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:maxLength 200 ; sh:order 0 ] ;
+        seam:inModel :expense_data .
+```
+
+The channel is new. Its transport, `comm:SemPKMWebhook`, says that SemPKM publishes on it.
+`comm:eventName` names the SemPKM event it listens to, `seam:acceptsShape` names the
+objects whose changes count, and `comm:path` is where the API receives them:
+
+```trig
+    :vendor_changes a comm:Channel ; rdfs:label "vendor changed in SemPKM" ;
+        comm:transport comm:SemPKMWebhook ;
+        comm:eventName "object.changed" ;
+        seam:acceptsShape :VendorShape ;
+        comm:path [ a hydra:IriTemplate ;
+                    hydra:template "/sempkm/vendor-changes" ] .
+```
+
+A third process, `vendor.bpmn` beside the other two, reviews the vendor: a message start
+event, one service task that reads it, and an end event. The API exposes the channel and
+runs the process:
+
+```trig
+    :expense_api seam:exposes :submit_expense_op , :list_expenses_op , :approve_expense_op ,
+            :finance_approve_expense_op , :expense_details_op , :awaiting_approval_op ,
+            :pay_expense_op , :list_payments_op , :paid_expenses_op , :payouts ,
+            :notify_manager_op , :vendor_changes ;
+        seam:executes :approval_process , :payout_process , :vendor_review_process ;
+```
+
+In the seams graph, the start event subscribes to the channel, the task reads the
+vendor, and the vendor is stored in SemPKM:
+
+```trig
+    :vendor_review_process seam:detailedBy :vendor_bpmn .
+    <https://example.org/expenses/vendor_bpmn#vendor_changed> seam:subscribesTo :vendor_changes .
+    <https://example.org/expenses/vendor_bpmn#review_vendor> seam:reads :VendorShape .
+    :VendorShape seam:storedIn :expense_pkm .
+```
+
+The process has no `proc:correlationKey`. Each instance is keyed by the vendor's IRI, the
+one name SemPKM and the runtime share. The model needs nothing else: the store, the URL
+and the token come from the shape's `seam:storedIn` and the API's two bindings. If a fact
+is missing or wrong, `seams check` and the runtime name it. Examples: a second event name,
+a path with variables, a shape not stored in SemPKM, a channel nobody subscribes to, or a
+process in the API that writes a `:VendorShape`.
+
+`seams generate` adds one route to the API module:
+
+```python
+@router.post("/sempkm/vendor-changes", status_code=202, response_class=JSONResponse)
+async def vendor_changes(request: Request) -> JSONResponse:
+    return await runtime.receive_webhook(":vendor_changes", await request.body())
+```
+
+The compose files mount `vendor.bpmn` into the API, the Mental Model gains the vendor's
+shape, and its version is now 1.1.0. So after reinstalling it, **Vendor** is a type in
+SemPKM with a form.
+
+To connect the two, an owner adds a webhook in SemPKM's admin pages. The target is the
+API's public URL followed by `/sempkm/vendor-changes`, and the event is `object.changed`.
+SemPKM refuses to deliver to private addresses, so it cannot reach the API across the
+compose network. The API has to be reachable at a public address. SemPKM signs nothing,
+so the API trusts no field of a delivery. It reads the event back from SemPKM with its
+own token, so that token's user must be an owner. Then it reads the changed vendors and
+validates each against `:VendorShape`. To try it without SemPKM's admin pages, post
+SemPKM's payload yourself, naming an event your SemPKM has:
+
+```sh
+curl -X POST http://localhost:8002/sempkm/vendor-changes -H "Content-Type: application/json" \
+  -d '{"event_type": "object.changed", "event_iri": "urn:sempkm:event:…", "command": "object.patch", "timestamp": "2026-11-04T09:30:00+00:00"}'
+```
+
+The answer is 202 and lists the instance it started for each changed vendor:
+
+```json
+{"channel": "https://example.org/expenses/vendor_changes", "event": "urn:sempkm:event:…",
+ "started": [{"process": "https://example.org/expenses/vendor_review_process", "object": "…/Vendor/…", "instance": "…"}],
+ "skipped": []}
+```
+
+A change to an expense or anything else that is not a vendor starts nothing: it is
+answered 202 and logged as ignored. The same event posted twice starts nothing new. An
+event SemPKM does not have is a 422. If SemPKM is down, the answer is a 503 naming
+`:expense_pkm`. The log names the channel, the event type, the event and the vendor,
+never the token.
+
 ## Checkpoint
 
 Your file should now match
 [`examples/expenses/chapter-10/expenses.trig`](../../../examples/expenses/chapter-10/expenses.trig).
-The payload files and the handler are unchanged from chapter 9. To see only what this
+The handler and chapter 9's payload files are unchanged. `vendor.bpmn` is new. To see only what this
 chapter added:
 
 ```sh
@@ -259,10 +385,12 @@ diff examples/expenses/chapter-09/expenses.trig examples/expenses/chapter-10/exp
 ```
 
 `tests/test_expense_sempkm.py` checks this chapter. It runs `seams check`, resolves the
-store plan (expenses in `:expense_pkm`, everything else in `:expense_db`), and checks the
+store plan (expenses and vendors in `:expense_pkm`, everything else in `:expense_db`), and checks the
 SemPKM services in both compose files. It checks that the committed Mental Model is a fresh
 render of the model and, with `SEAMS_E2E=1`, installs it into the chapter's SemPKM. It also serves the committed route module against
 a fake SemPKM that applies commands and answers SPARQL the way SemPKM does. In that run,
 a submitted expense is stored and read back under its minted IRI, approving it patches
 its status, an invalid expense sends nothing, and a SemPKM outage is a 503 naming the
-store.
+store. In the same run, posting an `object.changed` delivery for a vendor starts the vendor
+review once, a delivery for the runtime's own expense starts nothing, and a forged event
+is a 422.

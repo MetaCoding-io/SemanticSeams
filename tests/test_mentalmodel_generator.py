@@ -339,7 +339,7 @@ def test_chapter_10_package() -> None:
     manifest = yaml.safe_load(out["manifest.yaml"])
     assert (manifest["modelId"], manifest["version"], manifest["name"]) == (
         "expense-ontology",
-        "1.0.0",
+        "1.1.0",  # chapter 10 adds :Vendor (ADR-0027), so the version moves
         "Expense Ontology",
     )
     for name in FILES[1:]:
@@ -352,7 +352,7 @@ def test_chapter_10_package() -> None:
     assert views == {URIRef(f"{NS}{c.split('/')[-1]}") for c in map(str, expected)}
     assert len(views) == 5
     shapes = set(graph(out["shapes/expense-ontology.jsonld"]).subjects(RDF.type, SH.NodeShape))
-    assert {URIRef(f"{NS}{n}") for n in ("ExpenseShape", "ApprovalShape", "PaymentShape")} <= shapes
+    assert {URIRef(f"{NS}{n}") for n in ("ExpenseShape", "ApprovalShape", "PaymentShape", "VendorShape")} <= shapes
 
 
 def test_chapter_10_is_the_same_bytes_twice() -> None:

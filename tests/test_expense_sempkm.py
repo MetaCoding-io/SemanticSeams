@@ -15,6 +15,12 @@ The chapter also writes the SemPKM Mental Model of its ontology (M024/S03,
 ADR-0026) to generated/mental-model. The committed package must equal a fresh
 render, and with SEAMS_E2E=1 the chapter's own compose stack installs it into
 its SemPKM through ``POST /api/models/install``.
+
+A change made in SemPKM starts a process (M024/S04, ADR-0027): the chapter's
+:vendor_changes channel is a comm:SemPKMWebhook channel, and the
+:vendor_review_process subscribes to it. Posting SemPKM's object.changed
+delivery to the committed route starts the review for the changed vendor,
+which the receiver reads back from the fake (its events are named graphs).
 """
 
 import json
@@ -29,7 +35,7 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
-from rdflib import RDF, Literal, URIRef
+from rdflib import RDF, Dataset, Literal, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 for p in (ROOT, ROOT / "tests"):
@@ -45,6 +51,7 @@ from seams_gen.mentalmodel import extract_mentalmodel, render_mentalmodel  # noq
 from seams_runtime import ModelGraph, Runtime, SplitStore, SQLiteStore  # noqa: E402
 from seams_runtime.host import build_app  # noqa: E402
 from seams_runtime.model import DEPLOY  # noqa: E402
+from seams_runtime.sempkm import EVENT_AFFECTED, EVENT_CLASS  # noqa: E402
 
 CHAPTER = ROOT / "examples" / "expenses" / "chapter-10"
 TRIG = CHAPTER / "expenses.trig"
@@ -62,14 +69,15 @@ def test_the_checkpoint_passes_seams_check():
     assert main(["check", "--project", str(CHAPTER)]) == 0
 
 
-def test_expenses_resolve_to_the_sempkm_store_and_the_rest_to_postgresql():
+def test_expenses_and_vendors_resolve_to_the_sempkm_store_and_the_rest_to_postgresql():
     plan = ModelGraph(TRIG).store_plan()
     assert (plan.kind, plan.store) == (DEPLOY.PostgreSQL, URIRef(EX + "expense_db"))
     assert plan.sempkm is not None
     assert plan.sempkm.store == URIRef(EX + "expense_pkm")
     assert plan.sempkm.container == URIRef(EX + "expense_api")
     assert (plan.sempkm.key, plan.sempkm.token_key) == ("SEMPKM_URL", "SEMPKM_TOKEN")
-    assert plan.sempkm.shapes == (URIRef(EX + "ExpenseShape"),)
+    # expenses, and the vendors finance keeps in SemPKM (ADR-0027)
+    assert plan.sempkm.shapes == (URIRef(EX + "ExpenseShape"), URIRef(EX + "VendorShape"))
 
 
 @pytest.mark.parametrize("environment", ["development", "production"])
@@ -96,9 +104,38 @@ def test_compose_runs_sempkm_and_its_triplestore_from_the_model(environment):
         assert secret == {"file": "${SEMPKM_TOKEN_FILE:-../../../docker/local-secrets/expense_sempkm_token}"}
 
 
+class EventsSemPKM(FakeSemPKM):
+    """The store fake plus SemPKM's event graphs: an all_graphs SPARQL query
+    runs over them, as SemPKM's does for its owner-role service token."""
+
+    def __init__(self):
+        super().__init__()
+        self.events = Dataset()
+
+    def event(self, event: str, *affected: str) -> None:
+        g = self.events.graph(URIRef(event))
+        g.add((URIRef(event), RDF.type, EVENT_CLASS))
+        for iri in affected:
+            g.add((URIRef(event), EVENT_AFFECTED, URIRef(iri)))
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        if (
+            self.answer is None
+            and request.url.path == "/api/sparql"
+            and request.headers.get("authorization") == f"Bearer {TOKEN}"
+            and json.loads(request.content).get("all_graphs")
+        ):
+            self.requests.append(request)
+            result = self.events.query(json.loads(request.content)["query"])
+            return httpx.Response(
+                200, content=result.serialize(format="json"), headers={"content-type": "application/json"}
+            )
+        return super().handle(request)
+
+
 @pytest.fixture
-def fake() -> FakeSemPKM:
-    return FakeSemPKM()
+def fake() -> EventsSemPKM:
+    return EventsSemPKM()
 
 
 @pytest.fixture
@@ -216,6 +253,99 @@ def test_healthz_reports_the_sempkm_store_without_the_token(served, fake, caplog
     assert TOKEN not in r.text and TOKEN not in caplog.text
 
 
+# ── a change in SemPKM starts a process (M024/S04, ADR-0027) ──
+
+VENDOR_REVIEW = EX + "vendor_review_process"
+EVENT = "urn:sempkm:event:5f0c2d7e-8a51-4c3b-9d7e-1a2b3c4d5e6f"
+
+
+def _delivery(event: str = EVENT, event_type: str = "object.changed") -> bytes:
+    """SemPKM's webhook body (ADR-0027 section 4)"""
+    return json.dumps(
+        {
+            "event_type": event_type,
+            "event_iri": event,
+            "command": "object.patch",
+            "timestamp": "2026-11-04T09:30:00+00:00",
+        }
+    ).encode()
+
+
+def _vendor(fake: FakeSemPKM, name: str) -> str:
+    """a vendor finance keeps in SemPKM: an object of the shape's target class"""
+    iri = fake.mint("Vendor")
+    fake.graph.add((URIRef(iri), RDF.type, URIRef(EX + "Vendor")))
+    fake.graph.add((URIRef(iri), URIRef(EX + "name"), Literal(name)))
+    return iri
+
+
+def test_the_vendor_channel_resolves_to_the_review_process_and_the_api():
+    graph = ModelGraph(TRIG)
+    [channel] = graph.webhook_channels()
+    assert channel.iri == URIRef(EX + "vendor_changes")
+    assert (channel.event_name, channel.path) == ("object.changed", "/sempkm/vendor-changes")
+    assert (channel.shape, channel.target_class) == (URIRef(EX + "VendorShape"), URIRef(EX + "Vendor"))
+    assert (channel.store, channel.container) == (URIRef(EX + "expense_pkm"), URIRef(EX + "expense_api"))
+    assert channel.processes == (URIRef(VENDOR_REVIEW),)
+
+
+def test_a_vendor_changed_in_sempkm_starts_the_vendor_review(served, fake, caplog):
+    client, runtime = served
+    acme = _vendor(fake, "Acme Travel")
+    fake.event(EVENT, acme)
+    with caplog.at_level(logging.INFO):
+        r = client.post("/sempkm/vendor-changes", content=_delivery(), headers={"content-type": "application/json"})
+    assert r.status_code == 202, r.text
+    answer = r.json()
+    assert (answer["channel"], answer["event"], answer["skipped"]) == (EX + "vendor_changes", EVENT, [])
+    [started] = answer["started"]
+    assert (started["process"], started["object"]) == (VENDOR_REVIEW, acme)
+
+    def reviewed():
+        """the vendor review of the changed vendor completes"""
+        rows = runtime.store.list_instances(correlation_key=acme)
+        return rows and rows[-1]["status"] == "complete" and rows
+
+    [row] = _until(reviewed)
+    assert (row["instance_id"], row["process"]) == (started["instance"], VENDOR_REVIEW)
+    # the receiver only read SemPKM: the event, then the vendor; it wrote nothing
+    assert fake.posts("/api/commands") == []
+    event_read, vendor_read = fake.posts("/api/sparql")
+    assert event_read["all_graphs"] is True and f"<{EX}Vendor>" in vendor_read["query"]
+    logged = " ".join(r.getMessage() for r in caplog.records if r.name == "seams_runtime.webhooks")
+    for part in (EX + "vendor_changes", "object.changed", acme, started["instance"]):
+        assert part in logged
+    assert TOKEN not in caplog.text
+
+    # the same delivery again starts nothing new (ADR-0027 section 5)
+    again = client.post("/sempkm/vendor-changes", content=_delivery(), headers={"content-type": "application/json"})
+    assert again.status_code == 202 and again.json()["started"] == answer["started"]
+    assert len(runtime.store.list_instances(correlation_key=acme)) == 1
+
+
+def test_the_apps_own_expense_write_starts_no_review(served, fake):
+    """SemPKM sends object.changed for the runtime's own expense writes too;
+    an expense is not a vendor, so it drops out (ADR-0027 section 7)."""
+    client, runtime = served
+    assert client.post("/expenses/e1", data=EXPENSE, headers=EMPLOYEE).status_code == 200
+    _until(lambda: _waiting(runtime))
+    [expense] = list(fake.graph.subjects(RDF.type, URIRef(EX + "Expense")))
+    fake.event(EVENT, str(expense))
+    r = client.post("/sempkm/vendor-changes", content=_delivery(), headers={"content-type": "application/json"})
+    assert r.status_code == 202, r.text
+    assert r.json()["started"] == [] and EX + "Vendor" in r.json()["ignored"]
+    assert [row["process"] for row in runtime.store.list_instances()] == [EX + "approval_process"]
+
+
+def test_a_forged_vendor_event_is_422_and_starts_nothing(served, fake):
+    client, runtime = served
+    _vendor(fake, "Acme Travel")
+    r = client.post("/sempkm/vendor-changes", content=_delivery(), headers={"content-type": "application/json"})
+    assert r.status_code == 422 and r.headers["content-type"] == "application/problem+json"
+    assert r.json()["store"] == EX + "expense_pkm"
+    assert runtime.store.list_instances() == []
+
+
 # ── the Mental Model (M024/S03, ADR-0026) ──
 
 
@@ -305,7 +435,7 @@ def test_the_chapters_sempkm_installs_the_mental_model():
         assert all("documentation" in w for w in installed["warnings"]), installed["warnings"]
         models = json.loads(answer["listed"])["models"]
         assert [(m["model_id"], m["version"], m["name"]) for m in models if m["model_id"] == "expense-ontology"] == [
-            ("expense-ontology", "1.0.0", "Expense Ontology")
+            ("expense-ontology", "1.1.0", "Expense Ontology")
         ]
     finally:
         _compose("down", "-v", "--remove-orphans", check=False, timeout=180)

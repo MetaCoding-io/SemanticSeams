@@ -873,7 +873,9 @@ To see only what this chapter added:
 diff examples/expenses/chapter-08/expenses.trig examples/expenses/chapter-09/expenses.trig
 ```
 
-That is the whole tutorial. You started from an empty file and now have an architecture,
+You started from an empty file and now have an architecture,
 two screen models, two processes, two decisions, two lifecycles, roles, a deployment and
 one function you wrote yourself, with a declared error the process catches, and an ontology that says what the data is. The model says where that function lives and what it
 takes and returns, so it fits with everything that was generated.
+
+[Chapter 10](./10-sempkm) moves the expenses into SemPKM, a semantic knowledge store.

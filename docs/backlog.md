@@ -539,5 +539,8 @@ UI work must not eat M3.*
    - **M024, SemPKM** (O4, O5, O6), opening with an ADR on SemPKM as a store. Depends on
      M011 and M023. *ADR done, M024/S01: [ADR-0025](adr/0025-sempkm-store.md) places SemPKM
      beside SQLite and PostgreSQL as `deploy:SemPKM`, for domain data only; embedded SQLite
-     stays the default.*
+     stays the default.* *Store done, M024/S02: `SemPKMStore` writes each entity in one
+     `POST /api/commands` and reads through scoped SPARQL, the compose generator emits
+     SemPKM's services from the model, and [chapter 10](tutorials/expenses/10-sempkm.md)
+     stores the tutorial's expenses in SemPKM.*
    - **M025, Model Copilot** (R2, R3). Depends on M021 and M022.

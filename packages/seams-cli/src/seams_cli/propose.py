@@ -191,7 +191,11 @@ def cache_key(context_hash: str, template: str, provider: str) -> str:
     return hashlib.sha256("\n".join((context_hash, template, provider)).encode("utf-8")).hexdigest()
 
 
-def _call_provider(provider: str, text: str) -> str:
+def call_provider(provider: str, text: str, answer: str = "draft") -> str:
+    """The provider command's answer to the prompt ``text``: ``provider`` split
+    with shlex (never a shell), ``text`` on stdin, the answer on stdout.
+    ProposeError when the command is empty or missing, runs over
+    PROVIDER_TIMEOUT, exits non-zero or prints no ``answer``."""
     argv = shlex.split(provider)
     if not argv:
         raise ProposeError("the provider command is empty")
@@ -207,7 +211,7 @@ def _call_provider(provider: str, text: str) -> str:
         detail = done.stderr.strip().splitlines()[-1:] or ["no stderr"]
         raise ProposeError(f"provider {provider!r} exited {done.returncode}: {detail[0]}")
     if not done.stdout.strip():
-        raise ProposeError(f"provider {provider!r} returned no draft")
+        raise ProposeError(f"provider {provider!r} returned no {answer}")
     return done.stdout
 
 
@@ -257,7 +261,7 @@ def propose(
     if cache_hit:
         response = cached.read_text(encoding="utf-8")
     else:
-        response = _call_provider(provider, prompt.text)
+        response = call_provider(provider, prompt.text)
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(response, encoding="utf-8")
     draft = extract_draft(response)

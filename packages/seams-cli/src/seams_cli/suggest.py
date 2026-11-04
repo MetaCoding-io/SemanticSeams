@@ -26,13 +26,18 @@ and predicate. The project itself is only read.
 
 from __future__ import annotations
 
+import difflib
+import hashlib
 import json
+import os
 import re
 import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from importlib import resources
 from pathlib import Path
+from string import Template
 from typing import cast
 from xml.sax.saxutils import escape, quoteattr
 
@@ -49,6 +54,7 @@ from seams_gen import GeneratorError
 from .check import ONTOLOGY_DIR, check_shapes, load_model, model_graph
 from .generate import generate_project
 from .project import Project, ProjectError, load_project, resolve_model
+from .propose import cache_key, call_provider, extract_draft, quote
 
 #: The suggestion kinds this module builds (ADR-0028 section 3).
 KINDS = ("condition-to-dmn",)
@@ -565,13 +571,19 @@ def _upstream(process: Process, node: FlowNode) -> list[FlowNode]:
     return [n for n in by_id.values() if n.bpmn_id in seen]
 
 
-def _input_shapes(process: Process, node: FlowNode, s: ConditionToDmn) -> tuple[list[Shape], dict[str, seams.Field]]:
-    """The shapes upstream of the gateway that give every input, and each input's field."""
+def _upstream_shapes(process: Process, node: FlowNode) -> dict[URIRef, Shape]:
+    """The shapes a task upstream of ``node`` reads or writes, or its form writes, by IRI."""
     shapes: dict[URIRef, Shape] = {}
     for n in _upstream(process, node):
         form = n.completed_on
         for shape in [*n.reads, *n.writes, *(form.writes if form is not None else [])]:
             shapes[shape.iri] = shape
+    return dict(sorted(shapes.items()))
+
+
+def _input_shapes(process: Process, node: FlowNode, s: ConditionToDmn) -> tuple[list[Shape], dict[str, seams.Field]]:
+    """The shapes upstream of the gateway that give every input, and each input's field."""
+    shapes = _upstream_shapes(process, node)
     givers: dict[str, dict[URIRef, seams.Field]] = {}
     for iri, shape in sorted(shapes.items()):
         for field in shape.fields():
@@ -747,22 +759,36 @@ def check_change(project: Project, change: Change, model: Path | None = None) ->
 
     The model (``model``, else the project's) and the payloads must be inside the
     project directory. Nothing in the project is written."""
+    return _check(project, change, model)[0]
+
+
+#: A changed file: its POSIX path relative to the project root, its text before and after.
+FileText = tuple[str, str, str]
+
+
+def _check(project: Project, change: Change, model: Path | None) -> tuple[Verdicts, tuple[FileText, ...]]:
+    """``check_change``'s verdicts and the text of every file the change wrote in the copy."""
     model_rel = _inside(project, resolve_model(project, model), "model")
     payloads = [(_inside(project, path, "payload"), text) for path, text in change.payloads]
     project_rel = project.path.relative_to(project.root)
     with tempfile.TemporaryDirectory(prefix="seams-suggest-") as tmp:
-        root = Path(tmp) / "project"
+        root = Path(tmp).resolve() / "project"
         shutil.copytree(project.root, root, ignore=_SCRATCH_IGNORE, symlinks=True)
         scratch, scratch_model = load_project(root / project_rel), root / model_rel
         files = load_model(scratch_model, ONTOLOGY_DIR).files
         try:
-            seams_edit.apply(files, change.patch)
+            records = [seams_edit.apply(files, change.patch)]
             for rel, text in payloads:
-                seams_edit.save_payload(files, root / rel, text)
+                records.append(seams_edit.save_payload(files, root / rel, text))
         except seams_edit.PatchError as err:
             finding = ChangeFinding("patch", _scrub(err.subject, root), err.predicate, _scrub(err.detail, root))
-            return Verdicts(False, False, 0, (finding,))
-        return _verdicts(scratch, scratch_model, root)
+            return Verdicts(False, False, 0, (finding,)), ()
+        texts: list[FileText] = []
+        for path in sorted({edit.path.resolve() for record in records for edit in record.files}):
+            rel = path.relative_to(root)
+            before = (project.root / rel).read_text(encoding="utf-8")
+            texts.append((rel.as_posix(), before, path.read_text(encoding="utf-8")))
+        return _verdicts(scratch, scratch_model, root), tuple(texts)
 
 
 def _scrub(text: str, root: Path) -> str:
@@ -793,15 +819,370 @@ def _verdicts(project: Project, model: Path, root: Path) -> Verdicts:
     return Verdicts(validated, True, outputs, tuple(sorted(findings)))
 
 
+# ── the prompt ──
+
+TEMPLATE_NAME = "suggest"
+TEMPLATE_VERSION = 1
+TEMPLATE_FILE = f"{TEMPLATE_NAME}-v{TEMPLATE_VERSION}.txt"
+
+
+class NothingToSuggest(Exception):
+    """No gateway of the model has a condition that reads a name no upstream decision outputs."""
+
+
+@dataclass(frozen=True)
+class SuggestPrompt:
+    """An assembled prompt: its text, ``<name>-v<version>``, the model hash and
+    the IRIs of the gateways it offers, sorted."""
+
+    text: str
+    template: str
+    model_hash: str
+    gateways: tuple[str, ...]
+
+
+def _decided(model: seams.Model, process: Process, node: FlowNode) -> set[str]:
+    """The process variables a decision upstream of ``node`` outputs. Its input
+    variables do not count: a condition over them still computes inline."""
+    ds = model.ds
+    names: set[str] = set()
+    for n in _upstream(process, node):
+        decision = n.decided_by if n.tag == "businessRuleTask" else None
+        if decision is None:
+            continue
+        for binding in ds.objects(decision.iri, DEC.output):
+            value = ds.value(binding, DEC.processVariable)
+            if value is not None:
+                names.add(str(value))
+    return names
+
+
+def inline_gateways(model: seams.Model) -> list[tuple[Process, FlowNode]]:
+    """The gateways whose outgoing conditions read a name no upstream decision
+    outputs (a form field, for example), sorted by IRI. A condition that is not
+    Python is left to ``decision_findings``."""
+    found: list[tuple[Process, FlowNode]] = []
+    for process in model.processes:
+        for node in process.gateways():
+            names: set[str] = set()
+            for flow in node.outgoing:
+                if not flow.condition:
+                    continue
+                try:
+                    names.update(condition_names(flow.condition))
+                except SyntaxError:
+                    continue
+            if names - _decided(model, process, node):
+                found.append((process, node))
+    return sorted(found, key=lambda pn: str(pn[1].iri))
+
+
+def _gateway_block(process: Process, node: FlowNode) -> str:
+    lines = [f"gateway: {node.bpmn_id}", f"iri: {node.iri}", f"name: {node.name or '-'}", "outgoing flows:"]
+    for flow in sorted(node.outgoing, key=lambda f: f.id):
+        lines.append(f"  {flow.id} -> {flow.target}: {flow.condition or '(no condition)'}")
+    lines.append("fields upstream (shape, field name, DMN typeRef, label):")
+    for iri, shape in _upstream_shapes(process, node).items():
+        for field in sorted(shape.fields(), key=lambda f: f.name):
+            type_ref = next((t for t, d in sorted(TYPE_REF_DATATYPES.items()) if field.datatype in d), "-")
+            lines.append(f"  {iri} {field.name} {type_ref} {json.dumps(field.label, ensure_ascii=False)}")
+    return "\n".join(lines)
+
+
+def _decision_blocks(model: seams.Model, root: Path) -> list[str]:
+    texts: dict[Path, tuple[str, _El]] = {}
+    blocks: list[str] = []
+    for decision in sorted(model.decisions, key=lambda d: str(d.iri)):
+        path = decision.dmn_path
+        if path not in texts:
+            text = path.read_text(encoding="utf-8")
+            texts[path] = (text, _scan(path, text))
+        text, scanned = texts[path]
+        element = next(
+            el for el in scanned.iter() if el.local == "decision" and el.attrs.get("id") == decision.decision_id
+        )
+        rel = Path(os.path.relpath(path.resolve(), root)).as_posix()
+        head = f"decision: {decision.iri}\npayload: {rel}#{decision.decision_id}\n"
+        blocks.append(quote("decision", head + _indent(text, element) + text[element.start : element.end]))
+    return blocks
+
+
+def build_prompt(project: Project, model: Path | None = None) -> SuggestPrompt:
+    """The ``condition-to-dmn`` prompt for the project's model: every gateway
+    ``inline_gateways`` finds, its flows and the fields upstream of it, and the
+    model's decisions as DMN, each in a DATA block. ``NothingToSuggest`` when
+    there is no such gateway."""
+    trig = resolve_model(project, model)
+    loaded = load_model(trig, ONTOLOGY_DIR)
+    gateways = inline_gateways(loaded)
+    if not gateways:
+        raise NothingToSuggest("no gateway condition reads a name that no upstream decision outputs")
+    source = resources.files(__package__).joinpath("prompts", TEMPLATE_FILE).read_text(encoding="utf-8")
+    decisions = _decision_blocks(loaded, project.root)
+    text = Template(source).substitute(
+        model_hash=loaded.hash,
+        gateways="\n\n".join(quote("gateway", _gateway_block(p, n)) for p, n in gateways),
+        decisions="\n\n".join(decisions) if decisions else "(none)",
+    )
+    return SuggestPrompt(
+        text=text,
+        template=f"{TEMPLATE_NAME}-v{TEMPLATE_VERSION}",
+        model_hash=loaded.hash,
+        gateways=tuple(str(n.iri) for _, n in gateways),
+    )
+
+
+# ── suggest, list, accept ──
+
+SUGGESTIONS_DIR = Path(".seams") / "suggestions"
+CACHE_DIR = Path(".seams") / "suggest-cache"
+SUGGESTION_FILE = "suggestion.json"
+
+
+class StaleSuggestion(Exception):
+    """The model changed since the suggestion was made; the message says how."""
+
+
+@dataclass(frozen=True)
+class Suggested:
+    """What ``suggest`` did. ``findings`` say why the answer was rejected (the
+    ``suggestion`` kind for an answer the model does not allow); ``files`` are
+    the changed files, relative to the project root; ``stored`` the pending
+    suggestion's directory, or None when it was rejected."""
+
+    id: str
+    template: str
+    provider: str
+    model_hash: str
+    cache_hit: bool
+    gateway: str | None
+    files: tuple[str, ...]
+    verdicts: Verdicts | None
+    findings: tuple[ChangeFinding, ...]
+    stored: str | None
+
+    @property
+    def passed(self) -> bool:
+        return self.stored is not None
+
+
+def suggestion_id(model_hash: str, template: str, provider: str, response: str) -> str:
+    return hashlib.sha256("\n".join((model_hash, template, provider, response)).encode("utf-8")).hexdigest()
+
+
+def _rejected(err: ResolutionError) -> ChangeFinding:
+    return ChangeFinding("suggestion", str(err.subject), str(err.predicate), err.detail or str(err))
+
+
+def _diff(rel: str, before: str, after: str) -> str:
+    lines = difflib.unified_diff(
+        before.splitlines(keepends=True), after.splitlines(keepends=True), f"a/{rel}", f"b/{rel}"
+    )
+    return "".join(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in lines)
+
+
+def _store(project: Project, ident: str, record: Mapping[str, object], texts: Iterable[FileText]) -> Path:
+    """Write the pending suggestion's directory whole: into a sibling first, then renamed."""
+    target = project.root / SUGGESTIONS_DIR / ident
+    partial = target.with_name(f"{ident}.partial")
+    shutil.rmtree(partial, ignore_errors=True)
+    partial.mkdir(parents=True)
+    (partial / SUGGESTION_FILE).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    for rel, before, after in texts:
+        diff = partial / f"{rel}.diff"
+        diff.parent.mkdir(parents=True, exist_ok=True)
+        diff.write_text(_diff(rel, before, after), encoding="utf-8")
+    shutil.rmtree(target, ignore_errors=True)
+    partial.rename(target)
+    return target
+
+
+def suggest(project: Project, model: Path | None = None, provider: str | None = None) -> Suggested:
+    """Ask the provider for a suggestion, build and check its change, and store
+    it pending when it passes (ADR-0028 sections 1, 5 and 6).
+
+    The provider's answer is cached by (model hash, template, provider) once it
+    passes; a rejected answer is reported, and neither it nor anything else is
+    written. ``ProposeError`` when the provider fails; ``NothingToSuggest`` when
+    no gateway qualifies; ``ProjectError`` when no provider is set."""
+    provider = provider if provider is not None else project.provider
+    if provider is None or not provider.strip():
+        raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
+    trig = resolve_model(project, model)
+    prompt = build_prompt(project, model)
+    cached = project.root / CACHE_DIR / f"{cache_key(prompt.model_hash, prompt.template, provider)}.txt"
+    cache_hit = cached.is_file()
+    response = cached.read_text(encoding="utf-8") if cache_hit else call_provider(provider, prompt.text, "suggestion")
+    ident = suggestion_id(prompt.model_hash, prompt.template, provider, response)
+
+    base = Suggested(ident, prompt.template, provider, prompt.model_hash, cache_hit, None, (), None, (), None)
+    loaded = load_model(trig, ONTOLOGY_DIR)
+    try:
+        suggestion = parse_suggestion(loaded, extract_draft(response))
+        process = next(p for p in loaded.processes if p.iri == suggestion.process)
+        gateway = str(process.element_iri(suggestion.gateway))
+        change = build_change(loaded, suggestion)
+    except ResolutionError as err:
+        return replace(base, findings=(_rejected(err),))
+    verdicts, texts = _check(project, change, model)
+    files = tuple(rel for rel, _, _ in texts)
+    if not verdicts.passed:
+        return replace(base, gateway=gateway, files=files, verdicts=verdicts, findings=verdicts.findings)
+    record: dict[str, object] = {
+        "id": ident,
+        "kind": KINDS[0],
+        "gateway": gateway,
+        "model": _inside(project, trig, "model").as_posix(),
+        "model_hash": prompt.model_hash,
+        "template": prompt.template,
+        "provider": provider,
+        "response": response,
+        "files": list(files),
+        "validated": verdicts.validated,
+        "generated": verdicts.generated,
+        "outputs": verdicts.outputs,
+    }
+    stored = _store(project, ident, record, texts)
+    if not cache_hit:
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text(response, encoding="utf-8")
+    return replace(
+        base,
+        gateway=gateway,
+        files=files,
+        verdicts=verdicts,
+        stored=stored.relative_to(project.root).as_posix(),
+    )
+
+
+@dataclass(frozen=True)
+class Pending:
+    """A stored suggestion: its id, kind, gateway IRI, the model hash it was
+    made for, its changed files, and whether that hash is still the model's."""
+
+    id: str
+    kind: str
+    gateway: str
+    model_hash: str
+    files: tuple[str, ...]
+    current: bool
+
+
+def _read_pending(path: Path, model_hash: str) -> Pending:
+    try:
+        data = json.loads((path / SUGGESTION_FILE).read_text(encoding="utf-8"))
+        files = cast(list[str], data["files"])
+        return Pending(
+            str(data["id"]),
+            str(data["kind"]),
+            str(data["gateway"]),
+            str(data["model_hash"]),
+            tuple(str(f) for f in files),
+            data["model_hash"] == model_hash,
+        )
+    except (ValueError, KeyError, TypeError) as err:
+        raise ProjectError(f"{path / SUGGESTION_FILE}: not a stored suggestion: {err}") from err
+
+
+def pending(project: Project, model: Path | None = None) -> list[Pending]:
+    """The stored suggestions, by id, each marked current or stale against the model."""
+    folder = project.root / SUGGESTIONS_DIR
+    if not folder.is_dir():
+        return []
+    model_hash = seams.model_hash(resolve_model(project, model))
+    return [
+        _read_pending(path, model_hash)
+        for path in sorted(folder.iterdir())
+        if path.is_dir() and (path / SUGGESTION_FILE).is_file()
+    ]
+
+
+@dataclass(frozen=True)
+class Accepted:
+    """What ``accept`` did: the suggestion id, the re-check's verdicts and the
+    files written (relative to the project root; none when the re-check failed)."""
+
+    id: str
+    verdicts: Verdicts
+    files: tuple[str, ...]
+
+
+def _find(project: Project, ident: str) -> Path:
+    folder = project.root / SUGGESTIONS_DIR
+    found = (
+        [p for p in sorted(folder.iterdir()) if p.name.startswith(ident) and (p / SUGGESTION_FILE).is_file()]
+        if ident and folder.is_dir()
+        else []
+    )
+    if len(found) != 1:
+        problem = "no" if not found else "more than one"
+        raise ProjectError(f"{problem} pending suggestion matches {ident!r} in {SUGGESTIONS_DIR.as_posix()}")
+    return found[0]
+
+
+def accept(project: Project, model: Path | None, ident: str) -> Accepted:
+    """Apply the pending suggestion ``ident`` (an id or a unique prefix) through
+    ``seams_edit`` (ADR-0028 section 7).
+
+    ``StaleSuggestion`` when the model's hash is not the one the suggestion was
+    made for. The change is rebuilt from the stored answer and checked again in
+    a scratch copy; only when it passes are the TriG files and payloads written
+    (all or none) and the pending directory removed."""
+    trig = resolve_model(project, model)
+    folder = _find(project, ident)
+    loaded = load_model(trig, ONTOLOGY_DIR)
+    stored = _read_pending(folder, loaded.hash)
+    if not stored.current:
+        raise StaleSuggestion(
+            f"suggestion {stored.id} was made for model {stored.model_hash}, but the model is now {loaded.hash};"
+            " run seams suggest again"
+        )
+    data = json.loads((folder / SUGGESTION_FILE).read_text(encoding="utf-8"))
+    try:
+        change = build_change(loaded, parse_suggestion(loaded, extract_draft(str(data["response"]))))
+    except ResolutionError as err:
+        return Accepted(stored.id, Verdicts(False, False, 0, (_rejected(err),)), ())
+    verdicts = check_change(project, change, model)
+    if not verdicts.passed:
+        return Accepted(stored.id, verdicts, ())
+    records: list[seams_edit.EditRecord] = []
+    try:
+        records.append(seams_edit.apply(loaded.files, change.patch))
+        for path, text in change.payloads:
+            records.append(seams_edit.save_payload(loaded.files, path, text))
+    except seams_edit.PatchError:
+        for record in reversed(records):
+            seams_edit.undo(record)
+        raise
+    written = sorted({_inside(project, e.path, "file").as_posix() for r in records for e in r.files})
+    shutil.rmtree(folder)
+    return Accepted(stored.id, verdicts, tuple(written))
+
+
 __all__ = [
+    "CACHE_DIR",
     "KINDS",
+    "SUGGESTIONS_DIR",
+    "SUGGESTION_FILE",
+    "Accepted",
     "Change",
     "ChangeFinding",
     "ConditionToDmn",
     "DmnRule",
+    "NothingToSuggest",
+    "Pending",
+    "StaleSuggestion",
+    "SuggestPrompt",
+    "Suggested",
     "SuggestionError",
     "Verdicts",
+    "accept",
     "build_change",
+    "build_prompt",
     "check_change",
+    "inline_gateways",
     "parse_suggestion",
+    "pending",
+    "suggest",
+    "suggestion_id",
 ]

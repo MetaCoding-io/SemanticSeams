@@ -1,6 +1,7 @@
 """Command line: ``seams generate|check|migrate|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--force]``,
+``seams suggest [--provider CMD] [--list | --accept ID]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
@@ -133,6 +134,26 @@ failing test, the pytest output on stderr, writes nothing and exits 1. A
 failed provider exits 1; no provider, an unknown task or an existing module
 without ``--force`` exits 2.
 
+``seams suggest [--provider CMD]`` (M025/S01, backlog R2, ADR-0028) sends the
+suggest-v1 prompt, built from every gateway whose conditions read a name no
+upstream decision outputs, to the provider command, and reads one
+``condition-to-dmn`` JSON answer. It builds the change, checks it in a scratch
+copy and prints ``template``, ``provider``, ``model``, ``cache hit|miss``,
+``suggestion <id>``, ``gateway <iri>``, one ``changed <file>`` per file and
+``validated pass|fail`` and ``generated pass|fail (N outputs)``. A passing
+suggestion is stored pending under ``.seams/suggestions/<id>/``
+(suggestion.json and one ``<file>.diff`` each), printed as ``stored <dir>``,
+and the command exits 0; the model is not touched. A rejected answer prints
+``rejected <kind> <subject> <predicate> <detail>`` per finding, stores and
+caches nothing and exits 1, as does a failed provider. A model with no such
+gateway prints ``seams suggest: nothing to suggest: ...`` to stderr, calls no
+provider and exits 0. ``--list`` prints ``<id> <kind> <gateway> current|stale``
+per pending suggestion. ``--accept ID`` (an id or a unique prefix) refuses a
+suggestion made for another model hash (exit 1), rebuilds and re-checks the
+change, writes it through seams_edit, prints ``accepted <id>`` and each
+written file, and removes the pending directory. An unknown ID or no provider
+exits 2.
+
 ``seams new-generator NAME --reference FILE [--out DIR]`` (M018/S04, backlog
 K5) writes a generator package for the reference output FILE into DIR
 (default ``./seams-<NAME>``): pyproject.toml with its ``seams.generators``
@@ -173,6 +194,7 @@ from .propose import ProposeError, propose
 from .secrets import EXAMPLE, example_environment, render_example, run_secrets
 from .sequence import run_sequence
 from .status import run_status
+from .suggest import ChangeFinding, NothingToSuggest, StaleSuggestion, Verdicts, accept, pending, suggest
 
 EXIT_PROJECT_ERROR = 2
 EXIT_IO_ERROR = 1
@@ -299,6 +321,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     prop.add_argument("--force", action="store_true", help="replace an existing handlers module")
     prop.set_defaults(run=_propose)
+    sug = sub.add_parser(
+        "suggest",
+        help="ask an LLM command for a model change (an inline gateway rule into DMN); keep it pending for review",
+        description=(
+            "Send the suggest prompt to the provider command, build and check the change in a scratch copy, "
+            "and store it under .seams/suggestions/ until --accept applies it."
+        ),
+    )
+    _project_arguments(sug)
+    sug.add_argument(
+        "--provider", help="the provider command (prompt on stdin, JSON answer on stdout); overrides seams.toml"
+    )
+    action = sug.add_mutually_exclusive_group()
+    action.add_argument("--list", action="store_true", help="list the pending suggestions, current or stale")
+    action.add_argument("--accept", metavar="ID", help="apply the pending suggestion ID (or a unique prefix)")
+    sug.set_defaults(run=_suggest)
     new = sub.add_parser(
         "new-generator",
         help="scaffold a generator package, with a passing golden test, from a reference output file",
@@ -544,6 +582,63 @@ def _propose(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
     print("tests passed")
     print(f"wrote {result.written}")
+    return 0
+
+
+def _suggest(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    if args.list:
+        found = pending(project, args.model)
+        for p in found:
+            print(f"{p.id} {p.kind} {p.gateway} {'current' if p.current else 'stale'}")
+        if not found:
+            print("seams suggest: no pending suggestions", file=sys.stderr)
+        return 0
+    if args.accept is not None:
+        try:
+            accepted = accept(project, args.model, args.accept)
+        except StaleSuggestion as err:
+            print(f"seams suggest: {err}", file=sys.stderr)
+            return EXIT_IO_ERROR
+        return _print_verdicts("accepted", accepted.id, accepted.verdicts, accepted.files)
+    try:
+        result = suggest(project, args.model, args.provider)
+    except NothingToSuggest as err:
+        print(f"seams suggest: nothing to suggest: {err}", file=sys.stderr)
+        return 0
+    except ProposeError as err:
+        print(f"seams suggest: {err}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    print(f"template {result.template}")
+    print(f"provider {result.provider}")
+    print(f"model {result.model_hash}")
+    print(f"cache {'hit' if result.cache_hit else 'miss'}")
+    print(f"suggestion {result.id}")
+    if result.gateway is not None:
+        print(f"gateway {result.gateway}")
+    for rel in result.files:
+        print(f"changed {rel}")
+    if result.verdicts is None:
+        _print_findings(result.findings)
+        return EXIT_IO_ERROR
+    return _print_verdicts("stored", result.stored, result.verdicts, ())
+
+
+def _print_findings(findings: tuple[ChangeFinding, ...]) -> None:
+    for f in findings:
+        print(f"rejected {f.kind} {f.subject} {f.predicate} {f.detail}")
+    print(f"seams suggest: {len(findings)} finding(s); nothing stored or written", file=sys.stderr)
+
+
+def _print_verdicts(verb: str, what: str | None, verdicts: Verdicts, files: tuple[str, ...]) -> int:
+    print(f"validated {'pass' if verdicts.validated else 'fail'}")
+    print(f"generated {'pass' if verdicts.generated else 'fail'} ({verdicts.outputs} outputs)")
+    if not verdicts.passed or what is None:
+        _print_findings(verdicts.findings)
+        return EXIT_IO_ERROR
+    print(f"{verb} {what}")
+    for rel in files:
+        print(f"wrote {rel}")
     return 0
 
 

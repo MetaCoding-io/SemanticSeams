@@ -12,6 +12,8 @@ as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
 and policies no scenario or test exercises; `seams secrets` checks that each
 environment's configuration keys and secrets exist, without reading a value;
 `seams context` prints the hashed model facts a service task's code depends on;
+`seams propose` drafts a handler body with an LLM command; `seams suggest` asks
+an LLM command for a model change and keeps it pending until a person accepts it;
 `seams new-generator` scaffolds a generator package from a reference output. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
@@ -49,7 +51,7 @@ out = "generated/templates"
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. Use the local names of the model's `arch:Environment`s (`development`, `production`), so `seams status --env development` and the generated `compose.development.yaml` name the same environment. |
-| `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose) sends its prompt to; `--provider` overrides it. |
+| `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose) and [`seams suggest`](#seams-suggest) send their prompts to; `--provider` overrides it. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
@@ -1154,6 +1156,87 @@ pytest output on stderr.
 | 2 | No provider, an unknown task or one with no handler, an existing module without `--force`, or a project error. |
 
 Errors print to stderr as `seams propose: <message>`.
+
+## seams suggest
+
+```sh
+seams suggest --project examples/expenses/chapter-10 --provider "my-llm --model some-model"
+seams suggest --project examples/expenses/chapter-10 --list
+seams suggest --project examples/expenses/chapter-10 --accept 3f2a9c
+```
+
+It asks an LLM for an improvement to the model itself, checks the change, and
+keeps it pending until a person accepts it (backlog R2,
+[ADR-0028](/adr/0028-copilot-suggestions)). The provider is the same command as
+[`seams propose`](#seams-propose)'s: `[propose] provider` in `seams.toml`, or
+`--provider`. The first kind of suggestion is `condition-to-dmn`: a gateway
+whose outgoing conditions read a name no upstream decision outputs (a form
+field, as in `amount <= 2000`) gets a DMN decision, a business-rule task
+before the gateway, and conditions over the decision's output variable.
+
+The prompt is the versioned template `suggest-v1`, filled from the model: each
+such gateway with its flows and the fields upstream of it, and the model's
+existing decisions as their DMN elements, all as quoted data. The answer must
+be one JSON object:
+
+```json
+{
+  "kind": "condition-to-dmn",
+  "gateway": "decision_gateway",
+  "decision_id": "approval_outcome",
+  "decision_name": "Approval Outcome",
+  "inputs": ["amount"],
+  "output": "outcome",
+  "rules": [{"when": {"amount": "<= 2000"}, "then": "\"approved\""}, {"then": "\"rejected\""}],
+  "conditions": {"flow_approved": "outcome == \"approved\"", "flow_rejected": "outcome == \"rejected\""}
+}
+```
+
+Deterministic code builds the change from it: `dec:Decision` facts shaped like
+the model's existing decision, the task's seam links, and the new BPMN and DMN
+payload text with the modeler's layout kept. The change is written into a
+scratch copy of the project through `seams_edit`, which must then pass the seam
+shapes, the [decision checks](#seams-check) and every generator. A passing
+suggestion is stored in `.seams/suggestions/<id>/` (gitignored):
+`suggestion.json` and one unified diff per changed file, `<file>.diff`, to read
+before accepting. The id is the sha256 of the model hash, the template, the
+provider and the answer. The answer of a passing suggestion is cached in
+`.seams/suggest-cache/`, keyed by the model hash, the template and the
+provider, so asking again on the same model calls no provider; a rejected
+answer is neither stored nor cached. Nothing in the model is written until
+`--accept`.
+
+`--accept ID` takes an id or a unique prefix of one. It refuses a suggestion
+made for another model hash (the model changed since; ask again), rebuilds the
+change from the stored answer, checks it again, writes it through `seams_edit`
+(the TriG files and the payloads, all or none) and removes the pending
+directory. Review the result and commit it like any other model edit.
+`--list` shows the pending suggestions. A model with no such gateway calls no
+provider. `seams suggest` is never run in CI.
+
+### Output
+
+`template <name>`, `provider <command>`, `model <hash>`, `cache hit` or
+`cache miss`, `suggestion <id>`, `gateway <iri>`, one `changed <file>` line per
+file, `validated pass|fail`, `generated pass|fail (<n> outputs)`, then
+`stored .seams/suggestions/<id>`. A rejected suggestion prints one
+`rejected <kind> <subject> <predicate> <detail>` line per finding instead, where
+the kind is `suggestion` (the answer names something the model does not have),
+`patch`, `shacl`, `decision` or `generate`.
+
+`--list` prints `<id> <kind> <gateway> current|stale` per pending suggestion.
+`--accept` prints the verdicts of the re-check, `accepted <id>` and one
+`wrote <file>` line per written file.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | A suggestion was stored, listed or accepted, or the model has nothing to suggest. |
+| 1 | The answer was rejected (nothing stored), the provider failed, or `--accept` was refused: a stale suggestion or a failed re-check (nothing written). |
+| 2 | No provider, an unknown suggestion id, or a project error. |
+
+Errors print to stderr as `seams suggest: <message>`.
 
 ## seams new-generator
 

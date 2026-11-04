@@ -37,8 +37,8 @@ out = "generated/templates"
   rows.
 - `coverage` (array of strings, optional): `["paths"]` makes `seams check`
   report each BPMN path no scenario runs as a `coverage` finding (D054).
-- `propose` (table, optional): `provider`, the command `seams propose` sends
-  its prompt to (D059); `--provider` overrides it.
+- `propose` (table, optional): `provider`, the command `seams propose` and
+  `seams suggest` send their prompts to (D059, D061); `--provider` overrides it.
 - `environments` (table of tables, optional): environment names, the local
   names of the model's `arch:Environment`s (the compose generator writes
   `compose.<name>.yaml` for each, ADR-0015). An environment may carry an `endpoints` inline table, container local name to
@@ -384,6 +384,35 @@ the `drafts` list of `seams.lock` (`lockfile.with_draft`), which `seams check`
 audits for `draft-stale` and `draft-hand-edited`. Exit 0 on accept, 1 on
 failed tests or a failed provider, 2 on a project error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-propose).
+
+## seams suggest
+
+```sh
+seams suggest --project examples/expenses/chapter-10 --provider "my-llm"
+seams suggest --project examples/expenses/chapter-10 --list
+seams suggest --project examples/expenses/chapter-10 --accept 3f2a9c
+```
+
+It asks an LLM for a model change and applies it only when a person accepts it
+(M025/S01, backlog R2, `suggest.py`, D061,
+[ADR-0028](../../docs/adr/0028-copilot-suggestions.md)). `inline_gateways`
+finds the gateways whose conditions read a name no upstream decision outputs;
+`build_prompt` fills `prompts/suggest-v1.txt` with them, the fields upstream of
+each and the model's DMN decisions, in DATA fences. `suggest` sends it to the
+provider through `propose.call_provider` and reads one `condition-to-dmn` JSON
+answer, which `parse_suggestion` checks against the model, `build_change` turns
+into a `seams_edit.Patch` plus new BPMN and DMN payload text, and
+`check_change` validates (shapes, `seams.decision_findings`) and generates in a
+scratch copy. A passing suggestion goes to `.seams/suggestions/<id>/`
+(`suggestion.json` and one `<file>.diff` per changed file), id =
+sha256(model hash, template, provider, answer); its answer is cached in
+`.seams/suggest-cache/` by sha256(model hash, template, provider). A rejected
+one names the subject and predicate and writes nothing. `accept` refuses a
+stale model hash, rebuilds and re-checks the change, and writes it through
+`seams_edit.apply` and `save_payload` (undone if a later write fails). Exit 0
+on store, list or accept, 1 on a rejection, a stale id or a failed provider, 2
+on a project error. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-suggest).
 
 ## seams new-generator
 

@@ -53,6 +53,7 @@ const decisions = [
   ["0024", "JSON-LD context", "0024-json-ld-context"],
   ["0025", "SemPKM as a store", "0025-sempkm-store"],
   ["0026", "Mental Model", "0026-mental-model"],
+  ["0027", "SemPKM webhooks", "0027-sempkm-webhook-channel"],
 ] as const;
 
 export default defineConfig({

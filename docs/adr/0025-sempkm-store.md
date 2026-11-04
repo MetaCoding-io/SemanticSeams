@@ -276,7 +276,8 @@ warning, after the facts above resolve.
 
 ### 12. Out of scope
 
-- SemPKM webhooks as a channel (O6, M024/S04).
+- SemPKM webhooks as a channel (O6, M024/S04). Decided in
+  [ADR-0027](./0027-sempkm-webhook-channel.md).
 - The Mental Model generator's format (O5, M024/S03), beyond section 8. Decided in
   [ADR-0026](./0026-mental-model.md).
 - Updates and deletes. The runtime writes new entities today; `object.patch` and

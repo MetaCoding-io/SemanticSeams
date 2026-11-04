@@ -10,8 +10,9 @@
 # `python -m seams_gen.stubs` wrote that file once; from then on it is owned
 # code, and `seams generate` never touches it.
 #
-# The model also says what the app should do (ADR-0014): three verify:Scenario
-# runs of the approval process (auto, manager and finance routes), a
+# The model also says what the app should do (ADR-0014): five verify:Scenario
+# runs of the approval process (auto, manager and finance routes, and the
+# manager's and finance's rejections), a
 # verify:DecisionExample for every rule of approval.dmn and payout.dmn, and a
 # valid and an invalid example of :ExpenseShape. They live at the end of the
 # seams graph, and the tests generator turns each one into a test.
@@ -540,6 +541,11 @@
     # The rejected end stays a plain end event, so rejecting publishes nothing.
     <https://example.org/expenses/approval_bpmn#approved_end> a proc:MessageThrowEvent ;
         rdfs:label "Paid" ;
+        seam:inModel :approval_bpmn .
+
+    # Lifted only because the reject scenarios name it as their end event
+    # (ADR-0014); proc has no class for a plain end event, so it has none.
+    <https://example.org/expenses/approval_bpmn#rejected_end> rdfs:label "Rejected" ;
         seam:inModel :approval_bpmn .
 }
 
@@ -1090,6 +1096,32 @@
                                      [ verify:field :paidOn ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
         verify:expectState :s_paid ;
         verify:expectEndEvent <https://example.org/expenses/approval_bpmn#approved_end> .
+
+    # Up to 1000 the manager is told, then rejects: the run ends rejected.
+    :manager_rejected a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                        verify:actor :manager ;
+                        verify:given [ verify:field :decision ; verify:value "rejected" ] ] ) ;
+        verify:expectState :s_rejected ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#rejected_end> .
+
+    # Above 1000 finance rejects: the run ends rejected and nothing is paid.
+    :finance_rejected a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Conference in Lisbon" ] ,
+                     [ verify:field :amount ; verify:value 5000.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "rejected" ] ] ) ;
+        verify:expectState :s_rejected ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#rejected_end> .
 
     # Decision examples: one per rule of each table, at the rule's limit, so
     # moving a threshold breaks a named test.

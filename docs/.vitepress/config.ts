@@ -49,6 +49,7 @@ const decisions = [
   ["0020", "LLM drafts", "0020-llm-drafts"],
   ["0021", "Vocabulary versions", "0021-vocabulary-versions"],
   ["0022", "Ontology notation", "0022-ontology-notation"],
+  ["0023", "Shapes target classes", "0023-shapes-target-classes"],
 ] as const;
 
 export default defineConfig({

@@ -970,6 +970,167 @@ seamsh:AuthenticatedStoreShape a sh:NodeShape ;
     sh:property [ sh:path deploy:storeKind ; sh:hasValue deploy:SemPKM ;
         sh:message "deploy:authenticatesTo points at a deploy:SemPKM store." ] .
 
+# A SemPKM webhook channel (ADR-0027 sections 2 and 7): the facts its receiving route
+# and the runtime's receiver resolve, one constraint per row of the ADR's resolution
+# table. Every constraint first asks for comm:transport comm:SemPKMWebhook, so other
+# channels are untouched. Whether a subscribing message catch event is a
+# bpmn:startEvent is in the BPMN XML, so the subscriber checks count every one.
+seamsh:SemPKMWebhookChannelShape a sh:NodeShape ;
+    sh:targetSubjectsOf comm:transport ;
+    sh:sparql [
+        sh:message "A SemPKM webhook channel has exactly one comm:transport (ADR-0027 section 10)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook , ?value .
+                FILTER (?value != comm:SemPKMWebhook)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A SemPKM webhook channel has exactly one comm:eventName, \"object.changed\", the SemPKM event type it listens for (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                FILTER (NOT EXISTS { $this comm:eventName ?name . FILTER (STR(?name) = "object.changed") }
+                    || EXISTS { $this comm:eventName ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A SemPKM webhook channel seam:acceptsShape exactly one shape, the shape of the objects whose changes start processes (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                FILTER (NOT EXISTS { $this seam:acceptsShape ?shape }
+                    || EXISTS { $this seam:acceptsShape ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The shape a SemPKM webhook channel seam:acceptsShape is seam:storedIn exactly one store, a deploy:SemPKM store (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook ; seam:acceptsShape ?value .
+                FILTER (NOT EXISTS { ?value seam:storedIn ?store . ?store deploy:storeKind deploy:SemPKM }
+                    || EXISTS { ?value seam:storedIn ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The shape a SemPKM webhook channel seam:acceptsShape has exactly one sh:targetClass, the class of the changed objects that matter (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook ; seam:acceptsShape ?value .
+                FILTER (NOT EXISTS { ?value sh:targetClass ?class }
+                    || EXISTS { ?value sh:targetClass ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A SemPKM webhook channel has exactly one comm:path, a hydra:IriTemplate with no hydra:mapping: a delivery names no variable (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                FILTER (NOT EXISTS { $this comm:path ?path }
+                    || EXISTS { $this comm:path ?a , ?b . FILTER (?a != ?b) }
+                    || EXISTS { $this comm:path/hydra:mapping ?mapping })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "Exactly one container seam:exposes a SemPKM webhook channel: the container that receives its deliveries (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                FILTER (NOT EXISTS { ?container seam:exposes $this }
+                    || EXISTS { ?a seam:exposes $this . ?b seam:exposes $this . FILTER (?a != ?b) })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "Two SemPKM webhook channels of one container have different comm:path templates (ADR-0027 section 10)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook ; comm:path/hydra:template ?template .
+                ?container seam:exposes $this , ?value .
+                ?value comm:transport comm:SemPKMWebhook ; comm:path/hydra:template ?template .
+                FILTER (?value != $this)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A proc:MessageCatchEvent start event seam:subscribesTo a SemPKM webhook channel: a channel with no subscriber is a fault, not a silent sink (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                FILTER NOT EXISTS { ?start a proc:MessageCatchEvent ; seam:subscribesTo $this }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The container that seam:exposes a SemPKM webhook channel seam:executes every process subscribed to it (ADR-0027 section 2)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                ?container seam:exposes $this .
+                ?start a proc:MessageCatchEvent ; seam:subscribesTo $this .
+                ?value a proc:Process ; seam:detailedBy ?model .
+                FILTER (STRSTARTS(STR(?start), CONCAT(STR(?model), "#")))
+                FILTER NOT EXISTS { ?container seam:executes ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "No process seam:publishesTo a SemPKM webhook channel: SemPKM is its only publisher (ADR-0027 section 1)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook .
+                ?value seam:publishesTo $this .
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The container that seam:exposes a SemPKM webhook channel has a binding that deploy:connectsTo the SemPKM store its accepted shape is seam:storedIn (ADR-0027 section 2, ADR-0025)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook ; seam:acceptsShape ?shape .
+                ?container seam:exposes $this .
+                ?shape seam:storedIn ?value .
+                ?value deploy:storeKind deploy:SemPKM .
+                FILTER NOT EXISTS { ?container deploy:configuration/deploy:binding/deploy:connectsTo ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The container that seam:exposes a SemPKM webhook channel has exactly one binding that deploy:authenticatesTo the SemPKM store its accepted shape is seam:storedIn: the service token (ADR-0027 section 2, ADR-0025)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook ; seam:acceptsShape ?shape .
+                ?container seam:exposes $this .
+                ?shape seam:storedIn ?value .
+                ?value deploy:storeKind deploy:SemPKM .
+                FILTER (NOT EXISTS { ?container deploy:configuration/deploy:binding/deploy:authenticatesTo ?value }
+                    || EXISTS {
+                        ?container deploy:configuration/deploy:binding ?a , ?b .
+                        ?a deploy:authenticatesTo ?value . ?b deploy:authenticatesTo ?value .
+                        FILTER (?a != ?b)
+                    })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "No element of a process the receiving container seam:executes seam:writes the shape a SemPKM webhook channel seam:acceptsShape: the runtime's own writes must not start processes (ADR-0027 section 7)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this comm:transport comm:SemPKMWebhook ; seam:acceptsShape ?shape .
+                ?container seam:exposes $this ; seam:executes ?process .
+                ?process seam:detailedBy ?model .
+                ?value seam:writes ?shape .
+                FILTER (STRSTARTS(STR(?value), CONCAT(STR(?model), "#")))
+            }""" ;
+    ] .
+
 #################################################################
 # Routes (principle 5)
 #################################################################

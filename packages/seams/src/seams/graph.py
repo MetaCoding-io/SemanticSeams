@@ -31,7 +31,7 @@ from ._xml import elements as _elements
 from ._xml import localname as _localname
 from .errors import ResolutionError
 from .loader import Model
-from .namespaces import COMM, DEPLOY, IFML, PROC, SEAM, STATE
+from .namespaces import COMM, DEPLOY, HYDRA, IFML, PROC, SEAM, STATE
 
 if TYPE_CHECKING:
     # The views import this module (for the resolver results), so they are
@@ -118,6 +118,39 @@ class ChannelStart:
     process: URIRef
     event: URIRef  # the proc:MessageCatchEvent start event
     channel: URIRef  # the comm:Channel it seam:subscribesTo
+
+
+#: The SemPKM event types a comm:SemPKMWebhook channel's comm:eventName may name
+#: (ADR-0027 section 2); the others are open points (section 11).
+WEBHOOK_EVENT_TYPES = ("object.changed",)
+
+
+@dataclass(frozen=True)
+class WebhookChannel:
+    """A SemPKM webhook channel (ADR-0027), from ``ModelGraph.webhook_channel``.
+
+    ``event_name`` is its comm:eventName, a ``WEBHOOK_EVENT_TYPES`` member, and
+    ``path`` its comm:path template (no variables). ``shape`` is the shape it
+    seam:acceptsShape, ``target_class`` that shape's sh:targetClass and
+    ``store`` the deploy:SemPKM store the shape is seam:storedIn.
+    ``container`` is the receiving container, the one that seam:exposes it;
+    ``key`` is the deploy:key of its binding that deploy:connectsTo the store
+    (the base URL) and ``token_key`` that of its binding that
+    deploy:authenticatesTo it (the service token, a secret). ``processes``
+    are the channel-started processes subscribed to it, sorted.
+    """
+
+    iri: URIRef
+    label: str
+    event_name: str
+    path: str
+    shape: URIRef
+    target_class: URIRef
+    store: URIRef
+    container: URIRef
+    key: str
+    token_key: str
+    processes: tuple[URIRef, ...]
 
 
 @dataclass(frozen=True)
@@ -636,6 +669,200 @@ class ModelGraph(Model):
         ch = self.curie(channel)
         return [p.iri for p in self.processes if any(s.channel == ch for s in self._start_subscriptions(p.iri))]
 
+    # ── SemPKM webhook channels (ADR-0027) ──
+
+    def webhook_channel_iris(self) -> list[URIRef]:
+        """The channels whose comm:transport is comm:SemPKMWebhook, sorted by IRI."""
+        return self.views.iris(self.ds.subjects(COMM.transport, COMM.SemPKMWebhook))
+
+    def is_webhook_channel(self, channel: object) -> bool:
+        """True when ``channel``'s comm:transport is comm:SemPKMWebhook."""
+        return (self.curie(channel), COMM.transport, COMM.SemPKMWebhook) in self.ds
+
+    def webhook_channels(self) -> list[WebhookChannel]:
+        """Every SemPKM webhook channel, resolved (``webhook_channel``), sorted by IRI."""
+        return [self.webhook_channel(ch) for ch in self.webhook_channel_iris()]
+
+    def webhook_channel(self, channel: object) -> WebhookChannel:
+        """The facts of one SemPKM webhook channel (ADR-0027 sections 2 and 7).
+
+        Every failure raises ``ResolutionError(subject, predicate)``, as the
+        ADR's section 10 table names it: a transport other than
+        comm:SemPKMWebhook, or more than one (channel, comm:transport); not
+        exactly one comm:eventName from ``WEBHOOK_EVENT_TYPES`` (channel,
+        comm:eventName); not exactly one seam:acceptsShape (channel,
+        seam:acceptsShape); an accepted shape not seam:storedIn exactly one
+        store, a deploy:SemPKM one (shape, seam:storedIn), or without exactly
+        one sh:targetClass (shape, sh:targetClass); not exactly one comm:path,
+        or one with no hydra:template or with a hydra:mapping (channel,
+        comm:path); not exactly one container that seam:exposes it (channel,
+        seam:exposes); an element that seam:publishesTo it (channel,
+        seam:publishesTo); no subscribed process (channel, seam:subscribesTo);
+        a subscriber the receiving container does not seam:executes
+        (container, seam:executes); a receiving container with no binding that
+        deploy:connectsTo the store (container, deploy:connectsTo), or not
+        exactly one secret binding that deploy:authenticatesTo it (container,
+        deploy:authenticatesTo); an element of a process the container
+        executes that seam:writes the accepted shape (shape, seam:writes); and
+        another webhook channel of the container with the same path template
+        (container, comm:path).
+        """
+        from .views.architecture import Container as ContainerView
+
+        ds = self.ds
+        views = self.views
+        ch = self.curie(channel)
+
+        transports = sorted(set(ds.objects(ch, COMM.transport)), key=str)
+        if COMM.SemPKMWebhook not in transports:
+            found = ", ".join(map(str, transports)) or "none"
+            raise ResolutionError(ch, COMM.transport, f"not a comm:SemPKMWebhook channel; comm:transport is {found}")
+        if len(transports) > 1:
+            listed = ", ".join(map(str, transports))
+            raise ResolutionError(
+                ch, COMM.transport, f"a SemPKM webhook channel has one comm:transport, found {listed}"
+            )
+
+        names = sorted({str(n) for n in ds.objects(ch, COMM.eventName)})
+        if len(names) != 1 or names[0] not in WEBHOOK_EVENT_TYPES:
+            supported = ", ".join(repr(t) for t in WEBHOOK_EVENT_TYPES)
+            detail = f"a SemPKM webhook channel has one comm:eventName, one of {supported}; found {names or 'none'}"
+            raise ResolutionError(ch, COMM.eventName, detail)
+
+        shapes = views.iris(ds.objects(ch, SEAM.acceptsShape))
+        if len(shapes) != 1:
+            detail = f"a SemPKM webhook channel accepts exactly one shape, found {[str(s) for s in shapes] or 'none'}"
+            raise ResolutionError(ch, SEAM.acceptsShape, detail)
+        shape = shapes[0]
+
+        stores = views.iris(ds.objects(shape, SEAM.storedIn))
+        if len(stores) != 1 or (stores[0], DEPLOY.storeKind, DEPLOY.SemPKM) not in ds:
+            detail = (
+                f"the shape {ch} accepts is stored in one deploy:SemPKM store; "
+                f"it is stored in {[str(s) for s in stores] or 'no store'}"
+            )
+            raise ResolutionError(shape, SEAM.storedIn, detail)
+        store = stores[0]
+
+        classes = views.iris(ds.objects(shape, SH.targetClass))
+        if len(classes) != 1:
+            detail = (
+                f"the shape {ch} accepts needs exactly one sh:targetClass, the class of the changed objects; "
+                f"found {[str(c) for c in classes] or 'none'}"
+            )
+            raise ResolutionError(shape, SH.targetClass, detail)
+
+        path = self._webhook_path(ch)
+
+        containers = views.iris(ds.subjects(SEAM.exposes, ch))
+        if len(containers) != 1:
+            detail = (
+                f"exactly one container seam:exposes a SemPKM webhook channel, "
+                f"found {[str(c) for c in containers] or 'none'}"
+            )
+            raise ResolutionError(ch, SEAM.exposes, detail)
+        container = containers[0]
+
+        publishers = views.iris(ds.subjects(SEAM.publishesTo, ch))
+        if publishers:
+            detail = f"SemPKM is a webhook channel's only publisher; {[str(p) for p in publishers]} seam:publishesTo it"
+            raise ResolutionError(ch, SEAM.publishesTo, detail)
+
+        processes = self.subscribed_processes(ch)
+        if not processes:
+            detail = "no channel-started process subscribes to this SemPKM webhook channel"
+            raise ResolutionError(ch, SEAM.subscribesTo, detail)
+        executed = views.iris(ds.objects(container, SEAM.executes))
+        missing = [str(p) for p in processes if p not in executed]
+        if missing:
+            detail = f"receives the SemPKM webhook channel {ch} but does not seam:executes its subscribers {missing}"
+            raise ResolutionError(container, SEAM.executes, detail)
+
+        receiver = views.intern(ContainerView, container)
+        keys = sorted(
+            b.key for b in receiver.connecting_bindings if b.connects_to is not None and b.connects_to.iri == store
+        )
+        if not keys:
+            detail = f"receives the SemPKM webhook channel {ch} but has no binding that deploy:connectsTo {store}"
+            raise ResolutionError(container, DEPLOY.connectsTo, detail)
+        token_key = self._token_key(receiver, store)
+
+        for process in self.processes:
+            if process.iri not in executed or not process.bpmn_models:
+                continue
+            writers = [el.iri for el in process.elements() if (el.iri, SEAM.writes, shape) in ds]
+            if writers:
+                detail = (
+                    f"{writers[0]} of {process.iri}, which {container} executes, writes the shape the SemPKM "
+                    f"webhook channel {ch} accepts; the runtime's own writes must not start processes"
+                )
+                raise ResolutionError(shape, SEAM.writes, detail)
+
+        for other in self.webhook_channel_iris():
+            if other != ch and (container, SEAM.exposes, other) in ds and self._webhook_template(other) == path:
+                detail = f"the SemPKM webhook channels {ch} and {other} share the comm:path {path!r}"
+                raise ResolutionError(container, COMM.path, detail)
+
+        return WebhookChannel(
+            ch,
+            self.label(ch),
+            names[0],
+            path,
+            shape,
+            classes[0],
+            store,
+            container,
+            keys[0],
+            token_key,
+            tuple(processes),
+        )
+
+    def _webhook_template(self, channel: URIRef) -> str | None:
+        """The hydra:template of a channel's single comm:path, else None."""
+        ds = self.ds
+        paths = sorted(set(ds.objects(channel, COMM.path)), key=str)
+        template = ds.value(paths[0], HYDRA.template) if len(paths) == 1 else None
+        return None if template is None else str(template)
+
+    def _webhook_path(self, channel: URIRef) -> str:
+        """The comm:path template of a webhook channel: exactly one, with a
+        hydra:template and no hydra:mapping (ADR-0027 section 2)."""
+        ds = self.ds
+        paths = sorted(set(ds.objects(channel, COMM.path)), key=str)
+        if len(paths) != 1:
+            detail = f"a SemPKM webhook channel has exactly one comm:path, found {len(paths)}"
+            raise ResolutionError(channel, COMM.path, detail)
+        template = ds.value(paths[0], HYDRA.template)
+        if template is None:
+            raise ResolutionError(channel, COMM.path, "comm:path has no hydra:template")
+        if (paths[0], HYDRA.mapping, None) in ds:
+            detail = f"a SemPKM delivery names no variable, so the comm:path {str(template)!r} has no hydra:mapping"
+            raise ResolutionError(channel, COMM.path, detail)
+        return str(template)
+
+    def _token_key(self, container: ContainerView, store: URIRef) -> str:
+        """The deploy:key of ``container``'s one secret binding that
+        deploy:authenticatesTo the SemPKM ``store`` (ADR-0025); anything else
+        raises ``ResolutionError(container, deploy:authenticatesTo)``."""
+        tokens = [
+            b
+            for b in container.authenticating_bindings
+            if b.authenticates_to is not None and b.authenticates_to.iri == store
+        ]
+        if len(tokens) != 1:
+            found = "none" if not tokens else ", ".join(repr(b.key) for b in tokens)
+            detail = (
+                f"a deploy:SemPKM store needs exactly one binding that deploy:authenticatesTo {store}, found {found}"
+            )
+            raise ResolutionError(container.iri, DEPLOY.authenticatesTo, detail)
+        if not set(tokens[0].kinds) <= {DEPLOY.secretRef, DEPLOY.secretFile}:
+            detail = (
+                f"the token binding {tokens[0].key!r} for {store} must take its value from a secret "
+                "(deploy:secretRef or deploy:secretFile)"
+            )
+            raise ResolutionError(container.iri, DEPLOY.authenticatesTo, detail)
+        return tokens[0].key
+
     def accepted_shape(self, operation: object) -> URIRef:
         op = self._operation(operation)
         shape = op.accepts
@@ -874,24 +1101,7 @@ class ModelGraph(Model):
         """The ADR-0025 checks of a resolved SemPKM store (see ``store_plan``)."""
         from .views.shapes import Shape
 
-        token_keys: list[str] = []
-        for c, _store, _key in links:
-            tokens = [
-                b
-                for b in c.authenticating_bindings
-                if b.authenticates_to is not None and b.authenticates_to.iri == store
-            ]
-            if len(tokens) != 1:
-                found = "none" if not tokens else ", ".join(repr(b.key) for b in tokens)
-                detail = f"a deploy:SemPKM store needs exactly one binding that deploy:authenticatesTo {store}, found {found}"
-                raise ResolutionError(c.iri, DEPLOY.authenticatesTo, detail)
-            if not set(tokens[0].kinds) <= {DEPLOY.secretRef, DEPLOY.secretFile}:
-                detail = (
-                    f"the token binding {tokens[0].key!r} for {store} must take its value from a secret "
-                    "(deploy:secretRef or deploy:secretFile)"
-                )
-                raise ResolutionError(c.iri, DEPLOY.authenticatesTo, detail)
-            token_keys.append(tokens[0].key)
+        token_keys = [self._token_key(c, store) for c, _store, _key in links]
 
         ds = self.ds
         views = self.views

@@ -74,6 +74,15 @@ comm:SSE a comm:Transport ;
 comm:WebSocket a comm:Transport ;
     rdfs:label "WebSocket" .
 
+comm:SemPKMWebhook a comm:Transport ;
+    rdfs:label "SemPKM webhook" ;
+    rdfs:comment """Inbound (ADR-0027): SemPKM POSTs its webhook deliveries to the
+channel's comm:path on the one container that seam:exposes it, and each change to an
+object of the channel's seam:acceptsShape starts the processes whose start event
+seam:subscribesTo the channel. The channel's comm:eventName is the SemPKM event type
+("object.changed"); the SemPKM store is the one the accepted shape is seam:storedIn.
+No process seam:publishesTo such a channel.""" .
+
 comm:transport a rdf:Property ;
     rdfs:label "transport" ;
     rdfs:domain comm:Channel ; rdfs:range comm:Transport .

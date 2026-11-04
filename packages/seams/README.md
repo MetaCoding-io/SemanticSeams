@@ -140,6 +140,12 @@ sorted list of `StoreFinding` (`severity`, `subject`, `predicate`,
 container no shape is `seam:storedIn`, and an `Info` when the model declares
 no store and the runtime keeps embedded SQLite, or only a SemPKM store and
 process state stays in embedded SQLite.
+`ModelGraph.webhook_channel(channel)` resolves a `comm:SemPKMWebhook` channel
+(ADR-0027) to a `WebhookChannel` (`event_name`, `path`, `shape`, `target_class`,
+`store`, `container`, `key`, `token_key`, `processes`); `webhook_channels()`
+resolves them all and `webhook_channel_iris()` lists them. Each fact of the
+ADR's section 10 table that is missing or wrong raises `ResolutionError`
+naming its subject and predicate.
 `ModelGraph.replica_health()` adds the replica cap (ADR-0015, backlog A10): a
 `Warning` for a serving container that declares more than one
 `deploy:replicas` in some environment.

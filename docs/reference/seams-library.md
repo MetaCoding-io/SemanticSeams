@@ -739,6 +739,49 @@ seams.ModelGraph("examples/checkout.trig").store_health()
 # [StoreFinding(severity="Violation", subject=:order_api, predicate=deploy:connectsTo, message="cannot resolve ...")]
 ```
 
+### SemPKM webhook channels
+
+A channel whose `comm:transport` is `comm:SemPKMWebhook` is inbound
+([ADR-0027](/adr/0027-sempkm-webhook-channel)): SemPKM `POST`s its deliveries to the
+channel's `comm:path` on the one container that `seam:exposes` it, and each changed
+object of the accepted shape's class starts the processes subscribed to the channel.
+`ModelGraph.webhook_channel_iris()` lists those channels, sorted;
+`is_webhook_channel(channel)` asks about one; `webhook_channel(channel)` resolves one
+to a frozen `WebhookChannel`, and `webhook_channels()` resolves them all, sorted by IRI:
+
+| Field | Meaning |
+|---|---|
+| `iri`, `label` | the channel |
+| `event_name` | its `comm:eventName`, a `WEBHOOK_EVENT_TYPES` member (`"object.changed"`) |
+| `path` | its `comm:path` template, which has no variables |
+| `shape`, `target_class` | the shape it `seam:acceptsShape` and that shape's `sh:targetClass` |
+| `store` | the `deploy:SemPKM` store the shape is `seam:storedIn` |
+| `container` | the receiving container, the one that `seam:exposes` the channel |
+| `key`, `token_key` | the `deploy:key`s of its bindings that `deploy:connectsTo` and `deploy:authenticatesTo` the store |
+| `processes` | the subscribed channel-started processes (`subscribed_processes`), sorted |
+
+Each row of ADR-0027 section 10 raises `ResolutionError(subject, predicate)`:
+
+| Case | `subject` | `predicate` |
+|---|---|---|
+| no `comm:eventName`, more than one, or one not in `WEBHOOK_EVENT_TYPES` | the channel | `comm:eventName` |
+| no `seam:acceptsShape`, or more than one | the channel | `seam:acceptsShape` |
+| the accepted shape is not `seam:storedIn` exactly one store, a `deploy:SemPKM` one | the shape | `seam:storedIn` |
+| the accepted shape has no `sh:targetClass`, or more than one | the shape | `sh:targetClass` |
+| no `comm:path`, more than one, or one with a `hydra:mapping` | the channel | `comm:path` |
+| two webhook channels of one container with the same path template | the container | `comm:path` |
+| no container `seam:exposes` the channel, or more than one | the channel | `seam:exposes` |
+| no channel-started process subscribes to it | the channel | `seam:subscribesTo` |
+| a subscriber the receiving container does not `seam:executes` | the container | `seam:executes` |
+| an element `seam:publishesTo` it | the channel | `seam:publishesTo` |
+| the container has no binding that `deploy:connectsTo` the store | the container | `deploy:connectsTo` |
+| no token binding for the store, more than one, or one that is not a secret | the container | `deploy:authenticatesTo` |
+| an element of a process the container executes `seam:writes` the accepted shape | the shape | `seam:writes` |
+| `comm:SemPKMWebhook` and another `comm:transport`, or a channel that is not a webhook channel | the channel | `comm:transport` |
+
+`seamsh:SemPKMWebhookChannelShape` reports the same faults in `seams check`, so a
+model that passes the shapes resolves.
+
 `ModelGraph.replica_health()` reports the replica cap of
 [ADR-0015](/adr/0015-environments) in the same `StoreFinding` form, and the
 viewer's health panel shows it beside the store findings. Process instances

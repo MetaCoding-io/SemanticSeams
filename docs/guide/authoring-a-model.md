@@ -577,6 +577,32 @@ generated forms, routes and tests are the same in this notation as with string l
 only the model hash moves. `seams diff` reads fields the same way, by name and wire value,
 so moving chapter 8's shapes to this notation is no change.
 
+### The JSON-LD context of a shape
+
+With a target class, a shape also says what its payloads mean as RDF. Add the `jsonld`
+generator to `seams.toml`:
+
+```toml
+[[generators]]
+name = "jsonld"
+out = "generated/contexts"
+```
+
+It writes `<shape>.jsonld`, a JSON-LD 1.1 context, for each shape with a
+`sh:targetClass` ([ADR-0024](/adr/0024-json-ld-context)), and the fastapi generator
+serves the same text at `GET /contexts/<shape>.jsonld`. Each field's `sh:name` maps to
+its `sh:path`, typed by its `sh:datatype`. A category field maps each member's label to
+the member's IRI, so `"status": "submitted"` reads as `:status :s_submitted` while the
+payload still carries the label. A flattened `sh:node` field and a reference to another
+entity map to `null`: the context leaves them out rather than state a triple the shape
+would reject. Every route that returns the shape sends
+`Link: </contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"`.
+
+Shapes without a target class, such as request and problem shapes, get no context. A
+category label must be usable as a JSON-LD term (not empty, not starting with `@`, no
+`:`), and the target class's local name must not also be a field name; the generator
+refuses either with a `GeneratorError` naming the member or the shape.
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`

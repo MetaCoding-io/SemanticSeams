@@ -225,13 +225,15 @@ def test_same_model_same_bytes(tmp_path: Path) -> None:
     assert first == second and first
 
 
-def test_sources_name_shape_class_paths_and_members(tmp_path: Path) -> None:
+def test_sources_name_shape_class_and_members(tmp_path: Path) -> None:
     found = jsonld_sources(load(tmp_path, model()))
     assert list(found) == ["ExpenseShape.jsonld"]
     iris = found["ExpenseShape.jsonld"]
     assert iris == tuple(sorted(iris))
-    expected = {EX.ExpenseShape, EX.Expense, GIST.description, EX.status, EX.s_draft, EX.o_approved, EX.note}
+    expected = {EX.ExpenseShape, EX.Expense, EX.s_draft, EX.o_approved}
     assert {str(i) for i in expected} <= set(iris)
+    # A field's path is a predicate, not a model element (tests/test_seams_gen_sources.py).
+    assert not {str(i) for i in (GIST.description, EX.status, EX.note)} & set(iris)
     assert str(EX.NotificationShape) not in iris
 
 

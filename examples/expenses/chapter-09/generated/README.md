@@ -18,6 +18,7 @@ hash it was generated from.
 | `templates/finance_approve_form.html` | `htmx`: the task form partial the inbox renders for `finance_approve_expense` |
 | `templates/payment_form.html` | `htmx`: the task form partial the inbox renders for `pay_expense` |
 | `tests/test_scenarios.py`, `tests/test_decisions.py`, `tests/test_shape_examples.py`, `tests/test_policies.py` | `tests`: pytest files for the `verify:` scenarios and examples and the allow/deny test for each ODRL permission and party (ADR-0014) |
+| `contexts/ExpenseShape.jsonld`, `contexts/ApprovalShape.jsonld`, `contexts/PaymentShape.jsonld` | `jsonld`: the JSON-LD context of each shape with a `sh:targetClass` (ADR-0024); `expense_api.py` serves the same text at `GET /contexts/<shape>.jsonld` |
 | `smoke/test_smoke.py` | `smoke`: one test per `hydra:Operation`, calling it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` and checking the answer against `seam:returnsShape`; skipped when the variable is unset |
 
 Regenerate from the repository root:
@@ -31,7 +32,9 @@ above and the chapter's `../compose.development.yaml` and
 `../compose.production.yaml`, one per environment the model declares
 (reference: [docs/reference/seams-cli.md](../../../../docs/reference/seams-cli.md)).
 
-Compared with chapter 8, the route module gains no route. `:expense_api` now
+Compared with chapter 8, the route module gains only the three context routes,
+`GET /contexts/<shape>.jsonld`, and a `Link` header naming the returned shape's
+context on each route that returns an expense or a payment. `:expense_api` now
 also exposes `:notify_manager_op`, but no `ifml:Event` `seam:submitsTo` it:
 only the `notify_manager` service task `seam:invokes` it, so the module
 header lists it as not routed and the runtime calls its

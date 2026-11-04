@@ -27,8 +27,8 @@ ambiguous fact raises the same ``GeneratorError``:
 - ``smoke``: each operation it calls, the shapes it accepts and returns (and
   its error statuses'), the examples it sends and the policies and parties
   governing it.
-- ``jsonld``: per context, the shape, its target class, its fields' paths
-  and its category fields' members.
+- ``jsonld``: per context, the shape, its target class and its category
+  fields' members (a field's path is a predicate, not an element).
 - ``acceptance``: per handlers module's test file, each function's
   implementations, operations and shapes, and the examples, transitions,
   states, tasks, decisions and gateway flows its tests read.

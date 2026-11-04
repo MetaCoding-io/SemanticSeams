@@ -818,6 +818,47 @@ select still offers `draft` to `paid`, the approver still picks `approved` or `r
 and a payload with `"decision": "maybe"` is refused with the same 422. Rename a state
 now and its option is renamed with it. Add one and it joins the options in lifecycle order.
 
+## Serve the payloads as JSON-LD
+
+Now that each shape names its class, the API can say what its payloads mean as RDF
+without changing them ([ADR-0024](../../adr/0024-json-ld-context.md)). Add the `jsonld`
+generator to `seams.toml`:
+
+```toml
+[[generators]]
+name = "jsonld"
+out = "generated/contexts"
+```
+
+Run `seams generate --project examples/expenses/chapter-09` again. It writes one
+JSON-LD context per target-classed shape, `ExpenseShape.jsonld`, `ApprovalShape.jsonld`
+and `PaymentShape.jsonld`, in `generated/contexts/`. Each field's name maps to its
+property, typed by its datatype, and the category fields map each label to its member:
+
+```json
+    "status": {
+      "@context": {
+        "approved": "https://example.org/expenses/s_approved",
+        "draft": "https://example.org/expenses/s_draft",
+        ...
+      },
+      "@id": "https://example.org/expenses/status",
+      "@type": "@vocab"
+    }
+```
+
+So `"status": "submitted"` reads as `:status :s_submitted`, and `PaymentShape`'s
+`paid_on` reads as `:paidOn`. The route module serves the same text at
+`GET /contexts/ExpenseShape.jsonld` and its two siblings, and every route that returns an
+expense or a payment adds a header naming its context:
+
+```
+Link: </contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+```
+
+A client that ignores JSON-LD sees nothing new. `NotificationShape` and the problem
+shape describe messages, not things, so they have no target class and no context.
+
 ## Checkpoint
 
 Your files should now match

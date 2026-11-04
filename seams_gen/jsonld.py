@@ -134,12 +134,8 @@ def _context(model: Model, shape: Shape, target: URIRef) -> Context:
     name = model.compact(shape.iri)
     _unique_names(model, shape, fields)
     terms = [_class_term(model, shape, target, fields), *(_term(model, name, f) for f in fields)]
-    sources = {
-        str(shape.iri),
-        str(target),
-        *(str(f.path) for f in fields),
-        *(str(m) for f in fields for m in f.members),
-    }
+    # Model elements only: a field's path is a predicate, covered by the shape.
+    sources = {str(shape.iri), str(target), *(str(m) for f in fields for m in f.members)}
     return Context(
         shape=str(shape.iri),
         file_name=f"{local_name(shape.iri)}{SUFFIX}",

@@ -131,7 +131,11 @@ pytest per operation that calls it on its path against a running app (`SEAMS_SMO
 and checks the answer against `seam:returnsShape`; CI's `tutorial-e2e` job runs chapter 9's
 against the compose stack. The `acceptance` generator writes pytest files that check
 hand-written handlers against the model: their types, results, legal transitions and
-decision branches. The
+decision branches. The `jsonld` generator writes a JSON-LD 1.1 context per shape with a
+`sh:targetClass`, mapping each field's name to its property and each category label to its
+member IRI, and the generated API serves it at `GET /contexts/<shape>.jsonld` with a
+`Link` header on the routes that return that shape, so a JSON-LD client reads the same
+payloads as RDF ([ADR-0024](docs/adr/0024-json-ld-context.md)). The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

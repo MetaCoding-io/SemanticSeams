@@ -1875,8 +1875,6 @@
       "terms": [
         "https://example.org/expenses/Approval",
         "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/comment",
-        "https://example.org/expenses/decision",
         "https://example.org/expenses/outcome_approved",
         "https://example.org/expenses/outcome_rejected"
       ]
@@ -1889,8 +1887,6 @@
       "terms": [
         "https://example.org/expenses/Approval",
         "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/comment",
-        "https://example.org/expenses/decision",
         "https://example.org/expenses/outcome_approved",
         "https://example.org/expenses/outcome_rejected"
       ]
@@ -2093,8 +2089,6 @@
       "terms": [
         "https://example.org/expenses/Approval",
         "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/comment",
-        "https://example.org/expenses/decision",
         "https://example.org/expenses/outcome_approved",
         "https://example.org/expenses/outcome_rejected"
       ]
@@ -2107,8 +2101,6 @@
       "terms": [
         "https://example.org/expenses/Approval",
         "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/comment",
-        "https://example.org/expenses/decision",
         "https://example.org/expenses/outcome_approved",
         "https://example.org/expenses/outcome_rejected"
       ]
@@ -2121,8 +2113,6 @@
       "terms": [
         "https://example.org/expenses/Approval",
         "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/comment",
-        "https://example.org/expenses/decision",
         "https://example.org/expenses/outcome_approved",
         "https://example.org/expenses/outcome_rejected"
       ]
@@ -2135,16 +2125,11 @@
       "terms": [
         "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/amount",
-        "https://example.org/expenses/date",
-        "https://example.org/expenses/description",
-        "https://example.org/expenses/id",
         "https://example.org/expenses/s_approved",
         "https://example.org/expenses/s_draft",
         "https://example.org/expenses/s_paid",
         "https://example.org/expenses/s_rejected",
-        "https://example.org/expenses/s_submitted",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_submitted"
       ]
     },
     {
@@ -2155,16 +2140,11 @@
       "terms": [
         "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/amount",
-        "https://example.org/expenses/date",
-        "https://example.org/expenses/description",
-        "https://example.org/expenses/id",
         "https://example.org/expenses/s_approved",
         "https://example.org/expenses/s_draft",
         "https://example.org/expenses/s_paid",
         "https://example.org/expenses/s_rejected",
-        "https://example.org/expenses/s_submitted",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_submitted"
       ]
     },
     {
@@ -2515,16 +2495,11 @@
       "terms": [
         "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/amount",
-        "https://example.org/expenses/date",
-        "https://example.org/expenses/description",
-        "https://example.org/expenses/id",
         "https://example.org/expenses/s_approved",
         "https://example.org/expenses/s_draft",
         "https://example.org/expenses/s_paid",
         "https://example.org/expenses/s_rejected",
-        "https://example.org/expenses/s_submitted",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_submitted"
       ]
     },
     {
@@ -2535,16 +2510,11 @@
       "terms": [
         "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/amount",
-        "https://example.org/expenses/date",
-        "https://example.org/expenses/description",
-        "https://example.org/expenses/id",
         "https://example.org/expenses/s_approved",
         "https://example.org/expenses/s_draft",
         "https://example.org/expenses/s_paid",
         "https://example.org/expenses/s_rejected",
-        "https://example.org/expenses/s_submitted",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_submitted"
       ]
     },
     {
@@ -2555,16 +2525,11 @@
       "terms": [
         "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/amount",
-        "https://example.org/expenses/date",
-        "https://example.org/expenses/description",
-        "https://example.org/expenses/id",
         "https://example.org/expenses/s_approved",
         "https://example.org/expenses/s_draft",
         "https://example.org/expenses/s_paid",
         "https://example.org/expenses/s_rejected",
-        "https://example.org/expenses/s_submitted",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_submitted"
       ]
     },
     {
@@ -2575,13 +2540,10 @@
       "terms": [
         "https://example.org/expenses/Payment",
         "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/paidOn",
-        "https://example.org/expenses/reference",
         "https://example.org/expenses/s_batched",
         "https://example.org/expenses/s_recorded",
         "https://example.org/expenses/s_scheduled",
-        "https://example.org/expenses/s_sent",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_sent"
       ]
     },
     {
@@ -2592,13 +2554,10 @@
       "terms": [
         "https://example.org/expenses/Payment",
         "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/paidOn",
-        "https://example.org/expenses/reference",
         "https://example.org/expenses/s_batched",
         "https://example.org/expenses/s_recorded",
         "https://example.org/expenses/s_scheduled",
-        "https://example.org/expenses/s_sent",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_sent"
       ]
     },
     {
@@ -2859,13 +2818,10 @@
       "terms": [
         "https://example.org/expenses/Payment",
         "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/paidOn",
-        "https://example.org/expenses/reference",
         "https://example.org/expenses/s_batched",
         "https://example.org/expenses/s_recorded",
         "https://example.org/expenses/s_scheduled",
-        "https://example.org/expenses/s_sent",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_sent"
       ]
     },
     {
@@ -2876,13 +2832,10 @@
       "terms": [
         "https://example.org/expenses/Payment",
         "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/paidOn",
-        "https://example.org/expenses/reference",
         "https://example.org/expenses/s_batched",
         "https://example.org/expenses/s_recorded",
         "https://example.org/expenses/s_scheduled",
-        "https://example.org/expenses/s_sent",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_sent"
       ]
     },
     {
@@ -2893,13 +2846,10 @@
       "terms": [
         "https://example.org/expenses/Payment",
         "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/paidOn",
-        "https://example.org/expenses/reference",
         "https://example.org/expenses/s_batched",
         "https://example.org/expenses/s_recorded",
         "https://example.org/expenses/s_scheduled",
-        "https://example.org/expenses/s_sent",
-        "https://example.org/expenses/status"
+        "https://example.org/expenses/s_sent"
       ]
     }
   ],

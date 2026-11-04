@@ -8,6 +8,9 @@ app needs but no generated handler holds:
 
 - a ``RuntimeModelError`` handler answering ``{"detail": exc.to_dict()}``
   with ``exc.http_status``;
+- a ``StoreError`` handler (ADR-0025): an entity store that failed at run
+  time answers its ``http_status`` (503 unavailable, 502 bad reply) with an
+  ``application/problem+json`` body naming the store container;
 - the module's ``problem_handler`` for ``OperationError``, when the module
   defines one (it routes an operation that declares error statuses,
   ADR-0013): the declared problem+json response;
@@ -42,13 +45,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import __version__
 from .contracts import shape_contract
-from .errors import ContractViolation, OperationError, RuntimeModelError
-from .model import local_name
+from .errors import ContractViolation, OperationError, RuntimeModelError, StoreError
+from .model import DEPLOY, local_name
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +60,7 @@ ROUTES_ENV = "SEAMS_ROUTES"
 SEED_ENV = "SEAMS_SEED"
 DEFAULT_ROUTES = "/app/chat_api.py"  # where the generated compose file mounts the route module
 TASKS_PATH = "/tasks"
+PROBLEM_JSON = "application/problem+json"  # RFC 9457
 HTMX_SRC = "https://unpkg.com/htmx.org@2.0.4"  # the version the generated pages load
 
 
@@ -126,16 +131,29 @@ def store_health(runtime) -> dict:
     the model ``declared`` (local name, null when it declares none), the
     declared store ``container`` IRI (null when none) and ``override``, true
     when the backend differs from the declared kind or an override chose it.
-    Never the connection string."""
+    A model with a deploy:SemPKM store (ADR-0025) adds ``sempkm``: ``kind``
+    SemPKM, its ``container``, ``reachable`` (``GET /api/health``, null when
+    an override keeps its entities elsewhere) and ``override``. Never the
+    connection string or the token."""
     plan = getattr(runtime, "store_plan", None)
     declared = local_name(plan.kind) if plan is not None and plan.declared else None
     differs = declared is not None and runtime.store.kind != declared.lower()
-    return {
+    out = {
         "kind": runtime.store.kind,
         "declared": declared,
         "container": None if plan is None or plan.store is None else str(plan.store),
         "override": bool(getattr(runtime, "store_override", False)) or differs,
     }
+    sempkm = getattr(plan, "sempkm", None)
+    if sempkm is not None:
+        entities = getattr(runtime.store, "entities", None)
+        out["sempkm"] = {
+            "kind": local_name(DEPLOY.SemPKM),
+            "container": str(sempkm.store),
+            "reachable": None if entities is None else entities.reachable(),
+            "override": entities is None,
+        }
+    return out
 
 
 def render_inbox(runtime, identity, tasks) -> str:
@@ -179,6 +197,11 @@ def build_app(routes_path) -> FastAPI:
         log.warning("%s %s -> %s %s", request.method, request.url.path, exc.http_status, type(exc).__name__)
         return JSONResponse(status_code=exc.http_status, content={"detail": exc.to_dict()})
 
+    @app.exception_handler(StoreError)
+    async def _store_error(request: Request, exc: StoreError):
+        log.warning("%s %s -> %s %s (%s)", request.method, request.url.path, exc.http_status, type(exc).__name__, exc)
+        return JSONResponse(exc.problem(), status_code=exc.http_status, media_type=PROBLEM_JSON)
+
     problem_handler = getattr(module, "problem_handler", None)
     if problem_handler is not None:
         app.add_exception_handler(OperationError, problem_handler)
@@ -189,7 +212,7 @@ def build_app(routes_path) -> FastAPI:
             "status": "ok",
             "model_hash": runtime.model.hash,
             "runtime_version": __version__,
-            "store": store_health(runtime),
+            "store": await run_in_threadpool(store_health, runtime),
         }
 
     def page_route(served):

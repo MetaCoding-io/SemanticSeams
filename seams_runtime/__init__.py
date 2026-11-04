@@ -11,6 +11,9 @@ from .errors import (
     PolicyDenied,
     ResolutionError,
     RuntimeModelError,
+    StoreError,
+    StoreReplyInvalid,
+    StoreUnavailable,
     TaskNotOpen,
 )
 from .lifecycle import LifecycleGuard
@@ -28,7 +31,8 @@ from .policy import (
     authenticator_from_env,
 )
 from .runtime import Runtime
-from .store import PostgresStore, SQLiteStore, Store
+from .sempkm import SemPKMStore
+from .store import PostgresStore, SplitStore, SQLiteStore, Store
 from .telemetry import Telemetry, tracer_from_env
 from .worker import Instance, Worker
 
@@ -59,8 +63,13 @@ __all__ = [
     "Runtime",
     "RuntimeModelError",
     "SQLiteStore",
+    "SemPKMStore",
+    "SplitStore",
     "StaticUserAuthenticator",
     "Store",
+    "StoreError",
+    "StoreReplyInvalid",
+    "StoreUnavailable",
     "TaskNotOpen",
     "Telemetry",
     "Worker",

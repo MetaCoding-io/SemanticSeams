@@ -225,6 +225,16 @@ model load adds these rows to the table above:
 The model-health badge shows a note when a SemPKM store has no relational store beside
 it, saying that process state stays in embedded SQLite.
 
+At run time the runtime reads the base URL and the token from the variables the two
+bindings' keys name, or from `<key>_FILE`. SemPKM mints each entity's IRI, and the
+entity keeps it as its id. A `/healthz` answer adds `"sempkm": {"kind": "SemPKM",
+"container": ..., "reachable": ...}`. When SemPKM is unreachable, times out, fails or
+refuses the token, a write answers 503 with a problem+json body naming the store
+container. An answer without an IRI is a 502. Either way nothing is kept, so the
+request can be retried. A refused token is logged with the scope the call needs
+(`commands:execute` or `sparql:read`); the token itself never is.
+`SEAMS_STORE_OVERRIDE=sqlite` keeps these entities in embedded SQLite for local runs.
+
 ### Environments and overrides
 
 Each place the system runs is an `arch:Environment`: the chat app and expense chapters 8

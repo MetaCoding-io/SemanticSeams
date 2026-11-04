@@ -39,7 +39,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
 | `await runtime.start_subscribed(":payout_process", correlation_key, current, status)` | Starts a channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md)): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel. The instance gets the correlation key and a copy of `current` (entities by shape IRI, ids kept) and `status` (status by shape IRI). Nothing is re-validated. It is checkpointed before its worker task runs. Rule 6a calls this for you; a process that is not channel-started raises `ResolutionError(process, seam:subscribesTo)`. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
-| `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
+| `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id (the IRI SemPKM mints, for a shape stored in a SemPKM store) and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
 | `runtime.problem(operation, error)` | The `application/problem+json` response for an `OperationError` raised while serving `operation` (ADR-0013); a generated route module's `problem_handler` calls it. `contracts.problem_body` builds the body: `title` from the status's `rdfs:label`, `status` from its `hydra:statusCode`, then `detail` and the error's extension members, validated (closed-world, as `validate`) against the status's `seam:returnsShape`. The response has that status code. A code the operation does not declare (`ResolutionError(operation, comm:errorCode)`), a route with no declared errors (`operation` None), or a body that violates the error shape (`ContractViolation` whose `operation` is the status) is a server fault: 500 with `{"detail": fault.to_dict()}`, logged at ERROR. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
 | `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once. |
@@ -163,6 +163,33 @@ fact fails at load with `ResolutionError` naming the subject and predicate, even
 the override. The INFO load line names the kind, the declared store, container, key
 and the redacted `location`; the URL itself is never logged.
 
+### A SemPKM store (ADR-0025)
+
+When the plan has a `deploy:SemPKM` store (`plan.sempkm`), the backend chosen above
+keeps process state, open user tasks and the entities of every other shape, and the
+entities of the shapes `seam:storedIn` the SemPKM store live in SemPKM. `Runtime.load`
+reads the base URL from the variable the `deploy:connectsTo` binding's key names and
+the service token from the variable the `deploy:authenticatesTo` binding's key names,
+each also from `<key>_FILE`. Either missing raises `ResolutionError(<runtime container>,
+deploy:connectsTo | deploy:authenticatesTo)` before any store is opened. The
+relational backend, declared or injected with `store=`, is wrapped in a `SplitStore`;
+`sempkm_transport=` gives the SemPKM client an httpx transport (tests).
+`SEAMS_STORE_OVERRIDE=sqlite` keeps those entities in SQLite as well, with a WARNING
+naming the SemPKM store, and reads neither binding. The token is never logged.
+
+| Class | What it does |
+|---|---|
+| `SplitStore(relational, entities)` | A `Store`. Workflow state and user tasks go to `relational`. For a shape `entities` holds, `put_entity` with an id that has no index row creates the entity in SemPKM and returns the row under SemPKM's IRI (the worker and `Runtime.write` adopt it); an indexed id is updated. The relational `entities` table keeps one index row per entity, `id` the IRI and `data` `{}`, holding its correlation key, instance, status and `created`. The row is written only after SemPKM accepted the data. `get_entity` and `query` read the data from SemPKM. `query` without `correlation_key=` also lists objects of the shape's class that others wrote, after the indexed ones, by IRI, with no correlation key. `kind` and `location` are the relational store's. |
+| `SemPKMStore(model, plan, url, token, *, transport=None, timeout=...)` | The entity backend. `create` sends one `POST /api/commands` request: an `object.create` typed by the shape's `sh:targetClass` with a map from each field's `sh:path` to its value, then for each flattened `sh:node` field an `object.create` of the nested node (typed by the nested shape's `sh:targetClass`, with its free and fixed properties) and an `edge.create` joining them through `@slot:` references. SemPKM commits the request in one event. Values are JSON: integers as ints, decimal, double and float as numbers, booleans as bools, a category member as its IRI, everything else as a string. A field named `id` is never sent and reads back as the IRI. `read` / `get` send `POST /api/sparql` scoped to the class and the fields' paths, following SemPKM's edge resources one level, with sorted variables. Member IRIs read back as labels, decimals as plain lexical strings. `update` sends an `object.patch` of the top-level fields whose value changed; changing a nested value raises `ResolutionError(shape, path)`. `reachable()` is `GET /api/health`, with no token. A shape or nested shape without `sh:targetClass` raises `ResolutionError` when the store is built. |
+
+Run-time failures raise `StoreError`s that name the store container (`store`) and never
+the token. Unreachable, a timeout, 5xx or 429 raise `StoreUnavailable` (503). 401 and 403
+do too, after an ERROR line naming the store and the scope the call needs
+(`commands:execute` or `sparql:read`). Any other 4xx, an answer that is not JSON or not
+SPARQL results, or no IRI from `object.create` raise `StoreReplyInvalid` (502). The host
+answers both with problem+json. Raised inside a process, the error fails the instance:
+`result["error"]` carries the type, `http_status` and `store`, and no index row is kept.
+
 ## Host
 
 `python -m seams_runtime.host --routes /app/chat_api.py --host 0.0.0.0 --port 8000`
@@ -171,6 +198,9 @@ and the redacted `location`; the URL itself is never logged.
 It includes `module.router` and adds:
 
 - a `RuntimeModelError` handler that answers `{"detail": exc.to_dict()}` with `exc.http_status`;
+- a `StoreError` handler (ADR-0025) that answers `exc.http_status` (503 or 502) with an
+  `application/problem+json` body: `type`, `title`, `status`, `detail` and `store`, the store
+  container IRI;
 - the module's `problem_handler` as the `OperationError` handler, when the module defines one
   (it routes an operation that declares error statuses, ADR-0013): the declared
   `application/problem+json` response from `runtime.problem`;
@@ -178,7 +208,10 @@ It includes `module.router` and adds:
   `kind` is the backend in use (`sqlite` or `postgresql`), `declared` the local name of
   the declared `deploy:storeKind` (`null` when the model declares none), `container` the
   store container IRI (or `null`), and `override` is true when the backend is not the
-  declared kind or an override chose it. The connection string never appears.
+  declared kind or an override chose it. The connection string never appears. A model
+  with a SemPKM store adds `"sempkm": {"kind": "SemPKM", "container": ..., "reachable": ...,
+  "override": ...}`: `reachable` is SemPKM's `GET /api/health` answering `healthy`, `null`
+  under `SEAMS_STORE_OVERRIDE=sqlite`. The token never appears;
   `seams status` compares the reported `model_hash` with the current model's hash
   to say whether a running container is current, behind or ahead;
 - every page of `model.interfaces.served_pages()` at its own `ifml:path`, rendered by
@@ -399,7 +432,7 @@ Any other exception, or any other non-2xx answer, fails the instance unchanged.
 | `SEAMS_MODEL` | TriG file `load` reads. When set and non-empty it takes precedence over the `trig_path` argument. The generated compose file sets it to the bind-mounted model, for example `/model/chat-app.trig`. |
 | `SEAMS_DB` | Embedded SQLite file for workflow state and entities, used when the model declares no store or a `deploy:SQLite` store, or under `SEAMS_STORE_OVERRIDE=sqlite`. The default is `seams.sqlite`. `db_path=` overrides it. |
 | `SEAMS_STORE_OVERRIDE` | `sqlite` forces embedded SQLite whatever store the model declares, logging a WARNING; `/healthz` reports `override: true`. Any other non-empty value fails at load. Meant for tests and local runs. |
-| `<key>` / `<key>_FILE` | For a `deploy:PostgreSQL` store, the connection URL, or a file holding it. `<key>` is the `deploy:key` of the runtime container's binding that `deploy:connectsTo` the store, for example `DB_URL` / `DB_URL_FILE`. `<key>` wins when both are set. |
+| `<key>` / `<key>_FILE` | For a `deploy:PostgreSQL` store, the connection URL, or a file holding it. `<key>` is the `deploy:key` of the runtime container's binding that `deploy:connectsTo` the store, for example `DB_URL` / `DB_URL_FILE`. `<key>` wins when both are set. For a `deploy:SemPKM` store, the same two give the base URL, and the `deploy:authenticatesTo` binding's key gives the service token (for example `SEMPKM_TOKEN` / `SEMPKM_TOKEN_FILE`). |
 | `SEAMS_DEV_USER` | Opt-in static identity for local runs. Without it, the `X-Forwarded-User` header is required (fail closed, D014). |
 | `SEAMS_DEV_ROLES` | Comma-separated roles of the `SEAMS_DEV_USER` identity, for example `employee,manager`. Ignored without `SEAMS_DEV_USER`. With the header authenticator, the roles come from the `X-Forwarded-Groups` header instead. |
 | `SEAMS_ALLOW_HASH_MISMATCH` | When set to `1`, `load` warns on a hash mismatch instead of refusing the model. |
@@ -450,3 +483,6 @@ in the checkpointed workflow stay the record of a run: `seams sequence :event --
   assignees as well as identity ids, but still only permission presence and assignee. A
   full evaluator can be plugged in as a `PolicyEvaluator`.
 - One store per model. A model whose runtime containers connect to different stores fails at load.
+- SemPKM updates beyond `object.patch` of top-level fields, and deletes (ADR-0025 section 12).
+  `SEAMS_SEED` items of a SemPKM-stored shape are written again on every start: SemPKM mints
+  a new IRI, so the seed id is never found.

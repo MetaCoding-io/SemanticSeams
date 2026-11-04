@@ -18,6 +18,9 @@ __all__ = [
     "PolicyDenied",
     "ResolutionError",
     "RuntimeModelError",
+    "StoreError",
+    "StoreReplyInvalid",
+    "StoreUnavailable",
     "TaskNotOpen",
 ]
 
@@ -125,6 +128,48 @@ class TaskNotOpen(RuntimeModelError):
 
     def _fields(self) -> dict:
         return {"task": self.task, "correlation_key": self.correlation_key}
+
+
+class StoreError(RuntimeModelError):
+    """An entity store the runtime calls over the network failed at run time
+    (ADR-0025 section 11): not a model fault and not the caller's. ``store``
+    is the store container IRI and ``reason`` what went wrong, never a
+    credential. ``problem()`` is the RFC 9457 body the host answers with."""
+
+    title = "Store error"
+
+    def __init__(self, store, reason: str):
+        self.store = str(store)
+        self.reason = reason
+        super().__init__(f"store {self.store}: {reason}")
+
+    def _fields(self) -> dict:
+        return {"store": self.store, "reason": self.reason}
+
+    def problem(self) -> dict:
+        return {
+            "type": "about:blank",
+            "title": self.title,
+            "status": self.http_status,
+            "detail": str(self),
+            "store": self.store,
+        }
+
+
+class StoreUnavailable(StoreError):
+    """The store is unreachable, timed out, answered 5xx or 429, or refused
+    the runtime's token (401/403): 503, nothing was kept, retry later."""
+
+    http_status = 503
+    title = "Store unavailable"
+
+
+class StoreReplyInvalid(StoreError):
+    """The store answered, but not as its API promises (no IRI from
+    object.create, an unreadable body, a rejected command): 502, nothing kept."""
+
+    http_status = 502
+    title = "Bad store reply"
 
 
 # RFC 9457 members the model states (rdfs:label and hydra:statusCode of the

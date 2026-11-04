@@ -17,6 +17,14 @@ SQLite's rowid as the insertion-order tie-breaker. Both return the same rows.
 
 Every operation opens and closes its own connection, so one store can be
 shared by coroutines and by the worker threads asyncio hands blocking calls to.
+
+``SplitStore`` puts a relational store in front of an entity backend
+(``sempkm.SemPKMStore``, ADR-0025): process state, user tasks and the entities
+of every other shape stay relational, while the data of the entity backend's
+shapes lives only there. For each of those entities the relational
+``entities`` table keeps an index row, ``id`` the backend's IRI and ``data``
+empty, holding what is execution state: its correlation key, instance,
+status and ``created``.
 """
 
 from __future__ import annotations
@@ -495,3 +503,120 @@ def _postgres_entity(row: dict) -> dict:
     # jsonb reorders object keys; re-sorting gives the sort_keys order SQLite stored.
     row["data"] = json.loads(json.dumps(row["data"], sort_keys=True))
     return row
+
+
+# ── relational state plus an entity backend ─────────────────────────────────
+
+
+class SplitStore:
+    """A ``Store`` whose process state and user tasks live in ``relational``
+    and whose entities of ``entities.shapes`` live in ``entities``, an entity
+    backend with ``create``, ``update``, ``get`` and ``read`` (``SemPKMStore``).
+    ``kind`` and ``location`` are the relational store's."""
+
+    def __init__(self, relational: Store, entities):
+        self.relational = relational
+        self.entities = entities
+        self.kind = relational.kind
+        self.location = relational.location
+        self.shapes = frozenset(str(s) for s in entities.shapes)
+
+    def __repr__(self) -> str:
+        return f"SplitStore({self.relational!r}, {self.entities!r})"
+
+    # ── workflow state and user tasks: relational ──
+
+    def save_state(
+        self, instance_id: str, process, state: str, *, correlation_key: str | None = None, status: str | None = None
+    ) -> None:
+        self.relational.save_state(instance_id, process, state, correlation_key=correlation_key, status=status)
+
+    def load_state(self, instance_id: str) -> str:
+        return self.relational.load_state(instance_id)
+
+    def get_instance(self, instance_id: str) -> dict | None:
+        return self.relational.get_instance(instance_id)
+
+    def list_instances(self, correlation_key: str | None = None) -> list[dict]:
+        return self.relational.list_instances(correlation_key)
+
+    def replace_user_tasks(self, instance_id: str, rows) -> None:
+        self.relational.replace_user_tasks(instance_id, rows)
+
+    def list_user_tasks(self) -> list[dict]:
+        return self.relational.list_user_tasks()
+
+    def get_user_task(self, task_iri, correlation_key: str) -> dict | None:
+        return self.relational.get_user_task(task_iri, correlation_key)
+
+    # ── entities ──
+
+    def put_entity(
+        self,
+        id: str,
+        shape,
+        data: dict,
+        *,
+        correlation_key: str | None = None,
+        instance_id: str | None = None,
+        status: str | None = None,
+    ) -> dict:
+        """Relational for other shapes. For a backend shape: an id with no
+        index row is a new entity, created in the backend, whose IRI becomes
+        the returned row's ``id``; an indexed id is updated there. The index
+        row is written only after the backend accepted the data, so a
+        backend failure keeps nothing."""
+        meta = {"correlation_key": correlation_key, "instance_id": instance_id, "status": status}
+        if str(shape) not in self.shapes:
+            return self.relational.put_entity(id, shape, data, **meta)
+        index = self.relational.get_entity(id)
+        if index is None:
+            iri, stored = self.entities.create(shape, data)
+        else:
+            iri = str(index["id"])
+            stored = self.entities.update(iri, shape, data)
+        row = self.relational.put_entity(iri, shape, {}, **meta)
+        return {**row, "data": stored}
+
+    def get_entity(self, id: str) -> dict | None:
+        row = self.relational.get_entity(id)
+        if row is None or str(row["shape"]) not in self.shapes:
+            return row
+        data = self.entities.get(str(row["id"]), row["shape"])
+        if data is None:
+            log.warning("entity %s of %s is indexed but its store has no such object", row["id"], row["shape"])
+            return None
+        return {**row, "data": data}
+
+    def query(self, shape, **filters) -> list[dict]:
+        """Relational for other shapes. For a backend shape: with
+        ``correlation_key=``, the indexed entities of that key read from the
+        backend by IRI; without, every entity of the shape the backend holds,
+        the indexed ones first in ``created`` order, then the rest (written
+        by others, with no correlation key or instance) by IRI. Data filters
+        match as on the other stores."""
+        if str(shape) not in self.shapes:
+            return self.relational.query(shape, **filters)
+        if "correlation_key" in filters:
+            index = self.relational.query(shape, correlation_key=filters.pop("correlation_key"))
+            found = dict(self.entities.read(shape, [r["id"] for r in index]))
+            unindexed = []
+        else:
+            index = self.relational.query(shape)
+            found = dict(self.entities.read(shape))
+            known = {str(r["id"]) for r in index}
+            unindexed = [iri for iri in found if iri not in known]
+        rows = [{**r, "data": found[str(r["id"])]} for r in index if str(r["id"]) in found]
+        rows += [
+            {
+                "id": iri,
+                "shape": str(shape),
+                "correlation_key": None,
+                "instance_id": None,
+                "data": found[iri],
+                "status": found[iri].get("status"),
+                "created": None,
+            }
+            for iri in sorted(unindexed)
+        ]
+        return _match(rows, filters)

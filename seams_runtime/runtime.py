@@ -17,7 +17,13 @@ deploy:SQLite one; PostgreSQL at the URL in the environment variable the
 connecting binding's deploy:key names, else in the file ``<key>_FILE`` names.
 ``store=`` injects a backend (tests), and ``SEAMS_STORE_OVERRIDE=sqlite``
 forces embedded SQLite; both still resolve the plan first, so a bad model
-fails at load either way. The other methods are what a thin handler
+fails at load either way. A plan with a deploy:SemPKM store (ADR-0025) keeps
+the entities of the shapes stored there in SemPKM, at the base URL in the
+environment variable its connecting binding's deploy:key names, with the
+service token its deploy:authenticatesTo binding's key names (each also
+from ``<key>_FILE``): the relational store, declared or injected, is wrapped
+in a ``SplitStore`` (``sempkm_transport=`` gives the SemPKM client an httpx
+transport). ``SEAMS_STORE_OVERRIDE=sqlite`` keeps those entities in SQLite too. The other methods are what a thin handler
 calls: ``policy`` (a FastAPI dependency for seam:governedBy), ``validate``
 (SHACL at the boundary), ``start_process`` / ``resume`` (run the generic
 worker as an asyncio task), ``write`` (persist a validated entity when the
@@ -80,7 +86,8 @@ from .lifecycle import LifecycleGuard
 from .llm import LLMClient
 from .model import COMM, DEPLOY, SEAM, ModelGraph, local_name
 from .policy import Identity, PolicyHook, authenticator_from_env
-from .store import PostgresStore, SQLiteStore, Store
+from .sempkm import SemPKMStore
+from .store import PostgresStore, SplitStore, SQLiteStore, Store
 from .telemetry import Telemetry, tracer_from_env
 from .worker import RUNNING, Instance, Worker, new_state
 
@@ -91,7 +98,7 @@ DB_ENV = "SEAMS_DB"
 ALLOW_MISMATCH_ENV = "SEAMS_ALLOW_HASH_MISMATCH"
 DEFAULT_DB = "seams.sqlite"
 STORE_OVERRIDE_ENV = "SEAMS_STORE_OVERRIDE"
-STORE_KINDS = {DEPLOY.SQLite: "sqlite", DEPLOY.PostgreSQL: "postgresql"}  # plan kind -> Store.kind
+STORE_KINDS = {DEPLOY.SQLite: "sqlite", DEPLOY.PostgreSQL: "postgresql", DEPLOY.SemPKM: "sempkm"}  # kind -> Store.kind
 TEMPLATES_ENV = "SEAMS_TEMPLATES"
 DEFAULT_TEMPLATES = "templates"
 PROBLEM_JSON = "application/problem+json"  # RFC 9457
@@ -102,24 +109,36 @@ def _db(db_path) -> Path:
     return Path(db_path if db_path is not None else os.environ.get(DB_ENV) or DEFAULT_DB)
 
 
-def _connection_url(plan) -> str:
-    """The PostgreSQL URL for ``plan``: the environment variable its deploy:key
-    names, else the file ``<key>_FILE`` names (stripped), else ResolutionError
-    on the connecting container. The URL itself is never logged."""
-    key = plan.key
-    url = os.environ.get(key)
-    if url:
-        log.info("store connection string from %s", key)
-        return url
+def _binding_value(key: str, what: str, container, predicate, store) -> str:
+    """The value of the binding with deploy:key ``key``: the environment
+    variable ``key`` names, else the file ``<key>_FILE`` names (stripped),
+    else ResolutionError(container, predicate). The value is never logged."""
+    value = os.environ.get(key)
+    if value:
+        log.info("store %s from %s", what, key)
+        return value
     path = os.environ.get(f"{key}_FILE")
     if path:
-        log.info("store connection string from the file %s_FILE names (%s)", key, path)
+        log.info("store %s from the file %s_FILE names (%s)", what, key, path)
         return Path(path).read_text(encoding="utf-8").strip()
     raise ResolutionError(
-        plan.container,
-        DEPLOY.connectsTo,
-        f"store {plan.store} needs its connection string in {key} or a file named by {key}_FILE; neither is set",
+        container,
+        predicate,
+        f"store {store} needs its {what} in {key} or a file named by {key}_FILE; neither is set",
     )
+
+
+def _connection_url(plan) -> str:
+    """The PostgreSQL URL for ``plan`` (``_binding_value`` of its deploy:key)."""
+    return _binding_value(plan.key, "connection string", plan.container, DEPLOY.connectsTo, plan.store)
+
+
+def _sempkm_store(model: ModelGraph, plan, transport=None) -> SemPKMStore:
+    """The SemPKM entity store of a ``SemPKMPlan``: its base URL from the
+    connecting binding, its token from the deploy:authenticatesTo binding."""
+    url = _binding_value(plan.key, "base URL", plan.container, DEPLOY.connectsTo, plan.store)
+    token = _binding_value(plan.token_key, "service token", plan.container, DEPLOY.authenticatesTo, plan.store)
+    return SemPKMStore(model, plan, url, token, transport=transport)
 
 
 def _check_where(model: ModelGraph, process, op, impl, container) -> None:
@@ -288,6 +307,7 @@ class Runtime:
         handlers=None,
         http_transport=None,
         http_base_url: str | None = None,
+        sempkm_transport=None,
     ) -> Runtime:
         override = os.environ.get(MODEL_ENV)
         if override:
@@ -312,6 +332,9 @@ class Runtime:
         boundaries = resolve_boundaries(model)  # ADR-0013, also before the store
         declared = STORE_KINDS[plan.kind]
         override = False
+        forced = bool(os.environ.get(STORE_OVERRIDE_ENV)) and store is None
+        # ADR-0025: the SemPKM base URL and token resolve before any store is opened
+        sempkm = None if plan.sempkm is None or forced else _sempkm_store(model, plan.sempkm, sempkm_transport)
         if store is not None:
             override = store.kind != declared
             if override:
@@ -334,10 +357,26 @@ class Runtime:
                 declared,
                 plan.store or "(none declared)",
             )
+            if plan.sempkm is not None:
+                log.warning(
+                    "%s=sqlite: the entities of the SemPKM store %s stay in embedded SQLite too",
+                    STORE_OVERRIDE_ENV,
+                    plan.sempkm.store,
+                )
         elif plan.kind == DEPLOY.PostgreSQL:
             store = PostgresStore(_connection_url(plan))
         else:
             store = SQLiteStore(_db(db_path))
+        if sempkm is not None:
+            store = SplitStore(store, sempkm)
+            log.info(
+                "entities of %s in the SemPKM store %s at %s (url %s, token %s)",
+                ", ".join(str(s) for s in sempkm.shapes),
+                sempkm.store,
+                sempkm.location,
+                plan.sempkm.key,
+                plan.sempkm.token_key,
+            )
         runtime = cls(
             model,
             store,

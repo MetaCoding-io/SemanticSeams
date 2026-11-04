@@ -555,9 +555,13 @@ class Worker:
         data = dict(cur["data"])
         if status is not None:
             data["status"] = status
-        self.store.put_entity(
+        row = self.store.put_entity(
             cur["id"], shape, data, correlation_key=instance.correlation_key, instance_id=instance.id, status=status
         )
+        # A store that mints its own ids (SemPKM, ADR-0025) returns the one it kept.
+        cur["id"] = row["id"]
+        if "id" in cur["data"] and "id" in row["data"]:
+            cur["data"]["id"] = row["data"]["id"]
         written = st["written"].setdefault(str(shape), [])
         if cur["id"] not in written:
             written.append(cur["id"])

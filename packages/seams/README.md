@@ -118,16 +118,28 @@ flattened field through the nested node.
 
 `ModelGraph.store_plan()` resolves which store the runtime keeps its rows in
 (ADR-0011) from `deploy:storeKind`, `deploy:connectsTo` and `seam:storedIn`,
-returning a `StorePlan` (`kind`, `store`, `container`, `key`, `declared`). A
-model that declares no store gets embedded SQLite (`declared=False`). A
-missing or duplicated store kind, an unsupported kind, a PostgreSQL store
-with no connecting binding, a written shape not stored in the store, or more
-than one store raises `ResolutionError` naming the subject and predicate.
+returning a `StorePlan` (`kind`, `store`, `container`, `key`, `declared`,
+`sempkm`). `kind` is one of `RELATIONAL_STORE_KINDS`; `SUPPORTED_STORE_KINDS`
+adds `deploy:SemPKM`. A model that declares no store gets embedded SQLite
+(`declared=False`). A missing or duplicated store kind, an unsupported kind, a
+PostgreSQL store with no connecting binding, a written shape not stored in the
+store, or more than one store raises `ResolutionError` naming the subject and
+predicate. A `deploy:SemPKM` store (ADR-0025) resolves beside the relational
+one as `StorePlan.sempkm`, a `SemPKMPlan` (`store`, `container`, `key`,
+`token_key`, `shapes`): `key` is the binding that `deploy:connectsTo` it,
+`token_key` the one secret binding that `deploy:authenticatesTo` it. A
+missing connection, a token binding that is missing, duplicated or not a
+secret, two SemPKM or two relational stores for one container, a stored shape
+or nested `sh:node` shape without `sh:targetClass`, and a gistCore import
+other than `SEMPKM_GIST_VERSION` each raise the ADR-0025 section 11
+`ResolutionError`. `Binding.authenticates_to` and
+`Container.authenticating_bindings` expose the token binding.
 `ModelGraph.store_health()` reports the same checks without raising, as a
 sorted list of `StoreFinding` (`severity`, `subject`, `predicate`,
 `message`): a `Violation` for each resolution error, a `Warning` for a store
 container no shape is `seam:storedIn`, and an `Info` when the model declares
-no store and the runtime keeps embedded SQLite.
+no store and the runtime keeps embedded SQLite, or only a SemPKM store and
+process state stays in embedded SQLite.
 `ModelGraph.replica_health()` adds the replica cap (ADR-0015, backlog A10): a
 `Warning` for a serving container that declares more than one
 `deploy:replicas` in some environment.

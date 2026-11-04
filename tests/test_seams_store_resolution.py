@@ -87,7 +87,8 @@ def test_expenses_chapter_07_declares_no_store_and_gets_embedded_sqlite():
 
 
 def test_supported_kinds_and_exports():
-    assert SUPPORTED_STORE_KINDS == (DEPLOY.PostgreSQL, DEPLOY.SQLite)
+    assert seams.RELATIONAL_STORE_KINDS == (DEPLOY.PostgreSQL, DEPLOY.SQLite)
+    assert SUPPORTED_STORE_KINDS == (DEPLOY.PostgreSQL, DEPLOY.SQLite, DEPLOY.SemPKM)
     assert seams.StorePlan is StorePlan
 
 

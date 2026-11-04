@@ -77,7 +77,8 @@ class Healthcheck:
 
 
 #: The predicates a configuration binding takes its value from; a binding has
-#: exactly one. deploy:connectsTo is not one: it sits beside a value source.
+#: exactly one. deploy:connectsTo and deploy:authenticatesTo are not ones: they
+#: sit beside a value source.
 BINDING_KINDS = (DEPLOY.value, DEPLOY.secretRef, DEPLOY.secretFile, DEPLOY.serviceOf)
 
 
@@ -92,7 +93,9 @@ class Binding:
     URL of another container (``service_of``, None when the object is not
     an IRI).
     ``connects_to`` is the store container its value reaches
-    (deploy:connectsTo, ADR-0011), or None.
+    (deploy:connectsTo, ADR-0011), or None; ``authenticates_to`` the
+    SemPKM store whose token it carries (deploy:authenticatesTo, ADR-0025),
+    or None.
     """
 
     key: str
@@ -103,6 +106,7 @@ class Binding:
     service_of: Container | None
     connects_to: Container | None = None
     secret_file: str | None = None
+    authenticates_to: Container | None = None
 
 
 #: The predicates a deploy:Override may carry besides rdf:type and
@@ -298,6 +302,7 @@ class Container(Element):
                 path = self._node_optional(b, DEPLOY.secretFile, what)
                 service = self._node_optional(b, DEPLOY.serviceOf, what)
                 store = self._node_optional(b, DEPLOY.connectsTo, what)
+                token_of = self._node_optional(b, DEPLOY.authenticatesTo, what)
                 found.append(
                     Binding(
                         key=key,
@@ -308,6 +313,9 @@ class Container(Element):
                         service_of=self.views.intern(Container, service) if isinstance(service, URIRef) else None,
                         connects_to=self.views.intern(Container, store) if isinstance(store, URIRef) else None,
                         secret_file=None if path is None else str(path),
+                        authenticates_to=self.views.intern(Container, token_of)
+                        if isinstance(token_of, URIRef)
+                        else None,
                     )
                 )
         return tuple(sorted(found, key=_binding_order))
@@ -366,9 +374,10 @@ class Container(Element):
         binding replaces the shared binding with its deploy:key or adds one,
         leaving the others in place. No override, or an override silent on a
         predicate, means the shared fact. An override binding keeps the
-        deploy:connectsTo of the shared binding with its key (the store never
-        changes per environment); a difference raises ``ResolutionError(container,
-        deploy:connectsTo)``, and a key the override binds twice
+        deploy:connectsTo and deploy:authenticatesTo of the shared binding with
+        its key (the store never changes per environment); a difference raises
+        ``ResolutionError(container, deploy:connectsTo)`` (or
+        ``deploy:authenticatesTo``), and a key the override binds twice
         ``ResolutionError(container, deploy:key)``. Bindings come back by key."""
         override = next((o for o in self.overrides if o.environment == environment), None)
         shared = self.bindings
@@ -382,16 +391,18 @@ class Container(Element):
                 if b.key in replacing:
                     raise ResolutionError(self.iri, DEPLOY.key, f"the {environment.iri} override binds {b.key!r} twice")
                 replacing[b.key] = b
-                stores = {s.connects_to for s in shared if s.key == b.key}
-                if stores != {b.connects_to} and (stores or b.connects_to is not None):
-                    were = sorted(str(s.iri) for s in stores if s is not None) or "no store"
-                    now = "no store" if b.connects_to is None else str(b.connects_to.iri)
-                    raise ResolutionError(
-                        self.iri,
-                        DEPLOY.connectsTo,
-                        f"the {environment.iri} override binding {b.key!r} connects to {now}, "
-                        f"the shared binding to {were}; the store cannot change per environment",
-                    )
+                for predicate, verb in ((DEPLOY.connectsTo, "connects"), (DEPLOY.authenticatesTo, "authenticates")):
+                    stores = {_store_of(s, predicate) for s in shared if s.key == b.key}
+                    store = _store_of(b, predicate)
+                    if stores != {store} and (stores or store is not None):
+                        were = sorted(str(s.iri) for s in stores if s is not None) or "no store"
+                        now = "no store" if store is None else str(store.iri)
+                        raise ResolutionError(
+                            self.iri,
+                            predicate,
+                            f"the {environment.iri} override binding {b.key!r} {verb} to {now}, "
+                            f"the shared binding to {were}; the store cannot change per environment",
+                        )
             kept = [b for b in shared if b.key not in replacing]
             bindings = tuple(sorted([*kept, *replacing.values()], key=_binding_order))
 
@@ -406,6 +417,11 @@ class Container(Element):
     def connecting_bindings(self) -> tuple[Binding, ...]:
         """Its ``bindings`` that deploy:connectsTo a store, by key."""
         return tuple(b for b in self.bindings if b.connects_to is not None)
+
+    @property
+    def authenticating_bindings(self) -> tuple[Binding, ...]:
+        """Its ``bindings`` that deploy:authenticatesTo a store, by key (ADR-0025)."""
+        return tuple(b for b in self.bindings if b.authenticates_to is not None)
 
     @property
     def store_kinds(self) -> tuple[URIRef, ...]:
@@ -431,6 +447,10 @@ class Container(Element):
                 if key is not None and isinstance(target, URIRef):
                     found[str(key)] = target
         return MappingProxyType(dict(sorted(found.items())))
+
+
+def _store_of(b: Binding, predicate: URIRef) -> Container | None:
+    return b.connects_to if predicate == DEPLOY.connectsTo else b.authenticates_to
 
 
 def _binding_order(b: Binding) -> tuple[str, list[str]]:

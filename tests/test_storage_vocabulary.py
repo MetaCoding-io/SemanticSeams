@@ -1,7 +1,8 @@
-"""Tests for the storage vocabulary (M011/S02, ADR-0011).
+"""Tests for the storage vocabulary (M011/S02, ADR-0011; M024/S02, ADR-0025).
 
 ontology/seam.ttl adds seam:storedIn, ontology/deploy.ttl adds deploy:storeKind,
-deploy:StoreKind with deploy:PostgreSQL and deploy:SQLite, and deploy:connectsTo.
+deploy:StoreKind with deploy:PostgreSQL, deploy:SQLite and deploy:SemPKM,
+deploy:connectsTo and deploy:authenticatesTo.
 ontology/shapes/seam-shapes.ttl constrains them. Models are validated with the
 ontology files merged in, as tests/validate_chat_app.py does.
 """
@@ -78,7 +79,7 @@ def test_stored_in_is_a_layer_seam_labelled_stored_in():
     assert g.value(SEAM.storedIn, RDFS.label) == Literal("stored in")
 
 
-@pytest.mark.parametrize("kind", [DEPLOY.PostgreSQL, DEPLOY.SQLite])
+@pytest.mark.parametrize("kind", [DEPLOY.PostgreSQL, DEPLOY.SQLite, DEPLOY.SemPKM])
 def test_store_kinds_are_typed(kind):
     g = ontology()
     assert (kind, RDF.type, DEPLOY.StoreKind) in g
@@ -86,7 +87,9 @@ def test_store_kinds_are_typed(kind):
     assert g.value(kind, RDFS.comment) is not None
 
 
-@pytest.mark.parametrize("term", [DEPLOY.StoreKind, DEPLOY.storeKind, DEPLOY.connectsTo, SEAM.storedIn])
+@pytest.mark.parametrize(
+    "term", [DEPLOY.StoreKind, DEPLOY.storeKind, DEPLOY.connectsTo, DEPLOY.authenticatesTo, SEAM.storedIn]
+)
 def test_new_terms_are_labelled_and_commented(term):
     g = ontology()
     assert g.value(term, RDFS.label) is not None
@@ -98,6 +101,7 @@ def test_store_kind_ranges():
     assert g.value(DEPLOY.storeKind, RDFS.domain) == ARCH.Container
     assert g.value(DEPLOY.storeKind, RDFS.range) == DEPLOY.StoreKind
     assert g.value(DEPLOY.connectsTo, RDFS.range) == ARCH.Container
+    assert g.value(DEPLOY.authenticatesTo, RDFS.range) == ARCH.Container
 
 
 # ---------------------------------------------------------------- SHACL
@@ -188,4 +192,84 @@ def test_connects_to_does_not_replace_the_value_source():
     # connectsTo sits beside the value; a binding still needs secretRef, value or serviceOf.
     g = minimal_model()
     g.remove((binding_of(g), DEPLOY.secretRef, None))
+    assert violating_shapes(g) == {SEAMSH.BindingShape}
+
+
+# ---------------------------------------------------------------- SemPKM (ADR-0025)
+
+
+def sempkm_model() -> rdflib.Graph:
+    """The minimal model with a SemPKM store: a URL binding that connects to it
+    (a plain value is fine) and a secret token binding that authenticates to it."""
+    g = minimal_model()
+    g.set((EX.message_db, DEPLOY.storeKind, DEPLOY.SemPKM))
+    g.remove((binding_of(g), DEPLOY.secretRef, None))
+    g.add((binding_of(g), DEPLOY.value, Literal("http://message-db:8000")))
+    config = g.value(EX.api, DEPLOY.configuration)
+    token = BNode()
+    g.add((config, DEPLOY.binding, token))
+    g.add((token, DEPLOY.key, Literal("SEMPKM_TOKEN")))
+    g.add((token, DEPLOY.secretRef, EX["secrets/sempkm-token"]))
+    g.add((token, DEPLOY.secretName, Literal("sempkm-token")))
+    g.add((token, DEPLOY.authenticatesTo, EX.message_db))
+    return g
+
+
+def token_of(g: rdflib.Graph):
+    return next(g.subjects(DEPLOY.authenticatesTo, None))
+
+
+def test_sempkm_model_conforms():
+    assert violating_shapes(sempkm_model()) == set()
+
+
+def test_a_token_read_from_a_file_conforms():
+    g = sempkm_model()
+    token = token_of(g)
+    g.remove((token, DEPLOY.secretRef, None))
+    g.remove((token, DEPLOY.secretName, None))
+    g.add((token, DEPLOY.secretFile, Literal("secrets/sempkm-token")))
+    assert violating_shapes(g) == set()
+
+
+def test_a_token_as_a_plain_value():
+    g = sempkm_model()
+    token = token_of(g)
+    g.remove((token, DEPLOY.secretRef, None))
+    g.remove((token, DEPLOY.secretName, None))
+    g.add((token, DEPLOY.value, Literal("t0ken")))
+    assert violating_shapes(g) == {SEAMSH.AuthenticatesToShape}
+
+
+def test_a_token_as_a_service_url():
+    g = sempkm_model()
+    token = token_of(g)
+    g.remove((token, DEPLOY.secretRef, None))
+    g.remove((token, DEPLOY.secretName, None))
+    g.add((token, DEPLOY.serviceOf, EX.message_db))
+    port = BNode()  # a deploy:serviceOf target has one deploy:port (SinglePortShape)
+    g.add((EX.message_db, DEPLOY.port, port))
+    g.add((port, RDF.type, DEPLOY.Port))
+    g.add((port, DEPLOY.containerPort, Literal(8000)))
+    assert violating_shapes(g) == {SEAMSH.AuthenticatesToShape}
+
+
+def test_authenticates_to_a_relational_store():
+    g = sempkm_model()
+    g.set((EX.message_db, DEPLOY.storeKind, DEPLOY.PostgreSQL))
+    assert violating_shapes(g) == {SEAMSH.AuthenticatedStoreShape}
+
+
+def test_authenticates_to_a_container_without_a_kind():
+    g = sempkm_model()
+    g.add((EX.cache, RDF.type, ARCH.Container))
+    g.set((token_of(g), DEPLOY.authenticatesTo, EX.cache))
+    assert violating_shapes(g) == {SEAMSH.StoreShape, SEAMSH.AuthenticatedStoreShape}
+
+
+def test_authenticates_to_two_stores():
+    g = sempkm_model()
+    g.add((EX.archive, RDF.type, ARCH.Container))
+    g.add((EX.archive, DEPLOY.storeKind, DEPLOY.SemPKM))
+    g.add((token_of(g), DEPLOY.authenticatesTo, EX.archive))
     assert violating_shapes(g) == {SEAMSH.BindingShape}

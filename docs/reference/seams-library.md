@@ -651,11 +651,12 @@ a `deploy:connectsTo` binding on the container that runs the model, and
 
 | Field | Meaning |
 |---|---|
-| `kind` | `deploy:PostgreSQL` or `deploy:SQLite` (`SUPPORTED_STORE_KINDS`) |
+| `kind` | `deploy:PostgreSQL` or `deploy:SQLite` (`RELATIONAL_STORE_KINDS`) |
 | `store` | the store container, or None for the default |
 | `container` | the runtime container whose binding connects to the store, or None |
 | `key` | that binding's `deploy:key`, the environment variable holding the connection string, or None |
 | `declared` | False only for the embedded SQLite default |
+| `sempkm` | the `SemPKMPlan` of a `deploy:SemPKM` store (ADR-0025), or None |
 
 ```python
 seams.ModelGraph("examples/chat-app/chat-app.trig").store_plan()
@@ -680,8 +681,39 @@ Each failure raises `ResolutionError(subject, predicate)`:
 | a written shape with no `seam:storedIn`, or stored elsewhere | the shape | `seam:storedIn` |
 | one container connecting to two stores, or two containers to different stores (v1 runs one store per model) | the container | `deploy:connectsTo` |
 
+### A SemPKM store
+
+`SUPPORTED_STORE_KINDS` is the relational kinds plus `deploy:SemPKM`
+(ADR-0025). A SemPKM store holds the entities of the shapes stored in it;
+process state stays in the relational store, so a runtime container connects
+to at most one store of each family, and each written shape is stored in one
+of the two. The SemPKM store resolves as `StorePlan.sempkm`, a frozen
+`SemPKMPlan`, while `kind`, `store`, `container`, `key` and `declared` keep
+describing the relational store (the embedded SQLite default when there is
+none):
+
+| Field | Meaning |
+|---|---|
+| `store` | the `deploy:SemPKM` store container |
+| `container` | the runtime container whose bindings reach it |
+| `key` | the `deploy:key` of the binding that `deploy:connectsTo` it: the base URL |
+| `token_key` | the `deploy:key` of the binding that `deploy:authenticatesTo` it: the service token |
+| `shapes` | the shapes `seam:storedIn` it, sorted |
+
+The SemPKM rows of the error contract (ADR-0025 section 11):
+
+| Case | `subject` | `predicate` |
+|---|---|---|
+| a SemPKM store no runtime container connects to | the first runtime container, or the store when there is none | `deploy:connectsTo` |
+| no binding that `deploy:authenticatesTo` the store, more than one, or one whose value is not a `deploy:secretRef` or `deploy:secretFile` | the connecting container | `deploy:authenticatesTo` |
+| one container connecting to two SemPKM stores, or to two relational stores | the container | `deploy:connectsTo` |
+| a shape stored in the SemPKM store with no `sh:targetClass` | the shape | `sh:targetClass` |
+| a nested field of such a shape whose `sh:node` shape has no `sh:targetClass` | the nested shape | `sh:targetClass` |
+| a gistCore import other than `SEMPKM_GIST_VERSION` (gistCore 14.0.0) | the ontology | `owl:imports` |
+
 The shape view's `stored_in` and the container view's `store_kinds`,
-`stored_shapes` and `connecting_bindings` read the same facts.
+`stored_shapes`, `connecting_bindings` and `authenticating_bindings` read the
+same facts; `Binding.authenticates_to` is the store a token binding names.
 
 `ModelGraph.store_health()` turns the same checks into findings for a
 model-health tool (the viewer's health panel uses it). It never raises for a
@@ -693,8 +725,9 @@ severity names) and then subject:
 | Severity | When | `subject` | `predicate` |
 |---|---|---|---|
 | `Violation` | `store_plan()` raises any of the errors above | the error's subject | the error's predicate |
-| `Warning` | a store container (one with a `deploy:storeKind`, or that a binding `deploy:connectsTo`) that no shape is `seam:storedIn` | the store | `seam:storedIn` |
+| `Warning` | a store container (one with a `deploy:storeKind`, or that a binding `deploy:connectsTo` or `deploy:authenticatesTo`) that no shape is `seam:storedIn` | the store | `seam:storedIn` |
 | `Info` | the model declares no store, so the runtime keeps embedded SQLite at `SEAMS_DB` | None | None |
+| `Info` | the model declares only a SemPKM store, so process state stays in embedded SQLite at `SEAMS_DB` | None | None |
 
 The warning is reported whether or not the plan resolves, so a declared
 PostgreSQL container next to an embedded-SQLite runtime is visible:

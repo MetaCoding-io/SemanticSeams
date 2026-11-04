@@ -51,9 +51,10 @@ The rest group by the layers they join. A few examples:
 data".
 
 `storedIn` is the only seam that ends at a store. With `deployedTo` it answers "which data
-is lost if this node goes away". The store's kind (`deploy:storeKind`) and the binding
-that reaches it (`deploy:connectsTo`) are deployment facts, so they live in `deploy:`,
-not among the seams.
+is lost if this node goes away". The store's kind (`deploy:storeKind`), the binding
+that reaches it (`deploy:connectsTo`) and, for a SemPKM store, the binding that carries
+its token (`deploy:authenticatesTo`, [ADR-0025](/adr/0025-sempkm-store)) are deployment
+facts, so they live in `deploy:`, not among the seams.
 
 `catches` is how a failure path crosses layers. An operation declares each error it can
 raise as a `hydra:Status` with a `comm:errorCode`, and the status's `returnsShape` is the

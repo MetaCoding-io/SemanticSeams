@@ -99,8 +99,9 @@ Three facts say where a model's data lives ([ADR-0011](/adr/0011-storage-resolut
 
 - `seam:storedIn` goes from a `sh:NodeShape` to the store `arch:Container` that persists
   its instances.
-- `deploy:storeKind` gives the store its kind, `deploy:PostgreSQL` or `deploy:SQLite`.
-  `arch:technology` stays free text for people.
+- `deploy:storeKind` gives the store its kind, `deploy:PostgreSQL`, `deploy:SQLite` or
+  `deploy:SemPKM` (see [A SemPKM store](#a-sempkm-store)). `arch:technology` stays free
+  text for people.
 - `deploy:connectsTo` on a `deploy:binding` names the store whose connection string the
   binding carries. The value still comes from `deploy:secretRef` and `deploy:secretName`
   (or `deploy:value` for a dev URL), and the runtime will read the environment variable
@@ -169,6 +170,60 @@ a note that the runtime keeps embedded SQLite.
 a test or a quick local check, `SEAMS_STORE_OVERRIDE=sqlite` keeps embedded SQLite at
 `SEAMS_DB` whatever the model declares. The runtime logs a warning and `/healthz` reports
 `"override": true`, so the substitution is never silent.
+
+#### A SemPKM store
+
+A store can also be a SemPKM instance, `deploy:storeKind deploy:SemPKM`
+([ADR-0025](/adr/0025-sempkm-store)). It holds the domain data only: the entities of the
+shapes `seam:storedIn` it, as RDF objects other apps can browse and query. Process
+instances, worker rows and user tasks stay in the relational store the executing
+container connects to, or in embedded SQLite at `SEAMS_DB` when it connects to none. So
+an executing container connects to at most one relational store and at most one SemPKM
+store, and each written shape is stored in one of the two. SemPKM is never the default.
+
+The executing container reaches the SemPKM store through two bindings. One
+`deploy:connectsTo` it and carries its base URL, which may be a plain `deploy:value`. The
+other `deploy:authenticatesTo` it and carries the service token, so its value must be a
+secret: a `deploy:secretRef` with its `deploy:secretName`, or a `deploy:secretFile` in a
+development override. The predicate tells the two apart, never the key name.
+
+```turtle
+:ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+    sh:targetClass :Expense ;
+    seam:storedIn :expense_store .
+
+:expense_store a arch:Container ; rdfs:label "Expense Store" ;
+    deploy:storeKind deploy:SemPKM .
+
+:expense_api a arch:Container ; rdfs:label "Expense API" ;
+    deploy:configuration [ a deploy:Configuration ;
+        deploy:binding [ deploy:key "SEMPKM_URL" ;
+                         deploy:value "http://expense-store:8000" ;
+                         deploy:connectsTo :expense_store ] ,
+                       [ deploy:key "SEMPKM_TOKEN" ;
+                         deploy:secretRef <https://secrets.example.org/expenses/prod/sempkm-token> ;
+                         deploy:secretName "expenses-prod-sempkm-token" ;
+                         deploy:authenticatesTo :expense_store ] ] .
+```
+
+SemPKM types each object it stores, so a shape stored in it needs a `sh:targetClass`, and
+so does the `sh:node` shape of each nested field, which SemPKM keeps as its own object
+joined to the parent by an edge. SemPKM bundles gist 14.0.0, so a model that names a
+SemPKM store imports no other gistCore version. The SHACL shapes check that a token
+binding takes its value from a secret and authenticates to a `deploy:SemPKM` store. The
+model load adds these rows to the table above:
+
+| Problem | Subject | Predicate |
+|---|---|---|
+| a SemPKM store no executing container connects to | the container | `deploy:connectsTo` |
+| a SemPKM store with no token binding, more than one, or one whose value is not a secret | the container | `deploy:authenticatesTo` |
+| a container connecting to two SemPKM stores, or two relational stores | the container | `deploy:connectsTo` |
+| a shape stored in a SemPKM store with no `sh:targetClass` | the shape | `sh:targetClass` |
+| a nested field of such a shape whose `sh:node` shape has no `sh:targetClass` | the nested shape | `sh:targetClass` |
+| a model naming a SemPKM store that imports a gistCore other than 14.0.0 | the ontology | `owl:imports` |
+
+The model-health badge shows a note when a SemPKM store has no relational store beside
+it, saying that process state stays in embedded SQLite.
 
 ### Environments and overrides
 

@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from rdflib import RDF, Dataset, Graph, Literal, URIRef
+from rdflib import OWL, RDF, Dataset, Graph, Literal, URIRef
 from rdflib.namespace import SH
 
 from ._xml import elements as _elements
@@ -173,22 +173,56 @@ class Implementation:
     handler: str | None
 
 
-#: The deploy:StoreKinds the runtime can open (ADR-0011).
-SUPPORTED_STORE_KINDS = (DEPLOY.PostgreSQL, DEPLOY.SQLite)
+#: The relational deploy:StoreKinds: the runtime keeps process state, and the
+#: entities of the shapes stored in one, as rows (ADR-0011).
+RELATIONAL_STORE_KINDS = (DEPLOY.PostgreSQL, DEPLOY.SQLite)
+
+#: The deploy:StoreKinds the runtime can open: the relational ones and
+#: deploy:SemPKM, which holds domain data only (ADR-0011, ADR-0025).
+SUPPORTED_STORE_KINDS = (*RELATIONAL_STORE_KINDS, DEPLOY.SemPKM)
+
+#: The one gist version a model naming a deploy:SemPKM store may import: the
+#: gistCore SemPKM bundles, which ontology/vendor/ pins (ADR-0025 section 8).
+SEMPKM_GIST_VERSION = URIRef("https://w3id.org/semanticarts/ontology/gistCore14.0.0")
+
+# Imports that start with this name a gistCore version (ADR-0022).
+_GIST_CORE = "https://w3id.org/semanticarts/ontology/gistCore"
+
+
+@dataclass(frozen=True)
+class SemPKMPlan:
+    """Where the entities of SemPKM-stored shapes live (ADR-0025), the
+    ``sempkm`` of a ``StorePlan``.
+
+    ``store`` is the deploy:SemPKM store container and ``container`` the
+    runtime container whose bindings reach it: ``key`` is the deploy:key of
+    the binding that deploy:connectsTo it (the environment variable holding
+    the base URL) and ``token_key`` that of the binding that
+    deploy:authenticatesTo it (the service token, always a secret).
+    ``shapes`` are the shapes seam:storedIn the store, sorted.
+    """
+
+    store: URIRef
+    container: URIRef
+    key: str
+    token_key: str
+    shapes: tuple[URIRef, ...]
 
 
 @dataclass(frozen=True)
 class StorePlan:
     """Where the runtime keeps its rows (ADR-0011), from ``ModelGraph.store_plan()``.
 
-    ``kind`` is a ``SUPPORTED_STORE_KINDS`` member and ``store`` the store
+    ``kind`` is a ``RELATIONAL_STORE_KINDS`` member and ``store`` the store
     container (None for the undeclared default). ``container`` is the runtime
     container whose binding deploy:connectsTo the store and ``key`` that
     binding's deploy:key, the environment variable holding the connection
     string; both are None without a connecting binding (always so for the
     default, and allowed for deploy:SQLite, whose path comes from
     ``SEAMS_DB``). ``declared`` is False only for the embedded SQLite default
-    of a model that declares no store.
+    of a model that declares no relational store. ``sempkm`` is the SemPKM
+    store that holds the entities of the shapes stored in it (ADR-0025), or
+    None; process state always stays in the relational store.
     """
 
     kind: URIRef
@@ -196,6 +230,7 @@ class StorePlan:
     container: URIRef | None
     key: str | None
     declared: bool
+    sempkm: SemPKMPlan | None = None
 
 
 #: ``StoreFinding.severity`` values, most severe first (SHACL's sh:Violation,
@@ -695,21 +730,30 @@ class ModelGraph(Model):
     # ── storage (ADR-0011) ──
 
     def store_plan(self) -> StorePlan:
-        """The store the runtime keeps its rows in, from deploy:storeKind,
-        deploy:connectsTo and seam:storedIn (ADR-0011).
+        """The stores the runtime keeps its rows in, from deploy:storeKind,
+        deploy:connectsTo, deploy:authenticatesTo and seam:storedIn (ADR-0011,
+        ADR-0025).
 
         Runtime containers are those that seam:execute a process or
         seam:expose an operation that seam:writes a shape. A model with no
         connecting binding on one and no seam:storedIn at all gets the
-        undeclared embedded SQLite default. Otherwise the store is the one a
-        runtime container connects to, else the one the written shapes are
-        stored in. Every failure raises ``ResolutionError(subject, predicate)``:
-        a container connecting to two stores, or two containers to different
-        stores (container, deploy:connectsTo); a store without exactly one
-        deploy:storeKind, or an unsupported one (store, deploy:storeKind); a
-        PostgreSQL store no runtime container connects to (the container, or
-        the store when there is none; deploy:connectsTo); a written shape not
-        stored in exactly that store (shape, seam:storedIn).
+        undeclared embedded SQLite default. Otherwise there is at most one
+        relational store and at most one deploy:SemPKM store: per family, the
+        one a runtime container connects to, else the one the written shapes
+        are stored in. Every failure raises ``ResolutionError(subject,
+        predicate)``: a container connecting to two stores of one family, or
+        two containers to different ones (container, deploy:connectsTo); a
+        store without exactly one deploy:storeKind, or an unsupported one
+        (store, deploy:storeKind); a PostgreSQL or SemPKM store no runtime
+        container connects to (the container, or the store when there is
+        none; deploy:connectsTo); a written shape not stored in exactly one of
+        the stores (shape, seam:storedIn). A SemPKM store also needs, on each
+        container connecting to it, exactly one binding that
+        deploy:authenticatesTo it whose value is a secret (container,
+        deploy:authenticatesTo); a sh:targetClass on each shape stored in it
+        and on the sh:node shape of each of their nested fields (shape,
+        sh:targetClass); and no gistCore import other than
+        ``SEMPKM_GIST_VERSION`` (ontology, owl:imports).
         """
         from .views.shapes import Shape
 
@@ -722,80 +766,169 @@ class ModelGraph(Model):
             for c in self.architecture.containers()
             if c.executes or any(endpoint.iri in writers for endpoint in c.exposes)
         ]
+        kinds: dict[URIRef, URIRef] = {}
 
-        # The connections: at most one store per container, and one per model.
-        connected: list[tuple[ContainerView, URIRef, str]] = []
+        def kind_of(store: URIRef) -> URIRef:
+            if store not in kinds:
+                found = sorted(set(ds.objects(store, DEPLOY.storeKind)), key=str)
+                if len(found) != 1:
+                    listed = "none" if not found else ", ".join(map(str, found))
+                    detail = f"a store needs exactly one deploy:storeKind, found {listed}"
+                    raise ResolutionError(store, DEPLOY.storeKind, detail)
+                kind = found[0]
+                if not isinstance(kind, URIRef) or kind not in SUPPORTED_STORE_KINDS:
+                    supported = ", ".join(map(str, SUPPORTED_STORE_KINDS))
+                    raise ResolutionError(
+                        store, DEPLOY.storeKind, f"unsupported store kind {kind}; supported: {supported}"
+                    )
+                kinds[store] = kind
+            return kinds[store]
+
+        def is_sempkm(store: URIRef) -> bool:
+            return kind_of(store) == DEPLOY.SemPKM
+
+        # The connections: per container and per model, at most one store of each family.
+        connected: dict[bool, list[tuple[ContainerView, URIRef, str]]] = {False: [], True: []}
         for c in runtime:
             bindings = c.connecting_bindings
             stores = sorted({b.connects_to.iri for b in bindings if b.connects_to is not None}, key=str)
-            if len(stores) > 1:
-                raise ResolutionError(
-                    c.iri, DEPLOY.connectsTo, f"bindings connect to several stores {[str(s) for s in stores]}"
-                )
-            if stores:
-                connected.append((c, stores[0], bindings[0].key))
-        for c, store, _key in connected[1:]:
-            if store != connected[0][1]:
-                raise ResolutionError(
-                    c.iri,
-                    DEPLOY.connectsTo,
-                    f"v1 runs one store per model: {connected[0][0].iri} connects to {connected[0][1]}, this to {store}",
-                )
+            for sempkm in (False, True):
+                family = [s for s in stores if is_sempkm(s) == sempkm]
+                if len(family) > 1:
+                    what = "SemPKM stores" if sempkm else "relational stores"
+                    raise ResolutionError(
+                        c.iri, DEPLOY.connectsTo, f"bindings connect to several {what} {[str(s) for s in family]}"
+                    )
+                if family:
+                    key = next(b.key for b in bindings if b.connects_to is not None and b.connects_to.iri == family[0])
+                    connected[sempkm].append((c, family[0], key))
+        for links in connected.values():
+            for c, store, _key in links[1:]:
+                if store != links[0][1]:
+                    raise ResolutionError(
+                        c.iri,
+                        DEPLOY.connectsTo,
+                        f"v1 runs one store per model: {links[0][0].iri} connects to {links[0][1]}, this to {store}",
+                    )
 
         stored = views.iris(ds.objects(None, SEAM.storedIn))
-        if not connected and not stored:
+        if not connected[False] and not connected[True] and not stored:
             return StorePlan(DEPLOY.SQLite, None, None, None, declared=False)
 
-        # The store: the connected one, else the one the written shapes are stored in.
-        if connected:
-            store = connected[0][1]
-        else:
-            candidates = sorted({c.iri for shape in written for c in shape.stored_in}, key=str) or stored
-            store = candidates[0]
+        def pick(sempkm: bool) -> URIRef | None:
+            """The family's store: the connected one, else the one the written shapes are stored in."""
+            if connected[sempkm]:
+                return connected[sempkm][0][1]
+            in_written = {c.iri for shape in written for c in shape.stored_in}
+            candidates = sorted((s for s in in_written if is_sempkm(s) == sempkm), key=str)
+            candidates = candidates or sorted((s for s in stored if is_sempkm(s) == sempkm), key=str)
             if len(candidates) > 1:
                 pool = written
                 if not any(s.stored_in for s in written):
                     pool = views.many(Shape, views.iris(ds.subjects(SEAM.storedIn, None)), self.subject, SEAM.storedIn)
-                offender = next(s for s in pool if s.stored_in and s.stored_in.iris() != (store,))
+                offender = next(
+                    s
+                    for s in pool
+                    if s.stored_in
+                    and is_sempkm(s.stored_in.iris()[0]) == sempkm
+                    and s.stored_in.iris() != (candidates[0],)
+                )
                 raise ResolutionError(
                     offender.iri,
                     SEAM.storedIn,
                     f"v1 runs one store per model; shapes are stored in {[str(c) for c in candidates]}",
                 )
+            return candidates[0] if candidates else None
 
-        kinds = sorted(set(ds.objects(store, DEPLOY.storeKind)), key=str)
-        if len(kinds) != 1:
-            found = "none" if not kinds else ", ".join(map(str, kinds))
-            raise ResolutionError(store, DEPLOY.storeKind, f"a store needs exactly one deploy:storeKind, found {found}")
-        kind = kinds[0]
-        if not isinstance(kind, URIRef) or kind not in SUPPORTED_STORE_KINDS:
-            supported = ", ".join(map(str, SUPPORTED_STORE_KINDS))
-            raise ResolutionError(store, DEPLOY.storeKind, f"unsupported store kind {kind}; supported: {supported}")
-        if kind == DEPLOY.PostgreSQL and not connected:
-            raise ResolutionError(
-                runtime[0].iri if runtime else store,
-                DEPLOY.connectsTo,
-                f"a deploy:PostgreSQL store needs a deploy:connectsTo binding to {store} on the executing container",
-            )
-
-        for shape in written:
-            if shape.stored_in.iris() != (store,):
-                where = [str(c) for c in shape.stored_in.iris()] or "no store"
+        relational, semantic = pick(False), pick(True)
+        for store, links in ((relational, connected[False]), (semantic, connected[True])):
+            if store is not None and kind_of(store) != DEPLOY.SQLite and not links:
                 raise ResolutionError(
-                    shape.iri, SEAM.storedIn, f"a written shape must be stored in {store}; it is stored in {where}"
+                    runtime[0].iri if runtime else store,
+                    DEPLOY.connectsTo,
+                    f"a {self.curie(kind_of(store))} store needs a deploy:connectsTo binding to {store} "
+                    "on the executing container",
                 )
 
-        container, key = (connected[0][0].iri, connected[0][2]) if connected else (None, None)
-        return StorePlan(kind, store, container, key, declared=True)
+        allowed = tuple(s for s in (relational, semantic) if s is not None)
+        for shape in written:
+            if len(shape.stored_in.iris()) != 1 or shape.stored_in.iris()[0] not in allowed:
+                where = [str(c) for c in shape.stored_in.iris()] or "no store"
+                must = str(allowed[0]) if len(allowed) == 1 else f"one of {[str(s) for s in allowed]}"
+                raise ResolutionError(
+                    shape.iri, SEAM.storedIn, f"a written shape must be stored in {must}; it is stored in {where}"
+                )
+
+        plan = StorePlan(DEPLOY.SQLite, None, None, None, declared=False)
+        if relational is not None:
+            links = connected[False]
+            container, key = (links[0][0].iri, links[0][2]) if links else (None, None)
+            plan = StorePlan(kind_of(relational), relational, container, key, declared=True)
+        if semantic is None:
+            return plan
+        return StorePlan(
+            plan.kind, plan.store, plan.container, plan.key, plan.declared, self._sempkm_plan(semantic, connected[True])
+        )
+
+    def _sempkm_plan(self, store: URIRef, links: list[tuple[ContainerView, URIRef, str]]) -> SemPKMPlan:
+        """The ADR-0025 checks of a resolved SemPKM store (see ``store_plan``)."""
+        from .views.shapes import Shape
+
+        token_keys: list[str] = []
+        for c, _store, _key in links:
+            tokens = [
+                b
+                for b in c.authenticating_bindings
+                if b.authenticates_to is not None and b.authenticates_to.iri == store
+            ]
+            if len(tokens) != 1:
+                found = "none" if not tokens else ", ".join(repr(b.key) for b in tokens)
+                detail = f"a deploy:SemPKM store needs exactly one binding that deploy:authenticatesTo {store}, found {found}"
+                raise ResolutionError(c.iri, DEPLOY.authenticatesTo, detail)
+            if not set(tokens[0].kinds) <= {DEPLOY.secretRef, DEPLOY.secretFile}:
+                detail = (
+                    f"the token binding {tokens[0].key!r} for {store} must take its value from a secret "
+                    "(deploy:secretRef or deploy:secretFile)"
+                )
+                raise ResolutionError(c.iri, DEPLOY.authenticatesTo, detail)
+            token_keys.append(tokens[0].key)
+
+        ds = self.ds
+        views = self.views
+        shapes = views.many(Shape, views.iris(ds.subjects(SEAM.storedIn, store)), self.subject, SEAM.storedIn)
+        for shape in shapes:
+            if (shape.iri, SH.targetClass, None) not in ds:
+                detail = f"a shape stored in the deploy:SemPKM store {store} needs a sh:targetClass, its object type"
+                raise ResolutionError(shape.iri, SH.targetClass, detail)
+            for f in shape.fields():
+                if f.node is not None and (f.node.shape, SH.targetClass, None) not in ds:
+                    detail = (
+                        f"{shape.iri} stores its {f.name} field in the deploy:SemPKM store {store} as an object, "
+                        "so its sh:node shape needs a sh:targetClass"
+                    )
+                    raise ResolutionError(f.node.shape, SH.targetClass, detail)
+
+        for status in self.import_statuses:
+            imported = str(status.imported)
+            if imported.startswith(_GIST_CORE) and status.imported != SEMPKM_GIST_VERSION:
+                detail = (
+                    f"imports {imported}; a model naming the deploy:SemPKM store {store} imports "
+                    f"{SEMPKM_GIST_VERSION}, the gist SemPKM bundles"
+                )
+                raise ResolutionError(status.ontology, OWL.imports, detail)
+
+        c, _store, key = links[0]
+        return SemPKMPlan(store, c.iri, key, token_keys[0], shapes.iris())
 
     def store_health(self) -> list[StoreFinding]:
         """Storage health findings for model-health tools (ADR-0011 Observability).
 
         A Violation when ``store_plan()`` raises; an Info when the model
         declares no store, so the runtime keeps embedded SQLite at
-        ``SEAMS_DB``; and, either way, a Warning for each store container (one
-        with a deploy:storeKind or that a binding deploy:connectsTo) no shape
-        is seam:storedIn. Sorted by severity, then subject. Never raises.
+        ``SEAMS_DB``, or only a SemPKM store, so process state stays there
+        (ADR-0025); and, either way, a Warning for each store container (one
+        with a deploy:storeKind or that a binding deploy:connectsTo or
+        deploy:authenticatesTo) no shape is seam:storedIn. Sorted by severity, then subject. Never raises.
         """
         findings: list[StoreFinding] = []
         try:
@@ -803,7 +936,7 @@ class ModelGraph(Model):
         except ResolutionError as err:
             findings.append(StoreFinding("Violation", URIRef(err.subject), URIRef(err.predicate), str(err)))
         else:
-            if not plan.declared:
+            if not plan.declared and plan.sempkm is None:
                 findings.append(
                     StoreFinding(
                         "Info",
@@ -812,10 +945,22 @@ class ModelGraph(Model):
                         "no store is declared, so the runtime keeps embedded SQLite at SEAMS_DB",
                     )
                 )
+            elif not plan.declared and plan.sempkm is not None:
+                findings.append(
+                    StoreFinding(
+                        "Info",
+                        None,
+                        None,
+                        f"no relational store is declared, so the runtime keeps process state in embedded SQLite "
+                        f"at SEAMS_DB and the stored entities in the deploy:SemPKM store {plan.sempkm.store}",
+                    )
+                )
 
         ds = self.ds
         stores = {s for s in ds.subjects(DEPLOY.storeKind, None) if isinstance(s, URIRef)}
-        stores |= {o for o in ds.objects(None, DEPLOY.connectsTo) if isinstance(o, URIRef)}
+        stores |= {
+            o for p in (DEPLOY.connectsTo, DEPLOY.authenticatesTo) for o in ds.objects(None, p) if isinstance(o, URIRef)
+        }
         stored = set(ds.objects(None, SEAM.storedIn))
         for store in stores - stored:
             findings.append(

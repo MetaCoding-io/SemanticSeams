@@ -783,6 +783,8 @@ seamsh:BindingShape a sh:NodeShape ;
         sh:message "deploy:serviceOf points at an arch:Container." ] ;
     sh:property [ sh:path deploy:connectsTo ; sh:maxCount 1 ; sh:class arch:Container ;
         sh:message "deploy:connectsTo points at one arch:Container (a store)." ] ;
+    sh:property [ sh:path deploy:authenticatesTo ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "deploy:authenticatesTo points at one arch:Container (a SemPKM store)." ] ;
     sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef, deploy:secretFile or deploy:serviceOf." .
 
 seamsh:SecretNameShape a sh:NodeShape ;
@@ -941,17 +943,32 @@ seamsh:StoredInShape a sh:NodeShape ;
     sh:message "Only a sh:NodeShape is seam:storedIn a store." .
 
 seamsh:StoreShape a sh:NodeShape ;
-    sh:targetObjectsOf seam:storedIn , deploy:connectsTo ;
+    sh:targetObjectsOf seam:storedIn , deploy:connectsTo , deploy:authenticatesTo ;
     sh:property [ sh:path deploy:storeKind ; sh:minCount 1 ;
-        sh:message "A store (the object of seam:storedIn or deploy:connectsTo) declares a deploy:storeKind." ] .
+        sh:message "A store (the object of seam:storedIn, deploy:connectsTo or deploy:authenticatesTo) declares a deploy:storeKind." ] .
 
 seamsh:StoreKindShape a sh:NodeShape ;
     sh:targetSubjectsOf deploy:storeKind ;
     sh:class arch:Container ;
     sh:property [ sh:path deploy:storeKind ; sh:maxCount 1 ;
-        sh:in ( deploy:PostgreSQL deploy:SQLite ) ;
-        sh:message "deploy:storeKind is at most one of deploy:PostgreSQL or deploy:SQLite." ] ;
+        sh:in ( deploy:PostgreSQL deploy:SQLite deploy:SemPKM ) ;
+        sh:message "deploy:storeKind is at most one of deploy:PostgreSQL, deploy:SQLite or deploy:SemPKM." ] ;
     sh:message "Only an arch:Container carries a deploy:storeKind." .
+
+# The token binding of a SemPKM store (ADR-0025 section 1): its value is a
+# secret (a deploy:secretRef or a deploy:secretFile), and the store it
+# authenticates to is a deploy:SemPKM store.
+seamsh:AuthenticatesToShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:authenticatesTo ;
+    sh:property [ sh:path deploy:value ; sh:maxCount 0 ;
+        sh:message "A binding that deploy:authenticatesTo a store carries a token, so its value comes from a secret (deploy:secretRef with its deploy:secretName, or deploy:secretFile), never a deploy:value." ] ;
+    sh:property [ sh:path deploy:serviceOf ; sh:maxCount 0 ;
+        sh:message "A binding that deploy:authenticatesTo a store carries a token, so its value comes from a secret, never a deploy:serviceOf URL." ] .
+
+seamsh:AuthenticatedStoreShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:authenticatesTo ;
+    sh:property [ sh:path deploy:storeKind ; sh:hasValue deploy:SemPKM ;
+        sh:message "deploy:authenticatesTo points at a deploy:SemPKM store." ] .
 
 #################################################################
 # Routes (principle 5)

@@ -144,7 +144,7 @@
     {
       "line": 20,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/chat/ConversationShape",
@@ -155,7 +155,7 @@
     {
       "line": 21,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/chat/ConversationShape",
@@ -166,7 +166,7 @@
     {
       "line": 22,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/chat/ConversationShape",
@@ -177,7 +177,7 @@
     {
       "line": 23,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/chat/ConversationShape",
@@ -188,7 +188,7 @@
     {
       "line": 24,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/chat/ConversationShape",
@@ -199,7 +199,7 @@
     {
       "line": 27,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -210,7 +210,7 @@
     {
       "line": 28,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -221,7 +221,7 @@
     {
       "line": 29,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -232,7 +232,7 @@
     {
       "line": 30,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -243,7 +243,7 @@
     {
       "line": 31,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -253,38 +253,6 @@
     },
     {
       "line": 34,
-      "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/chat/MessageShape",
-        "https://example.org/chat/chat_bpmn",
-        "https://example.org/chat/conversation",
-        "https://example.org/chat/message_thread",
-        "https://example.org/chat/send_message_op",
-        "https://example.org/chat/send_message_process",
-        "https://example.org/chat/send_to_thread",
-        "https://example.org/chat/user_send_policy"
-      ]
-    },
-    {
-      "line": 35,
-      "templates": [
-        "fastapi_routes.py.j2:42"
-      ],
-      "terms": [
-        "https://example.org/chat/MessageShape",
-        "https://example.org/chat/chat_bpmn",
-        "https://example.org/chat/conversation",
-        "https://example.org/chat/message_thread",
-        "https://example.org/chat/send_message_op",
-        "https://example.org/chat/send_message_process",
-        "https://example.org/chat/send_to_thread",
-        "https://example.org/chat/user_send_policy"
-      ]
-    },
-    {
-      "line": 36,
       "templates": [
         "fastapi_routes.py.j2:43"
       ],
@@ -300,9 +268,41 @@
       ]
     },
     {
+      "line": 35,
+      "templates": [
+        "fastapi_routes.py.j2:48"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/send_message_op",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/user_send_policy"
+      ]
+    },
+    {
+      "line": 36,
+      "templates": [
+        "fastapi_routes.py.j2:49"
+      ],
+      "terms": [
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/send_message_op",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/user_send_policy"
+      ]
+    },
+    {
       "line": 37,
       "templates": [
-        "fastapi_routes.py.j2:44"
+        "fastapi_routes.py.j2:50"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -312,7 +312,7 @@
     {
       "line": 38,
       "templates": [
-        "fastapi_routes.py.j2:46"
+        "fastapi_routes.py.j2:52"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -328,7 +328,7 @@
     {
       "line": 39,
       "templates": [
-        "fastapi_routes.py.j2:61"
+        "fastapi_routes.py.j2:67"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -338,7 +338,7 @@
     {
       "line": 40,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -354,7 +354,7 @@
     {
       "line": 41,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:73"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -370,7 +370,7 @@
     {
       "line": 42,
       "templates": [
-        "fastapi_routes.py.j2:70"
+        "fastapi_routes.py.j2:76"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -386,7 +386,7 @@
     {
       "line": 43,
       "templates": [
-        "fastapi_routes.py.j2:73"
+        "fastapi_routes.py.j2:79"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -396,7 +396,7 @@
     {
       "line": 44,
       "templates": [
-        "fastapi_routes.py.j2:74"
+        "fastapi_routes.py.j2:80"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -412,7 +412,7 @@
     {
       "line": 45,
       "templates": [
-        "fastapi_routes.py.j2:75"
+        "fastapi_routes.py.j2:81"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -428,7 +428,7 @@
     {
       "line": 46,
       "templates": [
-        "fastapi_routes.py.j2:76"
+        "fastapi_routes.py.j2:82"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -444,7 +444,7 @@
     {
       "line": 47,
       "templates": [
-        "fastapi_routes.py.j2:77"
+        "fastapi_routes.py.j2:83"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -454,7 +454,7 @@
     {
       "line": 48,
       "templates": [
-        "fastapi_routes.py.j2:94"
+        "fastapi_routes.py.j2:100"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -470,7 +470,7 @@
     {
       "line": 49,
       "templates": [
-        "fastapi_routes.py.j2:95"
+        "fastapi_routes.py.j2:101"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -486,7 +486,7 @@
     {
       "line": 50,
       "templates": [
-        "fastapi_routes.py.j2:96"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -502,7 +502,7 @@
     {
       "line": 51,
       "templates": [
-        "fastapi_routes.py.j2:100"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -512,7 +512,7 @@
     {
       "line": 54,
       "templates": [
-        "fastapi_routes.py.j2:31"
+        "fastapi_routes.py.j2:37"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -522,7 +522,7 @@
     {
       "line": 55,
       "templates": [
-        "fastapi_routes.py.j2:32"
+        "fastapi_routes.py.j2:38"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -532,7 +532,7 @@
     {
       "line": 56,
       "templates": [
-        "fastapi_routes.py.j2:33"
+        "fastapi_routes.py.j2:39"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -542,7 +542,7 @@
     {
       "line": 57,
       "templates": [
-        "fastapi_routes.py.j2:34"
+        "fastapi_routes.py.j2:40"
       ],
       "terms": [
         "https://example.org/chat/MessageShape",
@@ -552,7 +552,7 @@
     {
       "line": 58,
       "templates": [
-        "fastapi_routes.py.j2:35"
+        "fastapi_routes.py.j2:41"
       ],
       "terms": [
         "https://example.org/chat/chat_api",

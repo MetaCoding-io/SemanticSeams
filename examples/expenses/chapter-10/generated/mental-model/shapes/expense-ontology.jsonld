@@ -253,6 +253,57 @@
       "http://www.w3.org/ns/shacl#targetClass": {
         "@id": "https://example.org/expenses/Payment"
       }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:VendorShape",
+      "@type": "http://www.w3.org/ns/shacl#NodeShape",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Vendor",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/VendorShape"
+      },
+      "http://www.w3.org/ns/shacl#property": [
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#maxLength": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "200"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "name",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "0"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/name"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "id",
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/id"
+          }
+        }
+      ],
+      "http://www.w3.org/ns/shacl#targetClass": {
+        "@id": "https://example.org/expenses/Vendor"
+      }
     }
   ]
 }

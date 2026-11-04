@@ -1,5 +1,5 @@
 modelId: "expense-ontology"
-version: "1.0.0"
+version: "1.1.0"
 name: "Expense Ontology"
 namespace: "urn:sempkm:model:expense-ontology:"
 entrypoints:

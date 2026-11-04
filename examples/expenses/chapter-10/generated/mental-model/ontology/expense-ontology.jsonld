@@ -7,9 +7,9 @@
       "http://www.w3.org/2002/07/owl#imports": {
         "@id": "https://w3id.org/semanticarts/ontology/gistCore14.0.0"
       },
-      "http://www.w3.org/2002/07/owl#versionInfo": "1.0.0",
+      "http://www.w3.org/2002/07/owl#versionInfo": "1.1.0",
       "http://www.w3.org/ns/prov#wasDerivedFrom": {
-        "@id": "https://example.org/expenses/expense_ontology/1.0"
+        "@id": "https://example.org/expenses/expense_ontology/1.1"
       }
     }
   ]

@@ -144,7 +144,7 @@
     {
       "line": 20,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -162,7 +162,7 @@
     {
       "line": 21,
       "templates": [
-        "fastapi_routes.py.j2:39"
+        "fastapi_routes.py.j2:45"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -180,7 +180,7 @@
     {
       "line": 22,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -198,7 +198,7 @@
     {
       "line": 23,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -216,7 +216,7 @@
     {
       "line": 24,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:73"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -234,7 +234,7 @@
     {
       "line": 25,
       "templates": [
-        "fastapi_routes.py.j2:80"
+        "fastapi_routes.py.j2:86"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -244,7 +244,7 @@
     {
       "line": 26,
       "templates": [
-        "fastapi_routes.py.j2:81"
+        "fastapi_routes.py.j2:87"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -262,7 +262,7 @@
     {
       "line": 27,
       "templates": [
-        "fastapi_routes.py.j2:82"
+        "fastapi_routes.py.j2:88"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -280,7 +280,7 @@
     {
       "line": 28,
       "templates": [
-        "fastapi_routes.py.j2:83"
+        "fastapi_routes.py.j2:89"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -298,7 +298,7 @@
     {
       "line": 29,
       "templates": [
-        "fastapi_routes.py.j2:84"
+        "fastapi_routes.py.j2:90"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -308,7 +308,7 @@
     {
       "line": 30,
       "templates": [
-        "fastapi_routes.py.j2:85"
+        "fastapi_routes.py.j2:91"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -318,7 +318,7 @@
     {
       "line": 31,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -336,7 +336,7 @@
     {
       "line": 32,
       "templates": [
-        "fastapi_routes.py.j2:94"
+        "fastapi_routes.py.j2:100"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -354,7 +354,7 @@
     {
       "line": 33,
       "templates": [
-        "fastapi_routes.py.j2:95"
+        "fastapi_routes.py.j2:101"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -372,7 +372,7 @@
     {
       "line": 34,
       "templates": [
-        "fastapi_routes.py.j2:96"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -390,7 +390,7 @@
     {
       "line": 35,
       "templates": [
-        "fastapi_routes.py.j2:98"
+        "fastapi_routes.py.j2:104"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -400,7 +400,7 @@
     {
       "line": 36,
       "templates": [
-        "fastapi_routes.py.j2:100"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -410,7 +410,7 @@
     {
       "line": 37,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -420,7 +420,7 @@
     {
       "line": 38,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -438,7 +438,7 @@
     {
       "line": 39,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -448,7 +448,7 @@
     {
       "line": 42,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -460,7 +460,7 @@
     {
       "line": 43,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -472,7 +472,7 @@
     {
       "line": 44,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -484,7 +484,7 @@
     {
       "line": 45,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -496,7 +496,7 @@
     {
       "line": 46,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -508,7 +508,7 @@
     {
       "line": 47,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -518,7 +518,7 @@
     {
       "line": 48,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -530,7 +530,7 @@
     {
       "line": 49,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -540,7 +540,7 @@
     {
       "line": 52,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -552,7 +552,7 @@
     {
       "line": 53,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -564,7 +564,7 @@
     {
       "line": 54,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -576,7 +576,7 @@
     {
       "line": 55,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -588,7 +588,7 @@
     {
       "line": 56,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -600,7 +600,7 @@
     {
       "line": 57,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -610,7 +610,7 @@
     {
       "line": 58,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -622,7 +622,7 @@
     {
       "line": 59,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -632,7 +632,7 @@
     {
       "line": 62,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -650,7 +650,7 @@
     {
       "line": 63,
       "templates": [
-        "fastapi_routes.py.j2:39"
+        "fastapi_routes.py.j2:45"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -668,7 +668,7 @@
     {
       "line": 64,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -686,7 +686,7 @@
     {
       "line": 65,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -704,7 +704,7 @@
     {
       "line": 66,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:73"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -722,7 +722,7 @@
     {
       "line": 67,
       "templates": [
-        "fastapi_routes.py.j2:80"
+        "fastapi_routes.py.j2:86"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -732,7 +732,7 @@
     {
       "line": 68,
       "templates": [
-        "fastapi_routes.py.j2:81"
+        "fastapi_routes.py.j2:87"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -750,7 +750,7 @@
     {
       "line": 69,
       "templates": [
-        "fastapi_routes.py.j2:82"
+        "fastapi_routes.py.j2:88"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -768,7 +768,7 @@
     {
       "line": 70,
       "templates": [
-        "fastapi_routes.py.j2:83"
+        "fastapi_routes.py.j2:89"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -786,7 +786,7 @@
     {
       "line": 71,
       "templates": [
-        "fastapi_routes.py.j2:84"
+        "fastapi_routes.py.j2:90"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -796,7 +796,7 @@
     {
       "line": 72,
       "templates": [
-        "fastapi_routes.py.j2:85"
+        "fastapi_routes.py.j2:91"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -806,7 +806,7 @@
     {
       "line": 73,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -824,7 +824,7 @@
     {
       "line": 74,
       "templates": [
-        "fastapi_routes.py.j2:94"
+        "fastapi_routes.py.j2:100"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -842,7 +842,7 @@
     {
       "line": 75,
       "templates": [
-        "fastapi_routes.py.j2:95"
+        "fastapi_routes.py.j2:101"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -860,7 +860,7 @@
     {
       "line": 76,
       "templates": [
-        "fastapi_routes.py.j2:96"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -878,7 +878,7 @@
     {
       "line": 77,
       "templates": [
-        "fastapi_routes.py.j2:98"
+        "fastapi_routes.py.j2:104"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -888,7 +888,7 @@
     {
       "line": 78,
       "templates": [
-        "fastapi_routes.py.j2:100"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -898,7 +898,7 @@
     {
       "line": 79,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -908,7 +908,7 @@
     {
       "line": 80,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
@@ -926,7 +926,7 @@
     {
       "line": 81,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -936,7 +936,7 @@
     {
       "line": 84,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -948,7 +948,7 @@
     {
       "line": 85,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -960,7 +960,7 @@
     {
       "line": 86,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -972,7 +972,7 @@
     {
       "line": 87,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -984,7 +984,7 @@
     {
       "line": 88,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -996,7 +996,7 @@
     {
       "line": 89,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1006,7 +1006,7 @@
     {
       "line": 90,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1018,7 +1018,7 @@
     {
       "line": 91,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1028,7 +1028,7 @@
     {
       "line": 94,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -1040,7 +1040,7 @@
     {
       "line": 95,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -1052,7 +1052,7 @@
     {
       "line": 96,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -1064,7 +1064,7 @@
     {
       "line": 97,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -1076,7 +1076,7 @@
     {
       "line": 98,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -1088,7 +1088,7 @@
     {
       "line": 99,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1098,7 +1098,7 @@
     {
       "line": 100,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -1110,7 +1110,7 @@
     {
       "line": 101,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1120,7 +1120,7 @@
     {
       "line": 104,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1132,7 +1132,7 @@
     {
       "line": 105,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1144,7 +1144,7 @@
     {
       "line": 106,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1156,7 +1156,7 @@
     {
       "line": 107,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1168,7 +1168,7 @@
     {
       "line": 108,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:108"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1180,7 +1180,7 @@
     {
       "line": 109,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1190,7 +1190,7 @@
     {
       "line": 110,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1202,7 +1202,7 @@
     {
       "line": 111,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1212,7 +1212,7 @@
     {
       "line": 114,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:43"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1230,7 +1230,7 @@
     {
       "line": 115,
       "templates": [
-        "fastapi_routes.py.j2:39"
+        "fastapi_routes.py.j2:45"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1248,7 +1248,7 @@
     {
       "line": 116,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1266,7 +1266,7 @@
     {
       "line": 117,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1284,7 +1284,7 @@
     {
       "line": 118,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:73"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1302,7 +1302,7 @@
     {
       "line": 119,
       "templates": [
-        "fastapi_routes.py.j2:80"
+        "fastapi_routes.py.j2:86"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1312,7 +1312,7 @@
     {
       "line": 120,
       "templates": [
-        "fastapi_routes.py.j2:81"
+        "fastapi_routes.py.j2:87"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1330,7 +1330,7 @@
     {
       "line": 121,
       "templates": [
-        "fastapi_routes.py.j2:82"
+        "fastapi_routes.py.j2:88"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1348,7 +1348,7 @@
     {
       "line": 122,
       "templates": [
-        "fastapi_routes.py.j2:83"
+        "fastapi_routes.py.j2:89"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1366,7 +1366,7 @@
     {
       "line": 123,
       "templates": [
-        "fastapi_routes.py.j2:84"
+        "fastapi_routes.py.j2:90"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1376,7 +1376,7 @@
     {
       "line": 124,
       "templates": [
-        "fastapi_routes.py.j2:85"
+        "fastapi_routes.py.j2:91"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1386,7 +1386,7 @@
     {
       "line": 125,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:97"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1404,7 +1404,7 @@
     {
       "line": 126,
       "templates": [
-        "fastapi_routes.py.j2:94"
+        "fastapi_routes.py.j2:100"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1422,7 +1422,7 @@
     {
       "line": 127,
       "templates": [
-        "fastapi_routes.py.j2:95"
+        "fastapi_routes.py.j2:101"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1440,7 +1440,7 @@
     {
       "line": 128,
       "templates": [
-        "fastapi_routes.py.j2:96"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1458,7 +1458,7 @@
     {
       "line": 129,
       "templates": [
-        "fastapi_routes.py.j2:98"
+        "fastapi_routes.py.j2:104"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1468,7 +1468,7 @@
     {
       "line": 130,
       "templates": [
-        "fastapi_routes.py.j2:100"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1478,7 +1478,7 @@
     {
       "line": 131,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1488,7 +1488,7 @@
     {
       "line": 132,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1506,7 +1506,7 @@
     {
       "line": 133,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1516,7 +1516,7 @@
     {
       "line": 136,
       "templates": [
-        "fastapi_routes.py.j2:31"
+        "fastapi_routes.py.j2:37"
       ],
       "terms": [
         "https://example.org/expenses/payouts"
@@ -1525,7 +1525,7 @@
     {
       "line": 137,
       "templates": [
-        "fastapi_routes.py.j2:32"
+        "fastapi_routes.py.j2:38"
       ],
       "terms": [
         "https://example.org/expenses/payouts"
@@ -1534,7 +1534,7 @@
     {
       "line": 138,
       "templates": [
-        "fastapi_routes.py.j2:33"
+        "fastapi_routes.py.j2:39"
       ],
       "terms": [
         "https://example.org/expenses/payouts"
@@ -1543,7 +1543,7 @@
     {
       "line": 139,
       "templates": [
-        "fastapi_routes.py.j2:34"
+        "fastapi_routes.py.j2:40"
       ],
       "terms": [
         "https://example.org/expenses/payouts"
@@ -1552,7 +1552,7 @@
     {
       "line": 140,
       "templates": [
-        "fastapi_routes.py.j2:35"
+        "fastapi_routes.py.j2:41"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1561,40 +1561,6 @@
     },
     {
       "line": 143,
-      "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/expenses/Expense",
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
-      ]
-    },
-    {
-      "line": 144,
-      "templates": [
-        "fastapi_routes.py.j2:42"
-      ],
-      "terms": [
-        "https://example.org/expenses/Expense",
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
-      ]
-    },
-    {
-      "line": 145,
       "templates": [
         "fastapi_routes.py.j2:43"
       ],
@@ -1611,9 +1577,43 @@
       ]
     },
     {
+      "line": 144,
+      "templates": [
+        "fastapi_routes.py.j2:48"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 145,
+      "templates": [
+        "fastapi_routes.py.j2:49"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
       "line": 146,
       "templates": [
-        "fastapi_routes.py.j2:44"
+        "fastapi_routes.py.j2:50"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1623,7 +1623,7 @@
     {
       "line": 147,
       "templates": [
-        "fastapi_routes.py.j2:46"
+        "fastapi_routes.py.j2:52"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1640,7 +1640,7 @@
     {
       "line": 148,
       "templates": [
-        "fastapi_routes.py.j2:61"
+        "fastapi_routes.py.j2:67"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1650,7 +1650,7 @@
     {
       "line": 149,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:71"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1667,7 +1667,7 @@
     {
       "line": 150,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:73"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1684,7 +1684,7 @@
     {
       "line": 151,
       "templates": [
-        "fastapi_routes.py.j2:70"
+        "fastapi_routes.py.j2:76"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1701,7 +1701,7 @@
     {
       "line": 152,
       "templates": [
-        "fastapi_routes.py.j2:73"
+        "fastapi_routes.py.j2:79"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1711,7 +1711,7 @@
     {
       "line": 153,
       "templates": [
-        "fastapi_routes.py.j2:74"
+        "fastapi_routes.py.j2:80"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1728,7 +1728,7 @@
     {
       "line": 154,
       "templates": [
-        "fastapi_routes.py.j2:75"
+        "fastapi_routes.py.j2:81"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1745,7 +1745,7 @@
     {
       "line": 155,
       "templates": [
-        "fastapi_routes.py.j2:76"
+        "fastapi_routes.py.j2:82"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1762,7 +1762,7 @@
     {
       "line": 156,
       "templates": [
-        "fastapi_routes.py.j2:77"
+        "fastapi_routes.py.j2:83"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1772,7 +1772,7 @@
     {
       "line": 157,
       "templates": [
-        "fastapi_routes.py.j2:94"
+        "fastapi_routes.py.j2:100"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1789,7 +1789,7 @@
     {
       "line": 158,
       "templates": [
-        "fastapi_routes.py.j2:95"
+        "fastapi_routes.py.j2:101"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1806,7 +1806,7 @@
     {
       "line": 159,
       "templates": [
-        "fastapi_routes.py.j2:96"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1823,7 +1823,7 @@
     {
       "line": 160,
       "templates": [
-        "fastapi_routes.py.j2:100"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1833,7 +1833,7 @@
     {
       "line": 161,
       "templates": [
-        "fastapi_routes.py.j2:105"
+        "fastapi_routes.py.j2:111"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1843,7 +1843,7 @@
     {
       "line": 162,
       "templates": [
-        "fastapi_routes.py.j2:106"
+        "fastapi_routes.py.j2:112"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -1860,7 +1860,7 @@
     {
       "line": 163,
       "templates": [
-        "fastapi_routes.py.j2:107"
+        "fastapi_routes.py.j2:113"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1870,7 +1870,7 @@
     {
       "line": 166,
       "templates": [
-        "fastapi_routes.py.j2:114"
+        "fastapi_routes.py.j2:120"
       ],
       "terms": [
         "https://example.org/expenses/Approval",
@@ -1882,7 +1882,7 @@
     {
       "line": 167,
       "templates": [
-        "fastapi_routes.py.j2:115"
+        "fastapi_routes.py.j2:121"
       ],
       "terms": [
         "https://example.org/expenses/Approval",
@@ -1894,7 +1894,7 @@
     {
       "line": 168,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1904,7 +1904,7 @@
     {
       "line": 169,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1914,7 +1914,7 @@
     {
       "line": 170,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1924,7 +1924,7 @@
     {
       "line": 171,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1934,7 +1934,7 @@
     {
       "line": 172,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1944,7 +1944,7 @@
     {
       "line": 173,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1954,7 +1954,7 @@
     {
       "line": 174,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1964,7 +1964,7 @@
     {
       "line": 175,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1974,7 +1974,7 @@
     {
       "line": 176,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1984,7 +1984,7 @@
     {
       "line": 177,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1994,7 +1994,7 @@
     {
       "line": 178,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2004,7 +2004,7 @@
     {
       "line": 179,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2014,7 +2014,7 @@
     {
       "line": 180,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2024,7 +2024,7 @@
     {
       "line": 181,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2034,7 +2034,7 @@
     {
       "line": 182,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2044,7 +2044,7 @@
     {
       "line": 183,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2054,7 +2054,7 @@
     {
       "line": 184,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2064,7 +2064,7 @@
     {
       "line": 185,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2074,7 +2074,7 @@
     {
       "line": 186,
       "templates": [
-        "fastapi_routes.py.j2:119"
+        "fastapi_routes.py.j2:125"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2084,7 +2084,7 @@
     {
       "line": 189,
       "templates": [
-        "fastapi_routes.py.j2:122"
+        "fastapi_routes.py.j2:128"
       ],
       "terms": [
         "https://example.org/expenses/Approval",
@@ -2096,7 +2096,7 @@
     {
       "line": 190,
       "templates": [
-        "fastapi_routes.py.j2:123"
+        "fastapi_routes.py.j2:129"
       ],
       "terms": [
         "https://example.org/expenses/Approval",
@@ -2108,7 +2108,7 @@
     {
       "line": 191,
       "templates": [
-        "fastapi_routes.py.j2:124"
+        "fastapi_routes.py.j2:130"
       ],
       "terms": [
         "https://example.org/expenses/Approval",
@@ -2120,7 +2120,7 @@
     {
       "line": 194,
       "templates": [
-        "fastapi_routes.py.j2:114"
+        "fastapi_routes.py.j2:120"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -2135,7 +2135,7 @@
     {
       "line": 195,
       "templates": [
-        "fastapi_routes.py.j2:115"
+        "fastapi_routes.py.j2:121"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -2150,7 +2150,7 @@
     {
       "line": 196,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2160,7 +2160,7 @@
     {
       "line": 197,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2170,7 +2170,7 @@
     {
       "line": 198,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2180,7 +2180,7 @@
     {
       "line": 199,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2190,7 +2190,7 @@
     {
       "line": 200,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2200,7 +2200,7 @@
     {
       "line": 201,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2210,7 +2210,7 @@
     {
       "line": 202,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2220,7 +2220,7 @@
     {
       "line": 203,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2230,7 +2230,7 @@
     {
       "line": 204,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2240,7 +2240,7 @@
     {
       "line": 205,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2250,7 +2250,7 @@
     {
       "line": 206,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2260,7 +2260,7 @@
     {
       "line": 207,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2270,7 +2270,7 @@
     {
       "line": 208,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2280,7 +2280,7 @@
     {
       "line": 209,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2290,7 +2290,7 @@
     {
       "line": 210,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2300,7 +2300,7 @@
     {
       "line": 211,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2310,7 +2310,7 @@
     {
       "line": 212,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2320,7 +2320,7 @@
     {
       "line": 213,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2330,7 +2330,7 @@
     {
       "line": 214,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2340,7 +2340,7 @@
     {
       "line": 215,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2350,7 +2350,7 @@
     {
       "line": 216,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2360,7 +2360,7 @@
     {
       "line": 217,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2370,7 +2370,7 @@
     {
       "line": 218,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2380,7 +2380,7 @@
     {
       "line": 219,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2390,7 +2390,7 @@
     {
       "line": 220,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2400,7 +2400,7 @@
     {
       "line": 221,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2410,7 +2410,7 @@
     {
       "line": 222,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2420,7 +2420,7 @@
     {
       "line": 223,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2430,7 +2430,7 @@
     {
       "line": 224,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2440,7 +2440,7 @@
     {
       "line": 225,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2450,7 +2450,7 @@
     {
       "line": 226,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2460,7 +2460,7 @@
     {
       "line": 227,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2470,7 +2470,7 @@
     {
       "line": 228,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2480,7 +2480,7 @@
     {
       "line": 229,
       "templates": [
-        "fastapi_routes.py.j2:119"
+        "fastapi_routes.py.j2:125"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2490,7 +2490,7 @@
     {
       "line": 232,
       "templates": [
-        "fastapi_routes.py.j2:122"
+        "fastapi_routes.py.j2:128"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -2505,7 +2505,7 @@
     {
       "line": 233,
       "templates": [
-        "fastapi_routes.py.j2:123"
+        "fastapi_routes.py.j2:129"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -2520,7 +2520,7 @@
     {
       "line": 234,
       "templates": [
-        "fastapi_routes.py.j2:124"
+        "fastapi_routes.py.j2:130"
       ],
       "terms": [
         "https://example.org/expenses/Expense",
@@ -2535,7 +2535,7 @@
     {
       "line": 237,
       "templates": [
-        "fastapi_routes.py.j2:114"
+        "fastapi_routes.py.j2:120"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -2549,7 +2549,7 @@
     {
       "line": 238,
       "templates": [
-        "fastapi_routes.py.j2:115"
+        "fastapi_routes.py.j2:121"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -2563,7 +2563,7 @@
     {
       "line": 239,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2573,7 +2573,7 @@
     {
       "line": 240,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2583,7 +2583,7 @@
     {
       "line": 241,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2593,7 +2593,7 @@
     {
       "line": 242,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2603,7 +2603,7 @@
     {
       "line": 243,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2613,7 +2613,7 @@
     {
       "line": 244,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2623,7 +2623,7 @@
     {
       "line": 245,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2633,7 +2633,7 @@
     {
       "line": 246,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2643,7 +2643,7 @@
     {
       "line": 247,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2653,7 +2653,7 @@
     {
       "line": 248,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2663,7 +2663,7 @@
     {
       "line": 249,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2673,7 +2673,7 @@
     {
       "line": 250,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2683,7 +2683,7 @@
     {
       "line": 251,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2693,7 +2693,7 @@
     {
       "line": 252,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2703,7 +2703,7 @@
     {
       "line": 253,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2713,7 +2713,7 @@
     {
       "line": 254,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2723,7 +2723,7 @@
     {
       "line": 255,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2733,7 +2733,7 @@
     {
       "line": 256,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2743,7 +2743,7 @@
     {
       "line": 257,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2753,7 +2753,7 @@
     {
       "line": 258,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2763,7 +2763,7 @@
     {
       "line": 259,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2773,7 +2773,7 @@
     {
       "line": 260,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2783,7 +2783,7 @@
     {
       "line": 261,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2793,7 +2793,7 @@
     {
       "line": 262,
       "templates": [
-        "fastapi_routes.py.j2:117"
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2803,7 +2803,7 @@
     {
       "line": 263,
       "templates": [
-        "fastapi_routes.py.j2:119"
+        "fastapi_routes.py.j2:125"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2813,7 +2813,7 @@
     {
       "line": 266,
       "templates": [
-        "fastapi_routes.py.j2:122"
+        "fastapi_routes.py.j2:128"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -2827,7 +2827,7 @@
     {
       "line": 267,
       "templates": [
-        "fastapi_routes.py.j2:123"
+        "fastapi_routes.py.j2:129"
       ],
       "terms": [
         "https://example.org/expenses/Payment",
@@ -2841,7 +2841,7 @@
     {
       "line": 268,
       "templates": [
-        "fastapi_routes.py.j2:124"
+        "fastapi_routes.py.j2:130"
       ],
       "terms": [
         "https://example.org/expenses/Payment",

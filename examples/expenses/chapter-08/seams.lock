@@ -138,7 +138,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:998b04c93d05bd84657829298f76854df867e48322a605ddaa4b9b14ada8a2de",
       "path": "generated/expense_api.py.trace.json",
-      "sha256": "79329afbc8e67f8a53142faacc7c086b767b5b8d5599000c73ac1a7b4cf90237",
+      "sha256": "4cf97ad26946f099a80edee8136e23fe3e388bd3063542223b78fa8072555085",
       "sources": [
         "https://example.org/expenses/ApprovalShape",
         "https://example.org/expenses/ExpenseShape",

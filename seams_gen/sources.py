@@ -29,6 +29,9 @@ ambiguous fact raises the same ``GeneratorError``:
   governing it.
 - ``jsonld``: per context, the shape, its target class and its category
   fields' members (a field's path is a predicate, not an element).
+- ``mentalmodel``: the ontology model for the manifest and the ontology
+  file, the written shapes and their target classes for the shapes file, and
+  each view's IFML component, shape and target class for the views file.
 - ``acceptance``: per handlers module's test file, each function's
   implementations, operations and shapes, and the examples, transitions,
   states, tasks, decisions and gateway flows its tests read.
@@ -50,6 +53,7 @@ from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
 from .ifmledit import ifmledit_sources
 from .jsonld import jsonld_sources
+from .mentalmodel import mentalmodel_sources
 from .protocol import Sources
 from .registry import discover
 from .smoke import smoke_sources
@@ -132,6 +136,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "ifmledit": lambda trig, out: ifmledit_sources(load(trig)),
     "acceptance": lambda trig, out: acceptance_sources(trig),
     "jsonld": lambda trig, out: jsonld_sources(load(trig)),
+    "mentalmodel": lambda trig, out: mentalmodel_sources(load(trig)),
 }
 
 

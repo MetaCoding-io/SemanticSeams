@@ -83,6 +83,7 @@ dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", ba
 | `fastapi` | `<out>/<container local name>.py`, a thin FastAPI route module | the one serving `arch:Container` (it `seam:executes` a `proc:Process`, or `seam:exposes` an operation an `ifml:Event` `seam:submitsTo`), and what it `seam:exposes` |
 | `compose` | `<out>/compose.<environment local name>.yaml`, one docker compose file per `arch:Environment` (ADR-0015), with paths relative to `<out>` | the `arch:Container`s of the one `arch:System`, their `deploy:` facts under the override rule for that environment, `seam:deployedTo` and the serving-container rule |
 | `jsonld` | `<out>/<shape local name>.jsonld`, one JSON-LD 1.1 context document per `sh:NodeShape` with a `sh:targetClass` (ADR-0024, backlog O3), sorted JSON with a trailing newline; nothing for a model without target-classed shapes | `model.shapes`: `Shape.target_class` and `Shape.fields()`; [JSON-LD rendering rules](#json-ld-rendering-rules) |
+| `mentalmodel` | `<out>/manifest.yaml` and `<out>/ontology/<modelId>.jsonld`, `<out>/shapes/<modelId>.jsonld`, `<out>/views/<modelId>.jsonld`: a SemPKM Mental Model that `POST /api/models/install` installs (ADR-0026, backlog O5), JSON-LD without a context, sorted, with a trailing newline | the one `seam:Ontology` model (its IRI, `owl:versionInfo`, `rdfs:label`, `rdfs:comment`, `owl:imports`), `model.shapes` with a `sh:targetClass` and the shapes they reach by `sh:node`, and each `ifml:List` / `ifml:Details` of `model.interfaces` that `seam:reads` a shape; [Mental Model rendering rules](#mental-model-rendering-rules) |
 | `dockerfile` | `<out>/<route module stem>.Dockerfile` (`chat_api.Dockerfile`), the runtime image build file, with every path literal and relative to the build context; header and `io.semanticseams.model-hash` / `io.semanticseams.container` labels name the model hash and the container | the serving `arch:Container` and the `deploy:build` of its `deploy:artifact` in the `development` `arch:Environment` (ADR-0015); no serving container, or no development build, is a `GeneratorError` naming `seam:executes` or `deploy:build` |
 | `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py`, `<out>/test_shape_examples.py` and `<out>/test_policies.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`, and each `odrl:permission` of `model.policies` with every `odrl:Party`; [Tests rendering rules](#tests-rendering-rules) |
 | `ifmledit` | `<out>/ifmledit.json`, the model's IFML layer as [IFMLEdit.org](https://github.com/B3rn475/IFMLEdit.org) JSON (backlog 12, a conformance check of the `ifml:` vocabulary): `elements` (`ifml.ViewContainer`, `ifml.ViewComponent` with stereotype `list` / `details` / `form`, `ifml.Event`, `ifml.NavigationFlow`, `ifml.DataFlow`) and `hierarchy` / `source` / `target` `relations`, ids the IRI local names, everything sorted, with a deterministic `metadata.graphics` layout the IFMLEdit loader requires. The `ifml:` terms with no IFMLEdit counterpart (`ifmledit.UNMAPPED`: `ifml:swap` and its strategies, `trigger`, `path`, `title`, `boundTo`, `order`, `InteractionModel`) are left out, printed on stderr and listed in [gaps.md](../docs/generation/golden/gaps.md) (GAP-29 to GAP-35) | `model.interfaces`; no `ifml:InteractionModel`, a component that is not exactly one of List, Details and Form, an element in several containers, an event without one exported owner, a flow with an unexported end or two elements with one local name is a `GeneratorError` |
@@ -120,7 +121,7 @@ and each `GeneratorError` a generator raises, in the `faults` key of `seams.lock
 of stopping, and `seams check` reports that lock as `flagged`.
 
 The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke` (M015/S05),
-`acceptance` (M022/S03), `dockerfile` (M016/S03), `ifmledit` (M008/S01) and `jsonld` (M023/S05) are the objects of `builtin.py`. Each
+`acceptance` (M022/S03), `dockerfile` (M016/S03), `ifmledit` (M008/S01), `jsonld` (M023/S05) and `mentalmodel` (M024/S03) are the objects of `builtin.py`. Each
 has a real extract and render step built on its `extract_*` and `render_*` functions
 (htmx extracts every `PageModel`, then renders each), takes its sources from
 `sources.py` and declares no preconditions; `ifmledit` keeps its stderr summary of
@@ -357,6 +358,28 @@ generator also embeds. The rules are
 | Category field | `Field.members` set: `{"@id": <path>, "@type": "@vocab", "@context": {<label>: <member IRI>, …}}`, so the wire value stays the label. A label that is empty, starts with `@` or holds `:` raises `GeneratorError(<member>, rdfs:label)`. |
 | Flattened and reference fields | A `sh:node` field (`Field.node`), or a reference field (`Field.reference`: an `sh:class` of a class that is not a category), maps to `null`: a context never states a triple the shape would reject. |
 | File names | Two target-classed shapes with one local name raise `GeneratorError(<shape>, sh:targetClass)`. A view `ResolutionError` is passed on as the `GeneratorError` on the same fact. |
+
+## Mental Model rendering rules
+
+`extract_mentalmodel(model)` builds a frozen `MentalModel`: the `Manifest`, and one
+`Document` per entrypoint (`ontology`, `shapes`, `views`) holding its `@graph` nodes and
+sources. `render_mentalmodel` writes `manifest.yaml` with `manifest_text` and each
+document with `document_text` (`json.dumps` of `{"@graph": […]}`, sorted keys, two-space
+indent, trailing newline; no header or model hash). The rules are
+[ADR-0026](../docs/adr/0026-mental-model.md)'s:
+
+| Output | Graph fact |
+|---|---|
+| The package | Written for the model's one `seam:Model` with `seam:notation seam:Ontology`. None raises `GeneratorError(seam:Ontology, seam:notation)`; several raise on the second, `seam:notation`. |
+| `modelId` | The ontology IRI's local name, lowercased, `_` replaced by `-`; one that does not match `^[a-z][a-z0-9-]*$` or is not 2 to 64 characters raises `GeneratorError(<ontology>, rdf:type)`. It names the three entrypoints, `<kind>/<modelId>.jsonld`, and the namespace `urn:sempkm:model:<modelId>:`. |
+| `version`, `name`, `description` | The ontology's one `owl:versionInfo` (`MAJOR.MINOR.PATCH`), one `rdfs:label` (1 to 200 characters) and at most one `rdfs:comment` (at most 2000; omitted when absent). Otherwise `GeneratorError(<ontology>, owl:versionInfo / rdfs:label / rdfs:comment)`. Keys in the order `modelId`, `version`, `name`, `description`, `namespace`, `entrypoints`, every value a JSON string, so YAML reads it as a double-quoted string. No other key is written. |
+| Package IRIs | The ontology node, the written shapes and the views are `urn:sempkm:model:<modelId>:<local name>`, each with `prov:wasDerivedFrom` its model term; domain terms keep their IRIs and appear only as objects. Two terms with one local name raise `GeneratorError(<second by IRI>, rdf:type)`. |
+| Ontology file | One `owl:Ontology` node: `rdfs:label`, `owl:versionInfo`, `rdfs:comment` when stated, each `owl:imports`, and `prov:wasDerivedFrom` the `owl:versionIRI`. A gistCore import other than `gistCore14.0.0` raises `GeneratorError(<ontology>, owl:imports)`. |
+| Shapes file | Each shape with a `sh:targetClass` and each shape those reach by `sh:node`, transitively, typed `sh:NodeShape`: every triple whose predicate is in the SHACL namespace, or is `rdfs:label` or `rdfs:comment`, and the same for the blank nodes those reach. RDF lists are `{"@list": […]}`, `sh:property` values in `Shape.fields()` order (`sh:order`, none last, then path), other multi-valued properties by value, and a `sh:node` to a written shape is its package IRI. `seam:` facts are not copied. |
+| Views file | One `urn:sempkm:vocab:ViewSpec` per `ifml:List` or `ifml:Details` that `seam:reads` a shape: `rdfs:label` the component's, `targetClass` the shape's `sh:targetClass`, `rendererType` `"table"`, `columns` the `Field.name`s joined by `,`, and `sparqlQuery` `SELECT ?s ?<name> … WHERE { ?s a <class> . OPTIONAL { ?s <path> ?<name> } … }`, a flattened field as `OPTIONAL { ?s <path> [ <free path> ?<name> ] }`. A component reading several shapes raises `GeneratorError(<component>, seam:reads)`, a shape with no target class `GeneratorError(<shape>, sh:targetClass)`, and a field name that is not a SPARQL variable `GeneratorError(<shape>, sh:name)`. |
+| Literals | `xsd:string` as a plain string, a language-tagged literal as `{"@value", "@language"}`, any other as `{"@value", "@type"}`; IRI objects as `{"@id": …}`. |
+
+A view `ResolutionError` is passed on as the `GeneratorError` on the same fact.
 
 ## Compose rendering rules
 

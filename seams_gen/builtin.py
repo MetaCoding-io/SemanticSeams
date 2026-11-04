@@ -25,6 +25,7 @@ from .htmx import ServedPage, extract_pages, render_pages, trace_pages
 from .ifmledit import FILE as IFMLEDIT_FILE
 from .ifmledit import IfmlEditDocument, extract_ifmledit, render_ifmledit, unmapped_summary
 from .jsonld import JsonLdModel, extract_jsonld, render_jsonld
+from .mentalmodel import MentalModel, extract_mentalmodel, render_mentalmodel
 from .protocol import Files, Generator
 from .smoke import SmokeModel, extract_smoke, render_smoke
 from .sources import SOURCES
@@ -82,6 +83,11 @@ def _ifmledit_extract(trig: Path, out: Path) -> IfmlEditDocument:
 def _jsonld_extract(trig: Path, out: Path) -> JsonLdModel:
     """The JSON-LD context of every shape with a sh:targetClass (ADR-0024)."""
     return extract_jsonld(load(trig))
+
+
+def _mentalmodel_extract(trig: Path, out: Path) -> MentalModel:
+    """The SemPKM Mental Model of the model's ontology model (ADR-0026)."""
+    return extract_mentalmodel(load(trig))
 
 
 def _ifmledit_render(doc: IfmlEditDocument) -> Files:
@@ -175,7 +181,27 @@ jsonld = Generator(
     sources=SOURCES["jsonld"],
 )
 
-BUILTINS: tuple[Generator, ...] = (htmx, fastapi, compose, tests, smoke, dockerfile, ifmledit, acceptance, jsonld)
+mentalmodel = Generator(
+    name="mentalmodel",
+    version=__version__,
+    help="a SemPKM Mental Model: the manifest, the ontology node, the target-classed shapes and the IFML views",
+    extract=_mentalmodel_extract,
+    render=render_mentalmodel,
+    sources=SOURCES["mentalmodel"],
+)
+
+BUILTINS: tuple[Generator, ...] = (
+    htmx,
+    fastapi,
+    compose,
+    tests,
+    smoke,
+    dockerfile,
+    ifmledit,
+    acceptance,
+    jsonld,
+    mentalmodel,
+)
 
 __all__ = [
     "BUILTINS",
@@ -186,6 +212,7 @@ __all__ = [
     "htmx",
     "ifmledit",
     "jsonld",
+    "mentalmodel",
     "smoke",
     "tests",
 ]

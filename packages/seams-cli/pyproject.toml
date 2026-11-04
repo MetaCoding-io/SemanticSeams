@@ -30,6 +30,7 @@ fastapi = "seams_gen.builtin:fastapi"
 htmx = "seams_gen.builtin:htmx"
 ifmledit = "seams_gen.builtin:ifmledit"
 jsonld = "seams_gen.builtin:jsonld"
+mentalmodel = "seams_gen.builtin:mentalmodel"
 smoke = "seams_gen.builtin:smoke"
 tests = "seams_gen.builtin:tests"
 

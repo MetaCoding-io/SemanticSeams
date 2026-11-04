@@ -136,7 +136,10 @@ decision branches. The `jsonld` generator writes a JSON-LD 1.1 context per shape
 `sh:targetClass`, mapping each field's name to its property and each category label to its
 member IRI, and the generated API serves it at `GET /contexts/<shape>.jsonld` with a
 `Link` header on the routes that return that shape, so a JSON-LD client reads the same
-payloads as RDF ([ADR-0024](docs/adr/0024-json-ld-context.md)). The
+payloads as RDF ([ADR-0024](docs/adr/0024-json-ld-context.md)). The `mentalmodel` generator
+writes a SemPKM Mental Model from the ontology model, the target-classed shapes and the IFML
+lists and details views, which SemPKM installs as its forms and tables
+([ADR-0026](docs/adr/0026-mental-model.md)). The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from rdflib import RDF, RDFS, BNode, Dataset, Graph, Literal, Namespace, URIRef
+from rdflib import OWL, RDF, RDFS, BNode, Dataset, Graph, Literal, Namespace, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -39,6 +39,7 @@ from seams_gen.dockerfile import extract_dockerfile  # noqa: E402
 from seams_gen.fastapi import extract_routes  # noqa: E402
 from seams_gen.htmx import generate_pages  # noqa: E402
 from seams_gen.jsonld import extract_jsonld  # noqa: E402
+from seams_gen.mentalmodel import extract_mentalmodel  # noqa: E402
 from seams_gen.smoke import extract_smoke  # noqa: E402
 from seams_gen.stubs import extract_stubs  # noqa: E402
 from seams_gen.testing import SHAPES_FILE, assert_shapes_catch, shape_violations  # noqa: E402
@@ -135,6 +136,11 @@ GENERATORS = {
     "acceptance": extract_acceptance,
     "jsonld": extract_jsonld,
 }
+
+# The generators only a case runs: neither example generates them as written (the
+# chat app has no ontology model and chapter 9 states no owl:versionInfo), so a
+# case's mutation states what they need besides its fault.
+CASE_GENERATORS = GENERATORS | {"mentalmodel": extract_mentalmodel}
 
 
 # ── parity cases ────────────────────────────────────────────────────────────
@@ -283,6 +289,12 @@ def _expense_property(ds, path):
     g = _exp_data(ds)
     (node,) = [p for p in g.objects(EXP.ExpenseShape, SH.property) if (p, SH.path, path) in g]
     return node
+
+
+def _view_reads_two_shapes(ds):
+    """Chapter 9's ontology gets the version a Mental Model needs, and :expense_list a second shape."""
+    _graph(ds, "model:expense_ontology").add((EXP.expense_ontology, OWL.versionInfo, Literal("1.0.0")))
+    _seams(ds).add((EXP.expense_list, SEAM.reads, EXP.PaymentShape))
 
 
 def _same_named_shape(ds):
@@ -936,6 +948,18 @@ CASES = [
         EXP.ExpenseShape,
         match='both have the name "amount"',
     ),
+    Case(
+        "mental-model-view-reads-two-shapes",
+        Site("mentalmodel", "_views", "SEAM.reads"),
+        EXPENSES_TRIG,
+        _view_reads_two_shapes,
+        "mentalmodel",
+        EXP.expense_list,
+        SEAM.reads,
+        EXP.expense_list,
+        SEAM.reads,
+        "a SemPKM view is a table of one shape's entities",
+    ),
 ]
 
 
@@ -1124,6 +1148,47 @@ GENERATOR_ONLY: dict[Site, str] = {
         "A category member's rdfs:label is free text for every other generator; only a JSON-LD term must be "
         "non-empty, not start with @ and contain no colon (ADR-0024 section 3)."
     ),
+    Site("mentalmodel", "_ontology", "SEAM.notation", "none"): (
+        "A model with no seam:Ontology model is valid (the chat app has none); only a Mental Model is "
+        "written for one (ADR-0026 section 2)."
+    ),
+    Site("mentalmodel", "_ontology", "SEAM.notation", "several"): (
+        "Several seam:Ontology models are valid; a Mental Model describes one ontology, and the generator does "
+        f"not choose (ADR-0026 section 2): {_LIMIT}."
+    ),
+    Site("mentalmodel", "_model_id", "RDF.type"): (
+        "Any IRI may name an ontology model; only SemPKM's modelId alphabet and length (^[a-z][a-z0-9-]*$, 2 to "
+        "64 characters) constrain the local name it is encoded from (ADR-0026 section 4)."
+    ),
+    Site("mentalmodel", "_version", "OWL.versionInfo"): (
+        "owl:versionInfo is optional OWL (the ontology's version is its owl:versionIRI); only a Mental Model "
+        "needs one, and SemPKM needs it as MAJOR.MINOR.PATCH (ADR-0026 section 4)."
+    ),
+    Site("mentalmodel", "_name", "RDFS.label"): (
+        "An ontology model's rdfs:label is optional and free text for every other generator; only a Mental "
+        "Model's name needs exactly one of at most 200 characters (ADR-0026 section 4)."
+    ),
+    Site("mentalmodel", "_description", "RDFS.comment"): (
+        "rdfs:comment is free documentation; only a Mental Model's description is at most one of at most 2000 "
+        "characters (ADR-0026 section 4)."
+    ),
+    Site("mentalmodel", "_imports", "OWL.imports"): (
+        "Any vendored gistCore version is a valid import (ADR-0022); only a SemPKM package, like a SemPKM "
+        "store at runtime load, must state the 14.0.0 SemPKM bundles (ADR-0026 section 7)."
+    ),
+    Site("mentalmodel", "_archive", "RDF.type"): (
+        "An ontology, shapes and IFML components in different namespaces may share a local name in a valid "
+        f"model; a package node is named after it: {_NAMES}."
+    ),
+    Site("mentalmodel", "_views", "SH.targetClass"): (
+        "An ifml:List or ifml:Details may read a shape without a sh:targetClass (a message shape) in a valid "
+        "model; only a SemPKM view selects its entities by class (ADR-0026 section 8)."
+    ),
+    Site("mentalmodel", "_columns", "SH.name"): (
+        "A field without sh:name takes its path's local name, which any IRI may make (a hyphen, a leading "
+        "digit); the shapes check only a stated sh:name. Only a view's columns must be SPARQL variables "
+        "(ADR-0026 section 8)."
+    ),
     Site("protocol", "check_preconditions", "shape"): (
         "A generator's precondition check is the shapes themselves: it raises exactly when ontology/shapes "
         "reports a result of one of the generator's precondition shapes, so there is no condition left to state."
@@ -1149,7 +1214,7 @@ def test_generator_fault_is_a_shape_violation(case: Case):
     case.mutate(ds)
 
     assert_shapes_catch(
-        GENERATORS[case.generator],
+        CASE_GENERATORS[case.generator],
         ds,
         subject=case.subject,
         predicate=case.predicate,

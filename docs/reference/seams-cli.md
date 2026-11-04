@@ -452,6 +452,7 @@ registers another.
 | `dockerfile` | `<route module stem>.Dockerfile` (for example `chat_api.Dockerfile`), the serving container's runtime image build file |
 | `ifmledit` | `ifmledit.json`, the IFML layer as [IFMLEdit.org](https://github.com/B3rn475/IFMLEdit.org) JSON, a conformance check of the `ifml:` vocabulary (backlog 12); the `ifml:` terms with no IFMLEdit counterpart are named on stderr and listed as GAP-29 to GAP-35 in the gap register |
 | `jsonld` | `<shape>.jsonld`, a JSON-LD 1.1 context per `sh:NodeShape` with a `sh:targetClass`: each field's `sh:name` mapped to its `sh:path`, typed by its `sh:datatype`, category fields mapping their labels to member IRIs; nothing for a model without target classes ([ADR-0024](/adr/0024-json-ld-context)) |
+| `mentalmodel` | a SemPKM Mental Model: `manifest.yaml` and `ontology/`, `shapes/` and `views/<modelId>.jsonld`, from the model's one ontology model (its IRI, `owl:versionInfo` and `rdfs:label` fill the manifest), its target-classed shapes and one table view per IFML list or details view; SemPKM installs the directory with `POST /api/models/install` ([ADR-0026](/adr/0026-mental-model)) |
 
 `python -m seams_gen <generator> <model> --out <dir>` still runs a single
 generator without a project file.

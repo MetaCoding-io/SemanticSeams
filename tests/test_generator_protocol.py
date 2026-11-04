@@ -4,7 +4,8 @@ Each object of ``seams_gen.builtin`` returns the same files as the
 generator's old ``generate`` function (``LEGACY``, the functions
 ``seams_gen.__main__.GENERATORS`` held before it became a view of the
 registry), for the chat app and expenses chapter 8, or raises the same
-GeneratorError.
+GeneratorError. ``mentalmodel`` is also run on tests/fixtures/mental_model,
+since no example states the owl:versionInfo it needs before M024/S03/T03.
 """
 
 import dataclasses
@@ -26,6 +27,7 @@ from seams_gen.htmx import generate_pages
 from seams_gen.ifmledit import generate as generate_ifmledit
 from seams_gen.ifmledit import unmapped_summary
 from seams_gen.jsonld import extract_jsonld, render_jsonld
+from seams_gen.mentalmodel import extract_mentalmodel, render_mentalmodel
 from seams_gen.protocol import Generator
 from seams_gen.smoke import generate_smoke
 from seams_gen.sources import SOURCES
@@ -36,6 +38,8 @@ MODELS = {
     "chat-app": ROOT / "examples/chat-app/chat-app.trig",
     "chapter-08": ROOT / "examples/expenses/chapter-08/expenses.trig",
 }
+# generator name -> the models only it is run on, beside MODELS
+OWN_MODELS = {"mentalmodel": {"mental-model": ROOT / "tests/fixtures/mental_model/model.trig"}}
 BY_NAME = {g.name: g for g in BUILTINS}
 
 
@@ -45,8 +49,8 @@ def _legacy_ifmledit(trig: Path, out: Path) -> dict[str, str]:
     return files
 
 
-# generator name -> its generate(trig, out) before the protocol (M018/S01); jsonld,
-# newer than the protocol, is its module's own render(extract(model))
+# generator name -> its generate(trig, out) before the protocol (M018/S01); jsonld
+# and mentalmodel, newer than the protocol, are their module's own render(extract(model))
 LEGACY = {
     "htmx": lambda trig, out: generate_pages(load(trig)),
     "fastapi": lambda trig, out: dict([route_module(trig)]),
@@ -57,8 +61,15 @@ LEGACY = {
     "ifmledit": _legacy_ifmledit,
     "acceptance": lambda trig, out: generate_acceptance(trig),
     "jsonld": lambda trig, out: render_jsonld(extract_jsonld(load(trig))),
+    "mentalmodel": lambda trig, out: render_mentalmodel(extract_mentalmodel(load(trig))),
 }
-CASES = [(name, model) for name in LEGACY for model in MODELS]
+
+
+def _models(name: str) -> dict[str, Path]:
+    return MODELS | OWN_MODELS.get(name, {})
+
+
+CASES = [(name, model) for name in LEGACY for model in _models(name)]
 
 
 def _outcome(generate, trig: Path) -> dict[str, str] | str:
@@ -81,15 +92,15 @@ def test_generators_is_the_registered_builtin(name):
 
 @pytest.mark.parametrize(("name", "model"), CASES, ids=[f"{n}:{m}" for n, m in CASES])
 def test_generate_equals_the_old_function(name, model):
-    old = _outcome(LEGACY[name], MODELS[model])
-    new = _outcome(BY_NAME[name].generate, MODELS[model])
+    old = _outcome(LEGACY[name], _models(name)[model])
+    new = _outcome(BY_NAME[name].generate, _models(name)[model])
     assert new == old
 
 
 def test_every_builtin_generates_from_some_example():
     """The equality above is not only two equal errors."""
     for name in LEGACY:
-        assert any(isinstance(_outcome(BY_NAME[name].generate, m), dict) for m in MODELS.values()), name
+        assert any(isinstance(_outcome(BY_NAME[name].generate, m), dict) for m in _models(name).values()), name
 
 
 @pytest.mark.parametrize("name", list(LEGACY))

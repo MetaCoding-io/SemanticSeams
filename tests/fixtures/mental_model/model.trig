@@ -1,0 +1,41 @@
+# The smallest model the mentalmodel generator (ADR-0026) writes a package for:
+# an ontology model with a version, one target-classed shape and one IFML list
+# that reads it. tests/test_generator_protocol.py runs the generator on it,
+# since no example states owl:versionInfo before M024/S03/T03.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix gist: <https://w3id.org/semanticarts/ns/ontology/gist/> .
+@prefix ifml: <https://w3id.org/seams/ifml#> .
+@prefix seam: <https://w3id.org/seams/seam#> .
+@prefix :     <https://example.org/notes/> .
+
+<urn:seams:graph:model:note_ontology> {
+    :note_ontology a seam:Model , owl:Ontology ;
+        seam:notation seam:Ontology ;
+        rdfs:label "Note Ontology" ;
+        owl:versionInfo "1.0.0" ;
+        owl:versionIRI <https://example.org/notes/note_ontology/1.0> ;
+        owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
+    :Note a owl:Class ; rdfs:subClassOf gist:Content ; rdfs:label "Note" ;
+        seam:inModel :note_ontology .
+}
+
+<urn:seams:graph:model:note_data> {
+    :note_data a seam:Model ; seam:notation seam:ShapeGraph ; rdfs:label "Note Data" .
+    :NoteShape a sh:NodeShape ; rdfs:label "Note" ;
+        sh:targetClass :Note ;
+        sh:property [ sh:path :title ; sh:name "title" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+        seam:inModel :note_data .
+}
+
+<urn:seams:graph:model:note_ui> {
+    :note_ui a seam:Model , ifml:InteractionModel ; seam:notation seam:IFML ; rdfs:label "Notes UI" .
+    :note_list a ifml:List ; rdfs:label "Notes" ; seam:inModel :note_ui .
+}
+
+<urn:seams:graph:seams> {
+    :note_list seam:reads :NoteShape .
+}

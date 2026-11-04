@@ -218,7 +218,7 @@ class ContextRoute:
     constant: str  # the module constant holding the document
     lines: tuple[str, ...]  # the document, one Python string literal per line (each ends in a newline)
     iri: str = ""  # the shape's full IRI, its origin in a generation trace (ADR-0019)
-    origins: tuple[str, ...] = ()  # the context's sources: class, field paths, category members
+    origins: tuple[str, ...] = ()  # the context's sources: class, category members
 
 
 @dataclass(frozen=True)

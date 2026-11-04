@@ -204,7 +204,7 @@ nothing else and can start now.
 | K3 | **Generator protocol and discovery**: name, version, precondition shapes, `extract` and `render`; a `seams.generators` entry-point group so `seams generate` runs it and the lockfile records it; a lenient mode with flagged output for previews | M | L2, A1, A2 | none | done (M018/S01 and S02) |
 | K4 | **Generator test kit**: public golden comparison with the hash placeholder, determinism check, output checkers per file type, the K1 parity helper | S | K3 | none | done (M018/S03) |
 | K5 | **Scaffold and guide**: `seams new-generator` from a reference output (verbatim template, passing golden test); a section in the L6 guide on the reference-first method and logic-free templates | S | K3, K4, L6 | none | done (M018/S04) |
-| K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | planned (M023/S01, S02) |
+| K6 | **Vocabulary versions and migrations**: a version IRI per vocabulary, the target version in each model, a load check (same, newer, older), SPARQL Update migrations per step, deprecation as `owl:deprecated` plus a warning-level shape | M | ADR first, L2; shares classification with U8 | version facts; first use of `sh:Warning` | ADR accepted (M023/S01, [ADR-0021](adr/0021-vocabulary-versions.md)); implementation planned (M023/S02) |
 | K7 | **Shape for a List's one event**: the htmx generator refuses an `ifml:List` without exactly one `ifml:hasEvent` ("expected exactly one, found none"), but no shape requires it, so a List added on the IFML diagram passes the shapes and does not generate. Add the shape, or list the fault as generator-only with the reason, and extend K1's parity test. Found in M019 validation | S | K1 | shapes only | proposed |
 | I1 | **Write path**: edits as quad patches with undo; a decision on comments and serialisation for TriG files the IDE writes (rdflib drops comments, and the examples rely on them) | M | ADR first, L2, P2 item 13 unparked | none | ADR accepted (M019/S01): [ADR-0017](adr/0017-write-path-and-editor.md) edits the TriG text in place through a new `seams_edit` package, and editing is a viewer mode; writer done (M019/S02): `seams_edit` applies a patch by editing the TriG text at the triple level, routes it to the file that declares each graph, writes all files or none, and undoes it byte for byte; a round-trip test over every example checks one-line diffs, comments kept and undo |
 | I2 | **Forms from shapes**: edit one element through a form derived from the shapes that target its class; save invalid models and flag them | M | I1, K1 | none | done (M019/S03): with `SEAMS_EDIT=1` the viewer shows an Edit control on every element some shape targets; the form is built from the seam shapes and the model's own shapes (every SHACL target kind), each save is a `seams_edit` patch, a value that breaks the shapes is saved and the health badge flags it, and Undo restores the bytes ([guide](guide/the-viewer.md#edit-mode)) |
@@ -522,7 +522,10 @@ UI work must not eat M3.*
      are recorded in `seams.lock`, `seams check` reports them stale or hand-edited, and
      the generation view shows each with its state.*
    - **M023, Data-Centric Model** (K6, O1, O2, O3): vocabulary versions first, so they land
-     before O2's first change that is not widening. Depends on M018.
+     before O2's first change that is not widening. Depends on M018. *Vocabulary versions
+     decided, M023/S01: ADR-0021 gives each vocabulary an `owl:versionIRI`, has a model
+     `owl:imports` the versions it targets, and specifies the load check, SPARQL Update
+     migrations per major step and `sh:Warning` deprecations; S02 implements it.*
    - **M024, SemPKM** (O4, O5, O6), opening with an ADR on SemPKM as a store. Depends on
      M011 and M023.
    - **M025, Model Copilot** (R2, R3). Depends on M021 and M022.

@@ -47,6 +47,7 @@ const decisions = [
   ["0018", "Domain profiles", "0018-domain-profiles"],
   ["0019", "Generation trace", "0019-generation-trace"],
   ["0020", "LLM drafts", "0020-llm-drafts"],
+  ["0021", "Vocabulary versions", "0021-vocabulary-versions"],
 ] as const;
 
 export default defineConfig({

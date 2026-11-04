@@ -52,6 +52,7 @@ const decisions = [
   ["0023", "Shapes target classes", "0023-shapes-target-classes"],
   ["0024", "JSON-LD context", "0024-json-ld-context"],
   ["0025", "SemPKM as a store", "0025-sempkm-store"],
+  ["0026", "Mental Model", "0026-mental-model"],
 ] as const;
 
 export default defineConfig({

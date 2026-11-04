@@ -220,6 +220,10 @@ is gist 14.0.0, the version this project vendors. So:
 The Mental Model generator (O5) states the gist version the model targets in what it
 emits; it does not rely on SemPKM's version IRI either.
 
+[ADR-0026](./0026-mental-model.md) fixes the Mental Model's format: its ontology node
+`owl:imports` gistCore 14.0.0, and an ontology importing another gist version is a
+generator fault.
+
 ### 9. SemPKM is not the default
 
 **Embedded SQLite stays the default**, as ADR-0011 says: a model that declares no store
@@ -273,7 +277,8 @@ warning, after the facts above resolve.
 ### 12. Out of scope
 
 - SemPKM webhooks as a channel (O6, M024/S04).
-- The Mental Model generator's format (O5, M024/S03), beyond section 8.
+- The Mental Model generator's format (O5, M024/S03), beyond section 8. Decided in
+  [ADR-0026](./0026-mental-model.md).
 - Updates and deletes. The runtime writes new entities today; `object.patch` and
   `edge.patch` follow when the runtime updates entities.
 - Federation between SemPKM instances.

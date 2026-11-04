@@ -534,6 +534,8 @@ the expense ends in the state you expect. The manager's run looks like this:
 
 `:auto_approved` has no steps and expects `:s_approved`. `:finance_approved` has two
 steps, finance approving and then paying, and also expects the `approved_end` event.
+`:manager_rejected` and `:finance_rejected` each have one step in which the manager or
+finance sends `"rejected"`, and expect `:s_rejected` and the `rejected_end` event.
 Each rule of both decision tables gets an example at its limit, and `:ExpenseShape`
 gets an expense it accepts and one it refuses:
 
@@ -569,14 +571,36 @@ Ask the model what no scenario covers:
 seams coverage examples/expenses/chapter-09
 ```
 
-Every transition is fired and every permission gets a deny test, but six paths have no
-scenario: the manager and finance reject paths, the two escalations through the
-notify-failed boundary event, and both payout paths. The command lists each by IRI and
-exits 1. In the viewer, open the Expense Approval process and ask **Which paths does no
-scenario run?** under Questions for the same paths of that process. A scenario cannot
-make Notify Manager fail, so the escalation paths stay uncovered; the reject and payout
-paths are scenarios you could add. Chapter 9's `seams.toml` leaves the coverage gates
-off for that reason (see [seams coverage](/reference/seams-cli#seams-coverage)).
+Every transition is fired and every permission gets a deny test. The reject paths are
+covered by two scenarios like the manager's run above, with `"rejected"` as the
+decision:
+
+```trig
+    :manager_rejected a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                        verify:actor :manager ;
+                        verify:given [ verify:field :decision ; verify:value "rejected" ] ] ) ;
+        verify:expectState :s_rejected ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#rejected_end> .
+```
+
+A scenario may only expect an end event that the model lifts into the process graph, so
+`rejected_end` is lifted with a label and `seam:inModel`, as `approved_end` already is.
+
+Four paths still have no scenario: the two escalations through the notify-failed
+boundary event, and both payout paths. The command lists each by IRI and exits 1. In
+the viewer, open the Expense Approval process and ask **Which paths does no scenario
+run?** under Questions for the same paths of that process. No scenario can express
+them. A scenario cannot make Notify Manager's operation fail, so the escalation paths
+stay uncovered. A scenario also starts its process from a submitted form, and
+`payout_process` starts on a message, so the payout paths stay uncovered too. Chapter
+9's `seams.toml` leaves the coverage gates off for that reason (see
+[seams coverage](/reference/seams-cli#seams-coverage)).
 
 ### Smoke tests against the running stack
 

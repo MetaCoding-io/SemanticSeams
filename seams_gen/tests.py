@@ -227,11 +227,14 @@ def _submits(subject: object, predicate: object, ops: list[Operation], detail: s
 def _request(op: Operation, actor: object, givens) -> RequestModel:
     method = required(op.method, op.iri, HYDRA.method)
     path = required(op.path, op.iri, COMM.path)
+    # a given names a field by its sh:path; the request sends it under the
+    # accepted shape's field name (ADR-0023), else the path's local name
+    names = {} if op.accepts is None else {f.iri: f.name for f in op.accepts.fields()}
     return RequestModel(
         method=_py(method),
         path=_py(path.template),
         actor=_py(actor),
-        data=tuple((_py(local_name(g.field)), _py(_lexical(g.value))) for g in givens),
+        data=tuple((_py(names.get(g.field, local_name(g.field))), _py(_lexical(g.value))) for g in givens),
     )
 
 

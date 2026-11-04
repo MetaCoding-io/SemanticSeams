@@ -621,7 +621,7 @@ def _literal(value) -> str:
 
 def _problem_schema(shape: Shape) -> dict:
     """A JSON Schema for a body of the error shape: one property per field
-    (its sh:path local name, typed from sh:datatype), required when
+    (its Field.name, typed from sh:datatype), required when
     sh:minCount > 0, and closed, as the runtime's validation is."""
     with view_errors():
         fields = shape.fields()

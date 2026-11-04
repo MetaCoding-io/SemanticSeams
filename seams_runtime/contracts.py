@@ -1,12 +1,21 @@
 """SHACL contract validation at the call boundary (ADR-0007).
 
-A payload crossing a seam is a flat mapping of field name to value. Field
-names are the local names of the shape's ``sh:path`` properties.
-``to_rdf`` turns the payload into a one-node data graph. ``validate`` runs
+A payload crossing a seam is a flat mapping of field name to value. A
+field's name is ``Field.name`` of the typed shape view: its ``sh:name``,
+else the local name of its ``sh:path`` (ADR-0023). ``to_rdf`` turns the payload into a one-node data graph. ``validate`` runs
 pySHACL against just that shape and raises ``ContractViolation`` with one
 entry per result (shape, focus, path, constraint, value, message).
 
-The boundary is closed-world: a key that names no ``sh:path`` of the shape
+The contract graph is the shape's own triples, **lowered** to the wire
+(ADR-0023 section 5): ``sh:targetClass`` is left out, a category field
+becomes ``sh:datatype xsd:string`` with ``sh:in`` of its members' labels in
+option order, and a flattened ``sh:node`` field becomes a plain property on
+its outer path with the free property's value constraints. A payload of a
+migrated shape is then checked against the same constraints as the copied
+string list or flat path it replaces, and a result's ``path`` is the field
+name.
+
+The boundary is closed-world: a key that names no field of the shape
 is an "unknown-field" violation, not silently dropped. A field the payload
 omits takes its property's ``sh:defaultValue``, if it has one, before
 validation; nothing else is filled in.
@@ -26,11 +35,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from pyshacl import validate as _shacl_validate
-from rdflib import RDF, BNode, Graph, Literal, URIRef
+from rdflib import RDF, RDFS, BNode, Graph, Literal, URIRef
+from rdflib.collection import Collection
 from rdflib.namespace import SH, XSD
 
 from .errors import ContractViolation, ResolutionError
 from .model import HYDRA, SEAM, ModelGraph, local_name
+
+# The predicates of a flattened field's free property that the outer
+# property already says (its path, counts, name, label and order) or that do
+# not constrain a value; every other one is a value constraint and is lowered
+# onto the outer property (ADR-0023 section 5).
+_OUTER = frozenset(
+    {SH.path, SH.minCount, SH.maxCount, SH.name, SH.order, SH.description, SH.group, SH.defaultValue, RDFS.label}
+)
 
 # Echoed values in results are capped so a 16001-char payload is not mirrored
 # back whole in a 422 body.
@@ -67,8 +85,9 @@ class ShapeContract:
 
     shape: URIRef
     graph: Graph
-    fields: dict  # local name -> (path IRI, sh:datatype or None)
-    defaults: dict  # local name -> sh:defaultValue as a Python value
+    fields: dict  # field name -> (path IRI, sh:datatype or None)
+    defaults: dict  # field name -> sh:defaultValue as a Python value
+    names: dict  # path IRI -> field name, for a result's path
 
 
 def _copy_closure(src: Graph, dst: Graph, node) -> None:
@@ -87,7 +106,11 @@ def _copy_closure(src: Graph, dst: Graph, node) -> None:
 
 
 def shape_contract(model: ModelGraph, shape) -> ShapeContract:
-    """The cached contract of ``shape`` (CURIE or IRI) on this ModelGraph."""
+    """The cached contract of ``shape`` (CURIE or IRI) on this ModelGraph.
+
+    Fields come from the typed view (``model.shape(...).fields()``), so a
+    fault the view names (an empty category, an ambiguous ``sh:node``)
+    raises its ``ResolutionError`` here, before any payload is read."""
     iri = model.curie(shape)
     cached = model._contract_cache.get(iri)
     if cached is not None:
@@ -99,17 +122,46 @@ def shape_contract(model: ModelGraph, shape) -> ShapeContract:
     for prefix, ns in model.ds.namespaces():
         g.bind(prefix, ns)
     _copy_closure(src, g, iri)
-    fields, defaults = {}, {}
-    for prop in g.objects(iri, SH.property):
-        path = g.value(prop, SH.path)
-        if isinstance(path, URIRef):
-            fields[local_name(path)] = (path, g.value(prop, SH.datatype))
-            default = g.value(prop, SH.defaultValue)
-            if isinstance(default, Literal):
-                defaults[local_name(path)] = default.toPython()
-    contract = ShapeContract(iri, g, fields, defaults)
+    g.remove((iri, SH.targetClass, None))
+    by_path = {f.iri: f for f in model.shape(iri).fields()}
+    fields, defaults, names = {}, {}, {}
+    for prop in sorted(g.objects(iri, SH.property), key=str):
+        f = by_path.get(g.value(prop, SH.path))
+        if f is None:
+            continue
+        _lower(src, g, prop, f)
+        fields[f.name] = (f.iri, f.datatype)
+        names[f.iri] = f.name
+        default = g.value(prop, SH.defaultValue)
+        if isinstance(default, Literal):
+            defaults[f.name] = default.toPython()
+    contract = ShapeContract(iri, g, fields, defaults, names)
     model._contract_cache[iri] = contract
     return contract
+
+
+def _lower(src: Graph, g: Graph, prop, f) -> None:
+    """Rewrite property shape ``prop`` of field ``f`` in ``g`` to the
+    constraints of its wire value (ADR-0023 section 5)."""
+    if f.node is not None:
+        g.remove((prop, SH.node, None))
+        free = next(p for p in src.objects(f.node.shape, SH.property) if src.value(p, SH.path) == f.node.free_path)
+        for p, o in sorted(src.predicate_objects(free), key=str):
+            if p in _OUTER:
+                continue
+            g.add((prop, p, o))
+            if isinstance(o, BNode):
+                _copy_closure(src, g, o)
+    if f.members:
+        listed = g.value(prop, SH["in"])
+        if listed is not None:
+            Collection(g, listed).clear()
+        g.remove((prop, SH["in"], None))
+        g.remove((prop, SH["class"], None))
+        g.set((prop, SH.datatype, f.datatype))
+        head = BNode()
+        Collection(g, head, [Literal(o) for o in f.options])
+        g.add((prop, SH["in"], head))
 
 
 def _items(payload) -> list[tuple[str, object]]:
@@ -212,8 +264,9 @@ def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None, operation=Non
     return g, focus, normalised
 
 
-def _results(results: Graph, shape: URIRef) -> list[dict]:
-    """The report's results as error dicts; a sh:Warning result is never an error (ADR-0021)."""
+def _results(results: Graph, shape: URIRef, names: dict) -> list[dict]:
+    """The report's results as error dicts, a result's path named by its
+    field name; a sh:Warning result is never an error (ADR-0021)."""
     out = []
     for r in results.subjects(RDF.type, SH.ValidationResult):
         if results.value(r, SH.resultSeverity) == SH.Warning:
@@ -226,7 +279,7 @@ def _results(results: Graph, shape: URIRef) -> list[dict]:
             {
                 "shape": str(shape),
                 "focus": str(results.value(r, SH.focusNode)),
-                "path": None if path is None else local_name(path),
+                "path": None if path is None else names.get(path, local_name(path)),
                 "constraint": None if comp is None else local_name(comp),
                 "value": _echo(value),
                 "message": _echo(msg),
@@ -249,7 +302,7 @@ def validate(model: ModelGraph, shape, payload: Mapping, operation=None) -> dict
         inference="none",
         advanced=False,
     )
-    errors = _results(results, contract.shape)
+    errors = _results(results, contract.shape, contract.names)
     if errors:
         raise ContractViolation(contract.shape, errors, focus=focus, operation=operation)
     return normalised

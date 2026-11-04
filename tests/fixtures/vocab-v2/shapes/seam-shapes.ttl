@@ -408,17 +408,27 @@ seamsh:CompletedOnFormShape a sh:NodeShape ;
     sh:property [ sh:path [ sh:inversePath seam:completedOn ] ; sh:maxCount 1 ;
         sh:message "A form is seam:completedOn by at most one user task (ADR-0009)." ] .
 
-# A form input is bound to a field of the shape the form writes.
+# A form input is bound to a field of the shape the form writes: a property
+# with a value a person enters. That is an sh:datatype property, a category
+# property (sh:class of a gist:Category subclass, or sh:in of IRIs) or a
+# flattened sh:node property, bound by its outer path (ADR-0023).
 seamsh:BoundToWrittenShape a sh:NodeShape ;
     sh:targetSubjectsOf ifml:boundTo ;
     sh:sparql [
-        sh:message "A parameter of an ifml:Form is ifml:boundTo the sh:path of a datatype property of the shape the form seam:writes." ;
+        sh:message "A parameter of an ifml:Form is ifml:boundTo the sh:path of a datatype, category or flattened sh:node property of the shape the form seam:writes." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this ifml:boundTo ?value .
                 ?form a ifml:Form ; ifml:hasParameter $this ; seam:writes ?shape .
-                FILTER NOT EXISTS { ?shape sh:property ?p . ?p sh:path ?value ; sh:datatype ?datatype }
+                FILTER NOT EXISTS {
+                    ?shape sh:property ?p . ?p sh:path ?value .
+                    { ?p sh:datatype ?datatype }
+                    UNION { ?p sh:node ?node }
+                    UNION { ?p sh:class ?category .
+                            ?category rdfs:subClassOf+ <https://w3id.org/semanticarts/ns/ontology/gist/Category> }
+                    UNION { ?p sh:in/rdf:first ?member . FILTER isIRI(?member) }
+                }
             }""" ;
     ] .
 
@@ -1329,6 +1339,188 @@ seamsh:ShapeExampleShape a sh:NodeShape ;
             }""" ;
     ] ;
     sh:message "Only a sh:NodeShape carries verify:validExample or verify:invalidExample." .
+
+#################################################################
+# Shapes target classes; categories; flattened sh:node (ADR-0023)
+#################################################################
+# New shapes, not new properties of existing ones (ADR-0021 section 7). Each
+# targets the model's sh:NodeShapes and names the shape, the field (its
+# sh:name, else its sh:path) and the predicate; the typed view raises the
+# same faults as ResolutionError for callers that load without checking.
+
+seamsh:TargetClassShape a sh:NodeShape ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "{$this} names more than one sh:targetClass ({?value} among them); a shape describes at most one class (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                $this sh:targetClass ?value , ?other .
+                FILTER (?value != ?other)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: sh:targetClass {?value} is not an owl:Class of a seam:Ontology model; subclass an imported class in the model's ontology and target that (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this sh:targetClass ?value .
+                FILTER NOT EXISTS {
+                    ?value a <http://www.w3.org/2002/07/owl#Class> ; seam:inModel ?ontology .
+                    ?ontology seam:notation seam:Ontology .
+                }
+            }""" ;
+    ] .
+
+seamsh:FieldNameShape a sh:NodeShape ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "{$this}: field {?value} carries more than one sh:name; a field has one wire name (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?value ; sh:name ?a , ?b .
+                FILTER (?a != ?b)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: sh:name {?value} is not a name matching ^[A-Za-z_][A-Za-z0-9_]*$; put a label with spaces in rdfs:label (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this sh:property ?p .
+                ?p sh:name ?value .
+                FILTER (!isLiteral(?value) || !REGEX(STR(?value), "^[A-Za-z_][A-Za-z0-9_]*$"))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: two fields have the sh:name {?value}; a wire name is unique within a shape (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                $this sh:property ?p , ?q .
+                ?p sh:name ?value .
+                ?q sh:name ?other .
+                FILTER (?p != ?q && STR(?value) = STR(?other))
+            }""" ;
+    ] .
+
+seamsh:CategoryFieldShape a sh:NodeShape ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "{$this}: field {?field} sh:class {?value} is a category with no members; type its member IRIs with it (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path ; sh:class ?value .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?field)
+                ?value rdfs:subClassOf+ <https://w3id.org/semanticarts/ns/ontology/gist/Category> .
+                FILTER NOT EXISTS { ?member a ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: member {?value} of field {?field}'s category needs exactly one rdfs:label (its wire value; ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?field)
+                {
+                    ?p sh:class ?category .
+                    ?category rdfs:subClassOf+ <https://w3id.org/semanticarts/ns/ontology/gist/Category> .
+                    ?value a ?category .
+                } UNION {
+                    ?p sh:in/rdf:rest*/rdf:first ?value .
+                    FILTER isIRI(?value)
+                }
+                FILTER (NOT EXISTS { ?value rdfs:label ?l }
+                        || EXISTS { ?value rdfs:label ?l1 , ?l2 . FILTER (?l1 != ?l2) })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: two members of field {?field}'s category are labelled {?value}; the label is the wire value (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?field)
+                {
+                    ?p sh:class ?category .
+                    ?category rdfs:subClassOf+ <https://w3id.org/semanticarts/ns/ontology/gist/Category> .
+                    ?a a ?category . ?b a ?category .
+                } UNION {
+                    ?p sh:in/rdf:rest*/rdf:first ?a , ?b .
+                    FILTER (isIRI(?a) && isIRI(?b))
+                }
+                ?a rdfs:label ?value .
+                ?b rdfs:label ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: field {?value} has an sh:in that mixes IRIs and literals (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?value)
+                ?p sh:in/rdf:rest*/rdf:first ?iri , ?literal .
+                FILTER (isIRI(?iri) && isLiteral(?literal))
+            }""" ;
+    ] .
+
+seamsh:FlattenedFieldShape a sh:NodeShape ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "{$this}: field {?field} sh:node {?value} has no free property (one without sh:hasValue); a flattened field needs exactly one (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path ; sh:node ?value .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?field)
+                FILTER NOT EXISTS {
+                    ?value sh:property ?free .
+                    FILTER NOT EXISTS { ?free sh:hasValue ?fixed }
+                }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: field {?field} sh:node {?value} has more than one free property (one without sh:hasValue); a flattened field needs exactly one (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path ; sh:node ?value .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?field)
+                ?value sh:property ?a , ?b .
+                FILTER (?a != ?b)
+                FILTER NOT EXISTS { ?a sh:hasValue ?x }
+                FILTER NOT EXISTS { ?b sh:hasValue ?y }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "{$this}: field {?field} has both sh:node {?value} and sh:datatype; a flattened field takes its datatype from the nested shape (ADR-0023)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?path ; sh:node ?value ; sh:datatype ?datatype .
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?path) AS ?field)
+            }""" ;
+    ] .
 
 #################################################################
 # Deprecated terms (ADR-0021 section 6). Test fixture

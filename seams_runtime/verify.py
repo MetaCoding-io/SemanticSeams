@@ -58,9 +58,10 @@ from pathlib import Path
 from typing import cast
 
 from rdflib import RDF, BNode, Graph, Literal, URIRef
-from rdflib.namespace import SH
+from rdflib.namespace import SH, XSD
 from rdflib.term import Node
 
+from .contracts import shape_contract
 from .engine import Engine
 from .model import ModelGraph, local_name
 from .policy import DEFAULT_IDENTITY_HEADER, DEFAULT_ROLES_HEADER, DEV_USER_ENV
@@ -334,13 +335,13 @@ def _describe(source: Graph, node: Node, into: Graph) -> None:
             _describe(source, o, into)
 
 
-def _conforms(model: ModelGraph, shape: str, data: Graph, nodes: list[Node]) -> tuple[bool, str]:
-    """(conforms, pyshacl's report text) of ``nodes`` in ``data`` against ``shape`` alone.
-    Only results of a severity other than sh:Warning break conformance (ADR-0021)."""
+def _conforms(shapes: Graph, shape: str, data: Graph, nodes: list[Node]) -> tuple[bool, str]:
+    """(conforms, pyshacl's report text) of ``nodes`` in ``data`` against
+    ``shape`` alone, described in ``shapes`` (a fresh graph this adds the
+    targets to). Only results of a severity other than sh:Warning break
+    conformance (ADR-0021)."""
     from pyshacl import validate
 
-    shapes = Graph()
-    _describe(model.ds, URIRef(shape), shapes)
     for node in nodes:
         shapes.add((URIRef(shape), SH.targetNode, node))
     _, report, text = validate(data, shacl_graph=shapes)
@@ -353,15 +354,19 @@ def _conforms(model: ModelGraph, shape: str, data: Graph, nodes: list[Node]) -> 
 
 def shape_conforms(model: ModelGraph, shape: str, node: str) -> tuple[bool, str]:
     """(conforms, pyshacl's report text) of example ``node`` against ``shape`` alone."""
-    data = Graph()
+    data, shapes = Graph(), Graph()
     _describe(model.ds, URIRef(node), data)
-    return _conforms(model, shape, data, [URIRef(node)])
+    _describe(model.ds, URIRef(shape), shapes)
+    return _conforms(shapes, shape, data, [URIRef(node)])
 
 
 def _literal(value: object, datatype: URIRef | None) -> Literal:
     """A JSON scalar as the literal a field of ``datatype`` holds: its JSON
-    lexical form with that datatype, or rdflib's mapping without one."""
-    if datatype is None or isinstance(value, bool):
+    lexical form with that datatype, or rdflib's mapping without one. A
+    string of an xsd:string field is a plain literal, as in
+    ``seams_runtime.contracts``: RDF 1.1 equates the two, rdflib does not,
+    and an sh:in list of labels holds plain literals."""
+    if datatype is None or isinstance(value, bool) or (isinstance(value, str) and datatype == XSD.string):
         return Literal(value)
     return Literal(str(value), datatype=datatype)
 
@@ -370,11 +375,13 @@ def response_conforms(model: ModelGraph, shape: str, data: object) -> tuple[bool
     """(conforms, report) of a JSON response body against ``shape`` alone.
 
     An object is one node; a list is one node per item. Each key that is the
-    local name of one of the shape's field paths becomes a triple on that
-    path (a list value, one per item), typed with the field's sh:datatype.
+    name of one of the shape's fields (``Field.name``) becomes a triple on
+    its path (a list value, one per item), typed with the field's sh:datatype.
     Other keys and null values are left out, so a key the shape does not
     name is not checked. A body that is neither an object nor a list of
-    objects does not conform."""
+    objects does not conform. The body is checked against the shape's
+    contract graph, lowered to the wire (ADR-0023 section 5), so a category
+    field's label and a flattened field's one value conform."""
     items = data if isinstance(data, list) else [data]
     if not all(isinstance(item, dict) for item in items):
         return False, f"expected a JSON object or a list of objects for {shape}, got {data!r}"
@@ -390,7 +397,9 @@ def response_conforms(model: ModelGraph, shape: str, data: object) -> tuple[bool
             for one in raw if isinstance(raw, list) else [raw]:
                 if one is not None:
                     graph.add((node, found.iri, _literal(one, found.datatype)))
-    return _conforms(model, shape, graph, nodes)
+    shapes = Graph()
+    shapes += shape_contract(model, shape).graph
+    return _conforms(shapes, shape, graph, nodes)
 
 
 # ── smoke tests (backlog A9): each operation called on a running app ─────────
@@ -815,8 +824,9 @@ def decision_route(model: ModelGraph, task: str, example: str, db: Path, handler
     if accepts.valid_examples:
         for f, v in accepts.example_values(accepts.valid_examples[0]):
             payload.setdefault(f.name, str(v))
+    names = {f.iri: f.name for f in accepts.fields()}
     for given in ex.givens:
-        payload[local_name(given.field)] = str(given.value)
+        payload[names.get(given.field, local_name(given.field))] = str(given.value)
     expected, flows = _expected_route(model, URIRef(task), ex)
 
     async def _run() -> tuple[str, object, list[dict]]:

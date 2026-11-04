@@ -17,9 +17,12 @@ existing file for writing, and it is not a ``GENERATORS`` entry, so neither
   own ``__init__.py`` (as the runtime imports them).
 - Each ``seam:acceptsShape`` and ``seam:returnsShape`` a module's functions
   use becomes a ``TypedDict`` named after the shape's local name, with one
-  key per ``sh:property`` (``Shape.fields()`` order): the ``sh:path`` local
-  name, typed by ``PYTHON_TYPES`` from its ``sh:datatype``. A field without
-  a datatype (``sh:class``, ``sh:node``) holds an IRI, a ``str``. A field
+  key per ``sh:property`` (``Shape.fields()`` order): the field's name
+  (``Field.name``: its ``sh:name``, else the ``sh:path`` local name,
+  ADR-0023), typed by ``PYTHON_TYPES`` from its ``sh:datatype``. A category field
+  reads as ``xsd:string`` (its labels) and a flattened ``sh:node`` field
+  takes its free property's datatype; a field still without a datatype (a
+  reference ``sh:class``) holds an IRI, a ``str``. A field
   without a positive ``sh:minCount`` is ``NotRequired``. A datatype outside
   the table raises ``GeneratorError(shape, sh:datatype)``.
 - For each operation, the ``proc:ServiceTask``s that ``seam:invokes`` it are
@@ -99,7 +102,7 @@ _PROG = "python -m seams_gen.stubs"
 
 @dataclass(frozen=True)
 class StubField:
-    name: str  # the sh:path local name
+    name: str  # Field.name: sh:name, else the sh:path local name
     annotation: str  # the Python type, wrapped in NotRequired when not required
     iri: str  # the sh:path IRI
     origins: tuple[str, ...] = ()  # the shape, then the module's operations that use it (sorted)
@@ -206,8 +209,8 @@ def _stub_class(model: ModelGraph, shape) -> StubClass:
                 shape.iri, SH.datatype, f"{model.compact(f.iri)}: no Python type for {f.datatype} (mapped: {known})"
             )
         if any(seen.name == f.name for seen in fields):
-            raise GeneratorError(shape.iri, SH.path, f"two sh:path local names are {f.name!r}")
-        _identifier(f.name, shape.iri, SH.path, "the sh:path local name")
+            raise GeneratorError(shape.iri, SH.path, f"two field names are {f.name!r}")
+        _identifier(f.name, shape.iri, SH.path, "the field name")
         fields.append(StubField(f.name, python if f.required else f"NotRequired[{python}]", str(f.iri)))
     summary = f"{model.compact(shape.iri)} ({model.compact(SH.NodeShape)}): one key per {model.compact(SH.property)}."
     return StubClass(name, str(shape.iri), summary, tuple(fields))

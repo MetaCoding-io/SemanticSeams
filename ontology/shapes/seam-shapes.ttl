@@ -408,17 +408,27 @@ seamsh:CompletedOnFormShape a sh:NodeShape ;
     sh:property [ sh:path [ sh:inversePath seam:completedOn ] ; sh:maxCount 1 ;
         sh:message "A form is seam:completedOn by at most one user task (ADR-0009)." ] .
 
-# A form input is bound to a field of the shape the form writes.
+# A form input is bound to a field of the shape the form writes: a property
+# with a value a person enters. That is an sh:datatype property, a category
+# property (sh:class of a gist:Category subclass, or sh:in of IRIs) or a
+# flattened sh:node property, bound by its outer path (ADR-0023).
 seamsh:BoundToWrittenShape a sh:NodeShape ;
     sh:targetSubjectsOf ifml:boundTo ;
     sh:sparql [
-        sh:message "A parameter of an ifml:Form is ifml:boundTo the sh:path of a datatype property of the shape the form seam:writes." ;
+        sh:message "A parameter of an ifml:Form is ifml:boundTo the sh:path of a datatype, category or flattened sh:node property of the shape the form seam:writes." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this ifml:boundTo ?value .
                 ?form a ifml:Form ; ifml:hasParameter $this ; seam:writes ?shape .
-                FILTER NOT EXISTS { ?shape sh:property ?p . ?p sh:path ?value ; sh:datatype ?datatype }
+                FILTER NOT EXISTS {
+                    ?shape sh:property ?p . ?p sh:path ?value .
+                    { ?p sh:datatype ?datatype }
+                    UNION { ?p sh:node ?node }
+                    UNION { ?p sh:class ?category .
+                            ?category rdfs:subClassOf+ <https://w3id.org/semanticarts/ns/ontology/gist/Category> }
+                    UNION { ?p sh:in/rdf:first ?member . FILTER isIRI(?member) }
+                }
             }""" ;
     ] .
 

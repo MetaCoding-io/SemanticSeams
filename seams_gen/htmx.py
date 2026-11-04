@@ -98,12 +98,12 @@ class Val:
 
 @dataclass(frozen=True)
 class Field:
-    name: str  # local name of sh:path
-    kind: str  # "textarea" (dash:TextAreaEditor), "datetime", "enum" (sh:in) or "text"
+    name: str  # Field.name: sh:name, else the local name of sh:path (ADR-0023)
+    kind: str  # "textarea" (dash:TextAreaEditor), "datetime", "enum" (options) or "text"
     order: int | None
     max_length: int | None
     required: bool  # sh:minCount >= 1
-    options: tuple[str, ...] = ()  # sh:in values, in list order
+    options: tuple[str, ...] = ()  # Field.options: sh:in values or category member labels, in order
     is_textarea: bool = False
     is_datetime: bool = False
     iri: str = ""  # the shape's full IRI, its origin in a generation trace (ADR-0019)
@@ -154,7 +154,7 @@ class Input:
     name: str
     element: str  # "textarea", "input" or (task forms only) "select"
     attributes: tuple[str, ...]
-    options: tuple[str, ...] = ()  # a select's sh:in values
+    options: tuple[str, ...] = ()  # a select's options (Field.options)
     is_select: bool = False
     indent: str = ""  # aligns continuation attributes under the first
     attribute_items: tuple[Item, ...] = ()  # attributes, the last followed by the tag closer
@@ -580,13 +580,9 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
         raise GeneratorError(c.iri, SEAM.writes, "an ifml:Form must write a shape")
     submit = _submit(model, c, presenter, fill_param, mintable)
     fields = _fields(writes)
-    bound = {local_name(p.bound_to): p.iri for p in c.parameter_bindings if p.bound_to is not None}
-    by_name = {fl.name: fl for fl in fields}
-    unknown = sorted(set(bound) - set(by_name))
-    if unknown:
-        raise GeneratorError(
-            bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes.iri}"
-        )
+    bound, unknown = _bound(c.parameter_bindings, writes)
+    if unknown is not None:
+        raise GeneratorError(unknown[1], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes.iri}")
     prefix = base["id"]
     suffix = "_" + local_name(ctype).lower()
     if prefix.endswith(suffix) and len(prefix) > len(suffix):
@@ -626,6 +622,19 @@ def _fields(shape) -> tuple[Field, ...]:
         )
     fields.sort(key=lambda fl: (fl.order is None, fl.order or 0, fl.name))
     return tuple(fields)
+
+
+def _bound(parameters, writes) -> tuple[set[str], tuple[str, URIRef] | None]:
+    """(names, unknown): the names of the fields of ``writes`` that
+    ``parameters`` are ifml:boundTo, and the first parameter bound to no
+    datatype field as (its path's local name, its IRI), or None. A parameter
+    is bound to a field's sh:path (for a flattened field, the outer path)
+    and the input takes the field's name (ADR-0023)."""
+    names = {prop.iri: prop.name for prop in writes.fields() if prop.datatype is not None}
+    paths = {local_name(p.bound_to): (p.bound_to, p.iri) for p in parameters if p.bound_to is not None}
+    unknown = sorted(name for name, (path, _iri) in paths.items() if path not in names)
+    first = (unknown[0], paths[unknown[0]][1]) if unknown else None
+    return {names[path] for path, _iri in paths.values() if path in names}, first
 
 
 def _flow(model: Model, flow) -> Flow:
@@ -797,13 +806,9 @@ def _task_form(model: Model, form, task, presenter) -> TaskForm:
             f"so the completion of {task.iri} cannot name its instance",
         )
     fields = _fields(writes)
-    bound = {local_name(p.bound_to): p.iri for p in form.parameter_bindings if p.bound_to is not None}
-    by_name = {fl.name for fl in fields}
-    unknown = sorted(set(bound) - by_name)
-    if unknown:
-        raise GeneratorError(
-            bound[unknown[0]], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes.iri}"
-        )
+    bound, unknown = _bound(form.parameter_bindings, writes)
+    if unknown is not None:
+        raise GeneratorError(unknown[1], IFML.boundTo, f"{unknown[0]!r} is not a datatype sh:path of {writes.iri}")
     prefix = local_name(form.iri)
     if prefix.endswith("_form") and len(prefix) > len("_form"):
         prefix = prefix[: -len("_form")]
@@ -873,8 +878,9 @@ def _screen_components(model: Model, presenter, task_forms, built_ids, sse_chann
 
 
 def _task_input(prefix: str, fl: Field) -> Input:
-    """A task form field: an sh:in enumeration is a <select> of its values in
-    list order; anything else is the page's ``_input``."""
+    """A task form field: a field with options (an sh:in list or a category,
+    ADR-0023) is a <select> of its options in order; anything else is the
+    page's ``_input``."""
     if not fl.options:
         return _input(prefix, fl)
     attributes = (f'name="{fl.name}"',) + (("required",) if fl.required else ())

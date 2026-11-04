@@ -28,7 +28,7 @@ model.hash        # "sha256:..."
 model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...))]
 ```
 
-- `seams.load(path=None, *, ontology_dir=None, check_versions=True) -> Model`
+- `seams.load(path=None, *, ontology_dir=None, check_versions=True, check_imports=True) -> Model`
   loads a model.
   - A **file** is parsed as TriG; payloads resolve against its directory.
   - A **directory** loads every `*.trig` directly inside it (not recursive,
@@ -38,7 +38,8 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
     An explicit path always wins; an unset or empty variable raises
     `ValueError`.
   - The model passes the vocabulary version check first (see
-    [Vocabulary versions](#vocabulary-versions)).
+    [Vocabulary versions](#vocabulary-versions)), then the ontology import check
+    (see [Ontology imports](#ontology-imports)).
 - `Model` exposes `path`, `base_dir`, `files` (the TriG files loaded), `ds`
   (the merged rdflib `Dataset`, `default_union=True`), `subject`, `curie(term)`,
   `label(iri)`, `payload_path(model_iri)` and:
@@ -55,6 +56,10 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
     the rule the generators use.
   - `hash`: computed once per instance.
   - `migrations`: the vocabulary migration steps applied on load, sorted.
+  - `ontology_dir`: the ontology directory the checks used, or None when there is none.
+  - `imports`: the vendored ontologies the model's ontology imports, sorted by
+    version IRI; `import_statuses`: the `ImportStatus` of each import, read even
+    with `check_imports=False`.
   - `payloads()`: `(relative posix path, absolute path)` for every
     `seam:renderPayload`, sorted by relative path. A missing payload raises
     `ResolutionError`.
@@ -113,7 +118,7 @@ vocabulary it does not declare targets `1.0`.
 
 ```python
 model = seams.load("examples/expenses/chapter-01", ontology_dir="tests/fixtures/vocab-v2")
-model.migrations  # (MigrationStep(vocabulary='seam', source='1.0', target='2.0'),)
+model.migrations  # (MigrationStep(vocabulary='seam', source='1.1', target='2.0'),)
 ```
 
 - `DEFAULT_ONTOLOGY_DIR`: the repository's `ontology/`, which `load` checks against
@@ -141,6 +146,42 @@ model.migrations  # (MigrationStep(vocabulary='seam', source='1.0', target='2.0'
 - `version_iri(name, (major, minor))`: `https://w3id.org/seams/<name>/MAJOR.MINOR`.
 
 Migration happens in memory only: no file is written and `model.hash` is unchanged.
+
+## Ontology imports
+
+A `seam:Ontology` model is also an `owl:Ontology`
+([ADR-0022](/adr/0022-ontology-notation)); its `owl:imports` name the version IRIs of
+the ontologies it builds on. `seams.load` resolves them offline against the files in
+`<ontology_dir>/vendor/` (`VENDOR_DIR`), never over the network, and never merges
+their triples into `model.ds`, so `model.hash`, SHACL and the generators see only the
+model.
+
+```python
+model = seams.load("model.trig")
+model.imports  # (VendoredOntology(ontology=…/gistCore, version=…/gistCore14.0.0, path=…),)
+```
+
+- `vendored_ontologies(ontology_dir)`: a `VendoredOntology(ontology, version, path)`
+  per `vendor/*.ttl`, read from the file's own `owl:Ontology` and `owl:versionIRI`,
+  sorted by version IRI. A file without exactly one of each raises `ResolutionError`.
+- `vendored_graph(vendored)`: the file's triples as a read-only graph.
+- `import_statuses(ds, ontology_dir)`: an `ImportStatus(ontology, imported, vendored,
+  detail)` per import of each `seam:Ontology` model, sorted by (ontology, import);
+  `resolved` and `error` (the `ResolutionError`, or None) derive from it.
+- `check_imports(ds, ontology_dir)`: the check `load` runs. A vendored version IRI
+  resolves; the first fault raises `ResolutionError(<ontology>, owl:imports, detail)`:
+  a mismatch, also for the bare ontology IRI
+  (`"imports gistCore14.1.0; the vendored version is gistCore14.0.0"`), a SemanticSeams
+  vocabulary version, which belongs in the manifest graph (ADR-0021), or anything else
+  (`"imports <iri>, which no file in ontology/vendor/ declares"`).
+  `check_imports=False` skips it.
+
+`model.ontologies` lists the ontology models as `Ontology` (`version_iri`, `imports`,
+`classes()`). An `OntologyClass` has `label`, `definition` (`skos:definition`),
+`properties` (by `rdfs:domain`) and `superclasses`: a sorted tuple of
+`Superclass(iri, label, definition, source)`, where `source` is the model that declares
+the superclass, the version IRI of the resolved import that declares it (labelled from
+its `skos:prefLabel`), or None when neither does.
 
 ## Views
 

@@ -53,6 +53,37 @@ installed copy of `seams` outside the workspace, such as the runtime image).
 `check_versions=False` loads the model as written. `seams.check_versions(ds,
 dir)` runs the check on a Dataset directly.
 
+## Ontology imports
+
+A `seam:Ontology` model is also an `owl:Ontology` (ADR-0022), and its
+`owl:imports` name the version IRIs of the ontologies it builds on, such as
+`<https://w3id.org/semanticarts/ontology/gistCore14.0.0>`. `seams.load` resolves
+them offline (`ontologies.py`) against the files in `<ontology_dir>/vendor/`
+(`ontology/vendor/`, see its README), each indexed by the `owl:Ontology` IRI and
+`owl:versionIRI` in its own header (`seams.vendored_ontologies(dir)`). Imports are
+checked in sorted order and the first fault raises `ResolutionError(<ontology>,
+owl:imports, detail)`:
+
+- a vendored file's version IRI resolves; `model.imports` lists the
+  `VendoredOntology`s (`ontology`, `version`, `path`) resolved;
+- the bare ontology IRI, or another version of it, is a mismatch: `"imports
+  gistCore14.1.0; the vendored version is gistCore14.0.0"`;
+- a SemanticSeams vocabulary version belongs in the manifest graph instead;
+- anything else is unresolved: `"imports <iri>, which no file in ontology/vendor/
+  declares"`.
+
+`check_imports=False` loads without the check; `model.import_statuses` then
+reports each import as an `ImportStatus` (`ontology`, `imported`, `vendored`,
+`detail`, `resolved`, `error`) without raising. Imported triples are never merged
+into `model.ds`, so the hash, SHACL and the generators see only the model.
+
+`model.ontologies` lists the ontology models (`Ontology`: `version_iri`, `imports`,
+`classes()`); each `OntologyClass` has its `label`, `definition`
+(`skos:definition`), `properties` (by `rdfs:domain`) and `superclasses`, sorted, as
+`Superclass` (`iri`, `label`, `definition`, `source`). `source` is the model that
+declares the superclass, the version IRI of the vendored import that does (its
+label from `skos:prefLabel` there), or None when neither does, a likely typo.
+
 `ModelGraph.store_plan()` resolves which store the runtime keeps its rows in
 (ADR-0011) from `deploy:storeKind`, `deploy:connectsTo` and `seam:storedIn`,
 returning a `StorePlan` (`kind`, `store`, `container`, `key`, `declared`). A

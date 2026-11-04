@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 
 from rdflib.namespace import SH
 
-from ..namespaces import COMM, HYDRA, ODRL, PROC, STATE, VERIFY
+from ..namespaces import COMM, HYDRA, ODRL, PROC, SEAM, STATE, VERIFY
+from ..ontologies import ontology_models
 from ._base import Element, HasIri, Many, Views
 from .architecture import (
     Architecture,
@@ -32,6 +33,7 @@ from .architecture import (
 from .decisions import Decision, all_decisions
 from .interfaces import Component, Event, Flow, InteractionModel, Interfaces, Page, Parameter, ParameterBinding
 from .lifecycles import Lifecycle, Lifecycles, State, Transition
+from .ontologies import Ontology, OntologyClass, Superclass
 from .operations import Channel, Operation, PathTemplate, Status
 from .policies import Policy
 from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes
@@ -70,6 +72,8 @@ __all__ = [
     "Lifecycles",
     "Many",
     "MessageStart",
+    "Ontology",
+    "OntologyClass",
     "Operation",
     "Override",
     "Page",
@@ -86,6 +90,7 @@ __all__ = [
     "State",
     "Status",
     "Step",
+    "Superclass",
     "System",
     "Transition",
     "Views",
@@ -96,6 +101,7 @@ __all__ = [
     "decisions",
     "interfaces",
     "lifecycles",
+    "ontologies",
     "operations",
     "policies",
     "processes",
@@ -122,6 +128,13 @@ def channels(model: Model) -> Many[Channel]:
 def shapes(model: Model) -> Many[Shape]:
     views = model.views
     return views.view("shapes", lambda: views.all(Shape, SH.NodeShape))
+
+
+def ontologies(model: Model) -> Many[Ontology]:
+    views = model.views
+    return views.view(
+        "ontologies", lambda: views.many(Ontology, ontology_models(views.ds), model.subject, SEAM.notation)
+    )
 
 
 def lifecycles(model: Model) -> Lifecycles:

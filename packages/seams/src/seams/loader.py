@@ -18,6 +18,9 @@ from rdflib.term import Node
 
 from .errors import ResolutionError
 from .namespaces import SEAM, local_name
+from .ontologies import ImportStatus, VendoredOntology
+from .ontologies import check_imports as _check_imports
+from .ontologies import import_statuses as _import_statuses
 from .vocabularies import MigrationStep
 from .vocabularies import check_versions as _check_versions
 
@@ -33,6 +36,7 @@ if TYPE_CHECKING:
         Interfaces,
         Lifecycles,
         Many,
+        Ontology,
         Operation,
         Policy,
         Processes,
@@ -80,6 +84,14 @@ class Model:
     ``ontology_dir`` the repository's ``ontology/`` is used, and the check is
     skipped when there is none (an installed ``seams`` outside the
     workspace). ``check_versions=False`` keeps the model as written.
+
+    The ``owl:imports`` of every ``seam:Ontology`` model are resolved against
+    ``ontology_dir/vendor`` (ADR-0022, ``seams.ontologies``): ``imports`` lists
+    the vendored ontologies they name, sorted by version IRI, and the first
+    import that does not resolve raises ``ResolutionError(<ontology>,
+    owl:imports)``. ``check_imports=False`` loads without the check, and
+    ``import_statuses`` reports each import's status instead. ``ontology_dir``
+    is the directory both checks used, or None when there is none.
     """
 
     def __init__(
@@ -89,6 +101,7 @@ class Model:
         *,
         ontology_dir: str | os.PathLike[str] | None = None,
         check_versions: bool = True,
+        check_imports: bool = True,
     ) -> None:
         resolved = Path(path).resolve()
         self.path: Path = resolved
@@ -106,18 +119,23 @@ class Model:
             dataset = Dataset(default_union=True)
             for trig in self.files:
                 dataset.parse(str(trig), format="trig")
+        vocabularies = Path(ontology_dir) if ontology_dir is not None else DEFAULT_ONTOLOGY_DIR
+        self.ontology_dir: Path | None = vocabularies.resolve() if vocabularies.is_dir() else None
+        if ontology_dir is not None and self.ontology_dir is None and (check_versions or check_imports):
+            raise FileNotFoundError(f"no ontology directory {vocabularies}")
         self.migrations: tuple[MigrationStep, ...] = ()
-        if check_versions:
-            vocabularies = Path(ontology_dir) if ontology_dir is not None else DEFAULT_ONTOLOGY_DIR
-            if ontology_dir is not None or vocabularies.is_dir():
-                if not vocabularies.is_dir():
-                    raise FileNotFoundError(f"no ontology directory {vocabularies}")
-                self.migrations = _check_versions(dataset, vocabularies)
+        self.imports: tuple[VendoredOntology, ...] = ()
+        if self.ontology_dir is not None:
+            if check_versions:
+                self.migrations = _check_versions(dataset, self.ontology_dir)
+            if check_imports:
+                self.imports = _check_imports(dataset, self.ontology_dir)
         self.ds: Dataset = dataset
         # Per-instance cache (never a module-level id()-keyed dict; see MEM010).
         self._hash: str | None = None
         self._views: Views | None = None
         self._ns: list[tuple[str, str]] | None = None
+        self._import_statuses: tuple[ImportStatus, ...] | None = None
 
     @property
     def hash(self) -> str:
@@ -208,6 +226,14 @@ class Model:
             seen[_relpath(path, self.base_dir)] = path
         return sorted(seen.items())
 
+    @property
+    def import_statuses(self) -> tuple[ImportStatus, ...]:
+        """Every ontology import and whether it resolves, sorted by (ontology,
+        import); read even when the model was loaded with ``check_imports=False``."""
+        if self._import_statuses is None:
+            self._import_statuses = _import_statuses(self.ds, self.ontology_dir)
+        return self._import_statuses
+
     # ── typed views (seams.views) ──
 
     @property
@@ -246,6 +272,13 @@ class Model:
         from . import views
 
         return views.shapes(self)
+
+    @property
+    def ontologies(self) -> Many[Ontology]:
+        """Every seam:Ontology model (ADR-0022), by IRI."""
+        from . import views
+
+        return views.ontologies(self)
 
     @property
     def lifecycles(self) -> Lifecycles:
@@ -330,6 +363,7 @@ def load(
     *,
     ontology_dir: str | os.PathLike[str] | None = None,
     check_versions: bool = True,
+    check_imports: bool = True,
 ) -> Model:
     """Load a model from a TriG file or a directory of ``*.trig`` files.
 
@@ -339,16 +373,17 @@ def load(
 
     The vocabulary versions the model declares are checked against
     ``ontology_dir`` (default: the repository's ``ontology/``) and an older
-    model is migrated in memory (ADR-0021); see ``Model``.
+    model is migrated in memory (ADR-0021), and its ontology imports are
+    resolved against the vendored ontologies (ADR-0022); see ``Model``.
     """
     if path is None:
         env = os.environ.get(MODEL_ENV, "")
         if not env:
             raise ValueError(f"no model path given and {MODEL_ENV} is not set")
         path = env
-    return Model(path, ontology_dir=ontology_dir, check_versions=check_versions)
+    return Model(path, ontology_dir=ontology_dir, check_versions=check_versions, check_imports=check_imports)
 
 
 def model_hash(path: str | os.PathLike[str]) -> str:
     """The hash of the model at ``path`` (see ``Model.hash``)."""
-    return Model(path, check_versions=False).hash
+    return Model(path, check_versions=False, check_imports=False).hash

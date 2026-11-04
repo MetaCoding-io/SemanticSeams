@@ -41,6 +41,13 @@ depends on, narrowed to the ones it uses) and a context hash.
 migrated in memory with the SPARQL Update steps under ``ontology/migrations``,
 and ``Model.migrations`` lists the ``MigrationStep``s applied.
 
+``seams.ontologies`` resolves the ``owl:imports`` of ``seam:Ontology``
+models (ADR-0022) that ``load`` checks: an import names the version IRI of a
+file vendored under ``ontology/vendor``, resolved offline; ``Model.imports``
+lists the ``VendoredOntology``s resolved and ``Model.import_statuses`` the
+``ImportStatus`` of each import. ``model.ontologies`` lists the ontology
+models, their ``OntologyClass``es and each class's ``Superclass``es.
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
@@ -81,6 +88,15 @@ from .graph import (
 )
 from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_hash, payload_path
 from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, VERIFY, local_name
+from .ontologies import (
+    VENDOR_DIR,
+    ImportStatus,
+    VendoredOntology,
+    check_imports,
+    import_statuses,
+    vendored_graph,
+    vendored_ontologies,
+)
 from .review_check import ReviewFinding, review_findings
 from .sparql import PREFIXES, load_question, question_names
 from .views import (
@@ -111,6 +127,8 @@ from .views import (
     Lifecycles,
     Many,
     MessageStart,
+    Ontology,
+    OntologyClass,
     Operation,
     Override,
     Page,
@@ -127,6 +145,7 @@ from .views import (
     State,
     Status,
     Step,
+    Superclass,
     System,
     Transition,
     Volume,
@@ -178,6 +197,7 @@ __all__ = [
     "IFML",
     "IMPLEMENTATION_KINDS",
     "Implementation",
+    "ImportStatus",
     "InputBinding",
     "InteractionModel",
     "Interfaces",
@@ -191,6 +211,8 @@ __all__ = [
     "Model",
     "ModelGraph",
     "ODRL",
+    "Ontology",
+    "OntologyClass",
     "Operation",
     "OperationPath",
     "OutputBinding",
@@ -226,14 +248,18 @@ __all__ = [
     "Step",
     "StoreFinding",
     "StorePlan",
+    "Superclass",
     "System",
     "TableInput",
     "TableOutput",
     "Transition",
     "UndeniedPermission",
+    "VENDOR_DIR",
     "VERIFY",
+    "VendoredOntology",
     "Volume",
     "bpmn_start_event_ids",
+    "check_imports",
     "check_versions",
     "condition_findings",
     "context_for",
@@ -242,6 +268,7 @@ __all__ = [
     "declared_versions",
     "dmn_decision_ids",
     "dmn_input_types",
+    "import_statuses",
     "load",
     "load_question",
     "local_name",
@@ -256,5 +283,7 @@ __all__ = [
     "type_ref_findings",
     "unexercised_paths",
     "unfired_transitions",
+    "vendored_graph",
+    "vendored_ontologies",
     "version_iri",
 ]

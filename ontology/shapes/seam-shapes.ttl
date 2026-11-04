@@ -482,6 +482,34 @@ seamsh:FiresShape a sh:NodeShape ;
     sh:message "Only a proc:Task seam:fires a transition." .
 
 #################################################################
+# Ontology models (ADR-0022)
+#################################################################
+
+# A seam:Ontology model is the owl:Ontology it declares: its IRI is the ontology
+# IRI, and its one owl:versionIRI is the version other models import.
+seamsh:OntologyModelShape a sh:NodeShape ;
+    sh:targetClass seam:Model ;
+    sh:sparql [
+        sh:message "A seam:Ontology model is also an owl:Ontology with exactly one owl:versionIRI." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this seam:notation seam:Ontology .
+                FILTER (NOT EXISTS { $this a <http://www.w3.org/2002/07/owl#Ontology> }
+                    || NOT EXISTS { $this <http://www.w3.org/2002/07/owl#versionIRI> ?version }
+                    || EXISTS { $this <http://www.w3.org/2002/07/owl#versionIRI> ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] .
+
+# A class a model declares is an element of that model, with a label (ADR-0002 rule 3).
+seamsh:OntologyClassShape a sh:NodeShape ;
+    sh:targetClass owl:Class ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ;
+        sh:message "Every owl:Class a model declares has an rdfs:label." ] ;
+    sh:property [ sh:path seam:inModel ; sh:minCount 1 ;
+        sh:message "Every owl:Class a model declares is seam:inModel its ontology model." ] .
+
+#################################################################
 # Communication contracts
 #################################################################
 

@@ -54,8 +54,11 @@ def default_out(name: str) -> Path:
     return Path(f"seams-{name}")
 
 
-def scaffold(name: str, reference: Path) -> dict[str, str]:
-    """{relative posix path: text} of the generator package for ``reference``."""
+def scaffold(name: str, reference: Path, extract: str | None = None) -> dict[str, str]:
+    """{relative posix path: text} of the generator package for ``reference``.
+    ``extract`` is the Python source of the package's extract step, its imports
+    and ``def extract``; None keeps EXTRACT (``seams draft-generator`` passes a
+    drafted one, ADR-0029)."""
     if not NAME.match(name):
         raise NewGeneratorError(
             f"generator name {name!r} must be lowercase letters, digits and underscores, starting with a letter"
@@ -76,9 +79,10 @@ def scaffold(name: str, reference: Path) -> dict[str, str]:
         raise NewGeneratorError(f"the reference must parse as its file type: {err}") from None
     package = f"seams_{name}"
     fields = {"name": name, "package": package, "output": reference.name, "version": VERSION}
+    step = (EXTRACT if extract is None else extract).strip("\n")
     return {
         "pyproject.toml": PYPROJECT.substitute(fields),
-        f"{package}/__init__.py": PACKAGE.substitute(fields, output_literal=repr(reference.name)),
+        f"{package}/__init__.py": PACKAGE.substitute(fields, output_literal=repr(reference.name), extract=step),
         f"{package}/templates/{reference.name}": text,
         f"tests/golden/{reference.name}": golden,
         f"tests/test_{name}.py": TEST.substitute(fields),
@@ -167,6 +171,15 @@ build-backend = "hatchling.build"
 packages = ["$package"]
 """)
 
+# The scaffold's extract step: its view model holds only the model hash. It
+# goes in at $extract in PACKAGE, which imports Path and seams before it.
+EXTRACT = '''\
+def extract(trig: Path, out: Path) -> dict:
+    """The view model: every value the template outputs, read from the model at ``trig``."""
+    model = seams.load(trig)
+    return {"model_hash": model.hash}
+'''
+
 PACKAGE = Template('''\
 """The $name generator, scaffolded by `seams new-generator`.
 
@@ -186,10 +199,7 @@ TEMPLATES = Path(__file__).resolve().parent / "templates"
 OUTPUT = $output_literal
 
 
-def extract(trig: Path, out: Path) -> dict:
-    """The view model: every value the template outputs, read from the model at ``trig``."""
-    model = seams.load(trig)
-    return {"model_hash": model.hash}
+$extract
 
 
 def render(view: dict) -> dict[str, str]:
@@ -268,4 +278,4 @@ def test_sources_name_the_generated_files(tmp_path):
 ''')
 
 
-__all__ = ["NewGeneratorError", "default_out", "new_generator", "scaffold"]
+__all__ = ["EXTRACT", "NewGeneratorError", "check_out", "default_out", "new_generator", "scaffold", "write"]

@@ -1,0 +1,4 @@
+# The processes of the chat app, written by hand.
+processes:
+  - iri: "https://example.org/chat/send_message_process"
+    label: "Send Message Process"

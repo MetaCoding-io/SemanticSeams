@@ -63,10 +63,11 @@ gateway's built-in stub). CI runs the same stack end to end.
 
 [`docs/tutorials/expenses/`](docs/tutorials/expenses/index.md) is the slower track: build
 an expense approval app yourself, one layer per chapter, from an empty TriG file to the
-whole system under `docker compose up`. All nine chapters (architecture, data, screens,
-process, rules, lifecycle, permissions, growing up with an asynchronous payout, and a
-hand-written service task with an error path it catches) are written; CI checks each chapter's checkpoint model in `examples/expenses/` and runs the
-last one under docker compose.
+whole system under `docker compose up`. All ten chapters (architecture, data, screens,
+process, rules, lifecycle, permissions, growing up with an asynchronous payout, a
+hand-written service task with an error path it catches, and the expenses moved into a
+SemPKM store) are written; CI checks each chapter's checkpoint model in `examples/expenses/` and runs
+chapter 9 under docker compose.
 
 ## Generators
 

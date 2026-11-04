@@ -23,10 +23,12 @@ triple is there.
 | 7 | [People and permissions](./07-permissions) | Employee, manager and finance roles, a policy on the submit operation and on each user task, and a payment task | A 403 for the wrong role, an expense ending paid, and the viewer naming the screens an employee can use that write a payment |
 | 8 | [Growing up](./08-growing-up) | A payouts channel, a payout process started from it with its own decision and payment lifecycle, a finance console, deploy facts, and where the data lives (a PostgreSQL store the shapes are `seam:storedIn`) | The payout running on its own after finance pays, the whole system under `docker compose up`, and the complexity check passing |
 | 9 | [Hand-written code](./09-hand-written-code) | A Notify Manager service task whose operation is `seam:implementedBy` a Python function, the stub that function starts from, the function itself, and an error it declares with a boundary event that catches it | The manager's notification stored before the approval task opens, `seams generate` leaving your code alone, and an unsendable notification taking the expense to finance |
+| 10 | [Expenses in SemPKM](./10-sempkm) | A `deploy:SemPKM` store and its triplestore, a URL binding that `deploy:connectsTo` it and a secret token binding that `deploy:authenticatesTo` it, and `:ExpenseShape` `seam:storedIn` it | Expenses stored in SemPKM under the IRIs it mints and read back through SPARQL, the process unchanged, SemPKM's services in the compose files, and `/healthz` reporting the store |
 
-All nine chapters are written. Chapter 8 ends with the whole system running under
+All ten chapters are written. Chapter 8 ends with the whole system running under
 `docker compose up` and a model large enough to pass `python -m seams_gen.complexity`.
 Chapter 9 adds the one piece the model cannot generate: a function you write yourself.
+Chapter 10 moves the expenses into SemPKM without changing a line of code.
 
 ## Prerequisites
 
@@ -61,6 +63,7 @@ examples/expenses/chapter-06/expenses.trig
 examples/expenses/chapter-07/expenses.trig
 examples/expenses/chapter-08/expenses.trig
 examples/expenses/chapter-09/expenses.trig
+examples/expenses/chapter-10/expenses.trig
 ```
 
 Each checkpoint is the previous one plus that chapter's additions, so a `diff` between
@@ -80,7 +83,8 @@ the [seam shapes](/reference/shapes) and opens it in the viewer
 chapter 4 on (`tests/test_expense_process_app.py`), checks chapter 6's lifecycle guard
 (`tests/test_expense_lifecycle.py`), chapter 7's roles (`tests/test_expense_roles.py`), chapter 8's payout
 (`tests/test_expense_payout.py`) and chapter 9's hand-written handler
-(`tests/test_expense_handler.py`, and `tests/test_expense_e2e.py` under docker compose),
+(`tests/test_expense_handler.py`, and `tests/test_expense_e2e.py` under docker compose)
+and chapter 10's SemPKM store (`tests/test_expense_sempkm.py`),
 and checks that every model excerpt on these pages
 appears verbatim in its chapter's checkpoint (`tests/test_expense_tutorial_doc.py`).
 

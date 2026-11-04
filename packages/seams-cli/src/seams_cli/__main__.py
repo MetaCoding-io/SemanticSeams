@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+"""Command line: ``seams generate|check|migrate|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams propose TASK [--provider CMD] [--force]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
@@ -87,6 +87,15 @@ MODEL is a TriG file or a directory; without it the project's model is used.
 count of each goes to stderr as ``seams coverage: ...`` and the exit code is
 1; a model that cannot be loaded exits 2.
 
+``seams migrate [--project PATH] [--model PATH]`` (ADR-0021) writes the
+vocabulary migrations ``seams.load`` would apply in memory into the model's
+TriG files, as one patch through the seams_edit text writer (ADR-0017), so
+comments and layout survive. Each step prints as
+``migrated <vocabulary> <from> <to>``, then each written file's path. A model
+already on the shipped vocabularies prints ``seams migrate: nothing to
+migrate`` to stderr, writes nothing and exits 0. A newer model, a missing
+step or a patch the writer refuses exits 2 and writes nothing.
+
 ``seams secrets [--env NAME] [--write-example] [--json]`` (M016/S04) lists
 every configuration key of each arch:Environment's containers, as
 ``Container.for_environment`` merges them, and prints
@@ -143,6 +152,7 @@ from pathlib import Path
 
 import seams
 
+from seams_edit import PatchError
 from seams_gen import GeneratorError
 
 from .check import ADVISORY_KINDS, FILE_KINDS, run_check
@@ -154,6 +164,7 @@ from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
 from .generate import apply, generate_project
 from .lockfile import locate
+from .migrate import migrate
 from .new_generator import NewGeneratorError, new_generator
 from .plan import render, resolve
 from .project import ProjectError, load_project, resolve_model
@@ -188,6 +199,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _project_arguments(check)
     check.set_defaults(run=_check)
+    mig = sub.add_parser(
+        "migrate",
+        help="write the vocabulary migrations a model needs into its TriG files, keeping comments",
+        description="Migrate the model's files to the shipped vocabulary versions through the one write path.",
+    )
+    _project_arguments(mig)
+    mig.set_defaults(run=_migrate)
     status = sub.add_parser(
         "status",
         help="report whether each running runtime container is on the current model",
@@ -350,6 +368,18 @@ def _check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrate(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    result = migrate(resolve_model(project, args.model))
+    for step in result.steps:
+        print(f"migrated {step.vocabulary} {step.source} {step.target}")
+    for path in result.files:
+        print(_display(path))
+    if not result.steps:
+        print("seams migrate: nothing to migrate", file=sys.stderr)
+    return 0
+
+
 def _status(args: argparse.Namespace) -> int:
     project = load_project(args.project)
     model = resolve_model(project, args.model)
@@ -495,7 +525,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("sequence: --db needs --trace")
     try:
         return args.run(args)
-    except (ProjectError, GeneratorError, seams.ResolutionError, NewGeneratorError) as err:
+    except (ProjectError, GeneratorError, seams.ResolutionError, NewGeneratorError, PatchError) as err:
         print(f"seams {args.command}: {err}", file=sys.stderr)
         return EXIT_PROJECT_ERROR
     except OSError as err:

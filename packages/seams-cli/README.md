@@ -143,6 +143,28 @@ lenient outputs check turns into a finding, plus a missing, unparsable or
 non-SELECT gate, an unknown `coverage` entry or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-check).
 
+## seams migrate
+
+```sh
+seams migrate --project examples/expenses/chapter-01
+```
+
+It writes the vocabulary migrations that `seams.load` applies in memory into
+the model's TriG files (ADR-0021 section 5, `migrate.py`). It reads the files as
+written (`seams_edit.text_quads`), runs `seams.check_versions` on a copy, and
+applies the per-graph difference as one patch through the `seams_edit` text
+writer (ADR-0017), so comments and layout outside the changed triples survive.
+The manifest graph's `owl:imports` declaration is rewritten to the shipped
+version. Each step prints as `migrated <vocabulary> <from> <to>`, then each
+written file's path. A model already on the shipped vocabularies prints
+`seams migrate: nothing to migrate` to stderr, writes nothing and exits 0, so
+a second run is a no-op. A model newer than the tool, a missing migration step
+or a patch the writer refuses (a directory model whose new declaration no file's
+`<urn:seams:graph:manifest> { }` block can take) exits 2 and writes nothing.
+`migrate(model, ontology_dir)` takes the vocabulary tree to migrate against
+(default the repository's `ontology/`). See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-migrate).
+
 ## seams status
 
 ```sh

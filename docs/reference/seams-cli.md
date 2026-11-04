@@ -3,7 +3,8 @@
 `seams` is the command line for a Semantic Seams project. It reads a project
 file, `seams.toml`, kept next to an app's model. `seams generate` runs every
 generator the file names; `seams check` fails when the model, its gate queries
-or the generated outputs are not in order, and writes nothing; `seams sequence`
+or the generated outputs are not in order, and writes nothing; `seams migrate`
+writes the vocabulary migrations a model needs into its files; `seams sequence`
 derives an event's sequence diagrams; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
@@ -381,6 +382,37 @@ repos:
       - id: seams-check
         args: [--project, examples/chat-app]
 ```
+
+## seams migrate
+
+```sh
+seams migrate --project examples/expenses/chapter-01
+seams migrate --model path/to/model.trig
+```
+
+A model declares the vocabulary versions it was written for in its manifest
+graph ([ADR-0021](/adr/0021-vocabulary-versions)). `seams.load`, and so every
+other command, migrates a model that targets an older vocabulary in memory and
+`seams check` reports a `vocabulary-migrated` warning per step. `seams migrate`
+makes the migration permanent: it applies the same SPARQL Update steps to a copy
+of the model as written and saves the difference, graph by graph, as one patch
+through the model's one write path ([ADR-0017](/adr/0017-write-path-and-editor)).
+Only the changed triples' text changes; comments and layout stay. The manifest
+graph's `owl:imports` declaration is rewritten to the version the tool ships.
+For a model written for seam 1.0, run by a tool that ships seam 2.0:
+
+```text
+migrated seam 1.0 2.0
+examples/expenses/chapter-01/expenses.trig
+```
+
+Each step prints as `migrated <vocabulary> <from> <to>`, then each written file.
+A model already on the shipped versions prints `seams migrate: nothing to
+migrate` to stderr, writes nothing and exits 0, so running it twice is safe. A
+model newer than the tool, a missing migration step, or a patch the writer
+cannot place (a directory model with no file holding a
+`<urn:seams:graph:manifest> { }` block for the new declaration) prints
+`seams migrate: <message>`, exits 2 and writes nothing.
 
 ## Generators
 

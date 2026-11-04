@@ -54,6 +54,7 @@ const decisions = [
   ["0025", "SemPKM as a store", "0025-sempkm-store"],
   ["0026", "Mental Model", "0026-mental-model"],
   ["0027", "SemPKM webhooks", "0027-sempkm-webhook-channel"],
+  ["0028", "Copilot suggestions", "0028-copilot-suggestions"],
 ] as const;
 
 export default defineConfig({

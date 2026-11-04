@@ -292,20 +292,35 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `exposed_by`, `consumed_by`, `published_by` and `subscribed_by`.
 - **`model.shapes`**: a `Shape` has these members:
   - `fields()`: a `Many[Field]` sorted by `sh:order` (fields without one
-    last), then by path IRI. A `Field` has `path`, `name`, `label`,
-    `datatype`, `min_count`, `max_count`, `order`, `required`,
-    `max_length` (`sh:maxLength`), `editor` (`dash:editor`, e.g.
-    `DASH.TextAreaEditor`) and `options` (the `sh:in` values, in list
-    order).
+    last), then by path IRI. A `Field` has `path`, `name` (its `sh:name`,
+    else the path's local name: the wire name,
+    [ADR-0023](/adr/0023-shapes-target-classes)), `label` (`rdfs:label`,
+    else the name), `datatype`, `min_count`, `max_count`, `order`,
+    `required`, `max_length` (`sh:maxLength`), `editor` (`dash:editor`,
+    e.g. `DASH.TextAreaEditor`) and `options`: the `sh:in` literals in list
+    order, or the `rdfs:label`s of its category `members` (an `sh:in` of
+    IRIs in list order, or the members of the `gist:Category` subclass in
+    `category`, in lifecycle order when they are states). `node` is a
+    `FlatNode` for a flattened `sh:node` field: its nested `shape`,
+    `node_class`, `free_path` and the `fixed` `(path, sh:hasValue)` pairs;
+    the field's datatype, options and `max_length` then come from the free
+    property. An empty category, a member without exactly one
+    `rdfs:label`, two members with one label, members from two
+    lifecycles, an `sh:in` mixing IRIs and literals and an `sh:node` that
+    does not flatten raise `ResolutionError(shape, predicate, detail)`.
+  - `target_class`: the `OntologyClass` it names with `sh:targetClass`, or
+    None; a class no `seam:Ontology` model declares raises
+    `ResolutionError`.
   - `lifecycle`, `read_by`, `written_by` and `stored_in` (the store
     containers it is `seam:storedIn`).
   - `valid_examples` and `invalid_examples`: the IRIs of the nodes it
     `verify:validExample` or `verify:invalidExample`
     ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
-  - `example_values(node)`: `(Field, Literal)` pairs, one for each literal
-    an example node has on one of the shape's field paths, in `fields()`
-    order (a field's values by lexical form). The smoke generator fills
-    paths and request bodies from them.
+  - `example_values(node)`: `(Field, Literal)` pairs, one for each value
+    an example node has on one of the shape's fields, in `fields()` order
+    (a field's values by lexical form). A category member IRI reads as its
+    label and a flattened field reads through the nested node to its free
+    path. The smoke generator fills paths and request bodies from them.
 - **`model.lifecycles`**: one `Lifecycle` per `state:StateMachine`.
   `model.lifecycles.transitions()` lists the transitions of all of them.
   - `Lifecycle` has `initial`, `states()`, `finals()`, `transitions()`,

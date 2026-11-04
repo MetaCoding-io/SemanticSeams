@@ -37,7 +37,7 @@ from .ontologies import Ontology, OntologyClass, Superclass
 from .operations import Channel, Operation, PathTemplate, Status
 from .policies import Policy
 from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes
-from .shapes import Field, Shape
+from .shapes import Field, FlatNode, Shape
 from .verify import DecisionExample, ExpectedOutput, Given, Scenario, Step
 
 if TYPE_CHECKING:
@@ -61,6 +61,7 @@ __all__ = [
     "Event",
     "ExpectedOutput",
     "Field",
+    "FlatNode",
     "Flow",
     "Given",
     "FlowNode",

@@ -84,6 +84,38 @@ into `model.ds`, so the hash, SHACL and the generators see only the model.
 declares the superclass, the version IRI of the vendored import that does (its
 label from `skos:prefLabel` there), or None when neither does, a likely typo.
 
+## Shapes, fields and categories
+
+`model.shapes` reads each `sh:NodeShape` (`views/shapes.py`, ADR-0023).
+`Shape.target_class` is the `OntologyClass` its `sh:targetClass` names, or None;
+two targets, or a class no `seam:Ontology` model declares, raise
+`ResolutionError(shape, sh:targetClass, detail)`. `Shape.fields()` gives one `Field`
+per `sh:property`:
+
+- `name` is the property's `sh:name` (one, matching `[A-Za-z_][A-Za-z0-9_]*`),
+  else the path's local name: the wire name of forms, schemas and payloads.
+  `label` is its `rdfs:label`, else the name; `sh:name` is not a label.
+- `options` are `sh:in` literals in list order, or the `rdfs:label`s of the
+  field's category `members`: an `sh:in` of IRIs in list order, or the IRIs typed
+  with the `sh:class` when that class reaches `gist:Category` over declared
+  `rdfs:subClassOf` triples (`category`). States of one lifecycle are in lifecycle
+  order (breadth-first distance from `state:initial`, ties and unreachable states
+  by IRI); other members by IRI. A field with members and no `sh:datatype` has
+  `datatype` `xsd:string`, since the label is the wire value.
+- `node` is a `FlatNode` (`shape`, `node_class`, `free_path`, `fixed`) when the
+  property's `sh:node` shape has one free property (`sh:maxCount 1`, no
+  `sh:hasValue` or `sh:node`) and only fixed ones (one `sh:hasValue`). The field's
+  datatype, options and `max_length` come from the free property.
+
+An empty category, a member without exactly one `rdfs:label`, two members with one
+label, members from two lifecycles (or states mixed with other members), an `sh:in`
+mixing IRIs and literals, and an `sh:node` that does not flatten each raise
+`ResolutionError(subject, predicate, detail)`; the detail starts with the field
+name. `ontology/shapes/seam-shapes.ttl` checks the same faults (`TargetClassShape`,
+`FieldNameShape`, `CategoryFieldShape`, `FlattenedFieldShape`) so `seams check`
+reports them first. `Shape.example_values` reads a member IRI as its label and a
+flattened field through the nested node.
+
 `ModelGraph.store_plan()` resolves which store the runtime keeps its rows in
 (ADR-0011) from `deploy:storeKind`, `deploy:connectsTo` and `seam:storedIn`,
 returning a `StorePlan` (`kind`, `store`, `container`, `key`, `declared`). A

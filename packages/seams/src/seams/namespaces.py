@@ -16,6 +16,7 @@ IFML = Namespace("https://w3id.org/seams/ifml#")
 ARCH = Namespace("https://w3id.org/seams/arch#")
 DASH = Namespace("http://datashapes.org/dash#")
 VERIFY = Namespace("https://w3id.org/seams/verify#")
+GIST = Namespace("https://w3id.org/semanticarts/ns/ontology/gist/")
 
 
 def local_name(iri: object) -> str:

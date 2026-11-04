@@ -542,3 +542,27 @@ def test_an_import_version_mismatch_fails_the_check_as_a_model_fault(tmp_path, c
     assert code == 2
     assert "imports gistCore14.1.0; the vendored version is gistCore14.0.0" in err
     assert "http://www.w3.org/2002/07/owl#imports" in err
+
+
+@pytest.mark.parametrize("form", ["dir", "toml", "model"])
+def test_a_path_positional_is_the_project_or_its_model(app, capsys, form):
+    """``seams check PATH`` takes the project directory, its seams.toml or its model, like the flags."""
+    path = {"dir": app, "toml": app / "seams.toml", "model": load_project(app).model}[form]
+    code = main(["check", str(path)])
+    out, err = capsys.readouterr()
+    assert (code, out.splitlines(), err) == (0, CHAPTER_5_REVIEW, "seams check: 8 warning(s)\n")
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["--project", "."], "give PATH or --project, not both"),
+        (["--model", "other.trig"], "give PATH or --model, not both"),
+    ],
+)
+def test_a_path_positional_and_its_flag_is_a_usage_error(app, capsys, argv, message):
+    path = app if argv[0] == "--project" else load_project(app).model
+    with pytest.raises(SystemExit) as exc:
+        main(["check", str(path), *argv])
+    assert exc.value.code == 2
+    assert f"check: {message}" in capsys.readouterr().err

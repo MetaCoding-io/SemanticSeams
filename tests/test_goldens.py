@@ -44,6 +44,7 @@ OUTPUTS = {
     "tests": "generated/tests",
     "smoke": "generated/smoke",
     "acceptance": "generated/acceptance",
+    "jsonld": "generated/contexts",
 }
 TRACE_SUFFIX = ".trace.json"
 HAND_WRITTEN = {"README.md"}

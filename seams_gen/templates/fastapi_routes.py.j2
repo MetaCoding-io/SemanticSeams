@@ -91,7 +91,7 @@ async def [[ e.name ]]([[ e.arguments_text ]]) -> HTMLResponse:
     [[ e.query.var ]] = runtime.query("[[ e.query.shape ]]"[% for v in e.query.filters %], [[ v ]]=[[ v ]][% endfor %])
 [% endif %]
 [% if e.render.multiline %]
-    return runtime.render_fragment(
+    [[ e.render.lead ]]runtime.render_fragment(
         "[[ e.render.name ]]",
         [[ e.render.data ]],
 [% for p in e.render.params %]
@@ -99,9 +99,29 @@ async def [[ e.name ]]([[ e.arguments_text ]]) -> HTMLResponse:
 [% endfor %]
     )
 [% else %]
-    return runtime.render_fragment("[[ e.render.name ]]", [[ e.render.data ]][% for p in e.render.params %], [[ p ]]=[[ p ]][% endfor %])
+    [[ e.render.lead ]]runtime.render_fragment("[[ e.render.name ]]", [[ e.render.data ]][% for p in e.render.params %], [[ p ]]=[[ p ]][% endfor %])
+[% endif %]
+[% if e.link %]
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = [[ e.link ]]
+    return response
 [% endif %]
 [% endif %]
+[% endfor %]
+[% for c in m.contexts %]
+
+
+# [[ c.shape ]] sh:targetClass [[ c.target ]]: its JSON-LD context (ADR-0024), the jsonld generator's [[ c.file_name ]]
+[[ c.constant ]] = (
+[% for line in c.lines %]
+    [[ line ]]
+[% endfor %]
+)
+
+
+@router.get("[[ c.path ]]")
+async def [[ c.name ]]() -> Response:
+    return Response([[ c.constant ]], media_type="application/ld+json")
 [% endfor %]
 [% if m.problem_routes %]
 

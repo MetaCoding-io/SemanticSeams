@@ -72,6 +72,7 @@ of the three, `seams generate` and `seams check` fail with exit code 2.
 ```sh
 seams generate                                    # the seams.toml in the working directory
 seams generate --project examples/expenses/chapter-03
+seams generate examples/expenses/chapter-03          # the same, by position
 seams generate --project path/to/seams.toml --model other.trig
 seams generate --lenient                          # preview a broken model; flags seams.lock
 ```
@@ -80,6 +81,7 @@ seams generate --lenient                          # preview a broken model; flag
 |---|---|---|
 | `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
 | `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `PATH` | none | `--project` or `--model` by position: a directory, a `seams.toml` or a path without a suffix is the project; any other file is the model, with the `seams.toml` beside it as the project. Giving `PATH` and the flag it stands for is a usage error. |
 | `--lenient` | off | Collect precondition and generator faults instead of stopping, write what the generators produce and record the faults in `seams.lock` (see [Lenient mode](#lenient-mode)). |
 
 Every generator runs in memory first. The files are written only when all of
@@ -240,6 +242,7 @@ lock without them. Project-file, lockfile and registry errors still exit 2.
 ```sh
 seams check                                       # the seams.toml in the working directory
 seams check --project examples/expenses/chapter-08
+seams check examples/expenses/chapter-08/expenses.trig   # the same project, by position
 seams check --project path/to/seams.toml --model other.trig
 ```
 
@@ -503,6 +506,7 @@ seams status --project examples/expenses/chapter-08 --timeout 2
 |---|---|---|
 | `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
 | `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `PATH` | none | `--project` or `--model` by position: a directory, a `seams.toml` or a path without a suffix is the project; any other file is the model, with the `seams.toml` beside it as the project. Giving `PATH` and the flag it stands for is a usage error. |
 | `--env NAME` | the only environment with `endpoints` | The `[environments.<name>]` whose endpoints to read. |
 | `--timeout SECONDS` | `5` | How long to wait for each `/healthz`. |
 
@@ -599,6 +603,7 @@ seams secrets --project examples/chat-app --write-example
 |---|---|---|
 | `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
 | `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `PATH` | none | `--project` or `--model` by position: a directory, a `seams.toml` or a path without a suffix is the project; any other file is the model, with the `seams.toml` beside it as the project. Giving `PATH` and the flag it stands for is a usage error. |
 | `--env NAME` | every environment | The `arch:Environment` to check, by local name. |
 | `--write-example` | off | Also write `<project root>/.env.example`. |
 | `--json` | off | Print the rows and verdict counts as JSON. |

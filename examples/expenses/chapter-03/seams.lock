@@ -24,7 +24,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:7dbf0ee75257dfbc2673f8ceaf79601389191fbb0c9ac3780e964454b2ea24da",
       "path": "generated/expense_api.py.trace.json",
-      "sha256": "a2aba5f38f9e0524c9f1be1c0db7e8fc54e3befdd7d7a53a54af432990fe80ca",
+      "sha256": "adb7448e9a34c33bec3a4dc807131143d2a3d2e143d6f9b96905c5c2d1bbb815",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/expense_api",

@@ -49,6 +49,12 @@ out = "generated/smoke"
 name = "acceptance"
 out = "generated/acceptance"
 
+# One JSON-LD context per shape with a sh:targetClass (ADR-0024): the published
+# copy of the context the route module serves at /contexts/<shape>.jsonld.
+[[generators]]
+name = "jsonld"
+out = "generated/contexts"
+
 # The model's arch:Environment :production; compose.production.yaml deploys it.
 [environments.production]
 

@@ -24,7 +24,12 @@ response, keyed by its ``hydra:statusCode``, with a JSON Schema derived from
 the status's ``seam:returnsShape``; the module then defines one
 ``problem_handler`` that ``seams_runtime.host`` installs for
 ``OperationError``, answering with ``Runtime.problem`` for the raising route's
-operation. Every collection is sorted by IRI, and a missing or ambiguous
+operation. Each target-classed shape a routed operation accepts or returns
+gets a route ``GET /contexts/<shape local name>.jsonld`` answering its JSON-LD
+context (ADR-0024 section 5), the ``jsonld`` generator's own document embedded
+as a string constant; the 2xx answer of an operation whose returned shape has a
+target class carries a ``Link`` header naming that context. Every collection is
+sorted by IRI (the context routes by path), and a missing or ambiguous
 required fact raises ``GeneratorError`` naming the subject IRI and predicate.
 """
 
@@ -35,7 +40,7 @@ import re
 from dataclasses import dataclass
 
 from rdflib import RDF, URIRef
-from rdflib.namespace import XSD
+from rdflib.namespace import SH, XSD
 from seams import (
     ARCH,
     COMM,
@@ -61,6 +66,7 @@ from . import GeneratorError
 from ._views import label, required, view_errors
 from .fragments import ITEM, fragment_for
 from .htmx import _environment, _path_template, _shape_name, _task_curie, _task_process, _tracing_environment
+from .jsonld import SUFFIX, context_document, extract_jsonld
 from .trace import Trace, trace_template, view_iris
 
 TEMPLATE_NAME = "fastapi_routes.py.j2"
@@ -74,6 +80,10 @@ METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 PROBLEM_JSON = "application/problem+json"  # RFC 9457
 # sh:datatype -> JSON Schema type of an error shape's member; any other datatype is a string
 JSON_TYPES = {XSD.integer: "integer", XSD.decimal: "number", XSD.boolean: "boolean"}
+# ADR-0024 section 5: where a context is served, and the Link relation naming it (JSON-LD 1.1, 6.1)
+CONTEXTS = "/contexts"
+JSONLD = "application/ld+json"
+CONTEXT_REL = "http://www.w3.org/ns/json-ld#context"
 
 
 # ── the routes model ────────────────────────────────────────────────────────
@@ -126,6 +136,7 @@ class Render:
     data: str  # the var passed as data
     params: tuple[str, ...]  # component parameters that are path variables
     multiline: bool  # the POST layout
+    lead: str = "return "  # "response = " when the answer carries a Link header first
 
 
 @dataclass(frozen=True)
@@ -168,6 +179,7 @@ class Endpoint:
     accepts_suffix: str = ""  # a channel's " ; seam:acceptsShape <curie>" header fact, or ""
     dependencies: str = ""  # the decorator's policy list, '[Depends(runtime.policy("<curie>")), ...]'
     validate_only: bool = False  # a separate runtime.validate call (no write or completion validates)
+    link: str = ""  # the Link header naming the returned shape's JSON-LD context, a Python literal, or ""
     iri: str = ""  # the operation's or channel's full IRI, its origin in a generation trace (ADR-0019)
     # the IRIs of the shapes, processes (with their BPMN models and correlation
     # keys), task, policies, rendered component and the flows to it the
@@ -195,6 +207,21 @@ class ProblemRoute:
 
 
 @dataclass(frozen=True)
+class ContextRoute:
+    """The route answering one target-classed shape's JSON-LD context (ADR-0024 section 5)."""
+
+    shape: str  # curie of the shape
+    target: str  # curie of its sh:targetClass
+    file_name: str  # the jsonld generator's file name, <shape local name>.jsonld
+    path: str  # /contexts/<file name>
+    name: str  # handler name, <shape name>_context
+    constant: str  # the module constant holding the document
+    lines: tuple[str, ...]  # the document, one Python string literal per line (each ends in a newline)
+    iri: str = ""  # the shape's full IRI, its origin in a generation trace (ADR-0019)
+    origins: tuple[str, ...] = ()  # the context's sources: class, field paths, category members
+
+
+@dataclass(frozen=True)
 class RouteModule:
     file_name: str  # <container local name>.py
     id: str
@@ -207,6 +234,7 @@ class RouteModule:
     exposes_text: str  # exposes joined with " , ", the header's seam:exposes object list
     iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
     origins: tuple[str, ...] = ()  # the arch:System's IRI, a further trace origin
+    contexts: tuple[ContextRoute, ...] = ()  # by path
 
     @property
     def needs_identity(self) -> bool:
@@ -233,7 +261,8 @@ class RouteModule:
     @property
     def response_imports(self) -> str:
         """The names the module imports from fastapi.responses."""
-        return ", ".join(["HTMLResponse", *(["JSONResponse"] if self.problem_routes else []), "StreamingResponse"])
+        names = ["HTMLResponse", *(["JSONResponse"] if self.problem_routes else [])]
+        return ", ".join([*names, *(["Response"] if self.contexts else []), "StreamingResponse"])
 
 
 @dataclass(frozen=True)
@@ -290,6 +319,8 @@ def _module(model: Model, container: Container) -> RouteModule:
     exposed = container.exposes
     invoked_only = _invoked_only(model, container, processes)
     exposes = tuple(model.compact(e.iri) for e in exposed)
+    endpoints = tuple(_endpoint(model, e, triggered) for e in exposed if e.iri not in invoked_only)
+    routed = [e for e in exposed if e.iri not in invoked_only and not isinstance(e, Channel)]
     return RouteModule(
         file_name=route_file_name(container.iri),
         id=local_name(container.iri),
@@ -299,10 +330,57 @@ def _module(model: Model, container: Container) -> RouteModule:
         exposes_text=" , ".join(exposes),
         not_routed=_not_routed(model, container, processes),
         invoked_only=tuple(model.compact(e.iri) for e in exposed if e.iri in invoked_only),
-        endpoints=tuple(_endpoint(model, e, triggered) for e in exposed if e.iri not in invoked_only),
+        endpoints=endpoints,
         iri=str(container.iri),
         origins=(str(systems[0].iri),),
+        contexts=_contexts(model, routed, endpoints),
     )
+
+
+def _context_path(shape: Shape) -> str:
+    return f"{CONTEXTS}/{local_name(shape.iri)}{SUFFIX}"
+
+
+def _contexts(model: Model, routed: list[Operation], endpoints: tuple[Endpoint, ...]) -> tuple[ContextRoute, ...]:
+    """The context route of each target-classed shape a routed operation
+    seam:acceptsShape or seam:returnsShape, by path (ADR-0024 section 5). The
+    document is the jsonld generator's, so the two cannot differ."""
+    with view_errors():
+        shapes = {s: s.target_class for op in routed for s in (op.accepts, op.returns) if s is not None}
+    shapes = {s: t for s, t in shapes.items() if t is not None}
+    if not shapes:
+        return ()
+    documents = {ctx.shape: ctx for ctx in extract_jsonld(model).contexts}
+    with view_errors():
+        pages = [p for p in model.interfaces.pages() if p.path is not None]
+    taken = {e.path: e.curie for e in endpoints} | {e.name: e.curie for e in endpoints}
+    taken |= {str(p.path): model.compact(p.iri) for p in pages}
+    out = []
+    for shape, target in sorted(shapes.items(), key=lambda pair: _context_path(pair[0])):
+        ctx = documents[str(shape.iri)]
+        path, name = _context_path(shape), f"{_shape_name(shape.iri)}_context"
+        for claimed in (path, name):
+            if claimed in taken:
+                raise GeneratorError(
+                    shape.iri,
+                    SH.targetClass,
+                    f"the JSON-LD context route of {model.compact(shape.iri)} (GET {path}, handler {name}) "
+                    f"needs {claimed}, which is also the path or handler of {taken[claimed]}",
+                )
+        out.append(
+            ContextRoute(
+                shape=model.compact(shape.iri),
+                target=model.compact(target.iri),
+                file_name=ctx.file_name,
+                path=path,
+                name=name,
+                constant=name.upper(),
+                lines=tuple(repr(line) for line in context_document(ctx).splitlines(keepends=True)),
+                iri=str(shape.iri),
+                origins=tuple(s for s in ctx.sources if s != str(shape.iri)),
+            )
+        )
+    return tuple(out)
 
 
 def _triggered(model: Model, processes: Many[Process]) -> dict[URIRef, Process]:
@@ -507,6 +585,13 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
     if (method == "GET" or complete is not None) and returns is not None:
         query = Query(var=_shape_name(returns.iri) + "s", shape=model.compact(returns.iri), filters=tuple(variables))
 
+    with view_errors():
+        target = returns.target_class if returns is not None else None
+    link = ""
+    if returns is not None and target is not None:
+        link = repr(f'<{_context_path(returns)}>; rel="{CONTEXT_REL}"; type="{JSONLD}"')
+    lead = "response = " if link else "return "
+
     name, component, frag_kind = fragment_for(model, op)
     if frag_kind == ITEM:
         if validate is None or returns != accepts:
@@ -516,7 +601,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
                 f"the item partial {name} renders the accepted entity, "
                 "so seam:returnsShape must equal seam:acceptsShape",
             )
-        render = Render(name=name, data=validate.var, params=(), multiline=method != "GET")
+        render = Render(name=name, data=validate.var, params=(), multiline=method != "GET", lead=lead)
     else:
         if query is None:
             raise GeneratorError(
@@ -527,7 +612,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
             )
         parameters = model.views.intern(ComponentView, URIRef(str(component))).parameters()
         params = [p for p in parameters if p in variables]
-        render = Render(name=name, data=query.var, params=tuple(params), multiline=method != "GET")
+        render = Render(name=name, data=query.var, params=tuple(params), multiline=method != "GET", lead=lead)
 
     arguments = tuple(f"{v}: str" for v in variables) + (("request: Request",) if body else ())
     if complete is not None:
@@ -549,6 +634,8 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
                 origins.add(str(process.correlation_parameter))
     if task is not None:
         origins.add(str(task))
+    if target is not None:
+        origins.add(str(target.iri))
     return Endpoint(
         iri=str(op.iri),
         origins=tuple(sorted(origins)),
@@ -571,6 +658,7 @@ def _operation(model: Model, op: Operation, triggered: dict[URIRef, Process]) ->
         arguments_text=", ".join(arguments),
         dependencies="[" + ", ".join(f'Depends(runtime.policy("{p}"))' for p in policies) + "]",
         validate_only=validate is not None and write is None and complete is None,
+        link=link,
     )
 
 
@@ -714,6 +802,7 @@ def generate_routes(trig_path) -> str:
 __all__ = [
     "RoutesModel",
     "RouteModule",
+    "ContextRoute",
     "Endpoint",
     "extract_route_module",
     "extract_routes",

@@ -1,0 +1,18 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "Approval": "https://example.org/expenses/Approval",
+    "comment": {
+      "@id": "https://example.org/expenses/comment",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
+    "decision": {
+      "@context": {
+        "approved": "https://example.org/expenses/outcome_approved",
+        "rejected": "https://example.org/expenses/outcome_rejected"
+      },
+      "@id": "https://example.org/expenses/decision",
+      "@type": "@vocab"
+    }
+  }
+}

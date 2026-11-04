@@ -457,8 +457,14 @@
         "fastapi_routes.py.j2:94"
       ],
       "terms": [
-        "https://example.org/chat/chat_api",
-        "https://example.org/chat/chat_system"
+        "https://example.org/chat/MessageShape",
+        "https://example.org/chat/chat_bpmn",
+        "https://example.org/chat/conversation",
+        "https://example.org/chat/message_thread",
+        "https://example.org/chat/send_message_op",
+        "https://example.org/chat/send_message_process",
+        "https://example.org/chat/send_to_thread",
+        "https://example.org/chat/user_send_policy"
       ]
     },
     {

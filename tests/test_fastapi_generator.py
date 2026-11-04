@@ -8,6 +8,7 @@ missing.
 
 import ast
 import difflib
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -15,17 +16,23 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from rdflib import BNode, Dataset, Literal, URIRef
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from seams import load  # noqa: E402
+
 from seams_gen import GeneratorError, extract_routes, generate_routes, render_routes  # noqa: E402
+from seams_gen.__main__ import main as seams_gen_main  # noqa: E402
 from seams_gen.fastapi import TEMPLATE_NAME  # noqa: E402
 from seams_gen.htmx import TEMPLATE_DIR  # noqa: E402
+from seams_gen.jsonld import extract_jsonld, render_jsonld  # noqa: E402
 from seams_gen.testing import golden_target  # noqa: E402
-from seams_runtime import ModelGraph, Runtime, model_hash  # noqa: E402
+from seams_runtime import HeaderAuthenticator, ModelGraph, Runtime, model_hash  # noqa: E402
 from seams_runtime.model import COMM, HYDRA, PROC, SEAM  # noqa: E402
 
 TRIG = ROOT / "examples" / "chat-app" / "chat-app.trig"
@@ -334,3 +341,90 @@ def test_untriggered_operation_without_a_writing_form_does_not_write(tmp_path):
 
 def test_chat_app_has_no_write_step():
     assert all(e.write is None for e in extract_routes(ModelGraph.load(TRIG)).modules[0].endpoints)
+
+
+# ── the JSON-LD contexts (ADR-0024 section 5) ─────────────────────────────
+
+CHAPTER_9 = ROOT / "examples" / "expenses" / "chapter-09"
+EXPENSE_TRIG = CHAPTER_9 / "expenses.trig"
+CONTEXT_LINK = '</contexts/{}.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+
+@pytest.fixture
+def expense_app(tmp_path, monkeypatch):
+    """A TestClient over chapter 9's generated route module, its Runtime.load
+    redirected to the repo model, a temp store and the generated templates."""
+    app_dir = tmp_path / "app"
+    assert seams_gen_main(["fastapi", str(EXPENSE_TRIG), "--out", str(app_dir)]) == 0
+    assert seams_gen_main(["htmx", str(EXPENSE_TRIG), "--out", str(app_dir / "templates")]) == 0
+    original = Runtime.load
+
+    def _load(cls, trig_path, model_hash=None):
+        assert str(trig_path) == "/model/expenses.trig", trig_path
+        return original(
+            EXPENSE_TRIG,
+            model_hash=model_hash,
+            db_path=tmp_path / "seams.sqlite",
+            templates_dir=app_dir / "templates",
+            authenticator=HeaderAuthenticator(),
+        )
+
+    monkeypatch.setattr(Runtime, "load", classmethod(_load))
+    monkeypatch.setenv("SEAMS_STORE_OVERRIDE", "sqlite")
+    spec = importlib.util.spec_from_file_location(f"generated_expense_api_{tmp_path.name}", app_dir / "expense_api.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    app = FastAPI()
+    app.include_router(module.router)
+    with TestClient(app) as client:
+        yield client
+
+
+def test_the_context_routes_answer_the_jsonld_generators_documents(expense_app):
+    documents = render_jsonld(extract_jsonld(load(EXPENSE_TRIG)))
+    assert sorted(documents) == ["ApprovalShape.jsonld", "ExpenseShape.jsonld", "PaymentShape.jsonld"]
+    for name, text in documents.items():
+        answer = expense_app.get(f"/contexts/{name}")
+        assert answer.status_code == 200, name
+        assert answer.headers["content-type"] == "application/ld+json"
+        assert answer.content == text.encode("utf-8")
+        # the committed published copy is the same bytes
+        assert answer.content == (CHAPTER_9 / "generated" / "contexts" / name).read_bytes()
+    assert "Link" not in expense_app.get("/contexts/ExpenseShape.jsonld").headers
+
+
+def test_an_unknown_context_is_not_found(expense_app):
+    assert expense_app.get("/contexts/NotificationShape.jsonld").status_code == 404
+    assert expense_app.get("/contexts/ExpenseShape.json").status_code == 404
+
+
+def test_answers_of_a_target_classed_returned_shape_link_its_context(expense_app):
+    expenses = expense_app.get("/expenses")
+    assert expenses.status_code == 200
+    assert expenses.headers["link"] == CONTEXT_LINK.format("ExpenseShape")
+    payments = expense_app.get("/payments")
+    assert payments.status_code == 200
+    assert payments.headers["link"] == CONTEXT_LINK.format("PaymentShape")
+
+
+def test_chat_app_has_no_context_routes():
+    module = extract_routes(ModelGraph.load(TRIG)).modules[0]
+    assert module.contexts == () and all(e.link == "" for e in module.endpoints)
+    text = generate_routes(TRIG)
+    assert "/contexts/" not in text and "Link" not in text and ", Response," not in text
+
+
+def test_a_context_path_taken_by_an_operation_raises():
+    ds = Dataset(default_union=True)
+    ds.parse(str(EXPENSE_TRIG), format="trig")
+    op = URIRef("https://example.org/expenses/list_payments_op")
+    (node, graph) = next((o, c) for _s, _p, o, c in ds.quads((op, COMM.path, None, None)))
+    g = ds.graph(graph)
+    g.remove((node, HYDRA.template, None))
+    g.add((node, HYDRA.template, Literal("/contexts/PaymentShape.jsonld")))
+    with pytest.raises(GeneratorError) as err:
+        extract_routes(ModelGraph(EXPENSE_TRIG, dataset=ds))
+    assert err.value.subject == "https://example.org/expenses/PaymentShape"
+    assert err.value.predicate == "http://www.w3.org/ns/shacl#targetClass"
+    assert ":list_payments_op" in err.value.detail

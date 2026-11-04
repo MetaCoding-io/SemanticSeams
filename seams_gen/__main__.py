@@ -4,7 +4,8 @@ Each generator of the ``seams.generators`` entry-point group (D056,
 ``seams_gen.registry``) is a subcommand of ``GENERATORS``. The built-ins are
 ``htmx`` (S04), ``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015,
 ADR-0014), ``smoke`` (M015/S05, backlog A9), ``dockerfile`` (M016/S03),
-``ifmledit`` (M008/S01, backlog 12) and ``acceptance`` (M022/S03, backlog C2), the objects of ``seams_gen.builtin``. A
+``ifmledit`` (M008/S01, backlog 12), ``acceptance`` (M022/S03, backlog C2) and
+``jsonld`` (M023/S05, backlog O3, ADR-0024), the objects of ``seams_gen.builtin``. A
 generator is called as ``generate(trig, out)`` and returns ``{relative file
 name: text}``; only ``compose`` uses ``out``, as the base directory its
 bind-mount sources, build contexts and secret files are relative to (D018).

@@ -148,6 +148,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -165,6 +166,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -182,6 +184,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -199,6 +202,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -216,6 +220,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -243,6 +248,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -260,6 +266,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -277,6 +284,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -314,6 +322,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -330,8 +339,16 @@
         "fastapi_routes.py.j2:94"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approval_to_details",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details"
       ]
     },
     {
@@ -341,6 +358,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -358,6 +376,7 @@
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#approve_expense",
@@ -389,44 +408,50 @@
       ]
     },
     {
+      "line": 37,
+      "templates": [
+        "fastapi_routes.py.j2:105"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 38,
+      "templates": [
+        "fastapi_routes.py.j2:106"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/approval_to_details",
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details"
+      ]
+    },
+    {
       "line": 39,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:107"
       ],
       "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/awaiting_approval",
-        "https://example.org/expenses/awaiting_approval_op"
-      ]
-    },
-    {
-      "line": 40,
-      "templates": [
-        "fastapi_routes.py.j2:63"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/awaiting_approval",
-        "https://example.org/expenses/awaiting_approval_op"
-      ]
-    },
-    {
-      "line": 41,
-      "templates": [
-        "fastapi_routes.py.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/awaiting_approval",
-        "https://example.org/expenses/awaiting_approval_op"
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
       "line": 42,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:37"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/awaiting_approval",
         "https://example.org/expenses/awaiting_approval_op"
@@ -435,9 +460,34 @@
     {
       "line": 43,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:63"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/awaiting_approval",
+        "https://example.org/expenses/awaiting_approval_op"
+      ]
+    },
+    {
+      "line": 44,
+      "templates": [
+        "fastapi_routes.py.j2:65"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/awaiting_approval",
+        "https://example.org/expenses/awaiting_approval_op"
+      ]
+    },
+    {
+      "line": 45,
+      "templates": [
+        "fastapi_routes.py.j2:91"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/awaiting_approval",
         "https://example.org/expenses/awaiting_approval_op"
@@ -446,53 +496,54 @@
     {
       "line": 46,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/expense_details_op"
+        "https://example.org/expenses/awaiting_approval",
+        "https://example.org/expenses/awaiting_approval_op"
       ]
     },
     {
       "line": 47,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:105"
       ],
       "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/expense_details_op"
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
       "line": 48,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/expense_details_op"
+        "https://example.org/expenses/awaiting_approval",
+        "https://example.org/expenses/awaiting_approval_op"
       ]
     },
     {
       "line": 49,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:107"
       ],
       "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/expense_details_op"
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
-      "line": 50,
+      "line": 52,
       "templates": [
-        "fastapi_routes.py.j2:102"
+        "fastapi_routes.py.j2:37"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/expense_details",
         "https://example.org/expenses/expense_details_op"
@@ -501,176 +552,127 @@
     {
       "line": 53,
       "templates": [
-        "fastapi_routes.py.j2:37"
+        "fastapi_routes.py.j2:63"
       ],
       "terms": [
-        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
+        "https://example.org/expenses/expense_details_op"
       ]
     },
     {
       "line": 54,
       "templates": [
-        "fastapi_routes.py.j2:39"
+        "fastapi_routes.py.j2:65"
       ],
       "terms": [
-        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
+        "https://example.org/expenses/expense_details_op"
       ]
     },
     {
       "line": 55,
       "templates": [
-        "fastapi_routes.py.j2:63"
+        "fastapi_routes.py.j2:91"
       ],
       "terms": [
-        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
+        "https://example.org/expenses/expense_details_op"
       ]
     },
     {
       "line": 56,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:102"
       ],
       "terms": [
-        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
+        "https://example.org/expenses/expense_details_op"
       ]
     },
     {
       "line": 57,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:105"
       ],
       "terms": [
-        "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
       "line": 58,
       "templates": [
-        "fastapi_routes.py.j2:80"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/expense_details_op"
       ]
     },
     {
       "line": 59,
       "templates": [
-        "fastapi_routes.py.j2:81"
+        "fastapi_routes.py.j2:107"
       ],
       "terms": [
-        "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
-      ]
-    },
-    {
-      "line": 60,
-      "templates": [
-        "fastapi_routes.py.j2:82"
-      ],
-      "terms": [
-        "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
-      ]
-    },
-    {
-      "line": 61,
-      "templates": [
-        "fastapi_routes.py.j2:83"
-      ],
-      "terms": [
-        "https://example.org/expenses/ApprovalShape",
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/finance_approval_to_details",
-        "https://example.org/expenses/finance_approve_expense_op"
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
       "line": 62,
       "templates": [
-        "fastapi_routes.py.j2:84"
+        "fastapi_routes.py.j2:37"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
       "line": 63,
       "templates": [
-        "fastapi_routes.py.j2:85"
+        "fastapi_routes.py.j2:39"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
       "line": 64,
       "templates": [
-        "fastapi_routes.py.j2:91"
+        "fastapi_routes.py.j2:63"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#finance_approve_expense",
@@ -684,20 +686,29 @@
     {
       "line": 65,
       "templates": [
-        "fastapi_routes.py.j2:94"
+        "fastapi_routes.py.j2:65"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
       "line": 66,
       "templates": [
-        "fastapi_routes.py.j2:95"
+        "fastapi_routes.py.j2:67"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#finance_approve_expense",
@@ -711,10 +722,21 @@
     {
       "line": 67,
       "templates": [
-        "fastapi_routes.py.j2:96"
+        "fastapi_routes.py.j2:80"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 68,
+      "templates": [
+        "fastapi_routes.py.j2:81"
       ],
       "terms": [
         "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_bpmn#finance_approve_expense",
@@ -726,338 +748,43 @@
       ]
     },
     {
-      "line": 68,
-      "templates": [
-        "fastapi_routes.py.j2:98"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
       "line": 69,
-      "templates": [
-        "fastapi_routes.py.j2:100"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 72,
-      "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/list_expenses_op"
-      ]
-    },
-    {
-      "line": 73,
-      "templates": [
-        "fastapi_routes.py.j2:63"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/list_expenses_op"
-      ]
-    },
-    {
-      "line": 74,
-      "templates": [
-        "fastapi_routes.py.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/list_expenses_op"
-      ]
-    },
-    {
-      "line": 75,
-      "templates": [
-        "fastapi_routes.py.j2:91"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/list_expenses_op"
-      ]
-    },
-    {
-      "line": 76,
-      "templates": [
-        "fastapi_routes.py.j2:102"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/list_expenses_op"
-      ]
-    },
-    {
-      "line": 79,
-      "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/list_payments_op",
-        "https://example.org/expenses/payment_list"
-      ]
-    },
-    {
-      "line": 80,
-      "templates": [
-        "fastapi_routes.py.j2:63"
-      ],
-      "terms": [
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/list_payments_op",
-        "https://example.org/expenses/payment_list"
-      ]
-    },
-    {
-      "line": 81,
-      "templates": [
-        "fastapi_routes.py.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/list_payments_op",
-        "https://example.org/expenses/payment_list"
-      ]
-    },
-    {
-      "line": 82,
-      "templates": [
-        "fastapi_routes.py.j2:91"
-      ],
-      "terms": [
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/list_payments_op",
-        "https://example.org/expenses/payment_list"
-      ]
-    },
-    {
-      "line": 83,
-      "templates": [
-        "fastapi_routes.py.j2:102"
-      ],
-      "terms": [
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/list_payments_op",
-        "https://example.org/expenses/payment_list"
-      ]
-    },
-    {
-      "line": 86,
-      "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/paid_expenses",
-        "https://example.org/expenses/paid_expenses_op"
-      ]
-    },
-    {
-      "line": 87,
-      "templates": [
-        "fastapi_routes.py.j2:63"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/paid_expenses",
-        "https://example.org/expenses/paid_expenses_op"
-      ]
-    },
-    {
-      "line": 88,
-      "templates": [
-        "fastapi_routes.py.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/paid_expenses",
-        "https://example.org/expenses/paid_expenses_op"
-      ]
-    },
-    {
-      "line": 89,
-      "templates": [
-        "fastapi_routes.py.j2:91"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/paid_expenses",
-        "https://example.org/expenses/paid_expenses_op"
-      ]
-    },
-    {
-      "line": 90,
-      "templates": [
-        "fastapi_routes.py.j2:102"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/paid_expenses",
-        "https://example.org/expenses/paid_expenses_op"
-      ]
-    },
-    {
-      "line": 93,
-      "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
-      ]
-    },
-    {
-      "line": 94,
-      "templates": [
-        "fastapi_routes.py.j2:39"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
-      ]
-    },
-    {
-      "line": 95,
-      "templates": [
-        "fastapi_routes.py.j2:63"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
-      ]
-    },
-    {
-      "line": 96,
-      "templates": [
-        "fastapi_routes.py.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
-      ]
-    },
-    {
-      "line": 97,
-      "templates": [
-        "fastapi_routes.py.j2:67"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
-      ]
-    },
-    {
-      "line": 98,
-      "templates": [
-        "fastapi_routes.py.j2:80"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 99,
-      "templates": [
-        "fastapi_routes.py.j2:81"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
-      ]
-    },
-    {
-      "line": 100,
       "templates": [
         "fastapi_routes.py.j2:82"
       ],
       "terms": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
         "https://example.org/expenses/approval_process",
         "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
-      "line": 101,
+      "line": 70,
       "templates": [
         "fastapi_routes.py.j2:83"
       ],
       "terms": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
         "https://example.org/expenses/approval_process",
         "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
-      "line": 102,
+      "line": 71,
       "templates": [
         "fastapi_routes.py.j2:84"
       ],
@@ -1067,7 +794,7 @@
       ]
     },
     {
-      "line": 103,
+      "line": 72,
       "templates": [
         "fastapi_routes.py.j2:85"
       ],
@@ -1077,68 +804,79 @@
       ]
     },
     {
-      "line": 104,
+      "line": 73,
       "templates": [
         "fastapi_routes.py.j2:91"
       ],
       "terms": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
         "https://example.org/expenses/approval_process",
         "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
-      "line": 105,
+      "line": 74,
       "templates": [
         "fastapi_routes.py.j2:94"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
-      "line": 106,
+      "line": 75,
       "templates": [
         "fastapi_routes.py.j2:95"
       ],
       "terms": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
         "https://example.org/expenses/approval_process",
         "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
-      "line": 107,
+      "line": 76,
       "templates": [
         "fastapi_routes.py.j2:96"
       ],
       "terms": [
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
         "https://example.org/expenses/approval_process",
         "https://example.org/expenses/expense",
         "https://example.org/expenses/expense_details",
-        "https://example.org/expenses/pay_expense_op",
-        "https://example.org/expenses/payment_to_details"
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
       ]
     },
     {
-      "line": 108,
+      "line": 77,
       "templates": [
         "fastapi_routes.py.j2:98"
       ],
@@ -1148,7 +886,7 @@
       ]
     },
     {
-      "line": 109,
+      "line": 78,
       "templates": [
         "fastapi_routes.py.j2:100"
       ],
@@ -1158,103 +896,413 @@
       ]
     },
     {
-      "line": 112,
+      "line": 79,
       "templates": [
-        "fastapi_routes.py.j2:31"
+        "fastapi_routes.py.j2:105"
       ],
       "terms": [
-        "https://example.org/expenses/payouts"
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
-      "line": 113,
+      "line": 80,
       "templates": [
-        "fastapi_routes.py.j2:32"
+        "fastapi_routes.py.j2:106"
       ],
       "terms": [
-        "https://example.org/expenses/payouts"
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#finance_approve_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/finance_approval_to_details",
+        "https://example.org/expenses/finance_approve_expense_op"
+      ]
+    },
+    {
+      "line": 81,
+      "templates": [
+        "fastapi_routes.py.j2:107"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 84,
+      "templates": [
+        "fastapi_routes.py.j2:37"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "line": 85,
+      "templates": [
+        "fastapi_routes.py.j2:63"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "line": 86,
+      "templates": [
+        "fastapi_routes.py.j2:65"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "line": 87,
+      "templates": [
+        "fastapi_routes.py.j2:91"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "line": 88,
+      "templates": [
+        "fastapi_routes.py.j2:102"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "line": 89,
+      "templates": [
+        "fastapi_routes.py.j2:105"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 90,
+      "templates": [
+        "fastapi_routes.py.j2:106"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/list_expenses_op"
+      ]
+    },
+    {
+      "line": 91,
+      "templates": [
+        "fastapi_routes.py.j2:107"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 94,
+      "templates": [
+        "fastapi_routes.py.j2:37"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 95,
+      "templates": [
+        "fastapi_routes.py.j2:63"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 96,
+      "templates": [
+        "fastapi_routes.py.j2:65"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 97,
+      "templates": [
+        "fastapi_routes.py.j2:91"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 98,
+      "templates": [
+        "fastapi_routes.py.j2:102"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 99,
+      "templates": [
+        "fastapi_routes.py.j2:105"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 100,
+      "templates": [
+        "fastapi_routes.py.j2:106"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/list_payments_op",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 101,
+      "templates": [
+        "fastapi_routes.py.j2:107"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 104,
+      "templates": [
+        "fastapi_routes.py.j2:37"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "line": 105,
+      "templates": [
+        "fastapi_routes.py.j2:63"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "line": 106,
+      "templates": [
+        "fastapi_routes.py.j2:65"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "line": 107,
+      "templates": [
+        "fastapi_routes.py.j2:91"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "line": 108,
+      "templates": [
+        "fastapi_routes.py.j2:102"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "line": 109,
+      "templates": [
+        "fastapi_routes.py.j2:105"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 110,
+      "templates": [
+        "fastapi_routes.py.j2:106"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses",
+        "https://example.org/expenses/paid_expenses_op"
+      ]
+    },
+    {
+      "line": 111,
+      "templates": [
+        "fastapi_routes.py.j2:107"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
       "line": 114,
       "templates": [
-        "fastapi_routes.py.j2:33"
+        "fastapi_routes.py.j2:37"
       ],
       "terms": [
-        "https://example.org/expenses/payouts"
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
       ]
     },
     {
       "line": 115,
       "templates": [
-        "fastapi_routes.py.j2:34"
+        "fastapi_routes.py.j2:39"
       ],
       "terms": [
-        "https://example.org/expenses/payouts"
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
       ]
     },
     {
       "line": 116,
       "templates": [
-        "fastapi_routes.py.j2:35"
+        "fastapi_routes.py.j2:63"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 117,
+      "templates": [
+        "fastapi_routes.py.j2:65"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 118,
+      "templates": [
+        "fastapi_routes.py.j2:67"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
       ]
     },
     {
       "line": 119,
       "templates": [
-        "fastapi_routes.py.j2:37"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
-      ]
-    },
-    {
-      "line": 120,
-      "templates": [
-        "fastapi_routes.py.j2:42"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
-      ]
-    },
-    {
-      "line": 121,
-      "templates": [
-        "fastapi_routes.py.j2:43"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/approval_bpmn",
-        "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
-        "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
-      ]
-    },
-    {
-      "line": 122,
-      "templates": [
-        "fastapi_routes.py.j2:44"
+        "fastapi_routes.py.j2:80"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1262,25 +1310,73 @@
       ]
     },
     {
-      "line": 123,
+      "line": 120,
       "templates": [
-        "fastapi_routes.py.j2:46"
+        "fastapi_routes.py.j2:81"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
         "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
         "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 121,
+      "templates": [
+        "fastapi_routes.py.j2:82"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 122,
+      "templates": [
+        "fastapi_routes.py.j2:83"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 123,
+      "templates": [
+        "fastapi_routes.py.j2:84"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
       ]
     },
     {
       "line": 124,
       "templates": [
-        "fastapi_routes.py.j2:61"
+        "fastapi_routes.py.j2:85"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -1290,41 +1386,186 @@
     {
       "line": 125,
       "templates": [
-        "fastapi_routes.py.j2:65"
+        "fastapi_routes.py.j2:91"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
         "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
         "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
       ]
     },
     {
       "line": 126,
       "templates": [
-        "fastapi_routes.py.j2:67"
+        "fastapi_routes.py.j2:94"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
         "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
         "https://example.org/expenses/approval_process",
-        "https://example.org/expenses/employee_submit_policy",
         "https://example.org/expenses/expense",
-        "https://example.org/expenses/expense_list",
-        "https://example.org/expenses/submit_expense_op",
-        "https://example.org/expenses/submit_to_list"
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
       ]
     },
     {
       "line": 127,
       "templates": [
-        "fastapi_routes.py.j2:70"
+        "fastapi_routes.py.j2:95"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 128,
+      "templates": [
+        "fastapi_routes.py.j2:96"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 129,
+      "templates": [
+        "fastapi_routes.py.j2:98"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 130,
+      "templates": [
+        "fastapi_routes.py.j2:100"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 131,
+      "templates": [
+        "fastapi_routes.py.j2:105"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 132,
+      "templates": [
+        "fastapi_routes.py.j2:106"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_bpmn#pay_expense",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_details",
+        "https://example.org/expenses/pay_expense_op",
+        "https://example.org/expenses/payment_to_details"
+      ]
+    },
+    {
+      "line": 133,
+      "templates": [
+        "fastapi_routes.py.j2:107"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 136,
+      "templates": [
+        "fastapi_routes.py.j2:31"
+      ],
+      "terms": [
+        "https://example.org/expenses/payouts"
+      ]
+    },
+    {
+      "line": 137,
+      "templates": [
+        "fastapi_routes.py.j2:32"
+      ],
+      "terms": [
+        "https://example.org/expenses/payouts"
+      ]
+    },
+    {
+      "line": 138,
+      "templates": [
+        "fastapi_routes.py.j2:33"
+      ],
+      "terms": [
+        "https://example.org/expenses/payouts"
+      ]
+    },
+    {
+      "line": 139,
+      "templates": [
+        "fastapi_routes.py.j2:34"
+      ],
+      "terms": [
+        "https://example.org/expenses/payouts"
+      ]
+    },
+    {
+      "line": 140,
+      "templates": [
+        "fastapi_routes.py.j2:35"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 143,
+      "templates": [
+        "fastapi_routes.py.j2:37"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_process",
@@ -1336,7 +1577,129 @@
       ]
     },
     {
-      "line": 128,
+      "line": 144,
+      "templates": [
+        "fastapi_routes.py.j2:42"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 145,
+      "templates": [
+        "fastapi_routes.py.j2:43"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 146,
+      "templates": [
+        "fastapi_routes.py.j2:44"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 147,
+      "templates": [
+        "fastapi_routes.py.j2:46"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 148,
+      "templates": [
+        "fastapi_routes.py.j2:61"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 149,
+      "templates": [
+        "fastapi_routes.py.j2:65"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 150,
+      "templates": [
+        "fastapi_routes.py.j2:67"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 151,
+      "templates": [
+        "fastapi_routes.py.j2:70"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 152,
       "templates": [
         "fastapi_routes.py.j2:73"
       ],
@@ -1346,11 +1709,12 @@
       ]
     },
     {
-      "line": 129,
+      "line": 153,
       "templates": [
         "fastapi_routes.py.j2:74"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_process",
@@ -1362,11 +1726,12 @@
       ]
     },
     {
-      "line": 130,
+      "line": 154,
       "templates": [
         "fastapi_routes.py.j2:75"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_process",
@@ -1378,11 +1743,12 @@
       ]
     },
     {
-      "line": 131,
+      "line": 155,
       "templates": [
         "fastapi_routes.py.j2:76"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_process",
@@ -1394,7 +1760,7 @@
       ]
     },
     {
-      "line": 132,
+      "line": 156,
       "templates": [
         "fastapi_routes.py.j2:77"
       ],
@@ -1404,21 +1770,29 @@
       ]
     },
     {
-      "line": 133,
+      "line": 157,
       "templates": [
         "fastapi_routes.py.j2:94"
       ],
       "terms": [
-        "https://example.org/expenses/expense_api",
-        "https://example.org/expenses/expense_system"
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
       ]
     },
     {
-      "line": 134,
+      "line": 158,
       "templates": [
         "fastapi_routes.py.j2:95"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_process",
@@ -1430,11 +1804,12 @@
       ]
     },
     {
-      "line": 135,
+      "line": 159,
       "templates": [
         "fastapi_routes.py.j2:96"
       ],
       "terms": [
+        "https://example.org/expenses/Expense",
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approval_bpmn",
         "https://example.org/expenses/approval_process",
@@ -1446,13 +1821,1085 @@
       ]
     },
     {
-      "line": 136,
+      "line": 160,
       "templates": [
         "fastapi_routes.py.j2:100"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
         "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 161,
+      "templates": [
+        "fastapi_routes.py.j2:105"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 162,
+      "templates": [
+        "fastapi_routes.py.j2:106"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/approval_bpmn",
+        "https://example.org/expenses/approval_process",
+        "https://example.org/expenses/employee_submit_policy",
+        "https://example.org/expenses/expense",
+        "https://example.org/expenses/expense_list",
+        "https://example.org/expenses/submit_expense_op",
+        "https://example.org/expenses/submit_to_list"
+      ]
+    },
+    {
+      "line": 163,
+      "templates": [
+        "fastapi_routes.py.j2:107"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 166,
+      "templates": [
+        "fastapi_routes.py.j2:114"
+      ],
+      "terms": [
+        "https://example.org/expenses/Approval",
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/comment",
+        "https://example.org/expenses/decision",
+        "https://example.org/expenses/outcome_approved",
+        "https://example.org/expenses/outcome_rejected"
+      ]
+    },
+    {
+      "line": 167,
+      "templates": [
+        "fastapi_routes.py.j2:115"
+      ],
+      "terms": [
+        "https://example.org/expenses/Approval",
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/comment",
+        "https://example.org/expenses/decision",
+        "https://example.org/expenses/outcome_approved",
+        "https://example.org/expenses/outcome_rejected"
+      ]
+    },
+    {
+      "line": 168,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 169,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 170,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 171,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 172,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 173,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 174,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 175,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 176,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 177,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 178,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 179,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 180,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 181,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 182,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 183,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 184,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 185,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 186,
+      "templates": [
+        "fastapi_routes.py.j2:119"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 189,
+      "templates": [
+        "fastapi_routes.py.j2:122"
+      ],
+      "terms": [
+        "https://example.org/expenses/Approval",
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/comment",
+        "https://example.org/expenses/decision",
+        "https://example.org/expenses/outcome_approved",
+        "https://example.org/expenses/outcome_rejected"
+      ]
+    },
+    {
+      "line": 190,
+      "templates": [
+        "fastapi_routes.py.j2:123"
+      ],
+      "terms": [
+        "https://example.org/expenses/Approval",
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/comment",
+        "https://example.org/expenses/decision",
+        "https://example.org/expenses/outcome_approved",
+        "https://example.org/expenses/outcome_rejected"
+      ]
+    },
+    {
+      "line": 191,
+      "templates": [
+        "fastapi_routes.py.j2:124"
+      ],
+      "terms": [
+        "https://example.org/expenses/Approval",
+        "https://example.org/expenses/ApprovalShape",
+        "https://example.org/expenses/comment",
+        "https://example.org/expenses/decision",
+        "https://example.org/expenses/outcome_approved",
+        "https://example.org/expenses/outcome_rejected"
+      ]
+    },
+    {
+      "line": 194,
+      "templates": [
+        "fastapi_routes.py.j2:114"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount",
+        "https://example.org/expenses/date",
+        "https://example.org/expenses/description",
+        "https://example.org/expenses/id",
+        "https://example.org/expenses/s_approved",
+        "https://example.org/expenses/s_draft",
+        "https://example.org/expenses/s_paid",
+        "https://example.org/expenses/s_rejected",
+        "https://example.org/expenses/s_submitted",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 195,
+      "templates": [
+        "fastapi_routes.py.j2:115"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount",
+        "https://example.org/expenses/date",
+        "https://example.org/expenses/description",
+        "https://example.org/expenses/id",
+        "https://example.org/expenses/s_approved",
+        "https://example.org/expenses/s_draft",
+        "https://example.org/expenses/s_paid",
+        "https://example.org/expenses/s_rejected",
+        "https://example.org/expenses/s_submitted",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 196,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 197,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 198,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 199,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 200,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 201,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 202,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 203,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 204,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 205,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 206,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 207,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 208,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 209,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 210,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 211,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 212,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 213,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 214,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 215,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 216,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 217,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 218,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 219,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 220,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 221,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 222,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 223,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 224,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 225,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 226,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 227,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 228,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 229,
+      "templates": [
+        "fastapi_routes.py.j2:119"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 232,
+      "templates": [
+        "fastapi_routes.py.j2:122"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount",
+        "https://example.org/expenses/date",
+        "https://example.org/expenses/description",
+        "https://example.org/expenses/id",
+        "https://example.org/expenses/s_approved",
+        "https://example.org/expenses/s_draft",
+        "https://example.org/expenses/s_paid",
+        "https://example.org/expenses/s_rejected",
+        "https://example.org/expenses/s_submitted",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 233,
+      "templates": [
+        "fastapi_routes.py.j2:123"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount",
+        "https://example.org/expenses/date",
+        "https://example.org/expenses/description",
+        "https://example.org/expenses/id",
+        "https://example.org/expenses/s_approved",
+        "https://example.org/expenses/s_draft",
+        "https://example.org/expenses/s_paid",
+        "https://example.org/expenses/s_rejected",
+        "https://example.org/expenses/s_submitted",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 234,
+      "templates": [
+        "fastapi_routes.py.j2:124"
+      ],
+      "terms": [
+        "https://example.org/expenses/Expense",
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/amount",
+        "https://example.org/expenses/date",
+        "https://example.org/expenses/description",
+        "https://example.org/expenses/id",
+        "https://example.org/expenses/s_approved",
+        "https://example.org/expenses/s_draft",
+        "https://example.org/expenses/s_paid",
+        "https://example.org/expenses/s_rejected",
+        "https://example.org/expenses/s_submitted",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 237,
+      "templates": [
+        "fastapi_routes.py.j2:114"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/paidOn",
+        "https://example.org/expenses/reference",
+        "https://example.org/expenses/s_batched",
+        "https://example.org/expenses/s_recorded",
+        "https://example.org/expenses/s_scheduled",
+        "https://example.org/expenses/s_sent",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 238,
+      "templates": [
+        "fastapi_routes.py.j2:115"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/paidOn",
+        "https://example.org/expenses/reference",
+        "https://example.org/expenses/s_batched",
+        "https://example.org/expenses/s_recorded",
+        "https://example.org/expenses/s_scheduled",
+        "https://example.org/expenses/s_sent",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 239,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 240,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 241,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 242,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 243,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 244,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 245,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 246,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 247,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 248,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 249,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 250,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 251,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 252,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 253,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 254,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 255,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 256,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 257,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 258,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 259,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 260,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 261,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 262,
+      "templates": [
+        "fastapi_routes.py.j2:117"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 263,
+      "templates": [
+        "fastapi_routes.py.j2:119"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 266,
+      "templates": [
+        "fastapi_routes.py.j2:122"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/paidOn",
+        "https://example.org/expenses/reference",
+        "https://example.org/expenses/s_batched",
+        "https://example.org/expenses/s_recorded",
+        "https://example.org/expenses/s_scheduled",
+        "https://example.org/expenses/s_sent",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 267,
+      "templates": [
+        "fastapi_routes.py.j2:123"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/paidOn",
+        "https://example.org/expenses/reference",
+        "https://example.org/expenses/s_batched",
+        "https://example.org/expenses/s_recorded",
+        "https://example.org/expenses/s_scheduled",
+        "https://example.org/expenses/s_sent",
+        "https://example.org/expenses/status"
+      ]
+    },
+    {
+      "line": 268,
+      "templates": [
+        "fastapi_routes.py.j2:124"
+      ],
+      "terms": [
+        "https://example.org/expenses/Payment",
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/paidOn",
+        "https://example.org/expenses/reference",
+        "https://example.org/expenses/s_batched",
+        "https://example.org/expenses/s_recorded",
+        "https://example.org/expenses/s_scheduled",
+        "https://example.org/expenses/s_sent",
+        "https://example.org/expenses/status"
       ]
     }
   ],

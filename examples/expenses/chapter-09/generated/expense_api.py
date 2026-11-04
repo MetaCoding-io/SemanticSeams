@@ -7,7 +7,7 @@
 # Handler names: the operation or channel IRI local name minus a trailing _op (gaps.md GAP-21)
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from seams_runtime import Identity, Runtime
 
 MODEL_HASH = "sha256:d6805b39037fffef8d887843c53ce7d26390b4f40ec2edfa797dd2fb9ef98588"
@@ -29,25 +29,34 @@ async def approve_expense(expense: str, request: Request, identity: Identity = D
         identity=identity,
     )
     expenses = runtime.query(":ExpenseShape", expense=expense)
-    return runtime.render_fragment(
+    response = runtime.render_fragment(
         "expense_details.html",
         expenses,
         expense=expense,
     )
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :awaiting_approval_op a hydra:Operation ; hydra:method "GET"
 @router.get("/expenses/{expense}/awaiting-approval", response_class=HTMLResponse)
 async def awaiting_approval(expense: str) -> HTMLResponse:
     expenses = runtime.query(":ExpenseShape", expense=expense)
-    return runtime.render_fragment("awaiting_approval.html", expenses, expense=expense)
+    response = runtime.render_fragment("awaiting_approval.html", expenses, expense=expense)
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :expense_details_op a hydra:Operation ; hydra:method "GET"
 @router.get("/expenses/{expense}", response_class=HTMLResponse)
 async def expense_details(expense: str) -> HTMLResponse:
     expenses = runtime.query(":ExpenseShape", expense=expense)
-    return runtime.render_fragment("expense_details.html", expenses, expense=expense)
+    response = runtime.render_fragment("expense_details.html", expenses, expense=expense)
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :finance_approve_expense_op a hydra:Operation ; hydra:method "POST"
@@ -62,32 +71,44 @@ async def finance_approve_expense(expense: str, request: Request, identity: Iden
         identity=identity,
     )
     expenses = runtime.query(":ExpenseShape", expense=expense)
-    return runtime.render_fragment(
+    response = runtime.render_fragment(
         "expense_details.html",
         expenses,
         expense=expense,
     )
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :list_expenses_op a hydra:Operation ; hydra:method "GET"
 @router.get("/expenses", response_class=HTMLResponse)
 async def list_expenses() -> HTMLResponse:
     expenses = runtime.query(":ExpenseShape")
-    return runtime.render_fragment("expense_list.html", expenses)
+    response = runtime.render_fragment("expense_list.html", expenses)
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :list_payments_op a hydra:Operation ; hydra:method "GET"
 @router.get("/payments", response_class=HTMLResponse)
 async def list_payments() -> HTMLResponse:
     payments = runtime.query(":PaymentShape")
-    return runtime.render_fragment("payment_list.html", payments)
+    response = runtime.render_fragment("payment_list.html", payments)
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/PaymentShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :paid_expenses_op a hydra:Operation ; hydra:method "GET"
 @router.get("/payouts/expenses", response_class=HTMLResponse)
 async def paid_expenses() -> HTMLResponse:
     expenses = runtime.query(":ExpenseShape")
-    return runtime.render_fragment("paid_expenses.html", expenses)
+    response = runtime.render_fragment("paid_expenses.html", expenses)
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :pay_expense_op a hydra:Operation ; hydra:method "POST"
@@ -102,11 +123,14 @@ async def pay_expense(expense: str, request: Request, identity: Identity = Depen
         identity=identity,
     )
     expenses = runtime.query(":ExpenseShape", expense=expense)
-    return runtime.render_fragment(
+    response = runtime.render_fragment(
         "expense_details.html",
         expenses,
         expense=expense,
     )
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
 
 
 # :payouts a comm:Channel ; comm:transport comm:SSE
@@ -130,7 +154,115 @@ async def submit_expense(expense: str, request: Request) -> HTMLResponse:
         expense_payload,
         correlation_key=expense,
     )
-    return runtime.render_fragment(
+    response = runtime.render_fragment(
         "expense_list_item.html",
         expense_payload,
     )
+    # ADR-0024: the returned shape's JSON-LD context
+    response.headers["Link"] = '</contexts/ExpenseShape.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return response
+
+
+# :ApprovalShape sh:targetClass :Approval: its JSON-LD context (ADR-0024), the jsonld generator's ApprovalShape.jsonld
+APPROVAL_CONTEXT = (
+    '{\n'
+    '  "@context": {\n'
+    '    "@version": 1.1,\n'
+    '    "Approval": "https://example.org/expenses/Approval",\n'
+    '    "comment": {\n'
+    '      "@id": "https://example.org/expenses/comment",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#string"\n'
+    '    },\n'
+    '    "decision": {\n'
+    '      "@context": {\n'
+    '        "approved": "https://example.org/expenses/outcome_approved",\n'
+    '        "rejected": "https://example.org/expenses/outcome_rejected"\n'
+    '      },\n'
+    '      "@id": "https://example.org/expenses/decision",\n'
+    '      "@type": "@vocab"\n'
+    '    }\n'
+    '  }\n'
+    '}\n'
+)
+
+
+@router.get("/contexts/ApprovalShape.jsonld")
+async def approval_context() -> Response:
+    return Response(APPROVAL_CONTEXT, media_type="application/ld+json")
+
+
+# :ExpenseShape sh:targetClass :Expense: its JSON-LD context (ADR-0024), the jsonld generator's ExpenseShape.jsonld
+EXPENSE_CONTEXT = (
+    '{\n'
+    '  "@context": {\n'
+    '    "@version": 1.1,\n'
+    '    "Expense": "https://example.org/expenses/Expense",\n'
+    '    "amount": {\n'
+    '      "@id": "https://example.org/expenses/amount",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#decimal"\n'
+    '    },\n'
+    '    "date": {\n'
+    '      "@id": "https://example.org/expenses/date",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#date"\n'
+    '    },\n'
+    '    "description": {\n'
+    '      "@id": "https://example.org/expenses/description",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#string"\n'
+    '    },\n'
+    '    "id": {\n'
+    '      "@id": "https://example.org/expenses/id",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#string"\n'
+    '    },\n'
+    '    "status": {\n'
+    '      "@context": {\n'
+    '        "approved": "https://example.org/expenses/s_approved",\n'
+    '        "draft": "https://example.org/expenses/s_draft",\n'
+    '        "paid": "https://example.org/expenses/s_paid",\n'
+    '        "rejected": "https://example.org/expenses/s_rejected",\n'
+    '        "submitted": "https://example.org/expenses/s_submitted"\n'
+    '      },\n'
+    '      "@id": "https://example.org/expenses/status",\n'
+    '      "@type": "@vocab"\n'
+    '    }\n'
+    '  }\n'
+    '}\n'
+)
+
+
+@router.get("/contexts/ExpenseShape.jsonld")
+async def expense_context() -> Response:
+    return Response(EXPENSE_CONTEXT, media_type="application/ld+json")
+
+
+# :PaymentShape sh:targetClass :Payment: its JSON-LD context (ADR-0024), the jsonld generator's PaymentShape.jsonld
+PAYMENT_CONTEXT = (
+    '{\n'
+    '  "@context": {\n'
+    '    "@version": 1.1,\n'
+    '    "Payment": "https://example.org/expenses/Payment",\n'
+    '    "paid_on": {\n'
+    '      "@id": "https://example.org/expenses/paidOn",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#date"\n'
+    '    },\n'
+    '    "reference": {\n'
+    '      "@id": "https://example.org/expenses/reference",\n'
+    '      "@type": "http://www.w3.org/2001/XMLSchema#string"\n'
+    '    },\n'
+    '    "status": {\n'
+    '      "@context": {\n'
+    '        "batched": "https://example.org/expenses/s_batched",\n'
+    '        "recorded": "https://example.org/expenses/s_recorded",\n'
+    '        "scheduled": "https://example.org/expenses/s_scheduled",\n'
+    '        "sent": "https://example.org/expenses/s_sent"\n'
+    '      },\n'
+    '      "@id": "https://example.org/expenses/status",\n'
+    '      "@type": "@vocab"\n'
+    '    }\n'
+    '  }\n'
+    '}\n'
+)
+
+
+@router.get("/contexts/PaymentShape.jsonld")
+async def payment_context() -> Response:
+    return Response(PAYMENT_CONTEXT, media_type="application/ld+json")

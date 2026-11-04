@@ -53,7 +53,13 @@ command gives the same result from any working directory.
 seams generate                         # the seams.toml in the working directory
 seams generate --project examples/expenses/chapter-03
 seams generate --project path/to/seams.toml --model other.trig
+seams generate examples/expenses/chapter-03/expenses.trig
 ```
+
+`generate`, `check`, `migrate`, `status` and `secrets` also take the project or
+the model by position: a directory, a `seams.toml` or a path without a suffix is
+`--project`; any other file is `--model`, with the `seams.toml` beside it as the
+project.
 
 It runs every generator in memory and writes the files only when all of them
 succeed, so a failing generator leaves every output untouched. Before any

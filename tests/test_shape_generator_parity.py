@@ -1107,6 +1107,11 @@ GENERATOR_ONLY: dict[Site, str] = {
         "Whether the build context holds the model's directory depends on resolving the deploy:context path "
         "against the model file's location on disk, not on the graph; backlog A11 covers the build paths."
     ),
+    Site("fastapi", "_contexts", "SH.targetClass"): (
+        "A route path or handler name equal to /contexts/<shape>.jsonld or <shape name>_context is valid for "
+        "every other generator; only the fastapi generator also routes a target-classed shape's JSON-LD "
+        "context there (ADR-0024 sections 5 and 7)."
+    ),
     Site("jsonld", "_class_term", "SH.targetClass"): (
         "A target class and a field with one local name are distinct IRIs in any valid model; only a JSON-LD "
         "context puts class and field names in one namespace of terms (ADR-0024 section 7)."

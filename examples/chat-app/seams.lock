@@ -124,7 +124,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:09271e713f0cdedcf5ff9fe2a2f7c84a7d07164da8900d9ff2d1c275223d2974",
       "path": "generated/chat_api.py.trace.json",
-      "sha256": "51309a9e0d1c22a690bec7fe192d7fdd9a41b1960849edfaf2f69865d072f171",
+      "sha256": "2ed3eb679b9cded5b8c1240489c9a49a96dde9a9256e2c9d3bd2318a15200b1f",
       "sources": [
         "https://example.org/chat/ConversationShape",
         "https://example.org/chat/MessageShape",

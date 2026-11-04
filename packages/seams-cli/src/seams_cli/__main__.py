@@ -1,4 +1,5 @@
 """Command line: ``seams generate|check|migrate|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--force]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
@@ -167,7 +168,7 @@ from .lockfile import locate
 from .migrate import migrate
 from .new_generator import NewGeneratorError, new_generator
 from .plan import render, resolve
-from .project import ProjectError, load_project, resolve_model
+from .project import PROJECT_FILE, ProjectError, load_project, resolve_model
 from .propose import ProposeError, propose
 from .secrets import EXAMPLE, example_environment, render_example, run_secrets
 from .sequence import run_sequence
@@ -185,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="rewrite every generated output the project file names",
         description="Run every generator of the project file and write its outputs.",
     )
-    _project_arguments(gen)
+    _project_arguments(gen, path=True)
     gen.add_argument(
         "--lenient",
         action="store_true",
@@ -197,21 +198,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail on SHACL violations, gate rows and stale outputs; writes nothing",
         description="Validate the model, run the project's gate queries and compare the outputs with the disk.",
     )
-    _project_arguments(check)
+    _project_arguments(check, path=True)
     check.set_defaults(run=_check)
     mig = sub.add_parser(
         "migrate",
         help="write the vocabulary migrations a model needs into its TriG files, keeping comments",
         description="Migrate the model's files to the shipped vocabulary versions through the one write path.",
     )
-    _project_arguments(mig)
+    _project_arguments(mig, path=True)
     mig.set_defaults(run=_migrate)
     status = sub.add_parser(
         "status",
         help="report whether each running runtime container is on the current model",
         description="Read each runtime container's /healthz in an environment and compare its model hash.",
     )
-    _project_arguments(status)
+    _project_arguments(status, path=True)
     status.add_argument("--env", help="the [environments.<name>] to read (default: the only one with endpoints)")
     status.add_argument("--timeout", type=float, default=5.0, help="seconds to wait for each /healthz (default: 5)")
     status.set_defaults(run=_status)
@@ -220,7 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="check that each environment's configuration keys and secrets exist, without reading values",
         description="List every configuration binding per environment and check that its secret exists.",
     )
-    _project_arguments(secrets)
+    _project_arguments(secrets, path=True)
     secrets.add_argument("--env", help="the arch:Environment to check, by local name (default: all)")
     secrets.add_argument(
         "--write-example",
@@ -312,11 +313,45 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _project_arguments(parser: argparse.ArgumentParser) -> None:
+def _project_arguments(parser: argparse.ArgumentParser, *, path: bool = False) -> None:
+    if path:
+        parser.add_argument(
+            "path",
+            nargs="?",
+            type=Path,
+            metavar="PATH",
+            help="seams.toml, a directory holding one, or the model (.trig): --project or --model by position",
+        )
     parser.add_argument(
-        "--project", type=Path, default=Path("."), help="seams.toml or a directory holding one (default: .)"
+        "--project",
+        type=Path,
+        default=None if path else Path("."),
+        help="seams.toml or a directory holding one (default: .)",
     )
     parser.add_argument("--model", type=Path, help="the model (.trig); overrides the project file and SEAMS_MODEL")
+
+
+def _fold_path(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Fold the PATH positional into ``--project`` or ``--model``.
+
+    A directory, a seams.toml or a path without a suffix is the project. Any
+    other file is the model; its project is the seams.toml beside it, else
+    ``--project`` (default: the working directory). Giving PATH and the flag it
+    stands for is a usage error.
+    """
+    path: Path | None = args.path
+    if path is not None and (path.is_dir() or path.name == PROJECT_FILE or not path.suffix):
+        if args.project is not None:
+            parser.error(f"{args.command}: give PATH or --project, not both")
+        args.project = path
+    elif path is not None:
+        if args.model is not None:
+            parser.error(f"{args.command}: give PATH or --model, not both")
+        args.model = path
+        if args.project is None and (path.parent / PROJECT_FILE).is_file():
+            args.project = path.parent
+    if args.project is None:
+        args.project = Path(".")
 
 
 def _display(path: Path) -> str:
@@ -521,6 +556,8 @@ def _new_generator(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if hasattr(args, "path"):
+        _fold_path(parser, args)
     if args.command == "sequence" and args.db is not None and args.trace is None:
         parser.error("sequence: --db needs --trace")
     try:

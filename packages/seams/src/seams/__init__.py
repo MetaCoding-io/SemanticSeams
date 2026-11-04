@@ -35,6 +35,12 @@ model for review; it never refuses it.
 ``ContextItem``s (the model facts and native file fragments its code
 depends on, narrowed to the ones it uses) and a context hash.
 
+``seams.vocabularies`` runs the vocabulary version check (ADR-0021) that
+``load`` applies: a model declares the vocabulary versions it targets as
+``owl:imports`` in ``MANIFEST_GRAPH``; a newer one is refused, an older one is
+migrated in memory with the SPARQL Update steps under ``ontology/migrations``,
+and ``Model.migrations`` lists the ``MigrationStep``s applied.
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
@@ -73,7 +79,7 @@ from .graph import (
     dmn_decision_ids,
     dmn_input_types,
 )
-from .loader import Model, load, model_hash, payload_path
+from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_hash, payload_path
 from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, VERIFY, local_name
 from .review_check import ReviewFinding, review_findings
 from .sparql import PREFIXES, load_question, question_names
@@ -125,6 +131,14 @@ from .views import (
     Transition,
     Volume,
 )
+from .vocabularies import (
+    MANIFEST_GRAPH,
+    MigrationStep,
+    check_versions,
+    declared_versions,
+    shipped_versions,
+    version_iri,
+)
 
 __all__ = [
     "ARCH",
@@ -141,6 +155,7 @@ __all__ = [
     "ContextItem",
     "DASH",
     "DEC",
+    "DEFAULT_ONTOLOGY_DIR",
     "DEPLOY",
     "Decision",
     "DecisionBinding",
@@ -168,9 +183,11 @@ __all__ = [
     "Interfaces",
     "Lifecycle",
     "Lifecycles",
+    "MANIFEST_GRAPH",
     "Manifest",
     "Many",
     "MessageStart",
+    "MigrationStep",
     "Model",
     "ModelGraph",
     "ODRL",
@@ -217,10 +234,12 @@ __all__ = [
     "VERIFY",
     "Volume",
     "bpmn_start_event_ids",
+    "check_versions",
     "condition_findings",
     "context_for",
     "decision_findings",
     "decision_table",
+    "declared_versions",
     "dmn_decision_ids",
     "dmn_input_types",
     "load",
@@ -233,7 +252,9 @@ __all__ = [
     "process_paths",
     "question_names",
     "review_findings",
+    "shipped_versions",
     "type_ref_findings",
     "unexercised_paths",
     "unfired_transitions",
+    "version_iri",
 ]

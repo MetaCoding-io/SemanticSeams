@@ -18,6 +18,8 @@ from rdflib.term import Node
 
 from .errors import ResolutionError
 from .namespaces import SEAM, local_name
+from .vocabularies import MigrationStep
+from .vocabularies import check_versions as _check_versions
 
 if TYPE_CHECKING:
     from .sparql import Row
@@ -41,6 +43,10 @@ if TYPE_CHECKING:
 
 #: Environment variable naming the model ``load()`` reads when given no path.
 MODEL_ENV = "SEAMS_MODEL"
+
+#: The repository's ontology/ (vocabularies, shapes, migrations) when ``seams``
+#: runs from the workspace (D060). An installed copy has none next to it.
+DEFAULT_ONTOLOGY_DIR = Path(__file__).resolve().parents[4] / "ontology"
 
 
 def payload_path(payload_iri: object, base_dir: str | os.PathLike[str]) -> Path:
@@ -67,9 +73,23 @@ class Model:
     ``path`` is the resolved TriG file or directory, ``base_dir`` the directory
     payloads resolve against (the file's parent, or the directory itself),
     ``files`` the TriG files parsed and ``ds`` the merged Dataset.
+
+    ``ds`` has passed the ADR-0021 vocabulary version check against
+    ``ontology_dir`` and holds the migrated data when the model targets an
+    older vocabulary; ``migrations`` lists the steps applied, sorted. Without
+    ``ontology_dir`` the repository's ``ontology/`` is used, and the check is
+    skipped when there is none (an installed ``seams`` outside the
+    workspace). ``check_versions=False`` keeps the model as written.
     """
 
-    def __init__(self, path: str | os.PathLike[str], dataset: Dataset | None = None) -> None:
+    def __init__(
+        self,
+        path: str | os.PathLike[str],
+        dataset: Dataset | None = None,
+        *,
+        ontology_dir: str | os.PathLike[str] | None = None,
+        check_versions: bool = True,
+    ) -> None:
         resolved = Path(path).resolve()
         self.path: Path = resolved
         if resolved.is_dir():
@@ -86,6 +106,13 @@ class Model:
             dataset = Dataset(default_union=True)
             for trig in self.files:
                 dataset.parse(str(trig), format="trig")
+        self.migrations: tuple[MigrationStep, ...] = ()
+        if check_versions:
+            vocabularies = Path(ontology_dir) if ontology_dir is not None else DEFAULT_ONTOLOGY_DIR
+            if ontology_dir is not None or vocabularies.is_dir():
+                if not vocabularies.is_dir():
+                    raise FileNotFoundError(f"no ontology directory {vocabularies}")
+                self.migrations = _check_versions(dataset, vocabularies)
         self.ds: Dataset = dataset
         # Per-instance cache (never a module-level id()-keyed dict; see MEM010).
         self._hash: str | None = None
@@ -298,21 +325,30 @@ class Model:
         return path
 
 
-def load(path: str | os.PathLike[str] | None = None) -> Model:
+def load(
+    path: str | os.PathLike[str] | None = None,
+    *,
+    ontology_dir: str | os.PathLike[str] | None = None,
+    check_versions: bool = True,
+) -> Model:
     """Load a model from a TriG file or a directory of ``*.trig`` files.
 
     A directory loads every ``*.trig`` directly inside it (non-recursive,
     sorted by name) into one Dataset. Without ``path``, the ``SEAMS_MODEL``
     environment variable names the model; an explicit path always wins.
+
+    The vocabulary versions the model declares are checked against
+    ``ontology_dir`` (default: the repository's ``ontology/``) and an older
+    model is migrated in memory (ADR-0021); see ``Model``.
     """
     if path is None:
         env = os.environ.get(MODEL_ENV, "")
         if not env:
             raise ValueError(f"no model path given and {MODEL_ENV} is not set")
         path = env
-    return Model(path)
+    return Model(path, ontology_dir=ontology_dir, check_versions=check_versions)
 
 
 def model_hash(path: str | os.PathLike[str]) -> str:
     """The hash of the model at ``path`` (see ``Model.hash``)."""
-    return Model(path).hash
+    return Model(path, check_versions=False).hash

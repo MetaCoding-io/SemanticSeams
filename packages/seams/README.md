@@ -23,6 +23,36 @@ the views (`model.architecture`, `interfaces`, `processes`, `decisions`,
 `scenarios` and `decision_examples`) read every model of a layer at once.
 `model.sparql` and `model.question` run read-only SPARQL.
 
+## Vocabulary versions
+
+`seams.load` runs the ADR-0021 vocabulary version check (`vocabularies.py`).
+Each vocabulary in `ontology/<name>.ttl` carries `owl:versionIRI
+<https://w3id.org/seams/<name>/MAJOR.MINOR>`, and `seams.shipped_versions(dir)`
+reads them. A model declares the versions it targets as `owl:imports` of those
+IRIs in `<urn:seams:graph:manifest>` (`seams.MANIFEST_GRAPH`); a vocabulary it
+does not declare targets `1.0`. Per vocabulary, in sorted name order:
+
+- the same major and a minor at most the tool's loads as written;
+- a newer version raises `ResolutionError(<urn:seams:graph:manifest>,
+  owl:imports, "targets seam 2.1; this tool supports seam up to 2.0")`;
+- an older major is migrated in memory: `ontology/migrations/<name>/<k>-to-<k+1>.ru`
+  (SPARQL Update) runs for each major step in ascending order, then the
+  declaration is replaced with the tool's version IRI.
+
+Declarations that disagree, a version that was never published, a missing
+step file and a step that calls `NOW()`, `RAND()`, `UUID()`, `STRUUID()` or
+`BNODE()` raise the same `ResolutionError`, before the Dataset changes.
+`model.migrations` lists the `MigrationStep`s (`vocabulary`, `source`,
+`target`) applied, sorted. Migration never writes a file and never changes
+`model.hash`; persisting a migration is `seams migrate`'s job, through `seams_edit` (ADR-0021 section 5).
+
+`load(path, ontology_dir=...)` checks against another vocabulary directory;
+the default, `seams.DEFAULT_ONTOLOGY_DIR`, is the repository's `ontology/`
+(D060), and the check is skipped when that directory does not exist (an
+installed copy of `seams` outside the workspace, such as the runtime image).
+`check_versions=False` loads the model as written. `seams.check_versions(ds,
+dir)` runs the check on a Dataset directly.
+
 `ModelGraph.store_plan()` resolves which store the runtime keeps its rows in
 (ADR-0011) from `deploy:storeKind`, `deploy:connectsTo` and `seam:storedIn`,
 returning a `StorePlan` (`kind`, `store`, `container`, `key`, `declared`). A

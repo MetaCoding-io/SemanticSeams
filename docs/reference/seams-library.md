@@ -28,7 +28,8 @@ model.hash        # "sha256:..."
 model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...))]
 ```
 
-- `seams.load(path=None) -> Model` loads a model.
+- `seams.load(path=None, *, ontology_dir=None, check_versions=True) -> Model`
+  loads a model.
   - A **file** is parsed as TriG; payloads resolve against its directory.
   - A **directory** loads every `*.trig` directly inside it (not recursive,
     sorted by file name) into one Dataset; payloads resolve against the
@@ -36,6 +37,8 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   - Without a path, the `SEAMS_MODEL` environment variable names the model.
     An explicit path always wins; an unset or empty variable raises
     `ValueError`.
+  - The model passes the vocabulary version check first (see
+    [Vocabulary versions](#vocabulary-versions)).
 - `Model` exposes `path`, `base_dir`, `files` (the TriG files loaded), `ds`
   (the merged rdflib `Dataset`, `default_union=True`), `subject`, `curie(term)`,
   `label(iri)`, `payload_path(model_iri)` and:
@@ -51,6 +54,7 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
     `ResolutionError(iri, rdfs:label)` ("expected exactly one, found none"),
     the rule the generators use.
   - `hash`: computed once per instance.
+  - `migrations`: the vocabulary migration steps applied on load, sorted.
   - `payloads()`: `(relative posix path, absolute path)` for every
     `seam:renderPayload`, sorted by relative path. A missing payload raises
     `ResolutionError`.
@@ -99,6 +103,44 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   name with a view class (`Container`, `Lifecycle`, `Transition`): import
   those from `seams.graph` (or `seams_runtime.model`); the top-level names
   are the view classes.
+
+## Vocabulary versions
+
+`seams.load` runs the ADR-0021 load check. Each vocabulary in `ontology/<name>.ttl`
+carries `owl:versionIRI <https://w3id.org/seams/<name>/MAJOR.MINOR>`; a model declares
+the versions it targets as `owl:imports` in `<urn:seams:graph:manifest>`, and a
+vocabulary it does not declare targets `1.0`.
+
+```python
+model = seams.load("examples/expenses/chapter-01", ontology_dir="tests/fixtures/vocab-v2")
+model.migrations  # (MigrationStep(vocabulary='seam', source='1.0', target='2.0'),)
+```
+
+- `DEFAULT_ONTOLOGY_DIR`: the repository's `ontology/`, which `load` checks against
+  when given no `ontology_dir` (D060). When it does not exist (an installed copy of
+  `seams`) the check is skipped; an explicit `ontology_dir` that does not exist raises
+  `FileNotFoundError`. `check_versions=False` loads the model as written.
+- `MANIFEST_GRAPH`: `<urn:seams:graph:manifest>`, the graph holding the declarations.
+- `shipped_versions(ontology_dir)`: `{name: (major, minor)}` from each vocabulary's
+  `owl:versionIRI`. A vocabulary without one raises
+  `ResolutionError(<ontology>, owl:versionIRI)`.
+- `declared_versions(ds, shipped)`: the versions a Dataset declares, by name.
+  Imports of other ontologies are ignored.
+- `check_versions(ds, ontology_dir)`: the check itself, migrating `ds` in place and
+  returning the `MigrationStep`s applied. Per vocabulary: the same major with a minor
+  at most the tool's loads as written; a newer version raises
+  `ResolutionError(<urn:seams:graph:manifest>, owl:imports, "targets seam 2.1; this
+  tool supports seam up to 2.0")`; an older major runs
+  `ontology/migrations/<name>/<k>-to-<k+1>.ru` (SPARQL Update) per step, in sorted
+  vocabulary order and ascending step order, then replaces the declaration with the
+  tool's version IRI. Disagreeing declarations, an unpublished version, a missing step
+  and a step calling `NOW()`, `RAND()`, `UUID()`, `STRUUID()` or `BNODE()` raise the
+  same `ResolutionError` before the Dataset changes.
+- `MigrationStep(vocabulary, source, target)`: one applied step, versions as
+  `"MAJOR.MINOR"` strings.
+- `version_iri(name, (major, minor))`: `https://w3id.org/seams/<name>/MAJOR.MINOR`.
+
+Migration happens in memory only: no file is written and `model.hash` is unchanged.
 
 ## Views
 

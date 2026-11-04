@@ -332,13 +332,14 @@ class Worker:
         if op is not None and await self._invoke(instance, task, iri, op, row):
             return  # 3a: routed to an error boundary; no writes, no transition, not completed
 
-        # 4. writes
+        # 4. writes, off the event loop: a store reached over HTTP (SemPKM) must
+        # not stop the loop from serving its own webhook delivery (ADR-0027 section 7)
         for written in self.model.written_shapes(iri):
-            row.setdefault("writes", []).append(self._persist(instance, iri, written))
+            row.setdefault("writes", []).append(await asyncio.to_thread(self._persist, instance, iri, written))
 
         # 5. apply the transition
         if transition is not None:
-            self._set_status(instance, shape, transition.to_state)
+            await asyncio.to_thread(self._set_status, instance, shape, transition.to_state)
             row["status"] = transition.to_state
 
         if task.state == TaskState.STARTED:

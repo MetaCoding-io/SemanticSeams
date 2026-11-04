@@ -37,6 +37,16 @@ a channel, ``start_subscribed`` starts every process whose start event
 seam:subscribesTo it, with the publisher's correlation key, entities and
 statuses.
 
+SemPKM webhooks (ADR-0027): every channel whose comm:transport is
+comm:SemPKMWebhook is resolved when the runtime is built
+(``ModelGraph.webhook_channels``, ``ResolutionError`` on a fault), and
+``receive_webhook`` handles one SemPKM delivery on it
+(``seams_runtime.webhooks``): it reads the event back with the service token,
+reads the changed objects of the accepted shape's class and starts each
+subscribed process once per (process, event, object), the object's IRI as
+correlation key. The worker's entity writes run in a thread, so a SemPKM
+write does not stop the loop from answering its own delivery.
+
 Human tasks (ADR-0009): ``user_tasks`` lists the open BPMN user tasks an
 identity may complete, ``complete_task`` checks the task's policies,
 validates the payload against its output shape and completes it on the
@@ -89,6 +99,7 @@ from .policy import Identity, PolicyHook, authenticator_from_env
 from .sempkm import SemPKMStore
 from .store import PostgresStore, SplitStore, SQLiteStore, Store
 from .telemetry import Telemetry, tracer_from_env
+from .webhooks import WebhookReceiver
 from .worker import RUNNING, Instance, Worker, new_state
 
 log = logging.getLogger(__name__)
@@ -248,6 +259,7 @@ class Runtime:
         http: EndpointClient | None = None,
         implementations: dict | None = None,
         boundaries: dict | None = None,
+        webhooks: list | None = None,
     ):
         self.model = model
         self.store = store
@@ -288,6 +300,8 @@ class Runtime:
             templates_dir if templates_dir is not None else os.environ.get(TEMPLATES_ENV) or DEFAULT_TEMPLATES
         )
         self.fragments = FragmentRenderer(model, self.templates_dir)
+        # ADR-0027: SemPKM webhook channels, resolved before any request is served
+        self.webhooks = WebhookReceiver(self, webhooks)
 
     @classmethod
     def load(
@@ -330,6 +344,7 @@ class Runtime:
         # ADR-0012: implementations resolve before a store is opened, so a model fault opens nothing
         implementations = resolve_implementations(model, handlers)
         boundaries = resolve_boundaries(model)  # ADR-0013, also before the store
+        webhooks = model.webhook_channels()  # ADR-0027, also before the store
         declared = STORE_KINDS[plan.kind]
         override = False
         forced = bool(os.environ.get(STORE_OVERRIDE_ENV)) and store is None
@@ -390,6 +405,7 @@ class Runtime:
             http=EndpointClient(http_base_url, transport=http_transport),
             implementations=implementations,
             boundaries=boundaries,
+            webhooks=webhooks,
         )
         log.info(
             "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",
@@ -497,7 +513,14 @@ class Runtime:
         instance is checkpointed before its worker task runs."""
         return self._start_subscribed(self.model.curie(process_curie), correlation_key, current, status, stop_after)
 
-    def _start_subscribed(self, process, correlation_key, current, status, stop_after=None) -> Instance:
+    async def receive_webhook(self, channel_curie, body) -> JSONResponse:
+        """Handle one SemPKM webhook delivery (the raw request ``body``) on the
+        comm:SemPKMWebhook channel ``channel_curie`` (ADR-0027): 202 with the
+        ``started`` and ``skipped`` objects, or problem+json naming the
+        channel (400, 422, 502, 503). A generated route only calls this."""
+        return await self.webhooks.receive(channel_curie, body)
+
+    def _start_subscribed(self, process, correlation_key, current, status, stop_after=None, origin=None) -> Instance:
         start = self.model.start_channel(process)
         if not correlation_key:
             raise ResolutionError(process, "proc:correlationKey", "empty correlation key")
@@ -507,6 +530,8 @@ class Runtime:
         state["current"] = copy.deepcopy(dict(current))
         state["status"] = dict(status)
         state["history"] = {shape: [value] for shape, value in status.items()}
+        if origin is not None:
+            state["start"] = dict(origin)  # ADR-0027: the {channel, event, object} that started it
         wf.data["seams"] = state
         instance = Instance(str(uuid.uuid4()), correlation_key, process, wf, stop_after)
         self.worker._checkpoint(instance, RUNNING)

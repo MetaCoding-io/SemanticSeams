@@ -39,6 +39,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
 | `await runtime.start_subscribed(":payout_process", correlation_key, current, status)` | Starts a channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md)): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel. The instance gets the correlation key and a copy of `current` (entities by shape IRI, ids kept) and `status` (status by shape IRI). Nothing is re-validated. It is checkpointed before its worker task runs. Rule 6a calls this for you; a process that is not channel-started raises `ResolutionError(process, seam:subscribesTo)`. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
+| `await runtime.receive_webhook(":vendor_changes", body)` | Handles one SemPKM webhook delivery, the raw request body, on a channel whose `comm:transport` is `comm:SemPKMWebhook` ([ADR-0027](../docs/adr/0027-sempkm-webhook-channel.md)). It returns a `JSONResponse`: 202 with `started` and `skipped`, or problem+json naming the channel. See [SemPKM webhooks](#sempkm-webhooks-adr-0027). A generated webhook route only calls this. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id (the IRI SemPKM mints, for a shape stored in a SemPKM store) and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
 | `runtime.problem(operation, error)` | The `application/problem+json` response for an `OperationError` raised while serving `operation` (ADR-0013); a generated route module's `problem_handler` calls it. `contracts.problem_body` builds the body: `title` from the status's `rdfs:label`, `status` from its `hydra:statusCode`, then `detail` and the error's extension members, validated (closed-world, as `validate`) against the status's `seam:returnsShape`. The response has that status code. A code the operation does not declare (`ResolutionError(operation, comm:errorCode)`), a route with no declared errors (`operation` None), or a body that violates the error shape (`ContractViolation` whose `operation` is the status) is a server fault: 500 with `{"detail": fault.to_dict()}`, logged at ERROR. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
@@ -180,7 +181,7 @@ naming the SemPKM store, and reads neither binding. The token is never logged.
 | Class | What it does |
 |---|---|
 | `SplitStore(relational, entities)` | A `Store`. Workflow state and user tasks go to `relational`. For a shape `entities` holds, `put_entity` with an id that has no index row creates the entity in SemPKM and returns the row under SemPKM's IRI (the worker and `Runtime.write` adopt it); an indexed id is updated. The relational `entities` table keeps one index row per entity, `id` the IRI and `data` `{}`, holding its correlation key, instance, status and `created`. The row is written only after SemPKM accepted the data. `get_entity` and `query` read the data from SemPKM. `query` without `correlation_key=` also lists objects of the shape's class that others wrote, after the indexed ones, by IRI, with no correlation key. `kind` and `location` are the relational store's. |
-| `SemPKMStore(model, plan, url, token, *, transport=None, timeout=...)` | The entity backend. `create` sends one `POST /api/commands` request: an `object.create` typed by the shape's `sh:targetClass` with a map from each field's `sh:path` to its value, then for each flattened `sh:node` field an `object.create` of the nested node (typed by the nested shape's `sh:targetClass`, with its free and fixed properties) and an `edge.create` joining them through `@slot:` references. SemPKM commits the request in one event. Values are JSON: integers as ints, decimal, double and float as numbers, booleans as bools, a category member as its IRI, everything else as a string. A field named `id` is never sent and reads back as the IRI. `read` / `get` send `POST /api/sparql` scoped to the class and the fields' paths, following SemPKM's edge resources one level, with sorted variables. Member IRIs read back as labels, decimals as plain lexical strings. `update` sends an `object.patch` of the top-level fields whose value changed; changing a nested value raises `ResolutionError(shape, path)`. `reachable()` is `GET /api/health`, with no token. A shape or nested shape without `sh:targetClass` raises `ResolutionError` when the store is built. |
+| `SemPKMStore(model, plan, url, token, *, transport=None, timeout=...)` | The entity backend. `create` sends one `POST /api/commands` request: an `object.create` typed by the shape's `sh:targetClass` with a map from each field's `sh:path` to its value, then for each flattened `sh:node` field an `object.create` of the nested node (typed by the nested shape's `sh:targetClass`, with its free and fixed properties) and an `edge.create` joining them through `@slot:` references. SemPKM commits the request in one event. Values are JSON: integers as ints, decimal, double and float as numbers, booleans as bools, a category member as its IRI, everything else as a string. A field named `id` is never sent and reads back as the IRI. `read` / `get` send `POST /api/sparql` scoped to the class and the fields' paths, following SemPKM's edge resources one level, with sorted variables. Member IRIs read back as labels, decimals as plain lexical strings. `update` sends an `object.patch` of the top-level fields whose value changed; changing a nested value raises `ResolutionError(shape, path)`. `affected(event)` reads the `sempkm:affectedIRI`s of one `urn:sempkm:event:` from its event graph, with an `all_graphs` query (ADR-0027): it returns them sorted, or `None` when SemPKM has no such event. A 401 or 403 on that query names the owner role as well as the scope. `reachable()` is `GET /api/health`, with no token. A shape or nested shape without `sh:targetClass` raises `ResolutionError` when the store is built. |
 
 Run-time failures raise `StoreError`s that name the store container (`store`) and never
 the token. Unreachable, a timeout, 5xx or 429 raise `StoreUnavailable` (503). 401 and 403
@@ -189,6 +190,51 @@ do too, after an ERROR line naming the store and the scope the call needs
 SPARQL results, or no IRI from `object.create` raise `StoreReplyInvalid` (502). The host
 answers both with problem+json. Raised inside a process, the error fails the instance:
 `result["error"]` carries the type, `http_status` and `store`, and no index row is kept.
+
+### SemPKM webhooks (ADR-0027)
+
+Every channel whose `comm:transport` is `comm:SemPKMWebhook` is resolved when the
+runtime is built (`ModelGraph.webhook_channels`). A fault raises `ResolutionError` naming
+the fact from ADR-0027's section 10 table. `seams_runtime.webhooks.WebhookReceiver`
+(`runtime.webhooks`) handles a delivery as section 4 orders it. SemPKM signs nothing, so the
+body is only a hint: the receiver acts on its `event_iri`, and only after reading that
+event back from SemPKM with the service token.
+
+1. The body must be a JSON object with a string `event_type` and an `event_iri` that is a
+   `urn:sempkm:event:` IRI. If not, the answer is 400.
+2. An `event_type` other than the channel's `comm:eventName` is ignored: 202, logged at
+   INFO, and SemPKM is not asked.
+3. `SemPKMStore.affected(event_iri)` reads the event's `sempkm:affectedIRI`s from its
+   event graph. This is one `POST /api/sparql` with `all_graphs: true`, which SemPKM allows
+   only to a token whose user has the owner role. If SemPKM has no such event, the
+   delivery is unverified: 422, logged at WARNING.
+4. `SemPKMStore.read(shape, iris)` reads the affected objects of the accepted shape's
+   `sh:targetClass`. An object of another class drops out. If none remain, the delivery
+   is ignored: 202, logged at INFO.
+5. Each object is validated against the accepted shape. One that fails is listed in
+   `skipped` with its failing fields and logged at WARNING. The others still start.
+6. Each subscribed process starts with `start_subscribed`'s machinery, once per object.
+   The correlation key is the object's IRI. `current` holds the object under the shape's
+   IRI, with `id` set to the IRI. A lifecycle shape starts in its initial state, unless
+   the data names one. The state records `start: {channel, event, object}`. If a
+   (process, event, object) already started an instance, nothing new starts and that
+   instance is answered. A subscriber that cannot start is listed with `instance: null`
+   and its `error`.
+
+The answer is `{"channel", "event", "started": [{process, object, instance}],
+"skipped": [{object, reason}]}`, each list sorted, plus `ignored` when nothing was asked
+of the objects. A `StoreError` is answered as problem+json with the channel, the event and
+the store container. SemPKM unreachable, timing out, 429, 5xx, 401 or 403 is 503. A 401
+or 403 also logs the `sparql:read` scope and the owner role. An answer that is not SPARQL
+results is 502. A runtime with no SemPKM client for the store (`SEAMS_STORE_OVERRIDE=sqlite`
+or an injected store with no `SplitStore`) answers 503. Every log line names the channel,
+the event type and the event IRI, and the start line also names the object and the
+instance. The token appears in none of them.
+
+The SemPKM reads run in a thread (`asyncio.to_thread`), as do the worker's writes
+(dispatch rules 4 and 5). SemPKM waits for its delivery inside the command request, so a
+runtime write that blocked the event loop would keep the receiver from answering it
+(ADR-0027 section 7).
 
 ## Host
 
@@ -268,8 +314,10 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    is validated against `seam:returnsShape` and becomes the current entity of that shape.
    3a. A declared error the invoke raised goes down the error boundary that catches it,
    see [Error boundaries](#error-boundaries); then rules 4 and 5 are skipped.
-4. `seam:writes Shape`: persists the current entity of that shape.
-5. After dispatch: the fired transition is applied and its status is persisted.
+4. `seam:writes Shape`: persists the current entity of that shape, in a thread so that a
+   store reached over HTTP does not block the event loop (ADR-0027 section 7).
+5. After dispatch: the fired transition is applied and its status is persisted, also in
+   a thread.
 6. Message throw events publish a completion event named after the channel's
    `rdfs:label` (GAP-26).
    6a. Then every channel-started process subscribed to that channel starts
@@ -483,6 +531,11 @@ in the checkpointed workflow stay the record of a run: `seams sequence :event --
   assignees as well as identity ids, but still only permission presence and assignee. A
   full evaluator can be plugged in as a `PolicyEvaluator`.
 - One store per model. A model whose runtime containers connect to different stores fails at load.
+- SemPKM webhook signatures, other event types (`edge.changed`, `validation.completed`),
+  replaying events missed while the runtime was down, and the acting user (ADR-0027
+  section 11). `Runtime.write` and `Runtime.query` still call SemPKM on the event loop
+  when a route calls them; only the worker's writes and the webhook receiver's reads run
+  in a thread.
 - SemPKM updates beyond `object.patch` of top-level fields, and deletes (ADR-0025 section 12).
   `SEAMS_SEED` items of a SemPKM-stored shape are written again on every start: SemPKM mints
   a new IRI, so the seed id is never found.

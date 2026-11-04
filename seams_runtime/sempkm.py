@@ -25,6 +25,10 @@ Everything it sends comes from the typed shape views (``seams.views.shapes``):
 - **reads** are ``POST /api/sparql`` queries scoped to the shape's class and
   paths, following SemPKM's edge resources one level to rebuild nested
   values, with sorted variables, so one model sends one query text.
+- **events** (ADR-0027 section 4): ``affected`` reads the
+  ``sempkm:affectedIRI``s of one event from its event graph, one
+  ``all_graphs`` SPARQL query, which SemPKM allows only to a token whose
+  user has the owner role.
 - **update** is an ``object.patch`` of the top-level fields whose value
   changed (a lifecycle status, as the worker moves it). A nested value is
   written once; changing one raises ``ResolutionError`` naming the field
@@ -65,6 +69,11 @@ SPARQL_SCOPE = "sparql:read"  # the token scope POST /api/sparql requires
 EDGE_SOURCE = URIRef("urn:sempkm:source")
 EDGE_PREDICATE = URIRef("urn:sempkm:predicate")
 EDGE_TARGET = URIRef("urn:sempkm:target")
+# An event's named graph: <event> a sempkm:Event ; sempkm:affectedIRI <object> (app/events/models.py).
+EVENT_PREFIX = "urn:sempkm:event:"
+EVENT_CLASS = URIRef("urn:sempkm:Event")
+EVENT_AFFECTED = URIRef("urn:sempkm:affectedIRI")
+OWNER_ROLE = "owner"  # the role SemPKM requires for an all_graphs query (app/sparql/router.py)
 
 ENTITY_SLOT = "entity"  # the @slot name of the entity's own object.create
 ID_FIELD = "id"  # the identifier convention (Runtime.write): its value is the IRI
@@ -382,6 +391,43 @@ class SemPKMStore:
             out.append((iri, self._with_id(stored, iri, data)))
         return out
 
+    def event_select(self, event: str) -> str:
+        """The SPARQL query reading the affected IRIs of ``event`` from its
+        event graph: one row per IRI, or one unbound row for an event with none."""
+        return "\n".join(
+            [
+                "SELECT ?iri WHERE {",
+                f"  GRAPH <{event}> {{ <{event}> a <{EVENT_CLASS}> . "
+                f"OPTIONAL {{ <{event}> <{EVENT_AFFECTED}> ?iri . }} }}",
+                "}",
+                "ORDER BY ?iri",
+            ]
+        )
+
+    def affected(self, event: str) -> list[str] | None:
+        """The IRIs of the objects SemPKM event ``event`` changed, sorted, or
+        None when SemPKM has no such event (ADR-0027 section 4, step 3). An
+        affected value that is not an IRI is not an object and drops out."""
+        event = _iri(event, self.store, "event IRI")
+        if not event.startswith(EVENT_PREFIX):
+            raise ValueError(f"{event!r} is not a SemPKM event IRI ({EVENT_PREFIX}...)")
+        body = self._post(
+            SPARQL_PATH,
+            {"query": self.event_select(event), "all_graphs": True},
+            SPARQL_SCOPE,
+            f"read event {event}",
+            role=OWNER_ROLE,
+        )
+        try:
+            bindings = body["results"]["bindings"]
+            if not bindings:
+                return None
+            found = {b["iri"]["value"] for b in bindings if "iri" in b and b["iri"].get("type") == "uri"}
+        except (KeyError, TypeError, AttributeError) as exc:
+            log.error("SemPKM store %s: unreadable SPARQL results for event %s: %s", self.store, event, exc)
+            raise StoreReplyInvalid(self.store, f"POST {SPARQL_PATH}: not SPARQL JSON results ({exc})") from exc
+        return sorted(i for i in found if isinstance(i, str) and _IRI.fullmatch(i))
+
     def reachable(self) -> bool:
         """True when ``GET /api/health`` answers 2xx with status healthy (no token sent)."""
         try:
@@ -406,7 +452,7 @@ class SemPKMStore:
             out[ID_FIELD] = iri
         return dict(sorted(out.items()))
 
-    def _post(self, path: str, body, scope: str, what: str):
+    def _post(self, path: str, body, scope: str, what: str, role: str | None = None):
         headers = {"Authorization": f"Bearer {self._token}"}
         try:
             with httpx.Client(
@@ -421,16 +467,17 @@ class SemPKMStore:
             raise StoreUnavailable(self.store, f"POST {path}: unreachable ({type(exc).__name__})") from exc
         status = resp.status_code
         if status in (401, 403):
+            needs = f"scope {scope}" + (f" and a user with the {role} role" if role else "")
             log.error(
-                "SemPKM store %s refused the service token on POST %s (%s): %s %s; the token needs scope %s",
+                "SemPKM store %s refused the service token on POST %s (%s): %s %s; the token needs %s",
                 self.store,
                 path,
                 what,
                 status,
                 _error_text(resp),
-                scope,
+                needs,
             )
-            raise StoreUnavailable(self.store, f"POST {path} answered {status}: the service token lacks scope {scope}")
+            raise StoreUnavailable(self.store, f"POST {path} answered {status}: the service token lacks {needs}")
         if status == 429 or status >= 500:
             log.error("SemPKM store %s: POST %s (%s) answered %s %s", self.store, path, what, status, _error_text(resp))
             raise StoreUnavailable(self.store, f"POST {path} answered {status}")

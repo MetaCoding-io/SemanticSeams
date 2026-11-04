@@ -14,7 +14,11 @@ a ``proc:UserTask`` ``seam:completedOn``, ``runtime.complete_task`` the task
 as the identity its ``task_policy`` dependency yields, ADR-0009), query the
 returned shape and render the fragment the GAP-19 rule names. Nothing else:
 no branching, no domain names. A channel-started process (ADR-0010) gets no
-route: the runtime starts it when its channel is published on. Nor does an
+route: the runtime starts it when its channel is published on. A channel whose
+comm:transport is comm:SemPKMWebhook (ADR-0027) gets a ``POST`` route at its
+comm:path that hands the raw body to ``runtime.receive_webhook``; its facts are
+``ModelGraph.webhook_channel``'s, so a fault raises GeneratorError on the
+subject and predicate the runtime's ResolutionError names. Nor does an
 exposed operation that a task of an executed process ``seam:invokes`` and no
 ``ifml:Event`` ``seam:submitsTo`` (a ``comm:PythonHandler``'s operation,
 ADR-0012): the worker serves it in-process, and the module header says so.
@@ -52,6 +56,7 @@ from seams import (
     Container,
     Many,
     Model,
+    ModelGraph,
     Operation,
     Process,
     ResolutionError,
@@ -180,6 +185,8 @@ class Endpoint:
     dependencies: str = ""  # the decorator's policy list, '[Depends(runtime.policy("<curie>")), ...]'
     validate_only: bool = False  # a separate runtime.validate call (no write or completion validates)
     link: str = ""  # the Link header naming the returned shape's JSON-LD context, a Python literal, or ""
+    webhook: bool = False  # a comm:SemPKMWebhook channel (ADR-0027): POST, runtime.receive_webhook
+    event_name: str = ""  # a webhook channel's comm:eventName
     iri: str = ""  # the operation's or channel's full IRI, its origin in a generation trace (ADR-0019)
     # the IRIs of the shapes, processes (with their BPMN models and correlation
     # keys), task, policies, rendered component and the flows to it the
@@ -261,7 +268,8 @@ class RouteModule:
     @property
     def response_imports(self) -> str:
         """The names the module imports from fastapi.responses."""
-        names = ["HTMLResponse", *(["JSONResponse"] if self.problem_routes else [])]
+        json_response = self.problem_routes or any(e.webhook for e in self.endpoints)
+        names = ["HTMLResponse", *(["JSONResponse"] if json_response else [])]
         return ", ".join([*names, *(["Response"] if self.contexts else []), "StreamingResponse"])
 
 
@@ -467,6 +475,8 @@ def _endpoint(model: Model, e: Operation | Channel, triggered: dict[URIRef, Proc
 
 def _channel(model: Model, ch: Channel) -> Endpoint:
     transport = required(ch.transport, ch.iri, COMM.transport)
+    if transport == COMM.SemPKMWebhook:
+        return _webhook(model, ch)
     if transport != COMM.SSE:
         raise GeneratorError(ch.iri, COMM.transport, f"only comm:SSE channels are routed, found {transport}")
     with view_errors():
@@ -493,6 +503,31 @@ def _channel(model: Model, ch: Channel) -> Endpoint:
         method_lower="get",
         arguments_text=", ".join(arguments),
         accepts_suffix=f" ; seam:acceptsShape {accepts_curie}" if accepts_curie else "",
+    )
+
+
+def _webhook(model: Model, ch: Channel) -> Endpoint:
+    """The POST route of a SemPKM webhook channel (ADR-0027 section 3), from
+    ``ModelGraph.webhook_channel``: its comm:path (no variables), event type
+    and accepted shape. The runtime does the rest."""
+    with view_errors():
+        facts = ModelGraph(model.path, model.ds).webhook_channel(ch.iri)
+    accepts = model.compact(facts.shape)
+    return Endpoint(
+        iri=str(ch.iri),
+        origins=tuple(sorted({str(facts.shape), str(facts.target_class), *map(str, facts.processes)})),
+        curie=model.compact(ch.iri),
+        name=_handler_name(ch.iri),
+        channel=False,
+        webhook=True,
+        method="POST",
+        path=facts.path,
+        arguments=("request: Request",),
+        accepts=accepts,
+        event_name=facts.event_name,
+        method_lower="post",
+        arguments_text="request: Request",
+        accepts_suffix=f" ; seam:acceptsShape {accepts}",
     )
 
 

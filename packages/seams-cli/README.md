@@ -414,6 +414,32 @@ on store, list or accept, 1 on a rejection, a stale id or a failed provider, 2
 on a project error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-suggest).
 
+## seams draft-generator
+
+```sh
+seams draft-generator processes --reference processes.yaml --project examples/chat-app --provider "my-llm"
+```
+
+It has an LLM draft the template and extract step of the package
+`seams new-generator` scaffolds, and writes the package only when its golden test
+passes (M025/S02, backlog R3, `draft_generator.py`, D062,
+[ADR-0029](../../docs/adr/0029-llm-drafted-generators.md)). `build_prompt` fills
+`prompts/draft-generator-v1.txt` with the reference, the model's
+`IRI<TAB>label` names and the scaffold's package module, in DATA fences.
+`draft_generator` sends it through `propose.call_provider` (provider from
+`[propose] provider` or `--provider`) and `parse_answer` reads one JSON object with
+exactly the string keys `extract`, `template` and `golden`. `check_extract`,
+`check_golden` and `check_template` (no logic, no restated model label) run first;
+`assemble` puts the answer into `new_generator.scaffold(name, reference, extract)`
+and `run_tests` runs its four tests in a scratch copy with `SEAMS_MODEL` set to the
+project's model. An accepted answer is cached in `.seams/generator-drafts/<key>.json`,
+key = sha256(reference hash, model hash, template, provider), and the package is
+written with `new_generator.write`; on any failure nothing is written or cached.
+`--force` writes into a non-empty `--out`. It prints `template`, `provider`,
+`prompt sha256:<hex>`, `cache hit|miss` and each written path, and exits 0; every
+error prints `seams draft-generator: <message>` (failed tests named) and exits 1. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-draft-generator).
+
 ## seams new-generator
 
 ```sh

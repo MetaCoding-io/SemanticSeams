@@ -14,7 +14,9 @@ environment's configuration keys and secrets exist, without reading a value;
 `seams context` prints the hashed model facts a service task's code depends on;
 `seams propose` drafts a handler body with an LLM command; `seams suggest` asks
 an LLM command for a model change and keeps it pending until a person accepts it;
-`seams new-generator` scaffolds a generator package from a reference output. Its distribution name is `semanticseams-cli` and its import name is
+`seams new-generator` scaffolds a generator package from a reference output;
+`seams draft-generator` has an LLM command draft that package's template and
+extract step and keeps them only when its golden test passes. Its distribution name is `semanticseams-cli` and its import name is
 `seams_cli` ([packages/seams-cli/](../../packages/seams-cli/README.md)). Like the
 [seams library](/reference/seams-library), it is a uv workspace member and is not
 published to PyPI. `uv sync --all-packages` installs the `seams` console script
@@ -51,7 +53,7 @@ out = "generated/templates"
 | `gates` | array of strings, optional | SPARQL SELECT files that [`seams check`](#seams-check) runs over the model; each must return no rows. |
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. Use the local names of the model's `arch:Environment`s (`development`, `production`), so `seams status --env development` and the generated `compose.development.yaml` name the same environment. |
-| `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose) and [`seams suggest`](#seams-suggest) send their prompts to; `--provider` overrides it. |
+| `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose), [`seams suggest`](#seams-suggest) and [`seams draft-generator`](#seams-draft-generator) send their prompts to; `--provider` overrides it. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
@@ -1271,3 +1273,51 @@ or ends in whitespace is refused. See
 | 2 | A refused name, reference or `--out`; nothing is written. |
 
 Errors print to stderr as `seams new-generator: <message>`.
+
+## seams draft-generator
+
+```sh
+seams draft-generator processes --reference processes.yaml --provider "my-llm --model some-model"
+```
+
+It does the [reference-first loop](/guide/write-your-own-generator#start-from-a-reference-output)
+with an LLM: from a reference output, the command drafts the template and the extract
+step of the package [`seams new-generator`](#seams-new-generator) would write, and
+writes the package only when its golden test passes (backlog R3,
+[ADR-0029](/adr/0029-llm-drafted-generators)). NAME, the reference and `--out`
+follow `seams new-generator`; `--force` lets the package's files replace files of the
+same path in a non-empty `--out`. The model is the project's (`--project`,
+`--model`). The provider is the same command as [`seams propose`](#seams-propose)'s:
+`[propose] provider` in `seams.toml`, or `--provider`.
+
+The prompt is the versioned template `draft-generator-v1`, filled with the reference
+verbatim, the model's names (one `IRI<TAB>label` line per labelled subject, sorted)
+and the scaffold's package module, all as quoted data. The same reference and model
+give the same prompt bytes. The answer must be one JSON object with exactly three
+string keys: `extract` (the Python source of `def extract(trig: Path, out: Path) ->
+dict` and the imports it needs), `template` and `golden` (every non-blank line marked
+`[fixed]` or `[graph: ...]`).
+
+The draft is accepted only when the template holds no logic (only `[[ name ]]`,
+`[[ name.attr ]]`, `[% for x in xs %]` and `[% endfor %]`), restates no model label
+that occurs in the reference, and the scaffold's four tests pass in a scratch copy
+with the answer in place, run on the project's model. An accepted answer is cached
+in `.seams/generator-drafts/` (gitignored), keyed by the reference's hash, the model
+hash, the template and the provider, so the same request again calls no provider.
+Nothing is written or cached on failure. The written package runs without an LLM and
+is the author's from then on. `seams draft-generator` is never run in CI.
+
+### Output
+
+`template <name>`, `provider <command>`, `prompt sha256:<hex>`, `cache hit` or
+`cache miss`, then each written path, as `seams new-generator` prints them.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The package was written. |
+| 1 | Nothing was written: a refused name, reference or `--out`, a project or model that cannot be read, no provider, a failed provider, a malformed answer, a template with logic or a restated label, or failed scratch tests (each named). |
+
+Errors print to stderr as `seams draft-generator: <message>`; failed tests are named
+one per line after `tests failed:`.

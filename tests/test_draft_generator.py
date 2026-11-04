@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pytest
 import seams
+from seams_cli.__main__ import main
 from seams_cli.draft_generator import (
     CACHE_DIR,
     Draft,
@@ -286,3 +287,69 @@ def test_a_non_empty_out_needs_force(app, tmp_path):
     draft_generator(load_project(app), "procs", REFERENCE, provider, out, force=True)
     assert sorted(_files(out)) == sorted(["README.md", *EXPECTED])
     assert (out / "README.md").read_text(encoding="utf-8") == "mine\n"
+
+
+# ── the command ──
+
+
+def test_the_command_prints_the_prompt_hash_cache_state_and_written_paths(app, tmp_path, capsys):
+    out = tmp_path / "out"
+    argv = ["draft-generator", "procs", "--reference", str(REFERENCE), "--project", str(app)]
+    provider = ["--provider", _provider("good_provider.py", str(tmp_path / "calls"))]
+    assert main([*argv, *provider, "--out", str(out)]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    prompt = build_prompt("procs", REFERENCE, seams.load(app / "chat-app.trig"))
+    assert lines[:4] == [
+        "template draft-generator-v1",
+        f"provider {provider[1]}",
+        f"prompt {prompt.sha256}",
+        "cache miss",
+    ]
+    assert lines[4:] == [str(out.resolve() / rel) for rel in EXPECTED]
+    assert main([*argv, *provider, "--out", str(tmp_path / "two")]) == 0
+    assert "cache hit" in capsys.readouterr().out.splitlines()
+    assert (tmp_path / "calls").read_text() == "1"
+
+
+def test_the_command_reports_failed_tests_on_stderr_and_exits_1(app, tmp_path, capsys):
+    out = tmp_path / "out"
+    code = main(
+        [
+            "draft-generator",
+            "procs",
+            "--reference",
+            str(REFERENCE),
+            "--project",
+            str(app),
+            "--provider",
+            _provider("bad_provider.py", "golden"),
+            "--out",
+            str(out),
+        ]
+    )
+    assert code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("seams draft-generator: ")
+    assert "tests/test_procs.py::test_output_matches_golden" in captured.err
+    assert not out.exists()
+
+
+def test_the_command_without_a_provider_exits_1(app, tmp_path, capsys):
+    out = tmp_path / "out"
+    code = main(["draft-generator", "procs", "--reference", str(REFERENCE), "--project", str(app), "--out", str(out)])
+    assert code == 1
+    assert capsys.readouterr().err.startswith("seams draft-generator: no provider: set `[propose] provider`")
+    assert not out.exists()
+
+
+def test_the_command_refuses_a_non_empty_out_without_force(app, tmp_path, capsys):
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "README.md").write_text("mine\n", encoding="utf-8")
+    argv = ["draft-generator", "procs", "--reference", str(REFERENCE), "--project", str(app), "--out", str(out)]
+    provider = ["--provider", _provider("good_provider.py")]
+    assert main([*argv, *provider]) == 1
+    assert "pass --force" in capsys.readouterr().err
+    assert main([*argv, *provider, "--force"]) == 0
+    assert sorted(_files(out)) == sorted(["README.md", *EXPECTED])

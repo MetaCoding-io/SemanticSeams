@@ -90,6 +90,9 @@ comparison, a determinism check, output checkers per file type and the shape par
 ([test it](docs/guide/write-your-own-generator.md#test-it)).
 `seams new-generator NAME --reference FILE` starts one from a hand-written output file, with a
 golden test that passes as generated ([start from a reference output](docs/guide/write-your-own-generator.md#start-from-a-reference-output)).
+`seams draft-generator NAME --reference FILE` has an LLM command draft that package's
+template and extract step, and writes it only when its golden test passes
+([ADR-0029](docs/adr/0029-llm-drafted-generators.md)).
 `seams check` writes nothing: it validates the model against the SHACL shapes,
 runs the project's gate queries, checks decisions statically and fails on any stale,
 missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied

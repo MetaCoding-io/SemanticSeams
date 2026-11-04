@@ -2,6 +2,7 @@
 ``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--force]``,
 ``seams suggest [--provider CMD] [--list | --accept ID]``,
+``seams draft-generator NAME --reference FILE [--provider CMD] [--out DIR] [--force]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
@@ -154,6 +155,19 @@ change, writes it through seams_edit, prints ``accepted <id>`` and each
 written file, and removes the pending directory. An unknown ID or no provider
 exits 2.
 
+``seams draft-generator NAME --reference FILE [--provider CMD] [--out DIR]
+[--force]`` (M025/S02, backlog R3, ADR-0029) sends the draft-generator-v1
+prompt (the reference, the model's names and the scaffolded package module, as
+quoted data) to the provider command, default ``[propose] provider``, and reads
+one JSON answer holding the extract step, template and golden. It prints
+``template``, ``provider``, ``prompt <sha256>`` and ``cache hit|miss``; when
+the template restates no model label, holds no logic and the scaffold's golden
+test passes in a scratch copy, it writes the package and prints each written
+path. Any refusal (bad name, reference or non-empty DIR without ``--force``, no
+provider, a failed provider, a malformed answer, failed tests, each named)
+prints ``seams draft-generator: <message>`` to stderr, writes nothing and
+exits 1. An accepted answer is cached under ``.seams/generator-drafts/``.
+
 ``seams new-generator NAME --reference FILE [--out DIR]`` (M018/S04, backlog
 K5) writes a generator package for the reference output FILE into DIR
 (default ``./seams-<NAME>``): pyproject.toml with its ``seams.generators``
@@ -184,6 +198,7 @@ from .context import to_json as context_json
 from .coverage import coverage_report, summary
 from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
+from .draft_generator import DraftGeneratorError, draft_generator
 from .generate import apply, generate_project
 from .lockfile import locate
 from .migrate import migrate
@@ -337,6 +352,25 @@ def build_parser() -> argparse.ArgumentParser:
     action.add_argument("--list", action="store_true", help="list the pending suggestions, current or stale")
     action.add_argument("--accept", metavar="ID", help="apply the pending suggestion ID (or a unique prefix)")
     sug.set_defaults(run=_suggest)
+    draft = sub.add_parser(
+        "draft-generator",
+        help="draft a generator package from a reference output with an LLM command; keep it if its golden test passes",
+        description=(
+            "Send the draft-generator prompt to the provider command, check the drafted template, extract step "
+            "and golden in a scratch copy of the scaffold, and write the package only if its tests pass."
+        ),
+    )
+    draft.add_argument("name", help="the generator and entry-point name: lowercase letters, digits and underscores")
+    draft.add_argument(
+        "--reference", type=Path, required=True, help="the reference output: a .py, .yaml, .yml or .html file"
+    )
+    _project_arguments(draft)
+    draft.add_argument(
+        "--provider", help="the provider command (prompt on stdin, JSON answer on stdout); overrides seams.toml"
+    )
+    draft.add_argument("--out", type=Path, help="the package directory, absent or empty (default: ./seams-<name>)")
+    draft.add_argument("--force", action="store_true", help="write into a non-empty --out, replacing same-named files")
+    draft.set_defaults(run=_draft_generator)
     new = sub.add_parser(
         "new-generator",
         help="scaffold a generator package, with a passing golden test, from a reference output file",
@@ -639,6 +673,22 @@ def _print_verdicts(verb: str, what: str | None, verdicts: Verdicts, files: tupl
     print(f"{verb} {what}")
     for rel in files:
         print(f"wrote {rel}")
+    return 0
+
+
+def _draft_generator(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        result = draft_generator(project, args.name, args.reference, args.provider, args.out, args.force, args.model)
+    except (DraftGeneratorError, ProjectError) as err:
+        print(f"seams draft-generator: {err}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    print(f"template {result.template}")
+    print(f"provider {result.provider}")
+    print(f"prompt {result.prompt_sha256}")
+    print(f"cache {'hit' if result.cache_hit else 'miss'}")
+    for path in result.written:
+        print(_display(path.resolve()))
     return 0
 
 

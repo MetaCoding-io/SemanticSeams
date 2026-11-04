@@ -526,6 +526,36 @@ A value computed in the template is a value the view model, and so a trace of wh
 output came from, cannot see, and a literal left in it restates a model fact
 ([principle 1](/project/principles#_1-the-model-is-the-source-of-truth)).
 
+## Draft it with an LLM (optional)
+
+The loop above is mechanical enough for an LLM to draft and strict enough for the golden
+test to judge. `seams draft-generator` takes the same name and reference as
+`seams new-generator` and asks an LLM command for the extract step, the template and the
+golden in one go ([the seams CLI](/reference/seams-cli#seams-draft-generator),
+[ADR-0029](/adr/0029-llm-drafted-generators)):
+
+```sh
+seams draft-generator processes --reference processes.yaml --provider "my-llm"
+```
+
+The provider is the command `seams propose` uses (`[propose] provider` in `seams.toml`,
+or `--provider`): it reads the prompt on stdin and prints one JSON object with the keys
+`extract`, `template` and `golden`. The prompt holds the reference, the model's names
+(each labelled IRI and its label) and the scaffolded package module, as quoted data.
+
+The command writes `./seams-processes` only when the draft keeps the rules of this
+section: the template holds no logic and restates no model label found in the
+reference, and the scaffold's four tests pass in a scratch copy, run on the project's
+model. Otherwise it writes nothing and names what failed: the key, the template line and
+label, or the failed tests. It prints the prompt's hash, `cache hit` or `cache miss`,
+and each written file. An accepted answer is cached under `.seams/generator-drafts/`,
+so asking again with the same reference, model and provider calls no LLM.
+
+What it writes is the same kind of package as `seams new-generator`'s: it runs without
+an LLM and is yours from then on. Read the extract step and the golden markers as you
+would a colleague's, add the IRIs the template reads to `sources`, and run the test on a
+second model before you trust it.
+
 ## Where to go next
 
 - [The seams library](/reference/seams-library): every view, property and error.

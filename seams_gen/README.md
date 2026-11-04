@@ -207,6 +207,9 @@ nothing but this module, `seams` and `seams_gen.protocol`; the
 `seams new-generator NAME --reference FILE` scaffolds a generator package whose test uses
 this kit, from a reference output
 ([start from a reference output](../docs/guide/write-your-own-generator.md#start-from-a-reference-output)).
+`seams draft-generator NAME --reference FILE` has an LLM command draft its template and
+extract step, kept only when that test passes
+([draft it with an LLM](../docs/guide/write-your-own-generator.md#draft-it-with-an-llm-optional)).
 
 `tests/test_generator_testing.py` covers each function's pass and failure messages.
 

@@ -502,7 +502,7 @@ test. The shapes in `ontology/shapes/seam-shapes.ttl` check every statement (see
 [Validate it](#validate-it)), for example that a decision example gives exactly the
 decision's inputs. Chapter 9 of the expense tutorial,
 [Say what it should do](/tutorials/expenses/09-hand-written-code#say-what-it-should-do),
-adds three scenarios, five decision examples and a pair of shape examples.
+adds five scenarios, five decision examples and a pair of shape examples.
 
 The `smoke` generator (backlog A9) uses the same examples against a running app: it
 writes one test per `hydra:Operation`, filling the path and body from the first

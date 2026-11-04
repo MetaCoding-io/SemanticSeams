@@ -27,7 +27,8 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
 
 1. **Every model is a `seam:Model`** with an `rdfs:label`, and has exactly one
    `seam:notation`: one of `seam:C4`, `seam:IFML`, `seam:BPMN`, `seam:DMN`,
-   `seam:Statechart` or `seam:ShapeGraph`. The notation picks the renderer.
+   `seam:Statechart`, `seam:ShapeGraph` or `seam:Ontology`
+   ([below](#an-ontology-model)). The notation picks the renderer.
    A `seam:ShapeGraph` model draws each `sh:NodeShape` member as a frame and each
    `sh:property` that has an `sh:path` as a card inside it, labelled from
    `sh:datatype`, `sh:minCount`/`sh:maxCount` and `sh:in`, ordered by `sh:order`.
@@ -474,10 +475,69 @@ the path's user tasks, in order, up to what it expects. Put `coverage = ["paths"
 the two `docs/queries/coverage/` gates in `seams.toml` to make `seams check` fail on a
 gap.
 
+## An ontology model
+
+The shapes say what one form, list or request carries. An ontology model says what the
+things are, apart from any screen: the classes `Expense`, `Payment` and `Approval`, and
+what each one is a kind of. A model can declare one, as a model graph whose `seam:Model`
+is also the `owl:Ontology`, with `seam:notation seam:Ontology` in the seams graph
+([ADR-0022](/adr/0022-ontology-notation)):
+
+```trig
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix gist: <https://w3id.org/semanticarts/ns/ontology/gist/> .
+
+<urn:seams:graph:model:expense_ontology> {
+    :expense_ontology a seam:Model , owl:Ontology ;
+        rdfs:label "Expense Ontology" ;
+        owl:versionIRI <https://example.org/expenses/expense_ontology/1.0> ;
+        owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
+
+    :Expense a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Expense" ;
+        skos:definition "Money an employee spent on the company's behalf and asks to have reimbursed." ;
+        seam:inModel :expense_ontology .
+}
+
+<urn:seams:graph:seams> {
+    :expense_ontology seam:notation seam:Ontology .
+}
+```
+
+- **One version IRI.** The ontology IRI is the model IRI and never changes; its one
+  `owl:versionIRI` (the ontology IRI, a slash and `MAJOR.MINOR`) moves when the classes
+  change. The shapes refuse an ontology model that is not an `owl:Ontology` or has no
+  version IRI, or a class without an `rdfs:label` and `seam:inModel`.
+- **Anchor classes in gist.** [gist](https://github.com/semanticarts/gist) is a small
+  upper ontology; SemanticSeams vendors gistCore 14.0.0 in
+  [`ontology/vendor/`](../../ontology/vendor/README.md).
+  Make each class an `rdfs:subClassOf` a gist class (`gist:Transaction`,
+  `gist:Determination`, `gist:Category`), and give it a `skos:definition`.
+- **Import a version, offline.** `owl:imports` names gist's version IRI, never the bare
+  `…/gistCore`. `seams.load` resolves each import against the files in
+  `ontology/vendor/` without the network, and refuses a model whose import no file
+  declares, or names another gist version:
+  `cannot resolve <https://example.org/expenses/expense_ontology>: missing owl:imports
+  (imports gistCore14.1.0; the vendored version is gistCore14.0.0)`. Vocabulary
+  versions are not imported here; they belong in the [manifest graph](#vocabulary-versions).
+- **The imported ontology stays out of the model.** gist is read to check the import and
+  to label superclasses; it is not added to the model's graphs, so the model hash,
+  generation and the runtime are the same as without it. A superclass declared neither
+  in the ontology nor in gist (a mistyped `gist:Transation`) is a warning in
+  `seams check` and the viewer's health panel.
+
+The viewer draws an ontology model as a class view: a card per class with its
+definition, an edge to each superclass, and gist's classes as read-only cards. The
+health panel lists each import and whether it resolved
+([the viewer](/guide/the-viewer)). Chapter 9 of the expense tutorial declares its
+ontology this way. Shapes that target these classes come in a later release.
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.0>`). A model says which versions it is written for in
+(`<https://w3id.org/seams/seam/1.1>`). A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -488,7 +548,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.0> ,
-                    <https://w3id.org/seams/seam/1.0> .
+                    <https://w3id.org/seams/seam/1.1> .
 }
 ```
 
@@ -562,7 +622,7 @@ versions:
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.0> .
+                    <https://w3id.org/seams/seam/1.1> .
 }
 ```
 

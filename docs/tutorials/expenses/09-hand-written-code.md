@@ -509,7 +509,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/seam/1.1> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.0> .
 }
@@ -646,6 +646,92 @@ read it before you commit it. `seams propose` also records the draft in `seams.l
 so `seams check` tells you when the model facts it was written from change
 (`draft-stale`) or when the file no longer matches it (`draft-hand-edited`). See the [CLI reference](../../reference/seams-cli.md#seams-propose).
 
+## Say what the data is
+
+The shapes say what each form and list carries: `ExpenseShape` is the submit form's
+contract, `ApprovalShape` the approver's. Neither says what an expense *is*. An
+ontology model does ([ADR-0022](../../adr/0022-ontology-notation.md)): a model graph of
+OWL classes, each a kind of something in [gist](https://github.com/semanticarts/gist),
+the small upper ontology SemanticSeams ships pinned in `ontology/vendor/`. Add two
+prefixes beside the others:
+
+```turtle
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix gist:   <https://w3id.org/semanticarts/ns/ontology/gist/> .
+```
+
+and, after the data model graph, a model graph whose `seam:Model` is also the
+`owl:Ontology`. It has one version IRI, which moves when the classes change, and imports
+gist by gist's version IRI:
+
+```trig
+<urn:seams:graph:model:expense_ontology> {
+
+    :expense_ontology a seam:Model , owl:Ontology ;
+        rdfs:label "Expense Ontology" ;
+        owl:versionIRI <https://example.org/expenses/expense_ontology/1.0> ;
+        owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
+
+    # Money an employee spent for the company. gist: a transfer of funds.
+    :Expense a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Expense" ;
+        skos:definition "Money an employee spent on the company's behalf and asks to have reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # The company's transfer that reimburses an expense. Also a transaction.
+    :Payment a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Payment" ;
+        skos:definition "Money the company transfers to reimburse an expense." ;
+        seam:inModel :expense_ontology .
+
+    # A manager's or finance's decision on an expense. gist: an event that
+    # establishes a result by evaluating.
+    :Approval a owl:Class ;
+        rdfs:subClassOf gist:Determination ;
+        rdfs:label "Approval" ;
+        skos:definition "An evaluation that establishes whether an expense is reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # States and outcomes are categories, not strings.
+    :ExpenseState a owl:Class ;
+        rdfs:subClassOf gist:Category ;
+        rdfs:label "Expense state" ;
+        skos:definition "A stage an expense is in: draft, submitted, approved, rejected or paid." ;
+        seam:inModel :expense_ontology .
+
+    :ApprovalOutcome a owl:Class ;
+        rdfs:subClassOf gist:Category ;
+        rdfs:label "Approval outcome" ;
+        skos:definition "What an approval decides: approved or rejected." ;
+        seam:inModel :expense_ontology .
+}
+```
+
+Each class has a label, a definition and one gist superclass: `Expense` and `Payment`
+are `gist:Transaction`s, `Approval` a `gist:Determination`, and `ExpenseState` and
+`ApprovalOutcome` are `gist:Category`s. In the seams graph, give the model its notation:
+
+```turtle
+    :expense_ontology seam:notation seam:Ontology .
+```
+
+`seams check --project examples/expenses/chapter-09` resolves the import offline
+against `ontology/vendor/`. Change it to `gistCore14.1.0` and the model is refused,
+naming the fact:
+
+```
+cannot resolve https://example.org/expenses/expense_ontology: missing http://www.w3.org/2002/07/owl#imports (imports gistCore14.1.0; the vendored version is gistCore14.0.0)
+```
+
+A superclass that is in neither the ontology nor gist, such as a mistyped
+`gist:Transation`, is a warning instead. Open `:expense_ontology` in the viewer to see
+the class view: a card per class with its definition, an edge to its gist superclass,
+and gist's classes as grey read-only cards; the health panel lists the import as
+vendored. gist is never added to the model, and the shapes do not target these classes
+yet, so `seams generate` changes only the model hash in the generated files.
+
 ## Checkpoint
 
 Your files should now match
@@ -662,5 +748,5 @@ diff examples/expenses/chapter-08/expenses.trig examples/expenses/chapter-09/exp
 
 That is the whole tutorial. You started from an empty file and now have an architecture,
 two screen models, two processes, two decisions, two lifecycles, roles, a deployment and
-one function you wrote yourself, with a declared error the process catches. The model says where that function lives and what it
+one function you wrote yourself, with a declared error the process catches, and an ontology that says what the data is. The model says where that function lives and what it
 takes and returns, so it fits with everything that was generated.

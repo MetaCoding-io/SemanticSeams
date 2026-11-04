@@ -29,6 +29,7 @@ ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             state-comm.ttl  — statechart lifecycle + communication (channels; Hydra fills the rest)
             deploy.ttl      — deployment stub: artifact/config/placement; desired-state half of a GitOps loop
   shapes/   seam-shapes.ttl — SHACL constraints on the seams themselves (the project's own methodology, applied to itself)
+  vendor/   gistCore14.0.0.ttl — the pinned gist upper ontology a seam:Ontology model imports (ADR-0022; CC BY 4.0)
 examples/   checkout.ttl    — worked example exercising every non-reserved seam edge; the ontology smoke test
 packages/   seams/          — the read-only `seams` model library (rdflib + lxml only): loader, typed views per layer, BPMN flow walks and DMN tables (lxml), SPARQL helpers, model hash, payloads, and ModelGraph (the resolver facade over the views)
 seams_edit/ the model's one write path (ADR-0017): quad patches applied by editing the TriG text in place, so comments and layout survive, BPMN/DMN payload saves and id renames, with undo
@@ -37,7 +38,7 @@ site/       the public project page (GitHub Pages, no build step)
 viewer/     the multi-layer browser (FastAPI + htmx + bpmn-js/dmn-js); read-only unless SEAMS_EDIT=1 turns on edit mode (forms from shapes, the BPMN/DMN modelers with id renames that move seam edges, IFML editing on its diagram, saves through seams_edit, a live preview that re-runs the generators in lenient mode, in memory, and domain profiles attached by seam:conformsTo that narrow the palette, health and preview, ADR-0018); its generation view (/generation/{iri}) joins model, template and output line by line through the trace sidecars, and in edit mode writes an edited output line back to the one model literal behind it when regenerating reproduces the edit, and turns adding or removing a form input into an ifml:Parameter patch (with a sh:property for a new path) on the same rule
 ```
 
-Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. Fragment naming serves renderer dispatch only — membership is data: every lifted element carries `seam:inModel`, the edge cross-layer SPARQL actually traverses. The thin `proc:`/`dec:` index vocabulary types only these seam-participating elements. The data layer needs no vocabulary at all — SHACL *is* the vocabulary.
+Notes on deliberate omissions: there is no BPMN/DMN ontology here. Native XML serializations are stored as `seam:renderPayload` and rendered by bpmn-js/dmn-js; only seam-participating elements get IRIs, using **BPMN element IDs as IRI fragments** (`:order_bpmn#persist_task`), which makes a stock bpmn-js viewer a full participant in the graph via its `element.click` event. Fragment naming serves renderer dispatch only — membership is data: every lifted element carries `seam:inModel`, the edge cross-layer SPARQL actually traverses. The thin `proc:`/`dec:` index vocabulary types only these seam-participating elements. The data layer needs no vocabulary of its own — SHACL *is* the vocabulary for the shapes. What the data *is* can be said too, as an optional `seam:Ontology` model graph whose OWL classes extend [gist](https://github.com/semanticarts/gist), imported by version IRI and resolved offline against the pinned copy in `ontology/vendor/` ([ADR-0022](docs/adr/0022-ontology-notation.md)); the expense tutorial's chapter 9 declares one, and the viewer draws it as a class view.
 
 ## Tests
 
@@ -165,7 +166,7 @@ Read-only, navigable, notation-switching browser over a hand-authored model. Sta
 - **FastAPI** — three endpoints: describe node (JSON-LD, triples + seam edges), fetch render payload, SPARQL passthrough (HTTP QUERY, RFC 10008)
 - **htmx shell** — every click is `hx-get /view/{iri}`; server dispatches on `seam:notation`
 - **Layer mode** — `GET /layers` stacks the six layers as oblique planes, draws the cross-layer seams between them and traces an element's seams on hover
-- **Renderers** — bpmn-js `NavigatedViewer` and dmn-js (read-only) for process/decision layers; a shared node-link renderer (elkjs layout, SVG cards) for architecture and shape graphs; IFML notation on diagram-js (server-computed layout, ELK ports for events); vis-network for statecharts
+- **Renderers** — bpmn-js `NavigatedViewer` and dmn-js (read-only) for process/decision layers; a shared node-link renderer (elkjs layout, SVG cards) for architecture, shape graphs and ontology class views; IFML notation on diagram-js (server-computed layout, ELK ports for events); vis-network for statecharts
 
 Milestone 1: load `examples/checkout.ttl` + a hand-drawn `order_process.bpmn`, and complete the descent arch → IFML → BPMN → DMN/shape-graph purely by clicking.
 
@@ -191,3 +192,6 @@ for the design and the [ADRs](docs/adr/) for the decisions taken so far.
 ## License
 
 [Apache-2.0](LICENSE). Copyright © 2026 MetaCoding.
+
+The vendored [gist](https://github.com/semanticarts/gist) ontology in
+[`ontology/vendor/`](ontology/vendor/README.md) is © Semantic Arts under CC BY 4.0.

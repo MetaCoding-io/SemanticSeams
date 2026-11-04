@@ -56,12 +56,21 @@
 # seam:Model gets its own graph, and every link between models (and every
 # seam: annotation such as seam:notation) lives in the seams graph. The manifest
 # graph at the end names the vocabulary versions the file is written for.
+# The model also says what its data is (ADR-0022): the :expense_ontology
+# graph declares the classes Expense, Payment, Approval, ExpenseState and
+# ApprovalOutcome, each anchored in gist, the upper ontology that
+# ontology/vendor/ pins at gistCore 14.0.0. The ontology owl:imports that
+# version, and seams check resolves the import offline. The shapes do not
+# target these classes yet; they still say what each form and list carries.
+#
 # See docs/tutorials/expenses/ for the walkthrough.
 
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
 @prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix gist:   <https://w3id.org/semanticarts/ns/ontology/gist/> .
 @prefix seam:   <https://w3id.org/seams/seam#> .
 @prefix arch:   <https://w3id.org/seams/arch#> .
 @prefix deploy: <https://w3id.org/seams/deploy#> .
@@ -251,6 +260,56 @@
         sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;
                       sh:in ( "recorded" "scheduled" "batched" "sent" ) ] ;
         seam:inModel :expense_data .
+}
+
+#################################################################
+# Ontology model graph (OWL, anchored in gist)
+#################################################################
+
+# What the things are, apart from any form or request (ADR-0022). The model
+# is the owl:Ontology: its version IRI moves when its classes change, and it
+# imports gist by gist's version IRI, never by the bare ontology IRI.
+<urn:seams:graph:model:expense_ontology> {
+
+    :expense_ontology a seam:Model , owl:Ontology ;
+        rdfs:label "Expense Ontology" ;
+        owl:versionIRI <https://example.org/expenses/expense_ontology/1.0> ;
+        owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
+
+    # Money an employee spent for the company. gist: a transfer of funds.
+    :Expense a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Expense" ;
+        skos:definition "Money an employee spent on the company's behalf and asks to have reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # The company's transfer that reimburses an expense. Also a transaction.
+    :Payment a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Payment" ;
+        skos:definition "Money the company transfers to reimburse an expense." ;
+        seam:inModel :expense_ontology .
+
+    # A manager's or finance's decision on an expense. gist: an event that
+    # establishes a result by evaluating.
+    :Approval a owl:Class ;
+        rdfs:subClassOf gist:Determination ;
+        rdfs:label "Approval" ;
+        skos:definition "An evaluation that establishes whether an expense is reimbursed." ;
+        seam:inModel :expense_ontology .
+
+    # States and outcomes are categories, not strings.
+    :ExpenseState a owl:Class ;
+        rdfs:subClassOf gist:Category ;
+        rdfs:label "Expense state" ;
+        skos:definition "A stage an expense is in: draft, submitted, approved, rejected or paid." ;
+        seam:inModel :expense_ontology .
+
+    :ApprovalOutcome a owl:Class ;
+        rdfs:subClassOf gist:Category ;
+        rdfs:label "Approval outcome" ;
+        skos:definition "What an approval decides: approved or rejected." ;
+        seam:inModel :expense_ontology .
 }
 
 #################################################################
@@ -633,6 +692,7 @@
     # The viewer opens at the model whose notation is C4.
     :expense_architecture seam:notation seam:C4 .
     :expense_data seam:notation seam:ShapeGraph .
+    :expense_ontology seam:notation seam:Ontology .
     :expense_ifml seam:notation seam:IFML .
     :approval_bpmn seam:notation seam:BPMN ;
         seam:renderPayload <approval.bpmn> .
@@ -1060,7 +1120,7 @@
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/seam/1.1> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.0> .
 }

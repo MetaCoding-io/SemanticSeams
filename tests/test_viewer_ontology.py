@@ -24,6 +24,7 @@ from viewer import app as viewer_app  # noqa: E402
 from viewer import ontologygraph, validation  # noqa: E402
 
 CHAPTER_01 = ROOT / "examples" / "expenses" / "chapter-01"
+CHAPTER_09 = ROOT / "examples" / "expenses" / "chapter-09"
 EX = "https://example.org/expenses/"
 ONTOLOGY = f"{EX}expense_ontology"
 GIST = "https://w3id.org/semanticarts/ns/ontology/gist/"
@@ -259,3 +260,36 @@ def test_a_broken_import_does_not_fail_the_store_or_review_checks(tmp_path):
     health = view_json(client, viewer_app.root_iri())["modelConformance"]
     assert health["conforms"] is True
     assert not [f for f in health["violations"] + health["warnings"] if "check failed" in f["message"]]
+
+
+# ── the expense tutorial's ontology (chapter 9) ──
+
+
+def test_chapter_9_draws_its_ontology_anchored_in_gist_with_a_healthy_import():
+    validation._clear_cache()
+    viewer_app.configure(CHAPTER_09 / "expenses.trig")
+    client = TestClient(viewer_app.app)
+    nodes, edges = ontologygraph.ontology_graph_data(ONTOLOGY)
+    assert [n["id"] for n in nodes] == [
+        f"{EX}Approval",
+        f"{EX}ApprovalOutcome",
+        f"{EX}Expense",
+        f"{EX}ExpenseState",
+        f"{EX}Payment",
+        f"{GIST}Category",
+        f"{GIST}Determination",
+        f"{GIST}Transaction",
+    ]
+    assert all(n["readOnly"] for n in nodes if n["id"].startswith(GIST))
+    assert {(e["from"], e["to"]) for e in edges} == {
+        (f"{EX}Approval", f"{GIST}Determination"),
+        (f"{EX}ApprovalOutcome", f"{GIST}Category"),
+        (f"{EX}Expense", f"{GIST}Transaction"),
+        (f"{EX}ExpenseState", f"{GIST}Category"),
+        (f"{EX}Payment", f"{GIST}Transaction"),
+    }
+    health = view_json(client, viewer_app.root_iri())["modelConformance"]
+    assert health["conforms"] is True
+    assert [(s["imported"], s["resolved"]) for s in health["ontologyImports"]] == [(GIST_14_0, True)]
+    assert not [w for w in health["warnings"] if w["path"] == SUBCLASS_OF]
+    assert 'id="class-canvas"' in view(client, ONTOLOGY, fragment=True).text

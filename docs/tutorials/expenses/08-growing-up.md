@@ -315,7 +315,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/seam/1.1> ,
                     <https://w3id.org/seams/state/1.0> .
 }
 ```

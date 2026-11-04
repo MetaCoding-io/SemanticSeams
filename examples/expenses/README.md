@@ -75,7 +75,10 @@ examples/expenses/
                              NotificationShape and :notify_manager_op, seam:implementedBy the
                              comm:PythonHandler "notify.notify_manager" (ADR-0012), its error
                              :notify_failed with NotifyProblemShape, and the lifted
-                             notify_failed_boundary that seam:catches it (ADR-0013)
+                             notify_failed_boundary that seam:catches it (ADR-0013); and the
+                             :expense_ontology graph (seam:Ontology, ADR-0022): Expense, Payment,
+                             Approval, ExpenseState and ApprovalOutcome, each a subclass of a gist
+                             class, importing the vendored gistCore 14.0.0
   chapter-09/approval.bpmn   chapter 8's process with notify_manager between the manager route and
                              approve_expense, and an error boundary on it that escalates to
                              finance_approve_expense
@@ -258,3 +261,17 @@ failing the instance. `tests/test_expenses_error_path.py` checks the load-time
 join and its faults, the routed trace rows and spans, the problem body,
 finance's approval after the escalation, and the boundary's seam badge in the
 viewer.
+
+The checkpoint also says what its data is (ADR-0022). The `:expense_ontology`
+model graph is an `owl:Ontology` with one version IRI
+(`<https://example.org/expenses/expense_ontology/1.0>`) and `seam:notation
+seam:Ontology`. It declares five classes, each with a `skos:definition` and a
+gist superclass: `Expense` and `Payment` are `gist:Transaction`s, `Approval` a
+`gist:Determination`, and `ExpenseState` and `ApprovalOutcome` are
+`gist:Category`s. It `owl:imports` gist by its version IRI, `gistCore14.0.0`,
+which `seams.load` resolves offline against `ontology/vendor/`; `seams check`
+refuses the model if the import names another version. The shapes do not target
+these classes yet, so the generated code is unchanged apart from the model hash.
+The viewer draws the ontology as a class view, gist's classes as read-only
+cards, and the health panel lists the import as resolved;
+`tests/test_viewer_ontology.py` checks both on this checkpoint.

@@ -35,12 +35,20 @@ part, and [Using the viewer](/guide/the-viewer) shows it working.
 | Decision | DMN | Native XML, rendered by dmn-js |
 | Lifecycle | Harel statecharts | The [`state:`](/reference/vocabularies#state) vocabulary |
 | Data | RDF and SHACL | SHACL shapes are the vocabulary |
+| Concepts | OWL classes, anchored in gist | A `seam:Ontology` model graph that imports a vendored, pinned gist version ([ADR-0022](/adr/0022-ontology-notation)); drawn as a class view |
 | Communication | Operations and channels | Hydra, plus [`comm:`](/reference/vocabularies#comm) for channels |
 | Deployment | Artifacts, configuration, placement | The [`deploy:`](/reference/vocabularies#deploy) vocabulary |
 
 There is deliberately no BPMN or DMN ontology. Those standards already have excellent
 XML formats and renderers, so the XML stays the source and the graph indexes only the
 elements that take part in a cross-layer edge.
+
+The data and concept layers are two views of one thing. A shape is a contract for one
+form, list or request; an ontology class says what the thing is, whichever screen shows
+it, so one class can have many shapes. A model needs no ontology to generate, and gist,
+the upper ontology its classes extend, is read to check the import and label the class
+view but is never added to the model. The expense tutorial's chapter 9 declares
+`Expense`, `Payment`, `Approval`, `ExpenseState` and `ApprovalOutcome` this way.
 
 ## Derived sequence diagrams
 

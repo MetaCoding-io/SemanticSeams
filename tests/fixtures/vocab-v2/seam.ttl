@@ -61,6 +61,7 @@ seam:BPMN       a seam:Notation ; rdfs:label "BPMN 2.0 process diagram" .
 seam:DMN        a seam:Notation ; rdfs:label "DMN decision model" .
 seam:Statechart a seam:Notation ; rdfs:label "Harel statechart" .
 seam:ShapeGraph a seam:Notation ; rdfs:label "RDF/SHACL data-model view" .
+seam:Ontology   a seam:Notation ; rdfs:label "OWL ontology (classes and properties)" .
 
 seam:Notation a rdfs:Class ;
     rdfs:label "Notation" .

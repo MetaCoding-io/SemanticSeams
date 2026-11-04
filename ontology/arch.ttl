@@ -4,6 +4,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/arch> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/arch/1.0> ;
+    owl:versionInfo "1.0" ;
     rdfs:label "SemanticSeams Architecture Vocabulary" ;
     rdfs:comment """A deliberately small C4-inspired vocabulary. Unlike C4 proper,
 the containment hierarchy is user-definable (LikeC4-style): arch:contains nests

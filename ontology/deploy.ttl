@@ -6,6 +6,8 @@
 @prefix deploy: <https://w3id.org/seams/deploy#> .
 
 <https://w3id.org/seams/deploy> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/deploy/1.0> ;
+    owl:versionInfo "1.0" ;
     rdfs:label "SemanticSeams Deployment Vocabulary (stub)" ;
     rdfs:comment """The VERB side of infrastructure. arch: describes what runs where
 (nouns); deploy: describes how a container comes into existence: artifact, config,

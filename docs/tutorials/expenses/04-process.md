@@ -19,6 +19,21 @@ The process layer has its own vocabulary. Add it after `comm:`:
 @prefix :       <https://example.org/expenses/> .
 ```
 
+Import its version in the manifest graph too:
+
+```trig
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/proc/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> .
+}
+```
+
 ## The process
 
 The process itself is a BPMN file next to the model, `approval.bpmn`. It has a start

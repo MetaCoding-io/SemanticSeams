@@ -18,11 +18,14 @@ from seams import MANIFEST_GRAPH
 from seams_cli import __main__ as cli
 from seams_cli.__main__ import main
 from seams_cli.migrate import migrate
+from test_vocabulary_versions import undeclared
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "vocab-v2"
 CHAPTER_01 = ROOT / "examples" / "expenses" / "chapter-01"
 SEAM_V2 = "https://w3id.org/seams/seam/2.0"
+ARCH_V1 = "https://w3id.org/seams/arch/1.0"
+SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.0>"
 
 
 def chapter_01_copy(tmp_path: Path) -> Path:
@@ -53,7 +56,7 @@ def test_migrate_writes_the_migration_and_keeps_the_comments(tmp_path, monkeypat
 
     model = seams.load(trig, ontology_dir=FIXTURE)
     assert model.migrations == ()
-    assert sorted(str(o) for o in model.ds.graph(MANIFEST_GRAPH).objects(None, OWL.imports)) == [SEAM_V2]
+    assert sorted(str(o) for o in model.ds.graph(MANIFEST_GRAPH).objects(None, OWL.imports)) == [ARCH_V1, SEAM_V2]
 
 
 def test_the_written_model_is_the_model_load_migrates(tmp_path, monkeypatch) -> None:
@@ -87,13 +90,9 @@ def test_a_current_model_is_left_alone(tmp_path, capsys) -> None:
 def test_a_newer_model_is_refused_and_nothing_is_written(tmp_path, capsys) -> None:
     project = chapter_01_copy(tmp_path)
     trig = project / "expenses.trig"
-    trig.write_text(
-        trig.read_text(encoding="utf-8")
-        + "\n<urn:seams:graph:manifest> {\n"
-        + "    <urn:seams:graph:manifest> <http://www.w3.org/2002/07/owl#imports> <https://w3id.org/seams/seam/2.0> .\n"
-        + "}\n",
-        encoding="utf-8",
-    )
+    text = trig.read_text(encoding="utf-8")
+    assert text.count(SEAM_V1_IMPORT) == 1
+    trig.write_text(text.replace(SEAM_V1_IMPORT, f"<{SEAM_V2}>"), encoding="utf-8")
     before = trig.read_bytes()
     assert main(["migrate", "--project", str(project)]) == 2
     out, err = capsys.readouterr()
@@ -121,7 +120,7 @@ def test_a_directory_model_without_a_manifest_block_is_refused_and_nothing_is_wr
     # and the model has two, so the writer cannot route it (seams_edit.apply).
     model = tmp_path / "model"
     model.mkdir()
-    shutil.copy(CHAPTER_01 / "expenses.trig", model / "a.trig")
+    (model / "a.trig").write_text(undeclared(CHAPTER_01 / "expenses.trig"), encoding="utf-8")
     (model / "b.trig").write_text("# second file\n<urn:example:other> { <urn:x> <urn:y> <urn:z> . }\n")
     before = {p.name: p.read_bytes() for p in model.glob("*.trig")}
     against(monkeypatch, FIXTURE)

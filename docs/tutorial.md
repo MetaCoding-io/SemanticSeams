@@ -34,6 +34,10 @@ The model is in `examples/chat-app/`:
   `:ConversationShape`), the message lifecycle, the API operations and SSE channel, and
   the deployment (`deploy:`) facts. The seams join them: the compose form's `:send_message`
   event `seam:triggers` the send-message process, which is `seam:governedBy` a policy.
+  The last graph, the manifest graph `<urn:seams:graph:manifest>`, `owl:imports` the
+  version of each vocabulary the model is written for (`arch/1.0`, `seam/1.0` and so on);
+  every tool checks those versions when it loads the model
+  ([Authoring a model](/guide/authoring-a-model#vocabulary-versions)).
 - `chat_process.bpmn`: the send-message process, executed as-is by SpiffWorkflow.
 - `routing.dmn`: the decision table that picks the model provider for a message.
 

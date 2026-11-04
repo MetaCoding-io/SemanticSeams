@@ -10,6 +10,8 @@
 #################################################################
 
 <https://w3id.org/seams/comm> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/comm/1.0> ;
+    owl:versionInfo "1.0" ;
     rdfs:label "SemanticSeams Communication Vocabulary" ;
     rdfs:comment """Request/response communication is described with Hydra
 (hydra:Operation, hydra:method, etc.). This module only adds what Hydra lacks:

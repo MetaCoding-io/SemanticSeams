@@ -155,7 +155,8 @@ written (`seams_edit.text_quads`), runs `seams.check_versions` on a copy, and
 applies the per-graph difference as one patch through the `seams_edit` text
 writer (ADR-0017), so comments and layout outside the changed triples survive.
 The manifest graph's `owl:imports` declaration is rewritten to the shipped
-version. Each step prints as `migrated <vocabulary> <from> <to>`, then each
+version, in place in the file's `<urn:seams:graph:manifest> { }` block (every
+example and tutorial checkpoint has one). Each step prints as `migrated <vocabulary> <from> <to>`, then each
 written file's path. A model already on the shipped vocabularies prints
 `seams migrate: nothing to migrate` to stderr, writes nothing and exits 0, so
 a second run is a no-op. A model newer than the tool, a missing migration step

@@ -5,6 +5,8 @@
 @prefix dec:   <https://w3id.org/seams/dec#> .
 
 <https://w3id.org/seams/proc> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/proc/1.0> ;
+    owl:versionInfo "1.0" ;
     rdfs:label "SemanticSeams Process/Decision Index Vocabulary" ;
     rdfs:comment """NOT a BPMN ontology, on purpose. BPMN 2.0 XML remains the language
 and the render payload (seam:renderPayload); bpmn-js renders it natively, and full

@@ -302,11 +302,13 @@ def chat_model(chat_dataset: rdflib.Dataset) -> rdflib.Graph:
 
 
 def test_chat_app_trig_parses():
-    """Chat-app TriG parses into a Dataset with exactly 6 named graphs."""
+    """Chat-app TriG parses into a Dataset with exactly 7 named graphs: five model
+    graphs, the seams graph and the manifest graph (ADR-0021)."""
     ds = rdflib.Dataset()
     ds.parse(CHAT_APP_TRIG, format="trig")
     graph_ids = {g.identifier for g in ds.graphs() if str(g.identifier) != "urn:x-rdflib:default"}
-    assert len(graph_ids) == 6, f"Expected 6 named graphs, got {len(graph_ids)}: {graph_ids}"
+    assert len(graph_ids) == 7, f"Expected 7 named graphs, got {len(graph_ids)}: {graph_ids}"
+    assert rdflib.URIRef("urn:seams:graph:manifest") in graph_ids
 
 
 def test_chat_app_conforms_to_seam_shapes(chat_model):

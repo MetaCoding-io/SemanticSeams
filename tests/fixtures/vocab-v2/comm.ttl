@@ -1,0 +1,179 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
+
+#################################################################
+# Communication — Hydra supplies operations/links; comm adds channels + endpoints
+#################################################################
+
+<https://w3id.org/seams/comm> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/comm/1.0> ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "SemanticSeams Communication Vocabulary" ;
+    rdfs:comment """Request/response communication is described with Hydra
+(hydra:Operation, hydra:method, etc.). This module only adds what Hydra lacks:
+asynchronous channels, and QUERY as a first-class read method. Payload contracts
+are SHACL shapes via seam:acceptsShape / seam:returnsShape; the fragment-vs-data
+distinction is seam:mediaKind.
+
+Addressing reuses Hydra: comm:path points at a hydra:IriTemplate whose
+hydra:template is the URL and whose hydra:mapping entries name, per variable,
+the shape path (hydra:property) that supplies the value. comm:transport and
+comm:eventName say how a channel reaches a client; comm:requestMediaType says
+how an operation's request body is encoded.
+
+Handler-name rule (no term): the code identifier of an operation or channel is
+its IRI local name with a trailing "_op" removed (:send_message_op ->
+send_message, :stream_events -> stream_events).
+
+Token stream (declared, D046): a service task that seam:invokes an operation
+streams that operation's reply onto a channel only when the task itself
+seam:publishesTo the channel (invoke_llm seam:publishesTo :stream_events). Each
+delta is an event named by the channel's comm:eventName; a throw event that
+seam:publishesTo the same channel ends the stream (ADR-0007 spike finding 2).
+The runtime publishes no delta the graph does not state.""" .
+
+comm:Channel a rdfs:Class ;
+    rdfs:comment "An async topic/queue/webhook target. Events published here are named-graph payloads whose shape is the channel's seam:acceptsShape." .
+
+comm:Endpoint a rdfs:Class ;
+    rdfs:comment "A network-addressable base a container seam:exposes; groups hydra:Operations and comm:Channels." .
+
+comm:hasOperation a rdf:Property ;
+    rdfs:domain comm:Endpoint ; rdfs:range hydra:Operation .
+
+comm:hasChannel a rdf:Property ;
+    rdfs:domain comm:Endpoint ; rdfs:range comm:Channel .
+
+# The HTTP QUERY method (RFC 10008): safe, idempotent, body-carrying — the natural
+# read method for graph queries. Convention: use the string literal "QUERY" as the
+# value of hydra:method, exactly like "GET"/"POST". (A comm:QUERY resource would
+# type-clash: hydra:method takes literals.)
+
+#################################################################
+# Addressing, transport and encoding (M004 golden gaps GAP-08/15/18)
+#################################################################
+
+comm:path a rdf:Property ;
+    rdfs:label "path" ;
+    rdfs:range hydra:IriTemplate ;
+    rdfs:comment """The URL of a hydra:Operation or comm:Channel, relative to the exposing
+container: a hydra:IriTemplate with hydra:template "/conversations/{conversation}/messages"
+and one hydra:mapping [ hydra:variable ; hydra:property ] per variable. hydra:property
+names the shape path whose value fills the variable.""" .
+
+comm:Transport a rdfs:Class ;
+    rdfs:comment "How a comm:Channel's events reach a subscriber." .
+
+comm:SSE a comm:Transport ;
+    rdfs:label "Server-Sent Events" .
+
+comm:WebSocket a comm:Transport ;
+    rdfs:label "WebSocket" .
+
+comm:transport a rdf:Property ;
+    rdfs:label "transport" ;
+    rdfs:domain comm:Channel ; rdfs:range comm:Transport .
+
+comm:eventName a rdf:Property ;
+    rdfs:label "event name" ;
+    rdfs:domain comm:Channel ;
+    rdfs:comment "The event type a subscriber listens for (SSE `event:` field, htmx sse-swap)." .
+
+comm:requestMediaType a rdf:Property ;
+    rdfs:label "request media type" ;
+    rdfs:domain hydra:Operation ;
+    rdfs:comment """Literal media type of the request body, e.g.
+"application/x-www-form-urlencoded" for an htmx form post or "application/json"
+for a seam:Data operation. seam:acceptsShape says what the body holds; this says
+how it is encoded.""" .
+
+#################################################################
+# Operation implementation (ADR-0012)
+#################################################################
+
+# What serves an operation is the object of its seam:implementedBy. That node's
+# rdf:type is its kind, exactly one of the three classes below, so SHACL can check
+# it and no kind string or second predicate is needed.
+
+comm:LLMCompletion a rdfs:Class ;
+    rdfs:label "LLM completion" ;
+    rdfs:comment """Implementation kind: chat messages built from the accepted entity, a
+streamed completion from the serving container (the executing container's
+deploy:serviceOf binding) at the operation's comm:path, deltas published on the
+task's seam:publishesTo channel, and the joined reply validated against
+seam:returnsShape.""" .
+
+comm:PythonHandler a rdfs:Class ;
+    rdfs:label "Python handler" ;
+    rdfs:comment """Implementation kind: a hand-written function in the application's
+handlers package, called in the runtime's process with the accepted entity; its
+result is validated against seam:returnsShape. Names the function with
+comm:handler. The operation must be served in-process.""" .
+
+comm:HTTPEndpoint a rdfs:Class ;
+    rdfs:label "HTTP endpoint" ;
+    rdfs:comment """Implementation kind: the accepted entity POSTed as JSON to the serving
+container (base URL from the deploy:serviceOf binding, path from the operation's
+comm:path), the JSON response validated against seam:returnsShape.""" .
+
+comm:handler a rdf:Property ;
+    rdfs:label "handler" ;
+    rdfs:domain comm:PythonHandler ;
+    rdfs:range xsd:string ;
+    rdfs:comment """Dotted path of a comm:PythonHandler's function relative to the
+handlers package, e.g. "notify.notify_manager" (function notify_manager in
+handlers/notify.py). Every segment is a Python identifier, so the path cannot
+name code outside the package.""" .
+
+#################################################################
+# Operation errors (ADR-0013)
+#################################################################
+
+# An operation names each error it can raise as a hydra:Status through
+# hydra:possibleStatus, with its HTTP code in hydra:statusCode. comm:errorCode makes
+# the status an error the runtime and a BPMN error boundary can name. The status's
+# seam:returnsShape is its error shape: a SHACL shape over RFC 9457 problem+json whose
+# members are the five properties below, so the shape's field names (sh:path local
+# names) are the JSON member names. Any other property of the shape is an RFC 9457
+# extension member.
+
+comm:errorCode a rdf:Property ;
+    rdfs:label "error code" ;
+    rdfs:domain hydra:Status ;
+    rdfs:range xsd:string ;
+    rdfs:comment """The code of an error an operation can raise, on the hydra:Status the
+operation hydra:possibleStatus (e.g. "notify-failed"). An implementation raises it, and a
+BPMN error boundary event that seam:catches the status names a bpmn:error with the same
+errorCode. Unique among one operation's statuses (ADR-0013).""" .
+
+comm:type a rdf:Property ;
+    rdfs:label "type" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "type" in an error shape: a URI
+reference identifying the problem type ("about:blank" when absent).""" .
+
+comm:title a rdf:Property ;
+    rdfs:label "title" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "title" in an error shape: a short
+summary of the problem type. Required in every error shape; the runtime fills it from
+the status's rdfs:label.""" .
+
+comm:status a rdf:Property ;
+    rdfs:label "status" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "status" in an error shape: the
+HTTP status code, an xsd:integer. Required in every error shape. Its value is never
+stated in the shape; the runtime fills it from the status's hydra:statusCode, so the
+code is stated once.""" .
+
+comm:detail a rdf:Property ;
+    rdfs:label "detail" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "detail" in an error shape: an
+explanation of this occurrence of the problem, supplied by the raised error.""" .
+
+comm:instance a rdf:Property ;
+    rdfs:label "instance" ;
+    rdfs:comment """sh:path of the RFC 9457 problem member "instance" in an error shape: a URI
+reference identifying this occurrence of the problem.""" .

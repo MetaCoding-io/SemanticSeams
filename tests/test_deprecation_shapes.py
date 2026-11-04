@@ -39,6 +39,7 @@ SEAM = Namespace("https://w3id.org/seams/seam#")
 SEAMSH = Namespace("https://w3id.org/seams/shapes#")
 ARCHITECTURE = "https://example.org/expenses/expense_architecture"
 MODEL_DEPRECATED = "seam:Model is deprecated since seam 2.0 and goes in seam 3.0."
+SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.0>"
 IN_MODEL_DEPRECATED = "seam:inModel is deprecated since seam 2.0 and goes in seam 3.0: write seam:partOfModel instead."
 CLASSES = (RDFS.Class, OWL.Class)
 PROPERTIES = (RDF.Property, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.AnnotationProperty)
@@ -196,13 +197,9 @@ def test_check_against_the_shipped_vocabularies_reports_nothing(tmp_path, capsys
 def test_a_model_on_seam_2_still_writing_the_old_predicate_is_warned_not_migrated(tmp_path) -> None:
     project = chapter_01_copy(tmp_path)
     trig = project / "expenses.trig"
-    trig.write_text(
-        trig.read_text(encoding="utf-8") + "\n<urn:seams:graph:manifest> {\n"
-        "    <urn:seams:graph:manifest> a <http://www.w3.org/2002/07/owl#Ontology> ;\n"
-        "        <http://www.w3.org/2002/07/owl#imports> <https://w3id.org/seams/seam/2.0> .\n"
-        "}\n",
-        encoding="utf-8",
-    )
+    text = trig.read_text(encoding="utf-8")
+    assert text.count(SEAM_V1_IMPORT) == 1
+    trig.write_text(text.replace(SEAM_V1_IMPORT, "<https://w3id.org/seams/seam/2.0>"), encoding="utf-8")
     assert check_migrations(trig, FIXTURE) == []
     findings = check_shapes(model_graph(trig, FIXTURE), FIXTURE_SHAPES)
     assert {f.kind for f in findings} == {"shacl-warning"}

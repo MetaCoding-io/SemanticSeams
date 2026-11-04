@@ -497,6 +497,24 @@ The model now says what the app *is*. It can also say what the app should *do*
 @prefix verify: <https://w3id.org/seams/verify#> .
 ```
 
+Import its version in the manifest graph too:
+
+```trig
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/deploy/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/proc/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/state/1.0> ,
+                    <https://w3id.org/seams/verify/1.0> .
+}
+```
+
 Then, at the end of the seams graph, state one run of the approval process for each
 route. An employee submits, the named parties complete the user tasks in order, and
 the expense ends in the state you expect. The manager's run looks like this:

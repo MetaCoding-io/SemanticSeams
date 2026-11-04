@@ -303,6 +303,23 @@ container runs. Add the deploy prefix:
 @prefix deploy: <https://w3id.org/seams/deploy#> .
 ```
 
+Import its version in the manifest graph too:
+
+```trig
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/deploy/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/proc/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/state/1.0> .
+}
+```
+
 Then give each container an image, its ports and its start order. The portal publishes
 port 8080 on the host and starts after the API. It has no code of its own: the API's
 host serves the pages, including the event streams, so the portal runs the stock

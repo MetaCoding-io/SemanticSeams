@@ -1,0 +1,136 @@
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix proc:  <https://w3id.org/seams/proc#> .
+@prefix dec:   <https://w3id.org/seams/dec#> .
+
+<https://w3id.org/seams/proc> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/proc/1.0> ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "SemanticSeams Process/Decision Index Vocabulary" ;
+    rdfs:comment """NOT a BPMN ontology, on purpose. BPMN 2.0 XML remains the language
+and the render payload (seam:renderPayload); bpmn-js renders it natively, and full
+metamodel lifts (BBO, Rospocher/Ghidini) are a swamp that buys nothing for navigation.
+
+This file only provides rdf:type terms for the *index*: the handful of elements that
+participate in seam edges. Types exist so that (a) SHACL shapes over the seams have
+class targets ('seam:decidedBy connects only BusinessRuleTasks to Decisions'),
+(b) cross-layer queries read as class matches rather than label heuristics, and
+(c) the shell knows what an IRI is before fetching a payload.
+
+Each term mirrors exactly one BPMN/DMN metaclass; nothing about control flow,
+gateways, sequence flows, or lanes is modeled here — that all stays in the XML.
+Minimalist escape hatch: shapes can instead use sh:targetSubjectsOf on seam
+predicates, making these types optional; decide when the first validation
+shapes are written.""" .
+
+#################################################################
+# BPMN index types
+#################################################################
+
+proc:Process a rdfs:Class ;
+    rdfs:comment "Mirrors bpmn:process. The node an ifml:Event seam:triggers and that seam:detailedBy a BPMN seam:Model." .
+
+proc:Task a rdfs:Class ;
+    rdfs:comment "Mirrors bpmn:task (and serves as the superclass for typed tasks below)." .
+
+proc:ServiceTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
+    rdfs:comment """Mirrors bpmn:serviceTask. The type that seam:invokes a comm operation.
+Implementation rule (gaps.md GAP-27): the implementation of the invoked operation is
+the arch:Container that seam:exposes it, reached at the operation's comm:path; there
+is no proc:implementation term. A container that also seam:executes the task's
+process serves the operation in-process. What serves the operation is its
+seam:implementedBy (ADR-0012).""" .
+
+proc:UserTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
+    rdfs:comment "Mirrors bpmn:userTask. Human work item: the process waits until a person completes it on the ifml:Form it seam:completedOn (ADR-0009). Its seam:governedBy policies, with the task as odrl:target, decide who may complete it." .
+
+proc:BusinessRuleTask a rdfs:Class ; rdfs:subClassOf proc:Task ;
+    rdfs:comment "Mirrors bpmn:businessRuleTask. The only legal subject of seam:decidedBy." .
+
+proc:MessageThrowEvent a rdfs:Class ;
+    rdfs:comment """Mirrors bpmn:intermediateThrowEvent / endEvent with messageEventDefinition. Subject of seam:publishesTo (as is a
+proc:ServiceTask that streams its invoked operation's deltas, D046).
+Message-name rule (gaps.md GAP-26): the event's message name is the rdfs:label of the
+comm:Channel it seam:publishesTo; no messageRef is added to the BPMN payload.""" .
+
+proc:MessageCatchEvent a rdfs:Class ;
+    rdfs:comment """Mirrors bpmn:intermediateCatchEvent / startEvent with messageEventDefinition. Subject of seam:subscribesTo.
+Channel start rule (ADR-0010): when the event is the bpmn:startEvent of its process, the process is
+channel-started. The runtime starts it whenever a message throw event publishes on the comm:Channel it
+seam:subscribesTo, with the publisher's correlation key and a copy of its entities and statuses.""" .
+
+proc:ErrorBoundaryEvent a rdfs:Class ;
+    rdfs:comment """Mirrors bpmn:boundaryEvent with an errorEventDefinition, attached to a
+proc:ServiceTask that seam:invokes an operation. Subject of seam:catches (ADR-0013).
+Lifting rule: such a boundary is lifted only when it catches one of the invoked
+operation's errors; the attachment (attachedToRef) and the code (the errorCode of the
+bpmn:error its errorRef names) stay in the XML, and the runtime checks at load that
+they agree with the graph. A boundary with no errorRef is not lifted.""" .
+
+#################################################################
+# DMN index types
+#################################################################
+
+dec:DecisionModel a rdfs:Class ;
+    rdfs:comment "Mirrors dmn:definitions. The seam:Model-typed node whose seam:renderPayload is DMN XML." .
+
+dec:Decision a rdfs:Class ;
+    rdfs:comment "Mirrors dmn:decision. Object of seam:decidedBy; subject of seam:reads on its input data shapes." .
+
+#################################################################
+# Runtime binding terms (M004/S02, gaps.md GAP-22..GAP-27)
+#################################################################
+
+proc:correlationKey a rdf:Property ;
+    rdfs:domain proc:Process ;
+    rdfs:range <https://w3id.org/seams/ifml#Parameter> ;
+    rdfs:comment """The ifml:Parameter whose value identifies a running instance of the
+process, so later events, channel subscriptions and lifecycle transitions find the
+same instance. The handler that starts the process passes it as correlation_key;
+its name matches the hydra:variable of the comm:path mapping of the operation the
+triggering event seam:submitsTo (gaps.md GAP-22).""" .
+
+dec:payloadElement a rdf:Property ;
+    rdfs:domain dec:Decision ;
+    rdfs:comment """The id of the native dmn:decision element in the decision model's
+seam:renderPayload (a literal, e.g. "routing_decision"). The worker joins the
+graph decision to the DMN on this id and checks the DMN declares it (GAP-23);
+it never derives the id from the IRI local name.""" .
+
+dec:InputBinding a rdfs:Class ;
+    rdfs:comment "Binds one DMN input variable to a property path of the shape the process carries (GAP-24)." .
+
+dec:OutputBinding a rdfs:Class ;
+    rdfs:comment "Binds the decision's DMN output to the process variable it feeds (GAP-25)." .
+
+dec:input a rdf:Property ;
+    rdfs:domain dec:Decision ; rdfs:range dec:InputBinding ;
+    rdfs:comment "One DMN input the worker must supply when evaluating the decision." .
+
+dec:output a rdf:Property ;
+    rdfs:domain dec:Decision ; rdfs:range dec:OutputBinding ;
+    rdfs:comment "The DMN output whose value the worker stores in the process." .
+
+dec:variable a rdf:Property ;
+    rdfs:comment """The DMN-side name: for an InputBinding, the inputExpression text of
+the decision table input; for an OutputBinding, the output's name (or its label
+when the payload's output has no name attribute).""" .
+
+dec:fromPath a rdf:Property ;
+    rdfs:domain dec:InputBinding ;
+    rdfs:comment "The sh:path of the carried shape whose value fills the input." .
+
+dec:measure a rdf:Property ;
+    rdfs:domain dec:InputBinding ; rdfs:range dec:Measure ;
+    rdfs:comment "Optional function applied to the path value before binding. Absent means the value itself." .
+
+dec:Measure a rdfs:Class ;
+    rdfs:comment "Enumeration of functions dec:measure can apply." .
+
+dec:Length a dec:Measure ;
+    rdfs:comment "The character length of a string value." .
+
+dec:processVariable a rdf:Property ;
+    rdfs:domain dec:OutputBinding ;
+    rdfs:comment "The process variable the decision output is stored under." .

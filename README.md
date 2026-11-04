@@ -92,8 +92,15 @@ golden test that passes as generated ([start from a reference output](docs/guide
 runs the project's gate queries, checks decisions statically and fails on any stale,
 missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied
 into `sh:in`, shapes without a target class, undeclared paths) print as `review` warnings
-and do not fail it. CI runs it for every example through the composite action in
+and do not fail it, and so do `sh:Warning` shape results (a deprecated vocabulary term) and
+a `vocabulary-migrated` line per migration step. CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
+Each vocabulary carries an `owl:versionIRI` (`MAJOR.MINOR`, all at 1.0 today), and a model
+`owl:imports` the versions it is written for in its manifest graph, as every example does
+([ADR-0021](docs/adr/0021-vocabulary-versions.md)). `seams.load` loads a model on the
+shipped versions as written, refuses a newer one and migrates an older one in memory with
+the SPARQL Update steps in `ontology/migrations/`; `seams migrate` writes that migration
+into the model's files through `seams_edit`.
 `seams status` reads each running runtime container's `/healthz` and reports it as current,
 behind, ahead or unreachable compared with the current model.
 `seams secrets` lists every configuration key and secret of each `arch:Environment` from the

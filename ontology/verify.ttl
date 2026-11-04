@@ -9,6 +9,8 @@
 @prefix verify: <https://w3id.org/seams/verify#> .
 
 <https://w3id.org/seams/verify> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/verify/1.0> ;
+    owl:versionInfo "1.0" ;
     rdfs:label "SemanticSeams Scenario and Example Vocabulary" ;
     rdfs:comment """What a model says it should do, stated so a generator can turn it into
 tests (ADR-0014). A scenario runs a process through its user tasks and names the state

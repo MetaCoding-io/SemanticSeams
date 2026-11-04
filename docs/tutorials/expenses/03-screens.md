@@ -24,6 +24,22 @@ vocabularies. Add them to the prefixes at the top of the file:
 `ifml:` is the interaction layer (IFML), `hydra:` describes API operations, and `comm:`
 adds what Hydra leaves out, such as the request media type and the path.
 
+Two of them, `ifml:` and `comm:`, are SemanticSeams vocabularies, so they also go in the
+manifest graph's imports at the end of the file ([chapter 1](./01-architecture#the-vocabulary-versions)).
+`hydra:` is not one of ours, so it is not declared:
+
+```trig
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> .
+}
+```
+
 ## The interaction model
 
 Add a third model graph after the data graph. It holds one page, the landmark the app

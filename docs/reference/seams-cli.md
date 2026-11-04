@@ -398,7 +398,9 @@ makes the migration permanent: it applies the same SPARQL Update steps to a copy
 of the model as written and saves the difference, graph by graph, as one patch
 through the model's one write path ([ADR-0017](/adr/0017-write-path-and-editor)).
 Only the changed triples' text changes; comments and layout stay. The manifest
-graph's `owl:imports` declaration is rewritten to the version the tool ships.
+graph's `owl:imports` declaration is rewritten to the version the tool ships,
+in place in the block that declares it (every example and tutorial checkpoint
+has one).
 For a model written for seam 1.0, run by a tool that ships seam 2.0:
 
 ```text

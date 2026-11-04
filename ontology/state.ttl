@@ -8,6 +8,8 @@
 #################################################################
 
 <https://w3id.org/seams/state> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/state/1.0> ;
+    owl:versionInfo "1.0" ;
     rdfs:label "SemanticSeams Statechart Vocabulary" ;
     rdfs:comment "Entity lifecycles as state machines. Hierarchical/parallel states deferred until a dogfood model needs them." .
 

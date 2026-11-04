@@ -22,6 +22,22 @@ Statecharts have their own vocabulary. Add it after `proc:`:
 @prefix state:  <https://w3id.org/seams/state#> .
 ```
 
+Import its version in the manifest graph too:
+
+```trig
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/proc/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/state/1.0> .
+}
+```
+
 ## The statechart
 
 The lifecycle is a model of its own, so it gets its own graph. It names the states, the

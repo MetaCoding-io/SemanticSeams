@@ -102,8 +102,10 @@ keeps embedded SQLite at `SEAMS_DB`. The model review checks of `seams check`
 a `sh:in` list, a `sh:class` that points at a shape, a shape with no `sh:targetClass`
 and a `sh:path` nothing declares a property. Each names the shape or path (the
 *focusNode*) and the fact (the *path*); the chat app shows eleven of them beside the
-replica cap. Warnings and notes leave the badge at *Conforms*, and a review check that
-fails is itself one warning.
+replica cap. A shape result of severity `sh:Warning`, which is how a deprecated
+vocabulary term is flagged ([ADR-0021](/adr/0021-vocabulary-versions)), is listed
+first among the warnings, not counted as a violation. Warnings and notes leave the
+badge at *Conforms*, and a review check that fails is itself one warning.
 A lifted IRI whose fragment is no `id` in its model's BPMN or DMN XML
 ([ADR-0002](/adr/0002-iri-identity-and-migration) rule 4), such as a seam edge left pointing at a task
 removed from the diagram, is listed under *Lifted IRIs missing from the XML* with its

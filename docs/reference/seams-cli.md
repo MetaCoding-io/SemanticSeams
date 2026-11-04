@@ -209,6 +209,11 @@ focus node, the shape and the generator, and nothing is written:
 seams generate: https://example.org/expenses/broken_model: https://w3id.org/seams/shapes#ModelShape: generator 'strict-gen' requires the model to conform to this shape: Every seam:Model has exactly one seam:notation, and it is a seam:Notation.
 ```
 
+A shape result of severity `sh:Warning` (a deprecated vocabulary term,
+[ADR-0021](/adr/0021-vocabulary-versions)) is never a failed precondition. It prints
+to stderr as `seams generate: warning <focus> <path> <message>` and changes neither
+the outputs nor the exit code.
+
 ### Lenient mode
 
 `seams generate --lenient` is for previewing a model that is still broken
@@ -299,7 +304,8 @@ pre-commit hook (D044):
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
 the working directory when they lie below it. A closing count of the problems,
-every kind but `review`, goes to stderr:
+every kind but the advisory `review`, `shacl-warning` and `vocabulary-migrated`,
+goes to stderr:
 
 ```
 $ seams check --project examples/expenses/chapter-05
@@ -312,8 +318,13 @@ shacl https://example.org/expenses/expense_data https://w3id.org/seams/seam#nota
 seams check: 4 problem(s)
 ```
 
-When the only findings are `review` findings, stderr says
-`seams check: N review warning(s)` instead and the exit code is 0.
+A `shacl-warning` finding is a shape result of severity `sh:Warning`: the model uses
+a deprecated vocabulary term, and the message says what to write instead
+([ADR-0021](/adr/0021-vocabulary-versions) section 6). A `vocabulary-migrated`
+finding names a vocabulary, the version the model targets and the version the tool
+ships: the model was migrated in memory on load (section 5), and its files are
+unchanged. When the only findings are these advisory kinds
+and `review`, stderr says `seams check: N warning(s)` instead and the exit code is 0.
 
 `seams generate` fixes every output finding except `flagged`, which needs the
 model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
@@ -323,8 +334,8 @@ model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
 
 | Code | Meaning |
 |---|---|
-| 0 | No findings, or only `review` warnings. |
-| 1 | At least one finding other than `review`, or a file could not be read. |
+| 0 | No findings, or only `review`, `shacl-warning` and `vocabulary-migrated` warnings. |
+| 1 | At least one finding of another kind, or a file could not be read. |
 | 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a `seams.generators` entry point cannot be registered. A generator fault is never exit 2 here: the outputs check runs leniently. |
 
 Errors print to stderr as `seams check: <message>`.
@@ -335,7 +346,7 @@ The composite action
 [`.github/actions/seams-check`](../../.github/actions/seams-check/README.md) runs
 `seams check --project` for each line of its `projects` input (default `.`), each
 in its own log group, and fails after the last project if any exited non-zero
-(review warnings print in the log but do not fail it). The
+(warnings print in the log but do not fail it). The
 CLI is not published, so `seams` must be on PATH before the action runs. This
 repository's acceptance job does:
 

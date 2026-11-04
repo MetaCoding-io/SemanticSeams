@@ -239,3 +239,32 @@ def test_shape_without_lifecycle_is_resolution_error(guard):
     with pytest.raises(ResolutionError) as exc:
         guard.check(":ConversationShape", None, ":t_send")
     assert "lifecycle" in str(exc.value)
+
+
+# ── sh:Warning (ADR-0021 section 6) ─────────────────────────────────────────
+
+
+@pytest.fixture
+def warning_model(tmp_path):
+    """The chat app with :role's property shape at sh:Warning and a maxLength of 4."""
+    text = TRIG.read_text(encoding="utf-8")
+    old = "sh:property [ sh:path :role ; sh:datatype xsd:string ;"
+    assert text.count(old) == 1
+    trig = tmp_path / "chat-app.trig"
+    trig.write_text(text.replace(old, old + " sh:severity sh:Warning ; sh:maxLength 4 ;"), encoding="utf-8")
+    for payload in TRIG.parent.glob("*.bpmn"):
+        (tmp_path / payload.name).write_bytes(payload.read_bytes())
+    for payload in TRIG.parent.glob("*.dmn"):
+        (tmp_path / payload.name).write_bytes(payload.read_bytes())
+    return ModelGraph(trig)
+
+
+def test_a_warning_result_does_not_reject_the_payload(warning_model):
+    payload = {"content": "hi", "role": "assistant"}
+    assert validate(warning_model, ":MessageShape", payload) == payload
+
+
+def test_a_violation_beside_a_warning_lists_only_the_violation(warning_model):
+    with pytest.raises(ContractViolation) as exc:
+        validate(warning_model, ":MessageShape", {"role": "assistant"})
+    assert [r["path"] for r in exc.value.results] == ["content"]

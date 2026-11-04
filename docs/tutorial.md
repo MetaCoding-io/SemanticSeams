@@ -94,7 +94,7 @@ finding:
 seams check --project examples/chat-app
 ```
 
-The chat app prints eleven `review` lines and `seams check: 11 review warning(s)`: its
+The chat app prints eleven `review` lines and `seams check: 11 warning(s)`: its
 shapes have no `sh:targetClass`, `hasMessage` names `MessageShape` with `sh:class`,
 `MessageShape`'s `status` copies the message lifecycle's state labels, and its paths are
 not declared properties. Review lines are warnings, so the exit code stays 0. CI runs this

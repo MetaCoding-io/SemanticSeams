@@ -411,3 +411,48 @@ def test_failing_store_check_is_reported_as_a_violation(monkeypatch):
     assert result["conforms"] is False
     assert result["violationCount"] == len(result["violations"]) == 1
     assert "store health check failed: boom" in result["violations"][0]["message"]
+
+
+# ── sh:Warning results (ADR-0021 section 6) ──
+
+VOCAB_V2 = ROOT / "tests" / "fixtures" / "vocab-v2"
+CHAPTER_01 = ROOT / "examples" / "expenses" / "chapter-01"
+
+
+def test_a_warning_shape_result_is_a_warning_not_a_violation(monkeypatch):
+    """Against the vocab-v2 fixture's shapes, chapter-01 as written (seam 1.0;
+    the viewer's store check re-runs the version check against the shipped
+    ontology, so the dataset is not migrated here) meets the sh:Warning shapes
+    of the deprecated seam:Model and seam:inModel: four warnings, listed before
+    the review findings, and the model still conforms."""
+    import seams
+
+    monkeypatch.setattr(validation, "ONTOLOGY_FILES", sorted(VOCAB_V2.glob("*.ttl")))
+    monkeypatch.setattr(validation, "SHAPES_FILE", VOCAB_V2 / "shapes" / "seam-shapes.ttl")
+    result = validation.get_model_conformance(seams.load(CHAPTER_01, check_versions=False).ds)
+    assert result["conforms"] is True
+    assert result["violationCount"] == 0
+    shape_warnings = [w for w in result["warnings"] if w["sourceShape"] is not None]
+    assert shape_warnings == result["warnings"][: len(shape_warnings)]
+    assert len(shape_warnings) == 4
+    assert {
+        "focusNode": "https://example.org/expenses/expense_architecture",
+        "path": None,
+        "message": "seam:Model is deprecated since seam 2.0 and goes in seam 3.0.",
+        "severity": "Warning",
+        "sourceShape": "https://w3id.org/seams/shapes#ModelDeprecatedShape",
+    } in shape_warnings
+
+
+def test_a_violation_beside_a_warning_still_fails(monkeypatch):
+    import seams
+
+    monkeypatch.setattr(validation, "ONTOLOGY_FILES", sorted(VOCAB_V2.glob("*.ttl")))
+    monkeypatch.setattr(validation, "SHAPES_FILE", VOCAB_V2 / "shapes" / "seam-shapes.ttl")
+    ds = seams.load(CHAPTER_01, check_versions=False).ds
+    for quad in _broken_dataset().quads((None, None, None, None)):
+        ds.add(quad)
+    result = validation.get_model_conformance(ds)
+    assert result["conforms"] is False
+    assert [v["severity"] for v in result["violations"]] == ["Violation"]
+    assert any(w["severity"] == "Warning" and w["sourceShape"] for w in result["warnings"])

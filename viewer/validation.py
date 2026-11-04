@@ -6,7 +6,9 @@ carries no ontology triples. The shapes
 in ontology/shapes/seam-shapes.ttl rely on subclass closure from the ontology
 files (sh:class checks), so validation here mirrors tests/validate_chat_app.py:
 merge the ontology .ttl files with the dataset's quads into one union graph,
-then run pyshacl against seam-shapes.ttl with inference off.
+then run pyshacl against seam-shapes.ttl with inference off. A result of
+severity sh:Warning (the shape of a deprecated vocabulary term, ADR-0021
+section 6) is a warning, not a violation: it never changes ``conforms``.
 
 The same summary carries the storage health checks of ADR-0011
 (seams.ModelGraph.store_health()): a store the runtime cannot resolve is a
@@ -190,26 +192,27 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
     "warnings": list[dict], "notes": list[dict]}. Each entry carries focusNode,
     path, message, severity, and sourceShape (focusNode, path and sourceShape
     may be None). Store violations join ``violations`` and make the model not
-    conform; warnings (store, replica, review and out-of-profile findings, in that
-    order) and notes do not change ``conforms``.
+    conform; warnings (SHACL sh:Warning results, then store, replica, review and
+    out-of-profile findings, in that order) and notes do not change ``conforms``.
     """
     key = (id(ds), None if profile is None else id(profile))
     if key in _cache:
         return _cache[key]
 
     union = _build_union(ds, profile)
-    conforms, results_graph, _text = pyshacl.validate(union, shacl_graph=_shapes(profile), inference="none")
+    _conforms, results_graph, _text = pyshacl.validate(union, shacl_graph=_shapes(profile), inference="none")
     if not isinstance(results_graph, rdflib.Graph):
         raise TypeError(f"pyshacl returned a {type(results_graph).__name__} report, not a results graph")
 
     violations: list[dict] = []
+    shape_warnings: list[dict] = []
     for result in results_graph.subjects(rdflib.RDF.type, SH.ValidationResult):
         focus = results_graph.value(result, SH.focusNode)
         path = results_graph.value(result, SH.resultPath)
         message = results_graph.value(result, SH.resultMessage)
         severity = results_graph.value(result, SH.resultSeverity)
         source_shape = results_graph.value(result, SH.sourceShape)
-        violations.append(
+        (shape_warnings if severity == SH.Warning else violations).append(
             {
                 "focusNode": str(focus) if focus is not None else None,
                 "path": str(path) if path is not None else None,
@@ -221,13 +224,13 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
 
     store = _store_findings(ds)
     violations += [f for f in store if f["severity"] == "Violation"]
-    warnings = [f for f in store if f["severity"] == "Warning"] + _review_findings(ds)
+    warnings = shape_warnings + [f for f in store if f["severity"] == "Warning"] + _review_findings(ds)
     if profile is not None:
         warnings += _out_of_profile(ds, union, profile)
     notes = [f for f in store if f["severity"] == "Info"]
 
     summary = {
-        "conforms": bool(conforms) and not any(f["severity"] == "Violation" for f in store),
+        "conforms": not violations,
         "violationCount": len(violations),
         "violations": violations,
         "warnings": warnings,

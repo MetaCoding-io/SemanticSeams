@@ -130,8 +130,13 @@ the fact and a message) and, with `coverage = ["paths"]`,
 changed; the task IRI and module path) and `draft-hand-edited` (the draft file's
 sha256 differs from the record, or the file is `missing`), followed by
 `seams check: N problem(s)` on stderr. `review` findings are warnings
-(`ADVISORY_KINDS`): they print but are not counted, and when they are the only
-findings stderr says `seams check: N review warning(s)` and the exit code is 0.
+(`ADVISORY_KINDS`), and so are `shacl-warning` (a `sh:Warning` shape result: a
+deprecated vocabulary term is used, ADR-0021) and `vocabulary-migrated` (one per
+migration step `seams.load` applied: the vocabulary, the model's version and the
+tool's): they print but are not counted, and when they are the only findings
+stderr says `seams check: N warning(s)` and the exit code is 0.
+`run_check(project, model, ontology_dir)` takes the vocabulary tree to load,
+validate and migrate against (default the repository's `ontology/`).
 It exits 0 with no problems, 1 with any,
 and 2 for the errors of `seams generate` except a generator fault, which the
 lenient outputs check turns into a finding, plus a missing, unparsable or

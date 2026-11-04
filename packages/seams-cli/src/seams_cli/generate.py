@@ -8,7 +8,10 @@ Generators come from the ``seams.generators`` registry (D056). Before any
 runs, a generator that declares precondition shapes has them checked: the model,
 unioned with ``ontology/*.ttl``, is validated against ontology/shapes once, and
 a result of one of its shapes raises GeneratorError naming the generator, the
-shape and the focus node (strict mode, M018/S01).
+shape and the focus node (strict mode, M018/S01). A sh:Warning result (a
+deprecated vocabulary term, ADR-0021 section 6) never raises and is no fault:
+it is listed in ``Generated.warnings`` as ``<focus> <path> <message>``, and
+generation goes on as if it were not there.
 
 With ``lenient=True`` (D057) nothing raises. Every precondition result becomes
 a ``Fault`` and its generator still runs; a generator that raises
@@ -38,10 +41,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
-from rdflib import Graph
+from rdflib import RDF, Graph
 
 from seams_gen import GeneratorError
-from seams_gen.protocol import Generator
+from seams_gen.protocol import SH, Generator
 from seams_gen.trace import render_trace_json
 
 from .lockfile import (
@@ -62,11 +65,14 @@ from .project import Project
 
 @dataclass(frozen=True)
 class Generated:
-    """What ``generate_project`` produced: {absolute output path: Output}, and
-    the faults lenient mode collected, sorted (always empty in strict mode)."""
+    """What ``generate_project`` produced: {absolute output path: Output}, the
+    faults lenient mode collected, sorted (always empty in strict mode), and the
+    sh:Warning results of the precondition validation, sorted (empty when no
+    generator declares preconditions)."""
 
     files: dict[Path, Output]
     faults: tuple[Fault, ...] = ()
+    warnings: tuple[str, ...] = ()
 
 
 def _fault(generator: str, err: GeneratorError) -> Fault:
@@ -81,11 +87,13 @@ def generate_project(project: Project, model: Path, *, lenient: bool = False) ->
     registry = discover()
     generators = [(registry[target.name], target.out) for target in project.generators]
     faults: list[Fault] = []
+    warnings: list[str] = []
     if any(gen.preconditions for gen, _out in generators):
         from .check import SHAPES_FILE
 
         shapes = Graph().parse(SHAPES_FILE, format="turtle")
         results = shape_results(model, shapes)
+        warnings = shape_warnings(results)
         for gen, _out in generators:
             if lenient:
                 faults += (_fault(gen.name, err) for err in gen.precondition_faults(results, shapes))
@@ -102,7 +110,7 @@ def generate_project(project: Project, model: Path, *, lenient: bool = False) ->
             continue
         for name, (text, sources) in produced.items():
             files[(out / name).resolve()] = Output(gen.name, gen.version, text, sources)
-    return Generated(files, tuple(sorted(faults)))
+    return Generated(files, tuple(sorted(faults)), tuple(warnings))
 
 
 TRACE_SUFFIX = ".trace.json"
@@ -144,6 +152,17 @@ def shape_results(model: Path, shapes: Graph) -> Graph:
 
     _conforms, results, _text = pyshacl.validate(model_graph(model), shacl_graph=shapes, inference="none")
     return cast(Graph, results)
+
+
+def shape_warnings(results: Graph) -> list[str]:
+    """``<focus> <path> <message>`` of each sh:Warning result of a SHACL report, sorted ("-" for a missing part)."""
+    lines = []
+    for result in results.subjects(RDF.type, SH.ValidationResult):
+        if results.value(result, SH.resultSeverity) != SH.Warning:
+            continue
+        parts = (results.value(result, key) for key in (SH.focusNode, SH.resultPath, SH.resultMessage))
+        lines.append(" ".join(str(v) if v is not None else "-" for v in parts))
+    return sorted(lines)
 
 
 def write_outputs(files: dict[Path, Output]) -> None:

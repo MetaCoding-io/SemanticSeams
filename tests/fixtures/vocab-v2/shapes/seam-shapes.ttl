@@ -1,0 +1,1321 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix ifml:   <https://w3id.org/seams/ifml#> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix dec:    <https://w3id.org/seams/dec#> .
+@prefix state:  <https://w3id.org/seams/state#> .
+@prefix comm:   <https://w3id.org/seams/comm#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix verify: <https://w3id.org/seams/verify#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix seamsh: <https://w3id.org/seams/shapes#> .
+
+<https://w3id.org/seams/shapes> a owl:Ontology ;
+    rdfs:label "Seam Validation Shapes" ;
+    rdfs:comment """The project's own methodology applied to itself: constraints on
+the seam predicates live HERE, as SHACL shapes over the model graph — not as
+rdfs:domain/range in seam.ttl, because RDFS ranges infer types onto violators
+instead of rejecting them. Every shape below encodes a claim the prose ontology
+comments were already making; validating a model against this file is what turns
+'we follow the seam design rules' into a machine-verifiable statement.
+
+Validate with the ontology files merged into the data graph: sh:class checks
+subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data.""" ;
+    sh:declare [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] ,
+               [ sh:prefix "ifml" ; sh:namespace "https://w3id.org/seams/ifml#"^^xsd:anyURI ] ,
+               [ sh:prefix "hydra" ; sh:namespace "http://www.w3.org/ns/hydra/core#"^^xsd:anyURI ] ,
+               [ sh:prefix "comm" ; sh:namespace "https://w3id.org/seams/comm#"^^xsd:anyURI ] ,
+               [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ] ,
+               [ sh:prefix "rdfs" ; sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ] ,
+               [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ] ,
+               [ sh:prefix "state" ; sh:namespace "https://w3id.org/seams/state#"^^xsd:anyURI ] ,
+               [ sh:prefix "proc" ; sh:namespace "https://w3id.org/seams/proc#"^^xsd:anyURI ] ,
+               [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
+               [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
+               [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] ,
+               [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] ,
+               [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ] .
+
+#################################################################
+# Navigation backbone
+#################################################################
+
+seamsh:ModelShape a sh:NodeShape ;
+    sh:targetClass seam:Model ;
+    sh:property [
+        sh:path seam:notation ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class seam:Notation ;
+        sh:message "Every seam:Model has exactly one seam:notation, and it is a seam:Notation." ;
+    ] ;
+    sh:sparql [
+        sh:message "BPMN and DMN models must carry a seam:renderPayload (the native XML is the render source)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this seam:notation ?n .
+                FILTER(?n IN (seam:BPMN, seam:DMN))
+                FILTER NOT EXISTS { $this seam:renderPayload ?p }
+            }""" ;
+    ] .
+
+seamsh:DetailedByShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:detailedBy ;
+    sh:class seam:Model ;
+    sh:message "seam:detailedBy points at a seam:Model." .
+
+seamsh:InModelShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:inModel ;
+    sh:class seam:Model ;
+    sh:message "seam:inModel points at a seam:Model." .
+
+#################################################################
+# Reveal modes
+#################################################################
+
+seamsh:RevealShape a sh:NodeShape ;
+    rdfs:comment """Every non-administrative seam predicate declares exactly one reveal
+mode (ADR-0005 as amended): the viewer derives click navigation from it. Validate
+with ontology/seam.ttl merged into the data graph, as the annotations live there.
+A seam predicate added to seam.ttl is added here too.""" ;
+    sh:targetNode
+        seam:detailedBy ,
+        seam:presents ,
+        seam:exposes ,
+        seam:consumes ,
+        seam:deployedTo ,
+        seam:executes ,
+        seam:storedIn ,
+        seam:triggers ,
+        seam:completedOn ,
+        seam:visibleWhen ,
+        seam:submitsTo ,
+        seam:rendersComponent ,
+        seam:decidedBy ,
+        seam:invokes ,
+        seam:publishesTo ,
+        seam:subscribesTo ,
+        seam:reads ,
+        seam:writes ,
+        seam:lifecycle ,
+        seam:fires ,
+        seam:acceptsShape ,
+        seam:returnsShape ,
+        seam:mediaKind ,
+        seam:implementedBy ,
+        seam:catches ,
+        seam:governedBy ,
+        seam:conformsTo ,
+        seam:offersClass ,
+        seam:usesGenerator ,
+        seam:profileShapes ,
+        seam:realizes ;
+    sh:property [
+        sh:path seam:reveal ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( seam:Open seam:Nest seam:Layer ) ;
+        sh:message "Every seam predicate declares exactly one seam:reveal, one of seam:Open, seam:Nest or seam:Layer." ;
+    ] .
+
+#################################################################
+# Architecture <-> everything
+#################################################################
+
+seamsh:PresentsShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:presents ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:presents ; sh:class seam:Model ;
+        sh:message "seam:presents points at a seam:Model (an IFML surface)." ] ;
+    sh:message "Only an arch:Container seam:presents a UI surface." .
+
+seamsh:ExposesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:exposes ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:exposes ;
+        sh:or ( [ sh:class hydra:Operation ] [ sh:class comm:Channel ] ) ;
+        sh:message "seam:exposes points at an operation or a channel." ] .
+
+seamsh:ConsumesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:consumes ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:consumes ;
+        sh:or ( [ sh:class hydra:Operation ] [ sh:class comm:Channel ] ) ;
+        sh:message "seam:consumes points at an operation or a channel." ] .
+
+seamsh:DeployedToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:deployedTo ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:deployedTo ; sh:class arch:DeploymentNode ;
+        sh:message "seam:deployedTo points at an arch:DeploymentNode." ] .
+
+seamsh:ExecutesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:executes ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:executes ; sh:class proc:Process ;
+        sh:message "seam:executes points at a proc:Process." ] .
+
+#################################################################
+# UI <-> process
+#################################################################
+
+seamsh:TriggersShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:triggers ;
+    sh:class ifml:Event ;
+    sh:property [ sh:path seam:triggers ;
+        sh:or ( [ sh:class proc:Process ] [ sh:class dec:Decision ] ) ;
+        sh:message "seam:triggers points at a process or a decision." ] ;
+    sh:message "Only an ifml:Event seam:triggers behavior." .
+
+seamsh:CompletedOnShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:completedOn ;
+    sh:class proc:UserTask ;
+    sh:property [ sh:path seam:completedOn ; sh:class ifml:Form ; sh:maxCount 1 ;
+        sh:message "seam:completedOn points at one ifml:Form." ] ;
+    sh:message "Only a proc:UserTask seam:completedOn a form." .
+
+seamsh:VisibleWhenShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:visibleWhen ;
+    sh:class ifml:ViewComponent ;
+    sh:property [ sh:path seam:visibleWhen ; sh:class state:State ;
+        sh:message "seam:visibleWhen points at a state:State." ] .
+
+#################################################################
+# UI <-> communication
+#################################################################
+
+seamsh:SubmitsToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:submitsTo ;
+    sh:class ifml:Event ;
+    sh:property [ sh:path seam:submitsTo ; sh:class hydra:Operation ;
+        sh:message "seam:submitsTo points at a hydra:Operation." ] ;
+    sh:message "Only an ifml:Event seam:submitsTo an operation." .
+
+seamsh:RendersComponentShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:rendersComponent ;
+    sh:class hydra:Operation ;
+    sh:property [ sh:path seam:rendersComponent ; sh:class ifml:ViewComponent ;
+        sh:message "seam:rendersComponent points at an ifml:ViewComponent." ] ;
+    sh:message "Only a hydra:Operation seam:rendersComponent." .
+
+seamsh:SwapShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:swap ;
+    sh:class ifml:NavigationFlow ;
+    sh:property [ sh:path ifml:swap ; sh:maxCount 1 ;
+        sh:in ( ifml:Replace ifml:Append ifml:Prepend ) ;
+        sh:message "ifml:swap is at most one of ifml:Replace, ifml:Append or ifml:Prepend." ] ;
+    sh:message "Only an ifml:NavigationFlow carries ifml:swap." .
+
+seamsh:BoundToShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:boundTo ;
+    sh:class ifml:Parameter ;
+    sh:property [ sh:path ifml:boundTo ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "ifml:boundTo names at most one property IRI." ] ;
+    sh:message "Only an ifml:Parameter is ifml:boundTo a property." .
+
+seamsh:OrderShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:order ;
+    sh:class ifml:ViewComponent ;
+    sh:property [ sh:path ifml:order ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:message "ifml:order is at most one xsd:integer per component." ] ;
+    sh:message "Only an ifml:ViewComponent carries ifml:order." .
+
+# Separate shape so the node-level message above does not attach to its results.
+seamsh:OrderUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:order ;
+    sh:sparql [
+        sh:message "ifml:order is unique among the components of one ViewContainer." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?container ifml:contains $this , ?other .
+                FILTER(?other != $this)
+                $this ifml:order ?n . ?other ifml:order ?m .
+                FILTER(?n = ?m)
+            }""" ;
+    ] .
+
+# A served page lays its components out by ifml:order (seams_gen htmx), so every
+# component of a page with an ifml:path, or of the landmark, has one.
+seamsh:PageComponentOrderShape a sh:NodeShape ;
+    sh:targetObjectsOf ifml:contains ;
+    sh:sparql [
+        sh:message "A component of a page (an ifml:ViewContainer with an ifml:path, or the landmark) has exactly one ifml:order." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?page ifml:contains $this .
+                FILTER (EXISTS { ?page ifml:path ?path } || EXISTS { ?page ifml:isLandmark true })
+                $this a ?type . ?type rdfs:subClassOf* ifml:ViewComponent .
+                FILTER NOT EXISTS { $this ifml:order ?n }
+            }""" ;
+    ] .
+
+#################################################################
+# IFML structure the generators rely on (backlog K1)
+#
+# Each shape here is the model-side form of a GeneratorError condition in
+# seams_gen; tests/test_shape_generator_parity.py pairs every one with the
+# generator fault it catches.
+#################################################################
+
+seamsh:ComponentKindShape a sh:NodeShape ;
+    sh:targetClass ifml:ViewComponent ;
+    sh:xone ( [ sh:class ifml:List ] [ sh:class ifml:Details ] [ sh:class ifml:Form ] ) ;
+    sh:message "An ifml:ViewComponent is exactly one of ifml:List, ifml:Details or ifml:Form." .
+
+seamsh:ComponentReadsShape a sh:NodeShape ;
+    sh:targetClass ifml:List , ifml:Details ;
+    sh:property [ sh:path seam:reads ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "An ifml:List or ifml:Details seam:reads exactly one shape, the data it shows." ] .
+
+seamsh:FormWritesShape a sh:NodeShape ;
+    sh:targetClass ifml:Form ;
+    sh:property [ sh:path seam:writes ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "An ifml:Form seam:writes exactly one shape, the data it submits." ] ;
+    sh:sparql [
+        sh:message "An ifml:Form has exactly one ifml:hasEvent event that seam:submitsTo an operation." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER (NOT EXISTS { $this ifml:hasEvent ?e . ?e seam:submitsTo ?op }
+                    || EXISTS { $this ifml:hasEvent ?e1 , ?e2 . ?e1 seam:submitsTo ?op1 . ?e2 seam:submitsTo ?op2 .
+                                FILTER(?e1 != ?e2) })
+            }""" ;
+    ] .
+
+seamsh:VisibleWhenGuardShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:visibleWhen ;
+    sh:property [ sh:path seam:reads ; sh:minCount 1 ;
+        sh:message "A component with seam:visibleWhen seam:reads the shape whose lifecycle state guards it." ] ;
+    sh:sparql [
+        sh:message "Each seam:visibleWhen state is a state:hasState of the seam:lifecycle of the shape the component seam:reads." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:visibleWhen ?value ; seam:reads ?shape .
+                FILTER NOT EXISTS { ?shape seam:lifecycle ?machine . ?machine state:hasState ?value }
+            }""" ;
+    ] .
+
+seamsh:InteractionModelShape a sh:NodeShape ;
+    sh:targetClass ifml:InteractionModel ;
+    sh:property [ sh:path [ sh:inversePath seam:presents ] ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An ifml:InteractionModel is seam:presents-ed by exactly one container." ] ;
+    sh:sparql [
+        sh:message "A model with an IFML layer has exactly one ifml:ViewContainer with ifml:isLandmark true (the app's entry page)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this a ifml:InteractionModel .
+                FILTER (NOT EXISTS { ?page a ifml:ViewContainer ; ifml:isLandmark true }
+                    || EXISTS { ?p1 a ifml:ViewContainer ; ifml:isLandmark true .
+                                ?p2 a ifml:ViewContainer ; ifml:isLandmark true . FILTER(?p1 != ?p2) })
+            }""" ;
+    ] .
+
+seamsh:ServedPageShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:path , ifml:isLandmark ;
+    sh:property [ sh:path [ sh:inversePath ifml:contains ] ;
+        sh:qualifiedValueShape [ sh:class ifml:InteractionModel ] ;
+        sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "A page (an ifml:ViewContainer with an ifml:path, or the landmark) is ifml:contains-ed by exactly one ifml:InteractionModel." ] .
+
+seamsh:EventOwnerShape a sh:NodeShape ;
+    sh:targetClass ifml:Event ;
+    sh:property [ sh:path [ sh:inversePath ifml:hasEvent ] ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:or ( [ sh:class ifml:ViewContainer ] [ sh:class ifml:ViewComponent ] ) ;
+        sh:message "An ifml:Event is the ifml:hasEvent of exactly one ifml:ViewContainer or ifml:ViewComponent." ] .
+
+# A List's link and a form's submit follow the one NavigationFlow from their event.
+seamsh:EventNavigationShape a sh:NodeShape ;
+    sh:targetClass ifml:Event ;
+    sh:sparql [
+        sh:message "An event of an ifml:List, or one that seam:submitsTo an operation, is the ifml:source of exactly one ifml:NavigationFlow." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER (EXISTS { ?list a ifml:List ; ifml:hasEvent $this } || EXISTS { $this seam:submitsTo ?op })
+                FILTER (NOT EXISTS { ?f a ifml:NavigationFlow ; ifml:source $this }
+                    || EXISTS { ?f1 a ifml:NavigationFlow ; ifml:source $this .
+                                ?f2 a ifml:NavigationFlow ; ifml:source $this . FILTER(?f1 != ?f2) })
+            }""" ;
+    ] .
+
+seamsh:InteractionFlowShape a sh:NodeShape ;
+    sh:targetClass ifml:InteractionFlow ;
+    sh:property [ sh:path ifml:source ;
+        sh:or ( [ sh:class ifml:Event ] [ sh:class ifml:ViewContainer ] [ sh:class ifml:ViewComponent ] ) ;
+        sh:message "ifml:source points at an ifml:Event, ifml:ViewContainer or ifml:ViewComponent." ] ;
+    sh:property [ sh:path ifml:target ;
+        sh:or ( [ sh:class ifml:Event ] [ sh:class ifml:ViewContainer ] [ sh:class ifml:ViewComponent ] ) ;
+        sh:message "ifml:target points at an ifml:Event, ifml:ViewContainer or ifml:ViewComponent." ] .
+
+# ifml:Append and ifml:Prepend add to the target's item list, which only a Details has.
+seamsh:ItemSwapShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:swap ;
+    sh:sparql [
+        sh:message "A flow that ifml:swap ifml:Append or ifml:Prepend has an ifml:Details as its ifml:target (only a Details has an item list)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this ifml:swap ?swap ; ifml:target ?value .
+                FILTER(?swap IN (ifml:Append, ifml:Prepend))
+                FILTER NOT EXISTS { ?value a ifml:Details }
+            }""" ;
+    ] .
+
+# The List link's hx-get is the one GET operation that renders the flow's target.
+seamsh:ListLinkShape a sh:NodeShape ;
+    sh:targetObjectsOf ifml:target ;
+    sh:sparql [
+        sh:message "The ifml:target of the NavigationFlow from an ifml:List's event is seam:rendersComponent-ed by exactly one GET operation." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this WHERE {
+                ?list a ifml:List ; ifml:hasEvent ?event .
+                ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target $this .
+                FILTER (NOT EXISTS { ?op seam:rendersComponent $this ; hydra:method "GET" }
+                    || EXISTS { ?op1 seam:rendersComponent $this ; hydra:method "GET" .
+                                ?op2 seam:rendersComponent $this ; hydra:method "GET" . FILTER(?op1 != ?op2) })
+            }""" ;
+    ] .
+
+# A form posts through its presenting container, which must consume the operation.
+seamsh:SubmitConsumedShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:submitsTo ;
+    sh:sparql [
+        sh:message "The container that seam:presents a form's interaction model seam:consumes the operation the form's event seam:submitsTo." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:submitsTo ?value .
+                ?form a ifml:Form ; ifml:hasEvent $this .
+                ?im a ifml:InteractionModel ; ifml:contains/ifml:contains ?form .
+                ?presenter seam:presents ?im .
+                FILTER NOT EXISTS { ?presenter seam:consumes ?value }
+            }""" ;
+    ] .
+
+seamsh:CompletedOnFormShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:completedOn ;
+    sh:property [ sh:path [ sh:inversePath seam:completedOn ] ; sh:maxCount 1 ;
+        sh:message "A form is seam:completedOn by at most one user task (ADR-0009)." ] .
+
+# A form input is bound to a field of the shape the form writes.
+seamsh:BoundToWrittenShape a sh:NodeShape ;
+    sh:targetSubjectsOf ifml:boundTo ;
+    sh:sparql [
+        sh:message "A parameter of an ifml:Form is ifml:boundTo the sh:path of a datatype property of the shape the form seam:writes." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this ifml:boundTo ?value .
+                ?form a ifml:Form ; ifml:hasParameter $this ; seam:writes ?shape .
+                FILTER NOT EXISTS { ?shape sh:property ?p . ?p sh:path ?value ; sh:datatype ?datatype }
+            }""" ;
+    ] .
+
+#################################################################
+# Process <-> decisions, communication, data
+#################################################################
+
+seamsh:DecidedByShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:decidedBy ;
+    sh:class proc:BusinessRuleTask ;
+    sh:property [ sh:path seam:decidedBy ; sh:class dec:Decision ;
+        sh:message "seam:decidedBy points at a dec:Decision." ] ;
+    sh:message "seam:decidedBy connects only business-rule tasks to decisions." .
+
+seamsh:InvokesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:invokes ;
+    sh:class proc:ServiceTask ;
+    sh:property [ sh:path seam:invokes ; sh:class hydra:Operation ;
+        sh:message "seam:invokes points at a hydra:Operation." ] ;
+    sh:message "Only a proc:ServiceTask seam:invokes an operation." .
+
+seamsh:PublishesToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:publishesTo ;
+    sh:or ( [ sh:class proc:MessageThrowEvent ] [ sh:class proc:ServiceTask ] ) ;
+    sh:property [ sh:path seam:publishesTo ; sh:class comm:Channel ;
+        sh:message "seam:publishesTo points at a comm:Channel." ] ;
+    sh:message "Only a proc:MessageThrowEvent or a proc:ServiceTask seam:publishesTo a channel (D046)." .
+
+seamsh:SubscribesToShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:subscribesTo ;
+    sh:class proc:MessageCatchEvent ;
+    sh:property [ sh:path seam:subscribesTo ; sh:class comm:Channel ;
+        sh:message "seam:subscribesTo points at a comm:Channel." ] .
+
+seamsh:ReadsShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:reads ;
+    sh:class sh:NodeShape ;
+    sh:message "seam:reads points at a sh:NodeShape." .
+
+seamsh:WritesShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:writes ;
+    sh:class sh:NodeShape ;
+    sh:message "seam:writes points at a sh:NodeShape." .
+
+#################################################################
+# Data <-> lifecycle
+#################################################################
+
+seamsh:LifecycleShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:lifecycle ;
+    sh:class sh:NodeShape ;
+    sh:property [ sh:path seam:lifecycle ; sh:class state:StateMachine ;
+        sh:message "seam:lifecycle points at a state:StateMachine." ] ;
+    sh:message "Only a sh:NodeShape carries a seam:lifecycle." .
+
+seamsh:FiresShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:fires ;
+    sh:class proc:Task ;
+    sh:property [ sh:path seam:fires ; sh:class state:Transition ;
+        sh:message "seam:fires points at a state:Transition." ] ;
+    sh:message "Only a proc:Task seam:fires a transition." .
+
+#################################################################
+# Communication contracts
+#################################################################
+
+seamsh:AcceptsShapeShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:acceptsShape ;
+    sh:or ( [ sh:class hydra:Operation ] [ sh:class comm:Channel ] ) ;
+    sh:property [ sh:path seam:acceptsShape ; sh:class sh:NodeShape ;
+        sh:message "seam:acceptsShape points at a sh:NodeShape." ] ;
+    sh:message "Only operations and channels declare seam:acceptsShape." .
+
+seamsh:ReturnsShapeShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:returnsShape ;
+    sh:or ( [ sh:class hydra:Operation ] [ sh:class hydra:Status ] ) ;
+    sh:property [ sh:path seam:returnsShape ; sh:class sh:NodeShape ;
+        sh:message "seam:returnsShape points at a sh:NodeShape." ] ;
+    sh:message "Only operations and their hydra:Status responses (ADR-0013) declare seam:returnsShape." .
+
+seamsh:MediaKindShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:mediaKind ;
+    sh:class seam:MediaKind ;
+    sh:message "seam:mediaKind takes a seam:MediaKind (seam:UIFragment or seam:Data)." .
+
+#################################################################
+# Operation implementation (ADR-0012)
+#################################################################
+
+seamsh:ImplementedByShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:implementedBy ;
+    sh:class hydra:Operation ;
+    sh:property [ sh:path seam:implementedBy ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "An operation is seam:implementedBy at most one implementation, named by an IRI." ] ;
+    sh:message "Only a hydra:Operation is seam:implementedBy an implementation." .
+
+seamsh:ImplementationKindShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:implementedBy ;
+    sh:property [ sh:path rdf:type ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( comm:LLMCompletion comm:PythonHandler comm:HTTPEndpoint ) ;
+        sh:message "An implementation has exactly one rdf:type, its kind: comm:LLMCompletion, comm:PythonHandler or comm:HTTPEndpoint." ] .
+
+seamsh:PythonHandlerShape a sh:NodeShape ;
+    sh:targetClass comm:PythonHandler ;
+    sh:property [ sh:path comm:handler ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$" ;
+        sh:message "A comm:PythonHandler has exactly one comm:handler, a dotted path of Python identifiers inside the handlers package." ] .
+
+# The handler stub generator (seams_gen.stubs) writes a TypedDict per shape that
+# a comm:PythonHandler operation accepts or returns: the class is named after the
+# shape's local name, its keys after the sh:path local names, typed from
+# sh:datatype. A module is the comm:handler path without its last segment.
+seamsh:HandlerShapeShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:acceptsShape , seam:returnsShape ;
+    sh:sparql [
+        # The datatypes of seams_gen.stubs.PYTHON_TYPES; keep the two in step.
+        sh:message "A field of a shape a comm:PythonHandler operation accepts or returns has an sh:datatype the handler stub generator maps to a Python type: xsd:string, xsd:integer, xsd:decimal, xsd:double, xsd:boolean, xsd:date or xsd:dateTime." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler .
+                $this sh:property/sh:datatype ?value .
+                FILTER(?value NOT IN (xsd:string, xsd:integer, xsd:decimal, xsd:double,
+                                      xsd:boolean, xsd:date, xsd:dateTime))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A shape a comm:PythonHandler operation accepts or returns has a local name, and sh:path local names, that are Python identifiers and not keywords: the handler stub's TypedDict and its keys." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler .
+                { BIND($this AS ?named) } UNION { $this sh:property/sh:path ?named }
+                BIND(REPLACE(STR(?named), "^.*[#/]", "") AS ?value)
+                FILTER(!REGEX(?value, "^[A-Za-z_][A-Za-z0-9_]*$")
+                       || ?value IN ("False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The sh:path local names of a shape a comm:PythonHandler operation accepts or returns are distinct: each is a key of the handler stub's TypedDict." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler .
+                $this sh:property ?a , ?b .
+                ?a sh:path ?pa . ?b sh:path ?pb .
+                FILTER(?a != ?b)
+                BIND(REPLACE(STR(?pa), "^.*[#/]", "") AS ?value)
+                FILTER(?value = REPLACE(STR(?pb), "^.*[#/]", ""))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "Two shapes the comm:PythonHandler operations of one handler module accept or return have different local names: each is a TypedDict of the module." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler ; comm:handler ?handler .
+                ?other_op seam:acceptsShape|seam:returnsShape ?value ; seam:implementedBy ?other_impl .
+                ?other_impl a comm:PythonHandler ; comm:handler ?other_handler .
+                FILTER(?value != $this)
+                FILTER(REPLACE(STR(?handler), "[.]?[^.]*$", "") = REPLACE(STR(?other_handler), "[.]?[^.]*$", ""))
+                FILTER(REPLACE(STR($this), "^.*[#/]", "") = REPLACE(STR(?value), "^.*[#/]", ""))
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A shape a comm:PythonHandler operation accepts or returns has a local name that is not a function of the same handler module (the last segment of a comm:handler there): the stub module would bind the name twice." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?op seam:acceptsShape|seam:returnsShape $this ; seam:implementedBy ?impl .
+                ?impl a comm:PythonHandler ; comm:handler ?handler .
+                ?other_op seam:implementedBy ?other_impl .
+                ?other_impl a comm:PythonHandler ; comm:handler ?value .
+                FILTER(REPLACE(STR(?handler), "[.]?[^.]*$", "") = REPLACE(STR(?value), "[.]?[^.]*$", ""))
+                FILTER(REPLACE(STR($this), "^.*[#/]", "") = REPLACE(STR(?value), "^.*[.]", ""))
+            }""" ;
+    ] .
+
+# Separate shape so a model with no implementations at all is still checked: the
+# operation is the target, and the query finds a remote invocation with none.
+seamsh:RemoteImplementationShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:invokes ;
+    sh:sparql [
+        sh:message "An operation invoked across containers (its exposing container does not seam:executes the invoking process) declares a seam:implementedBy (ADR-0012)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                ?task seam:invokes $this ; seam:inModel ?model .
+                ?process seam:detailedBy ?model .
+                ?container seam:exposes $this .
+                FILTER NOT EXISTS { ?container seam:executes ?process }
+                FILTER NOT EXISTS { $this seam:implementedBy ?implementation }
+            }""" ;
+    ] .
+
+#################################################################
+# Operation errors and error boundaries (ADR-0013)
+#################################################################
+
+seamsh:ErrorStatusShape a sh:NodeShape ;
+    sh:targetSubjectsOf comm:errorCode ;
+    sh:class hydra:Status ;
+    sh:property [ sh:path comm:errorCode ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^[A-Za-z][A-Za-z0-9._-]*$" ;
+        sh:message "An error status has exactly one comm:errorCode: a string of letters, digits, '.', '_' or '-', starting with a letter." ] ;
+    sh:property [ sh:path hydra:statusCode ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 400 ; sh:maxInclusive 599 ;
+        sh:message "An error status has exactly one integer hydra:statusCode in 400..599." ] ;
+    sh:property [ sh:path seam:returnsShape ; sh:minCount 1 ; sh:maxCount 1 ; sh:node seamsh:ProblemShapeShape ;
+        sh:message "An error status seam:returnsShape exactly one error shape over problem+json (comm:title and an integer comm:status)." ] ;
+    sh:property [ sh:path [ sh:inversePath hydra:possibleStatus ] ; sh:minCount 1 ; sh:class hydra:Operation ;
+        sh:message "An error status is the hydra:possibleStatus of a hydra:Operation." ] ;
+    sh:message "Only a hydra:Status carries a comm:errorCode." .
+
+# Not targeted: applied through seamsh:ErrorStatusShape's sh:node to error shapes only.
+seamsh:ProblemShapeShape a sh:NodeShape ;
+    sh:property [ sh:path sh:property ;
+        sh:qualifiedValueShape [
+            sh:property [ sh:path sh:path ; sh:hasValue comm:status ] ;
+            sh:property [ sh:path sh:datatype ; sh:hasValue xsd:integer ] ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "An error shape declares the problem member comm:status with sh:datatype xsd:integer." ] ;
+    sh:property [ sh:path sh:property ;
+        sh:qualifiedValueShape [ sh:property [ sh:path sh:path ; sh:hasValue comm:title ] ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "An error shape declares the problem member comm:title." ] .
+
+seamsh:ErrorCodeUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf hydra:possibleStatus ;
+    sh:sparql [
+        sh:message "An operation's error statuses have distinct comm:errorCodes (ADR-0013)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this hydra:possibleStatus ?a , ?b .
+                ?a comm:errorCode ?value .
+                ?b comm:errorCode ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+seamsh:CatchesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:catches ;
+    sh:class proc:ErrorBoundaryEvent ;
+    sh:property [ sh:path seam:catches ; sh:maxCount 1 ; sh:class hydra:Status ;
+        sh:message "An error boundary event seam:catches at most one hydra:Status." ] ;
+    sh:property [ sh:path ( seam:catches comm:errorCode ) ; sh:minCount 1 ;
+        sh:message "seam:catches points at an error status: a hydra:Status with a comm:errorCode." ] ;
+    sh:message "Only a proc:ErrorBoundaryEvent seam:catches an error." .
+
+seamsh:ErrorBoundaryEventShape a sh:NodeShape ;
+    sh:targetClass proc:ErrorBoundaryEvent ;
+    sh:property [ sh:path seam:catches ; sh:minCount 1 ;
+        sh:message "A lifted error boundary event seam:catches the operation error it routes (ADR-0013)." ] .
+
+#################################################################
+# Deployment facts the generators read
+#################################################################
+
+seamsh:ArtifactShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:artifact ;
+    sh:property [ sh:path deploy:reference ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:artifact has exactly one string deploy:reference." ] ;
+    sh:property [ sh:path deploy:version ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:artifact has at most one string deploy:version." ] ;
+    sh:property [ sh:path deploy:build ; sh:maxCount 1 ;
+        sh:message "A deploy:artifact has at most one deploy:build." ] .
+
+seamsh:BuildShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:build ;
+    sh:property [ sh:path deploy:context ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:build has exactly one string deploy:context." ] ;
+    sh:property [ sh:path deploy:dockerfile ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:build has at most one string deploy:dockerfile." ] .
+
+# deploy:artifact, deploy:configuration and deploy:replicas have no rdfs:domain, since
+# a container and an override both state them (ADR-0015); this shape is the domain.
+seamsh:OverridableSubjectShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:artifact , deploy:configuration , deploy:replicas ;
+    sh:or ( [ sh:class arch:Container ] [ sh:class deploy:Override ] ) ;
+    sh:property [ sh:path deploy:artifact ; sh:maxCount 1 ;
+        sh:message "A container or override has at most one deploy:artifact." ] ;
+    sh:property [ sh:path deploy:replicas ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ;
+        sh:message "deploy:replicas is at most one non-negative integer." ] ;
+    sh:message "Only an arch:Container or a deploy:Override carries deploy:artifact, deploy:configuration or deploy:replicas." .
+
+seamsh:PortShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:port ;
+    sh:property [ sh:path deploy:containerPort ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 1 ; sh:maxInclusive 65535 ;
+        sh:message "A deploy:port has exactly one integer deploy:containerPort in 1..65535." ] ;
+    sh:property [ sh:path deploy:publishedPort ; sh:maxCount 1 ; sh:datatype xsd:integer ;
+        sh:minInclusive 1 ; sh:maxInclusive 65535 ;
+        sh:message "deploy:publishedPort is at most one integer in 1..65535." ] .
+
+seamsh:VolumeShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:volume ;
+    sh:property [ sh:path deploy:volumeName ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:volume has exactly one string deploy:volumeName." ] ;
+    sh:property [ sh:path deploy:mountPath ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:pattern "^/" ;
+        sh:message "A deploy:volume has exactly one absolute deploy:mountPath." ] .
+
+seamsh:HealthcheckShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:healthcheck ;
+    sh:property [ sh:path deploy:probe ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "A deploy:healthcheck has exactly one string deploy:probe." ] .
+
+seamsh:BindingShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:binding ;
+    sh:property [ sh:path deploy:key ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A deploy:binding has exactly one deploy:key." ] ;
+    sh:xone ( [ sh:path deploy:value ; sh:minCount 1 ]
+              [ sh:path deploy:secretRef ; sh:minCount 1 ]
+              [ sh:path deploy:secretFile ; sh:minCount 1 ]
+              [ sh:path deploy:serviceOf ; sh:minCount 1 ] ) ;
+    sh:property [ sh:path deploy:secretFile ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "deploy:secretFile is at most one string path." ] ;
+    sh:property [ sh:path deploy:serviceOf ; sh:class arch:Container ;
+        sh:message "deploy:serviceOf points at an arch:Container." ] ;
+    sh:property [ sh:path deploy:connectsTo ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "deploy:connectsTo points at one arch:Container (a store)." ] ;
+    sh:message "A deploy:binding takes exactly one of deploy:value, deploy:secretRef, deploy:secretFile or deploy:serviceOf." .
+
+seamsh:SecretNameShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:secretName ;
+    sh:property [ sh:path deploy:secretRef ; sh:minCount 1 ;
+        sh:message "deploy:secretName names the platform secret for a deploy:secretRef binding; a binding with a secretName must carry a secretRef." ] .
+
+seamsh:ProxiesShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:proxies ;
+    sh:class arch:Container ;
+    sh:property [ sh:path deploy:proxies ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "deploy:proxies points at one arch:Container." ] ;
+    sh:message "Only an arch:Container deploy:proxies another." .
+
+# Each constraint below is a fault the compose generator (seams_gen/compose.py) would
+# otherwise have to reject (principle 5).
+
+seamsh:SystemShape a sh:NodeShape ;
+    sh:targetClass arch:System ;
+    sh:property [ sh:path arch:contains ;
+        sh:qualifiedValueShape [ sh:class arch:Container ] ; sh:qualifiedMinCount 1 ;
+        sh:message "An arch:System arch:contains at least one arch:Container." ] .
+
+seamsh:BindingKeyShape a sh:NodeShape ;
+    sh:targetObjectsOf deploy:binding ;
+    sh:property [ sh:path deploy:key ; sh:pattern "^[A-Za-z_][A-Za-z0-9_]*$" ;
+        sh:message "deploy:key is an environment variable name: a letter or _, then letters, digits or _." ] .
+
+seamsh:BindingKeyOnceShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:configuration ;
+    sh:sparql [
+        sh:message "A container or override binds each deploy:key at most once in its deploy:configuration." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this deploy:configuration/deploy:binding ?a , ?b .
+                ?a deploy:key ?value .
+                ?b deploy:key ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+# The compose file has one service per container of the arch:System, so what a
+# service depends on, proxies or reads the URL of is a service of that file too.
+seamsh:SameSystemShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "deploy:dependsOn, deploy:proxies and a binding's deploy:serviceOf point at a container of the arch:System that contains the container stating them." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this (deploy:dependsOn|deploy:proxies|deploy:configuration/deploy:binding/deploy:serviceOf|deploy:override/deploy:configuration/deploy:binding/deploy:serviceOf) ?value .
+                ?system a arch:System ; arch:contains $this .
+                FILTER NOT EXISTS { ?system arch:contains ?value }
+            }""" ;
+    ] .
+
+# The proxy command and a service URL name one port; so does the runtime's /healthz
+# probe of a serving container (one that seam:executes a process or seam:exposes an
+# operation an event seam:submitsTo, D026) that states no deploy:healthcheck. The
+# probe is a compose fact, so it applies only to a model with an arch:Environment
+# (a model without one has no deployment layer yet, like the early tutorial chapters).
+seamsh:SinglePortShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:proxies ;
+    sh:targetObjectsOf deploy:proxies , deploy:serviceOf ;
+    sh:property [ sh:path deploy:port ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A container that deploy:proxies another, its target and a deploy:serviceOf container each have exactly one deploy:port." ] .
+
+seamsh:ServingProbePortShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "In a model with an arch:Environment, a serving container without a deploy:healthcheck has exactly one deploy:port, which the runtime's /healthz probe uses." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this WHERE {
+                { $this seam:executes ?process . ?process a proc:Process . }
+                UNION
+                { $this seam:exposes ?op . ?op a hydra:Operation . ?event seam:submitsTo ?op . }
+                FILTER NOT EXISTS { $this deploy:healthcheck ?check }
+                FILTER EXISTS { ?environment a arch:Environment }
+                FILTER (NOT EXISTS { $this deploy:port ?port }
+                        || EXISTS { $this deploy:port ?a , ?b . FILTER (?a != ?b) })
+            }""" ;
+    ] .
+
+seamsh:DeploymentNodeLabelShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:deployedTo ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "A seam:deployedTo node has exactly one rdfs:label, which names it in the placement constraint." ] .
+
+#################################################################
+# Environments (ADR-0015)
+#################################################################
+
+# Each constraint below is a fault Container.for_environment raises ResolutionError
+# for (principle 5).
+
+seamsh:OverrideShape a sh:NodeShape ;
+    sh:targetClass deploy:Override ;
+    sh:targetObjectsOf deploy:override ;
+    sh:class deploy:Override ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type deploy:environment deploy:artifact deploy:configuration deploy:replicas ) ;
+    sh:property [ sh:path deploy:environment ; sh:minCount 1 ; sh:maxCount 1 ; sh:class arch:Environment ;
+        sh:message "A deploy:Override names exactly one deploy:environment, an arch:Environment." ] ;
+    sh:message "A deploy:Override is the object of deploy:override and carries only deploy:environment, deploy:artifact, deploy:configuration and deploy:replicas (ADR-0015)." .
+
+seamsh:OverridePerEnvironmentShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:override ;
+    sh:sparql [
+        sh:message "A container has at most one deploy:override per deploy:environment (ADR-0015)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this deploy:override ?a , ?b .
+                ?a deploy:environment ?value .
+                ?b deploy:environment ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+# The store is the same in every environment: an override binding keeps the
+# deploy:connectsTo of the shared binding with its deploy:key, in both directions.
+seamsh:OverrideStoreShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:override ;
+    sh:sparql [
+        sh:message "An override binding deploy:connectsTo the same store as the shared binding with its deploy:key; the store cannot change per environment (ADR-0015)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this deploy:override/deploy:configuration/deploy:binding ?ob .
+                ?ob deploy:key ?key .
+                {
+                    ?ob deploy:connectsTo ?value .
+                    FILTER NOT EXISTS {
+                        $this deploy:configuration/deploy:binding ?sb .
+                        ?sb deploy:key ?key ; deploy:connectsTo ?value .
+                    }
+                } UNION {
+                    $this deploy:configuration/deploy:binding ?sb .
+                    ?sb deploy:key ?key ; deploy:connectsTo ?value .
+                    FILTER NOT EXISTS { ?ob deploy:connectsTo ?value }
+                }
+            }""" ;
+    ] .
+
+#################################################################
+# Storage (ADR-0011)
+#################################################################
+
+seamsh:StoredInShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:storedIn ;
+    sh:class sh:NodeShape ;
+    sh:property [ sh:path seam:storedIn ; sh:maxCount 1 ; sh:class arch:Container ;
+        sh:message "seam:storedIn points at one arch:Container (a store)." ] ;
+    sh:message "Only a sh:NodeShape is seam:storedIn a store." .
+
+seamsh:StoreShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:storedIn , deploy:connectsTo ;
+    sh:property [ sh:path deploy:storeKind ; sh:minCount 1 ;
+        sh:message "A store (the object of seam:storedIn or deploy:connectsTo) declares a deploy:storeKind." ] .
+
+seamsh:StoreKindShape a sh:NodeShape ;
+    sh:targetSubjectsOf deploy:storeKind ;
+    sh:class arch:Container ;
+    sh:property [ sh:path deploy:storeKind ; sh:maxCount 1 ;
+        sh:in ( deploy:PostgreSQL deploy:SQLite ) ;
+        sh:message "deploy:storeKind is at most one of deploy:PostgreSQL or deploy:SQLite." ] ;
+    sh:message "Only an arch:Container carries a deploy:storeKind." .
+
+#################################################################
+# Routes (principle 5)
+#################################################################
+
+# Each constraint below is a fault the route generator (seams_gen/fastapi.py) would
+# otherwise have to reject: the container that serves routes, the way each process it
+# executes starts, and the request and response of each route.
+
+seamsh:ServingContainerShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:executes , seam:exposes ;
+    sh:property [ sh:path [ sh:inversePath arch:contains ] ;
+        sh:qualifiedValueShape [ sh:class arch:System ] ; sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "A container that seam:executes a process or seam:exposes an endpoint is arch:contains-ed by exactly one arch:System." ] .
+
+# Whether a subscribing message catch event is a bpmn:startEvent is in the BPMN XML,
+# not in the graph; the shape counts every one in the process's model.
+seamsh:ExecutedProcessShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:executes ;
+    sh:property [ sh:path seam:detailedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class seam:Model ;
+        sh:message "A process a container seam:executes is seam:detailedBy exactly one BPMN seam:Model." ] ;
+    sh:sparql [
+        sh:message "A process a container seam:executes starts one way: the events that seam:triggers it seam:submitsTo exactly one operation, or a proc:MessageCatchEvent of its BPMN model seam:subscribesTo a comm:Channel (ADR-0010)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER NOT EXISTS {
+                    ?event seam:triggers $this ; seam:submitsTo ?op .
+                    FILTER NOT EXISTS { ?other seam:triggers $this ; seam:submitsTo ?op2 . FILTER (?op2 != ?op) }
+                }
+                FILTER NOT EXISTS {
+                    $this seam:detailedBy ?model .
+                    ?start a proc:MessageCatchEvent ; seam:subscribesTo ?channel .
+                    ?channel a comm:Channel .
+                    FILTER (STRSTARTS(STR(?start), CONCAT(STR(?model), "#")))
+                }
+            }""" ;
+    ] .
+
+seamsh:MethodShape a sh:NodeShape ;
+    sh:targetSubjectsOf hydra:method ;
+    sh:property [ sh:path hydra:method ; sh:pattern "^(GET|POST|PUT|PATCH|DELETE)$" ; sh:flags "i" ;
+        sh:message "hydra:method is an HTTP method a route serves: GET, POST, PUT, PATCH or DELETE." ] .
+
+seamsh:RouteOperationShape a sh:NodeShape ;
+    sh:targetClass hydra:Operation ;
+    sh:sparql [
+        sh:message "A routed operation (one an event seam:submitsTo, or one no task seam:invokes) that seam:acceptsShape a shape has a comm:requestMediaType: the request body the shape is validated from." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:acceptsShape ?value .
+                FILTER NOT EXISTS { $this comm:requestMediaType ?type }
+                FILTER (EXISTS { ?event seam:submitsTo $this } || NOT EXISTS { ?task seam:invokes $this })
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation a user task's form submits to (ADR-0009) has a comm:requestMediaType: the completion is a request body." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this .
+                ?form a ifml:Form ; ifml:hasEvent ?event .
+                ?value a proc:UserTask ; seam:completedOn ?form .
+                FILTER NOT EXISTS { $this comm:requestMediaType ?type }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation that the event triggering a process seam:submitsTo has a seam:acceptsShape: the process starts from a validated payload." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this ; seam:triggers ?value .
+                ?value a proc:Process .
+                FILTER NOT EXISTS { $this seam:acceptsShape ?shape }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The events that seam:submitsTo an operation seam:triggers at most one process: a route starts one." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this ; seam:triggers ?value .
+                ?value a proc:Process .
+                ?other seam:submitsTo $this ; seam:triggers ?process .
+                ?process a proc:Process .
+                FILTER (?process != ?value)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation completes a user task or starts a process, not both: no form a task seam:completedOn and no event that seam:triggers a process both seam:submitsTo it." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this .
+                ?form a ifml:Form ; ifml:hasEvent ?event .
+                ?task a proc:UserTask ; seam:completedOn ?form .
+                ?starter seam:submitsTo $this ; seam:triggers ?value .
+                ?value a proc:Process .
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "The forms that seam:submitsTo an operation are seam:completedOn by at most one user task: a route completes one task." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                ?event seam:submitsTo $this .
+                ?form a ifml:Form ; ifml:hasEvent ?event .
+                ?value a proc:UserTask ; seam:completedOn ?form .
+                ?other seam:submitsTo $this .
+                ?otherForm a ifml:Form ; ifml:hasEvent ?other .
+                ?task a proc:UserTask ; seam:completedOn ?otherForm .
+                FILTER (?task != ?value)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation whose submitting event's NavigationFlow ifml:swap ifml:Append or ifml:Prepend onto the component it renders returns the entity it accepts: its seam:returnsShape is its seam:acceptsShape." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:rendersComponent ?value .
+                ?event a ifml:Event ; seam:submitsTo $this .
+                ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target ?value ; ifml:swap ?swap .
+                FILTER (?swap IN (ifml:Append, ifml:Prepend))
+                FILTER NOT EXISTS { $this seam:acceptsShape ?shape ; seam:returnsShape ?shape }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "An operation that renders a whole component (no ifml:Append or ifml:Prepend flow onto it) renders a query of its seam:returnsShape, so it has one and is a GET or a user-task completion." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:rendersComponent ?value .
+                FILTER NOT EXISTS {
+                    ?event a ifml:Event ; seam:submitsTo $this .
+                    ?flow a ifml:NavigationFlow ; ifml:source ?event ; ifml:target ?value ; ifml:swap ?swap .
+                    FILTER (?swap IN (ifml:Append, ifml:Prepend))
+                }
+                FILTER (
+                    NOT EXISTS { $this seam:returnsShape ?shape }
+                    || (
+                        NOT EXISTS { $this hydra:method ?method . FILTER (UCASE(STR(?method)) = "GET") }
+                        && NOT EXISTS {
+                            ?submit seam:submitsTo $this .
+                            ?form a ifml:Form ; ifml:hasEvent ?submit .
+                            ?task a proc:UserTask ; seam:completedOn ?form .
+                        }
+                    )
+                )
+            }""" ;
+    ] .
+
+#################################################################
+# Authorization
+#################################################################
+
+seamsh:PolicyShape a sh:NodeShape ;
+    sh:targetClass odrl:Policy ;
+    sh:property [ sh:path odrl:permission ; sh:node seamsh:PermissionShape ;
+        sh:message "Each odrl:permission of a policy names exactly one odrl:target." ] ;
+    sh:property [ sh:path ( odrl:permission odrl:target ) ;
+        sh:or ( [ sh:class hydra:Operation ] [ sh:class proc:UserTask ] ) ;
+        sh:message "A permission's odrl:target is a hydra:Operation or a proc:UserTask: the request the policy governs." ] .
+
+# Not targeted: applied through seamsh:PolicyShape to each permission.
+seamsh:PermissionShape a sh:NodeShape ;
+    sh:property [ sh:path odrl:target ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+#################################################################
+# Domain profiles (ADR-0018)
+#################################################################
+
+# A profile lives in profiles/<name>/profile.ttl beside the model, never in the model,
+# so these shapes validate the profile graph the viewer resolves.
+seamsh:ProfileShape a sh:NodeShape ;
+    sh:targetClass seam:Profile ;
+    sh:property [
+        sh:path seam:offersClass ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A seam:Profile's seam:offersClass values are class IRIs." ;
+    ] ;
+    sh:property [
+        sh:path seam:usesGenerator ;
+        sh:datatype xsd:string ;
+        sh:message "A seam:Profile's seam:usesGenerator values are generator names, as strings." ;
+    ] ;
+    sh:property [
+        sh:path seam:profileShapes ;
+        sh:datatype xsd:string ;
+        sh:message "A seam:Profile's seam:profileShapes values are paths relative to the profile directory, as strings." ;
+    ] .
+
+seamsh:OfferedClassShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:offersClass ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:maxCount 1 ;
+        sh:message "A class a profile offers has at most one skos:prefLabel." ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:maxCount 1 ;
+        sh:message "A class a profile offers has at most one rdfs:label." ;
+    ] .
+
+#################################################################
+# Scenarios and examples (ADR-0014)
+#################################################################
+
+# Each constraint below is a fault the tests generator would otherwise have to reject
+# (principle 5): if a model's scenarios and examples pass these shapes, the generator
+# can derive a test from every one of them.
+
+seamsh:ScenarioShape a sh:NodeShape ;
+    sh:targetClass verify:Scenario ;
+    sh:targetSubjectsOf verify:process , verify:step , verify:expectState , verify:expectEndEvent ;
+    sh:class verify:Scenario ;
+    sh:nodeKind sh:IRI ;
+    sh:property [ sh:path verify:process ; sh:minCount 1 ; sh:maxCount 1 ; sh:class proc:Process ;
+        sh:message "A scenario runs exactly one verify:process, a proc:Process." ] ;
+    sh:property [ sh:path verify:actor ; sh:minCount 1 ; sh:maxCount 1 ; sh:class odrl:Party ;
+        sh:message "A scenario is started by exactly one verify:actor, an odrl:Party." ] ;
+    sh:property [ sh:path verify:step ; sh:maxCount 1 ;
+        sh:message "A scenario has at most one verify:step list." ] ;
+    sh:property [ sh:path ( verify:step [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ; sh:node seamsh:StepShape ;
+        sh:message "Each verify:step names one verify:task (a proc:UserTask) and one verify:actor (an odrl:Party)." ] ;
+    sh:property [ sh:path verify:expectState ; sh:maxCount 1 ; sh:class state:State ;
+        sh:message "A scenario expects at most one verify:expectState, a state:State." ] ;
+    sh:property [ sh:path verify:expectEndEvent ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "A scenario expects at most one verify:expectEndEvent, an IRI." ] ;
+    sh:sparql [
+        sh:message "A scenario states what it expects: a verify:expectState, a verify:expectEndEvent, or both." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                FILTER NOT EXISTS { $this verify:expectState ?s }
+                FILTER NOT EXISTS { $this verify:expectEndEvent ?e }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A scenario's process is started by a UI event: some ifml:Event seam:triggers it." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:process ?value .
+                FILTER NOT EXISTS { ?event seam:triggers ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "verify:step is an RDF list (rdf:nil or a node with rdf:first)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:step ?value .
+                FILTER (?value != rdf:nil)
+                FILTER NOT EXISTS { ?value rdf:first ?first }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A step's verify:task is in the same BPMN model (seam:inModel) as the scenario's process." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:process/seam:inModel ?model ;
+                      verify:step/rdf:rest*/rdf:first/verify:task ?value .
+                FILTER NOT EXISTS { ?value seam:inModel ?model }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "verify:expectEndEvent is lifted into the scenario's process model (seam:inModel)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:process/seam:inModel ?model ;
+                      verify:expectEndEvent ?value .
+                FILTER NOT EXISTS { ?value seam:inModel ?model }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "verify:expectState is a state of a lifecycle some shape seam:lifecycle names, so the test knows whose state to read." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:expectState ?value .
+                FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle ?machine }
+            }""" ;
+    ] ;
+    sh:message "Only a verify:Scenario carries verify:process, verify:step or an expected state or end event, and a scenario is an IRI (its local name names its generated test)." .
+
+# Not targeted: applied to each member of a scenario's verify:step list.
+seamsh:StepShape a sh:NodeShape ;
+    sh:property [ sh:path verify:task ; sh:minCount 1 ; sh:maxCount 1 ; sh:class proc:UserTask ] ;
+    sh:property [ sh:path verify:actor ; sh:minCount 1 ; sh:maxCount 1 ; sh:class odrl:Party ] .
+
+seamsh:GivenShape a sh:NodeShape ;
+    sh:targetObjectsOf verify:given ;
+    sh:property [ sh:path verify:field ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "A verify:given value names exactly one verify:field, an IRI." ] ;
+    sh:property [ sh:path verify:value ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:Literal ;
+        sh:message "A verify:given value has exactly one verify:value, a literal." ] ;
+    sh:sparql [
+        sh:message "verify:field is the sh:path of a property of some shape in the model." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:field ?value .
+                FILTER NOT EXISTS { ?shape sh:property ?property . ?property sh:path ?value }
+            }""" ;
+    ] .
+
+seamsh:GivenUniqueShape a sh:NodeShape ;
+    sh:targetSubjectsOf verify:given ;
+    sh:sparql [
+        sh:message "A scenario, step or decision example gives each verify:field at most once." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:given ?a , ?b .
+                ?a verify:field ?value .
+                ?b verify:field ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] .
+
+seamsh:DecisionExampleShape a sh:NodeShape ;
+    sh:targetClass verify:DecisionExample ;
+    sh:targetSubjectsOf verify:decision , verify:expectOutput ;
+    sh:class verify:DecisionExample ;
+    sh:nodeKind sh:IRI ;
+    sh:property [ sh:path verify:decision ; sh:minCount 1 ; sh:maxCount 1 ; sh:class dec:Decision ;
+        sh:message "A decision example evaluates exactly one verify:decision, a dec:Decision." ] ;
+    sh:property [ sh:path verify:expectOutput ; sh:minCount 1 ; sh:node seamsh:ExpectOutputShape ;
+        sh:message "A decision example expects at least one output: a dec:variable string and a literal verify:value." ] ;
+    sh:sparql [
+        sh:message "Each verify:given field of a decision example is the dec:fromPath of one of the decision's dec:input bindings." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:decision ?decision ;
+                      verify:given/verify:field ?value .
+                FILTER NOT EXISTS { ?decision dec:input/dec:fromPath ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A decision example gives a value for every dec:input of its decision." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:decision ?decision .
+                ?decision dec:input/dec:fromPath ?value .
+                FILTER NOT EXISTS { $this verify:given/verify:field ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "Each expected output's dec:variable names one of the decision's dec:output bindings." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:decision ?decision ;
+                      verify:expectOutput/dec:variable ?value .
+                FILTER NOT EXISTS { ?decision dec:output/dec:variable ?value }
+            }""" ;
+    ] ;
+    sh:message "Only a verify:DecisionExample carries verify:decision or verify:expectOutput, and a decision example is an IRI (its local name names its generated test)." .
+
+# Not targeted: applied through seamsh:DecisionExampleShape to each expected output.
+seamsh:ExpectOutputShape a sh:NodeShape ;
+    sh:property [ sh:path dec:variable ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path verify:value ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:Literal ] .
+
+seamsh:ShapeExampleShape a sh:NodeShape ;
+    sh:targetSubjectsOf verify:validExample , verify:invalidExample ;
+    sh:class sh:NodeShape ;
+    sh:property [ sh:path verify:validExample ; sh:nodeKind sh:IRI ;
+        sh:message "A verify:validExample is an IRI: its local name names its generated test." ] ;
+    sh:property [ sh:path verify:invalidExample ; sh:nodeKind sh:IRI ;
+        sh:message "A verify:invalidExample is an IRI: its local name names its generated test." ] ;
+    sh:sparql [
+        sh:message "A node is not both a valid and an invalid example of the same shape." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:validExample ?value ;
+                      verify:invalidExample ?value .
+            }""" ;
+    ] ;
+    sh:message "Only a sh:NodeShape carries verify:validExample or verify:invalidExample." .
+
+#################################################################
+# Deprecated terms (ADR-0021 section 6). Test fixture
+# (tests/fixtures/vocab-v2): one sh:Warning shape per owl:deprecated term of
+# seam 2.0. Its sh:not always fails on a focus node, so every use is reported.
+#################################################################
+
+seamsh:InModelDeprecatedShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:inModel ;
+    sh:severity sh:Warning ;
+    sh:not [ sh:property [ sh:path seam:inModel ; sh:minCount 1 ] ] ;
+    sh:message "seam:inModel is deprecated since seam 2.0 and goes in seam 3.0: write seam:partOfModel instead." .
+
+seamsh:ModelDeprecatedShape a sh:NodeShape ;
+    sh:targetClass seam:Model ;
+    sh:severity sh:Warning ;
+    sh:not [ sh:class seam:Model ] ;
+    sh:message "seam:Model is deprecated since seam 2.0 and goes in seam 3.0." .

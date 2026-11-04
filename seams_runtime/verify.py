@@ -55,8 +55,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
-from rdflib import BNode, Graph, Literal, URIRef
+from rdflib import RDF, BNode, Graph, Literal, URIRef
 from rdflib.namespace import SH
 from rdflib.term import Node
 
@@ -334,15 +335,20 @@ def _describe(source: Graph, node: Node, into: Graph) -> None:
 
 
 def _conforms(model: ModelGraph, shape: str, data: Graph, nodes: list[Node]) -> tuple[bool, str]:
-    """(conforms, pyshacl's report text) of ``nodes`` in ``data`` against ``shape`` alone."""
+    """(conforms, pyshacl's report text) of ``nodes`` in ``data`` against ``shape`` alone.
+    Only results of a severity other than sh:Warning break conformance (ADR-0021)."""
     from pyshacl import validate
 
     shapes = Graph()
     _describe(model.ds, URIRef(shape), shapes)
     for node in nodes:
         shapes.add((URIRef(shape), SH.targetNode, node))
-    conforms, _, text = validate(data, shacl_graph=shapes)
-    return bool(conforms), str(text)
+    _, report, text = validate(data, shacl_graph=shapes)
+    results = cast(Graph, report)
+    conforms = all(
+        results.value(r, SH.resultSeverity) == SH.Warning for r in results.subjects(RDF.type, SH.ValidationResult)
+    )
+    return conforms, str(text)
 
 
 def shape_conforms(model: ModelGraph, shape: str, node: str) -> tuple[bool, str]:

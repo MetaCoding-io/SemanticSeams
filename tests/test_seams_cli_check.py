@@ -70,7 +70,7 @@ def _review_lines(app: Path) -> list[str]:
 def _warnings(app: Path) -> str:
     """The stderr of a check whose only findings are review findings."""
     count = len(_review_lines(app))
-    return f"seams check: {count} review warning(s)\n" if count else ""
+    return f"seams check: {count} warning(s)\n" if count else ""
 
 
 def _check(app: Path, capsys) -> tuple[int, list[str], str]:
@@ -124,14 +124,14 @@ CHAPTER_5_REVIEW = [
 
 
 def test_a_clean_copy_passes(app, capsys):
-    assert _check(app, capsys) == (0, [], "seams check: 8 review warning(s)\n")
+    assert _check(app, capsys) == (0, [], "seams check: 8 warning(s)\n")
 
 
 def test_review_findings_are_printed_but_do_not_fail(app, capsys):
     """Chapter 5's shapes have no target class and its paths are undeclared: eight review lines, exit 0."""
     code = main(["check", "--project", str(app)])
     out, err = capsys.readouterr()
-    assert (code, out.splitlines(), err) == (0, CHAPTER_5_REVIEW, "seams check: 8 review warning(s)\n")
+    assert (code, out.splitlines(), err) == (0, CHAPTER_5_REVIEW, "seams check: 8 warning(s)\n")
 
 
 def test_review_findings_are_not_counted_as_problems(app, capsys):
@@ -246,8 +246,8 @@ def test_gate_rows_are_findings(app, capsys):
     assert _kinds(lines) == {"gate"}
 
 
-def test_review_is_the_only_advisory_kind():
-    assert ADVISORY_KINDS == frozenset({"review"})
+def test_review_and_vocabulary_warnings_are_the_advisory_kinds():
+    assert ADVISORY_KINDS == frozenset({"review", "shacl-warning", "vocabulary-migrated"})
 
 
 def test_run_check_returns_sorted_findings(app):

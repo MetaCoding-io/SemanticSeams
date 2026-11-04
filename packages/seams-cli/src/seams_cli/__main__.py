@@ -21,14 +21,18 @@ precondition or a GeneratorError: it writes what the generators produced,
 records the faults in seams.lock, prints each to stderr as
 ``seams generate: fault <generator>: <focus>: <shape>: <message>``, then
 ``seams generate: N fault(s); output is flagged``, and exits 0.
+A sh:Warning result of the precondition check (a deprecated vocabulary term,
+ADR-0021) prints as ``seams generate: warning <focus> <path> <message>`` and
+changes neither the outputs nor the exit code.
 
 ``seams check`` (D044) writes nothing. It validates the model against the
 SHACL shapes, runs the project's gate queries and compares the outputs
 generate would write with the disk and seams.lock. Each finding prints to
-stdout as ``<kind> <detail>``; with any finding that is not advisory (a
-``review`` finding is, ADVISORY_KINDS), ``seams check: N problem(s)`` counting
-only those goes to stderr and the exit code is 1. With review findings only,
-``seams check: N review warning(s)`` goes to stderr and the exit code is 0. A model that cannot be loaded, a bad
+stdout as ``<kind> <detail>``; with any finding that is not advisory
+(``review``, ``shacl-warning`` and ``vocabulary-migrated`` are,
+ADVISORY_KINDS), ``seams check: N problem(s)`` counting only those goes to
+stderr and the exit code is 1. With advisory findings only,
+``seams check: N warning(s)`` goes to stderr and the exit code is 0. A model that cannot be loaded, a bad
 gate or a malformed seams.lock exits 2. With ``coverage = ["paths"]`` in the
 project file, each BPMN path no scenario runs is a ``coverage`` finding too.
 A seams.lock that records faults is a ``flagged`` finding, a problem; check
@@ -313,6 +317,8 @@ def _generate(args: argparse.Namespace) -> int:
         print(
             f"seams generate: fault {fault.generator}: {fault.focus}: {fault.shape}: {fault.message}", file=sys.stderr
         )
+    for warning in generated.warnings:
+        print(f"seams generate: warning {warning}", file=sys.stderr)
     report = applied.audit
     for kind, paths in (("overwrote hand-edited", report.edited), ("restored deleted", report.missing)):
         for rel in paths:
@@ -340,7 +346,7 @@ def _check(args: argparse.Namespace) -> int:
         print(f"seams check: {problems} problem(s)", file=sys.stderr)
         return 1
     if findings:
-        print(f"seams check: {len(findings)} review warning(s)", file=sys.stderr)
+        print(f"seams check: {len(findings)} warning(s)", file=sys.stderr)
     return 0
 
 

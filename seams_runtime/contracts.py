@@ -213,8 +213,11 @@ def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None, operation=Non
 
 
 def _results(results: Graph, shape: URIRef) -> list[dict]:
+    """The report's results as error dicts; a sh:Warning result is never an error (ADR-0021)."""
     out = []
     for r in results.subjects(RDF.type, SH.ValidationResult):
+        if results.value(r, SH.resultSeverity) == SH.Warning:
+            continue
         path = results.value(r, SH.resultPath)
         comp = results.value(r, SH.sourceConstraintComponent)
         value = results.value(r, SH.value)
@@ -238,7 +241,7 @@ def validate(model: ModelGraph, shape, payload: Mapping, operation=None) -> dict
     (a plain dict, single-valued form inputs as str) or raise ContractViolation."""
     contract = shape_contract(model, shape)
     data, focus, normalised = to_rdf(model, contract.shape, payload, operation=operation)
-    conforms, results, _text = _shacl_validate(
+    _conforms, results, _text = _shacl_validate(
         data,
         shacl_graph=contract.graph,
         focus_nodes=[focus],
@@ -246,8 +249,9 @@ def validate(model: ModelGraph, shape, payload: Mapping, operation=None) -> dict
         inference="none",
         advanced=False,
     )
-    if not conforms:
-        raise ContractViolation(contract.shape, _results(results, contract.shape), focus=focus, operation=operation)
+    errors = _results(results, contract.shape)
+    if errors:
+        raise ContractViolation(contract.shape, errors, focus=focus, operation=operation)
     return normalised
 
 

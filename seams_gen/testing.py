@@ -233,6 +233,7 @@ def shape_violations(dataset: Dataset, shapes, ontology: Iterable = ()) -> list[
     model unioned with the ``ontology`` graphs, with pyshacl inference off.
     ``shapes`` and each ontology entry are a Graph or the path of a Turtle file.
     The result path is None when it is not a plain IRI (a sequence or inverse path).
+    A sh:Warning result is not a violation (ADR-0021 section 6) and is left out.
     """
     import pyshacl  # only the parity helpers need it
 
@@ -244,6 +245,8 @@ def shape_violations(dataset: Dataset, shapes, ontology: Iterable = ()) -> list[
     _conforms, results, _text = pyshacl.validate(union, shacl_graph=_as_graph(shapes), inference="none")
     out = []
     for result in results.subjects(RDF.type, _SH.ValidationResult):
+        if results.value(result, _SH.resultSeverity) == _SH.Warning:
+            continue
         path = results.value(result, _SH.resultPath)
         out.append(
             (

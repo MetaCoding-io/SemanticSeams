@@ -21,8 +21,9 @@ notation-agnostic.""" .
 #################################################################
 
 seam:Model a rdfs:Class ;
+    owl:deprecated true ;
     rdfs:label "Model" ;
-    rdfs:comment "A diagram/model in some notation; typically stored as its own named graph." .
+    rdfs:comment "A diagram/model in some notation; typically stored as its own named graph. Test fixture (tests/fixtures/vocab-v2): deprecated in seam 2.0, so a migrated chapter-01 still meets a deprecation." .
 
 seam:detailedBy a rdf:Property ;
     seam:reveal seam:Open ;

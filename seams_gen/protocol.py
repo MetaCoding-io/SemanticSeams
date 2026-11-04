@@ -65,7 +65,8 @@ class Generator[V]:
         report of the model against ``shapes``, of one of ``preconditions``: a
         result whose ``sh:sourceShape`` is the node shape or one of its
         ``sh:property`` shapes (``shapes`` must be the graph that was validated
-        with, so blank-node property shapes match). Each error's subject is the
+        with, so blank-node property shapes match). A ``sh:Warning`` result is
+        never a fault (ADR-0021 section 6). Each error's subject is the
         focus node and its predicate the node shape IRI; they are sorted by
         (shape, focus node, message)."""
         owner = {}
@@ -78,6 +79,7 @@ class Generator[V]:
             (owner[shape], str(results.value(r, SH.focusNode)), str(results.value(r, SH.resultMessage) or ""))
             for r in results.subjects(RDF.type, SH.ValidationResult)
             if (shape := results.value(r, SH.sourceShape)) in owner
+            if results.value(r, SH.resultSeverity) != SH.Warning
         )
         return [
             GeneratorError(

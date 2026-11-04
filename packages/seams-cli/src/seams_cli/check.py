@@ -5,7 +5,13 @@ is reported and nothing is written.
 
 - ``shacl``: the model, unioned with ``ontology/*.ttl``, is validated against
   ``ontology/shapes/seam-shapes.ttl`` with inference off, as the viewer and
-  tests/validate_chat_app.py do. One finding per sh:ValidationResult.
+  tests/validate_chat_app.py do. One finding per sh:ValidationResult whose
+  severity is not sh:Warning. A sh:Warning result (the shape of a deprecated
+  vocabulary term, ADR-0021 section 6) is a ``shacl-warning`` finding instead,
+  which is advisory: the detail is the same focus node, path and message.
+- ``vocabulary-migrated``: one advisory finding per migration step
+  ``seams.load`` applied to the model (``Model.migrations``, ADR-0021 section
+  5): the vocabulary, the version the model targets and the tool's version.
 - ``gate``: each SELECT query the project file lists under ``gates`` runs over
   the same union graph and must return no rows. One finding per row.
 - outputs: every generator runs in memory and the result is compared with the
@@ -30,8 +36,9 @@ is reported and nothing is written.
   (backlog R1, M017/S04): lifecycle state labels copied into sh:in, sh:class
   pointing at a sh:NodeShape, a shape without sh:targetClass, or a sh:path
   nothing declares a property. The detail is the subject IRI, the fact and
-  the message. Review findings are advisory (ADVISORY_KINDS): they are
-  reported but do not make ``seams check`` fail.
+  the message. Review findings are advisory (ADVISORY_KINDS), like
+  ``shacl-warning`` and ``vocabulary-migrated``: they are reported but do not
+  make ``seams check`` fail.
 - ``coverage``: with ``coverage = ["paths"]`` in the project file, one finding
   per BPMN path no verify:Scenario runs (``seams.coverage``, D054): the
   process IRI, then the path's flow node IRIs.
@@ -45,6 +52,10 @@ is reported and nothing is written.
 
 A model that cannot be loaded, a missing, unparsable or non-SELECT gate, and a
 malformed seams.lock raise ProjectError.
+
+The model is loaded, unioned and validated against the vocabularies, shapes and
+migrations of ``ontology_dir`` (default: the repository's ``ontology/``); the
+tests pass a fixture tree there (D060). Generation always uses the default.
 """
 
 from __future__ import annotations
@@ -73,7 +84,7 @@ SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 FILE_KINDS = frozenset({"missing", "stale", "hand-edited", "orphan", "lock-out-of-date"})
 
 # Finding kinds that flag the model for review but do not fail the check.
-ADVISORY_KINDS = frozenset({"review"})
+ADVISORY_KINDS = frozenset({"review", "shacl-warning", "vocabulary-migrated"})
 
 
 class Finding(NamedTuple):
@@ -83,28 +94,44 @@ class Finding(NamedTuple):
     detail: str
 
 
-def model_graph(model: Path) -> rdflib.Graph:
-    """The model's quads (a TriG file or a directory of them) and ``ontology/*.ttl`` in one graph."""
+def load_model(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> seams.Model:
+    """``seams.load`` against ``ontology_dir``; a model that cannot be loaded is a ProjectError."""
     try:
-        ds = seams.load(model).ds
+        return seams.load(model, ontology_dir=ontology_dir)
     except Exception as err:
         raise ProjectError(f"{model}: cannot load the model: {err}") from err
+
+
+def model_graph(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> rdflib.Graph:
+    """The model's quads (a TriG file or a directory of them), migrated as
+    ``seams.load`` does, and ``<ontology_dir>/*.ttl`` in one graph."""
+    ds = load_model(model, ontology_dir).ds
     union = rdflib.Graph()
-    for path in sorted(ONTOLOGY_DIR.glob("*.ttl")):
+    for path in sorted(ontology_dir.glob("*.ttl")):
         union.parse(path, format="turtle")
     for s, p, o, _ctx in ds.quads((None, None, None, None)):
         union.add((s, p, o))
     return union
 
 
-def check_shapes(graph: rdflib.Graph) -> list[Finding]:
-    _conforms, report, _text = pyshacl.validate(graph, shacl_graph=str(SHAPES_FILE), inference="none")
+def check_shapes(graph: rdflib.Graph, shapes_file: Path = SHAPES_FILE) -> list[Finding]:
+    """One ``shacl`` finding per result, or ``shacl-warning`` for a sh:Warning result."""
+    _conforms, report, _text = pyshacl.validate(graph, shacl_graph=str(shapes_file), inference="none")
     results = cast(rdflib.Graph, report)
     findings = []
     for result in results.subjects(rdflib.RDF.type, SH.ValidationResult):
+        kind = "shacl-warning" if results.value(result, SH.resultSeverity) == SH.Warning else "shacl"
         parts = (results.value(result, key) for key in (SH.focusNode, SH.resultPath, SH.resultMessage))
-        findings.append(Finding("shacl", " ".join(str(v) if v is not None else "-" for v in parts)))
+        findings.append(Finding(kind, " ".join(str(v) if v is not None else "-" for v in parts)))
     return findings
+
+
+def check_migrations(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
+    """One advisory finding per migration step applied on load: vocabulary, from, to."""
+    return [
+        Finding("vocabulary-migrated", f"{step.vocabulary} {step.source} {step.target}")
+        for step in load_model(model, ontology_dir).migrations
+    ]
 
 
 def _gate_query(project: Project, gate: Path):
@@ -162,31 +189,35 @@ def check_outputs(project: Project, model: Path) -> list[Finding]:
     return findings
 
 
-def check_coverage(project: Project, model: Path) -> list[Finding]:
+def check_coverage(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """One finding per unexercised BPMN path, when the project lists ``paths`` under ``coverage``."""
     if "paths" not in project.coverage:
         return []
-    return [Finding("coverage", " ".join(gap.iris)) for gap in path_gaps(seams.load(model))]
+    return [Finding("coverage", " ".join(gap.iris)) for gap in path_gaps(load_model(model, ontology_dir))]
 
 
-def check_decisions(model: Path) -> list[Finding]:
+def check_decisions(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """One finding per static decision fault: the subject IRI, the fact, then the message."""
     return [
-        Finding("decision", f"{f.subject} {f.fact} {f.message}") for f in seams.decision_findings(seams.load(model))
+        Finding("decision", f"{f.subject} {f.fact} {f.message}")
+        for f in seams.decision_findings(load_model(model, ontology_dir))
     ]
 
 
-def check_review(model: Path) -> list[Finding]:
+def check_review(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """One advisory finding per model review fault: the subject IRI, the fact, then the message."""
-    return [Finding("review", f"{f.subject} {f.fact} {f.message}") for f in seams.review_findings(seams.load(model))]
+    return [
+        Finding("review", f"{f.subject} {f.fact} {f.message}")
+        for f in seams.review_findings(load_model(model, ontology_dir))
+    ]
 
 
-def check_drafts(project: Project, model: Path) -> list[Finding]:
+def check_drafts(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """``draft-stale`` and ``draft-hand-edited`` findings for the lock's ``seams propose`` drafts."""
     lock = read_lock(project)
     if lock is None or not lock.drafts:
         return []
-    graph = seams.ModelGraph(model, seams.load(model).ds)
+    graph = seams.ModelGraph(model, load_model(model, ontology_dir).ds)
     findings = []
     for draft in lock.drafts:
         name = f"{draft.task} {draft.path}"
@@ -205,12 +236,13 @@ def check_drafts(project: Project, model: Path) -> list[Finding]:
     return findings
 
 
-def run_check(project: Project, model: Path) -> list[Finding]:
+def run_check(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """Every finding of the checks, sorted by kind and detail."""
-    graph = model_graph(model)
-    findings = check_gates(project, graph) + check_shapes(graph) + check_outputs(project, model)
-    findings += check_decisions(model) + check_review(model) + check_coverage(project, model)
-    findings += check_drafts(project, model)
+    graph = model_graph(model, ontology_dir)
+    findings = check_gates(project, graph) + check_shapes(graph, ontology_dir / "shapes" / "seam-shapes.ttl")
+    findings += check_migrations(model, ontology_dir) + check_outputs(project, model)
+    findings += check_decisions(model, ontology_dir) + check_review(model, ontology_dir)
+    findings += check_coverage(project, model, ontology_dir) + check_drafts(project, model, ontology_dir)
     return sorted(findings)
 
 
@@ -221,9 +253,11 @@ __all__ = [
     "check_decisions",
     "check_drafts",
     "check_gates",
+    "check_migrations",
     "check_outputs",
     "check_review",
     "check_shapes",
+    "load_model",
     "model_graph",
     "run_check",
 ]

@@ -24,6 +24,7 @@ from .fastapi import RoutesModel, extract_route_module, render_routes, trace_rou
 from .htmx import ServedPage, extract_pages, render_pages, trace_pages
 from .ifmledit import FILE as IFMLEDIT_FILE
 from .ifmledit import IfmlEditDocument, extract_ifmledit, render_ifmledit, unmapped_summary
+from .jsonld import JsonLdModel, extract_jsonld, render_jsonld
 from .protocol import Files, Generator
 from .smoke import SmokeModel, extract_smoke, render_smoke
 from .sources import SOURCES
@@ -76,6 +77,11 @@ def _ifmledit_extract(trig: Path, out: Path) -> IfmlEditDocument:
     doc = extract_ifmledit(load(trig))
     print(unmapped_summary(), file=sys.stderr)
     return doc
+
+
+def _jsonld_extract(trig: Path, out: Path) -> JsonLdModel:
+    """The JSON-LD context of every shape with a sh:targetClass (ADR-0024)."""
+    return extract_jsonld(load(trig))
 
 
 def _ifmledit_render(doc: IfmlEditDocument) -> Files:
@@ -160,6 +166,26 @@ ifmledit = Generator(
     sources=SOURCES["ifmledit"],
 )
 
-BUILTINS: tuple[Generator, ...] = (htmx, fastapi, compose, tests, smoke, dockerfile, ifmledit, acceptance)
+jsonld = Generator(
+    name="jsonld",
+    version=__version__,
+    help="a JSON-LD context per shape with a sh:targetClass, for the API's payloads",
+    extract=_jsonld_extract,
+    render=render_jsonld,
+    sources=SOURCES["jsonld"],
+)
 
-__all__ = ["BUILTINS", "acceptance", "compose", "dockerfile", "fastapi", "htmx", "ifmledit", "smoke", "tests"]
+BUILTINS: tuple[Generator, ...] = (htmx, fastapi, compose, tests, smoke, dockerfile, ifmledit, acceptance, jsonld)
+
+__all__ = [
+    "BUILTINS",
+    "acceptance",
+    "compose",
+    "dockerfile",
+    "fastapi",
+    "htmx",
+    "ifmledit",
+    "jsonld",
+    "smoke",
+    "tests",
+]

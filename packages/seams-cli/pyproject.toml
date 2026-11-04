@@ -29,6 +29,7 @@ dockerfile = "seams_gen.builtin:dockerfile"
 fastapi = "seams_gen.builtin:fastapi"
 htmx = "seams_gen.builtin:htmx"
 ifmledit = "seams_gen.builtin:ifmledit"
+jsonld = "seams_gen.builtin:jsonld"
 smoke = "seams_gen.builtin:smoke"
 tests = "seams_gen.builtin:tests"
 

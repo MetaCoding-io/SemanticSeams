@@ -38,6 +38,7 @@ from seams_gen.compose import compose_file_name, environments, extract_compose  
 from seams_gen.dockerfile import extract_dockerfile  # noqa: E402
 from seams_gen.fastapi import extract_routes  # noqa: E402
 from seams_gen.htmx import generate_pages  # noqa: E402
+from seams_gen.jsonld import extract_jsonld  # noqa: E402
 from seams_gen.smoke import extract_smoke  # noqa: E402
 from seams_gen.stubs import extract_stubs  # noqa: E402
 from seams_gen.testing import SHAPES_FILE, assert_shapes_catch, shape_violations  # noqa: E402
@@ -132,6 +133,7 @@ GENERATORS = {
     "dockerfile": extract_dockerfile,
     "stubs": extract_stubs,
     "acceptance": extract_acceptance,
+    "jsonld": extract_jsonld,
 }
 
 
@@ -274,6 +276,13 @@ def _second_handler(ds, handler, shape):
     g.add((EXP.second_op, SEAM.implementedBy, EXP.second_impl))
     g.add((EXP.second_impl, RDF.type, COMM.PythonHandler))
     g.add((EXP.second_impl, COMM.handler, Literal(handler)))
+
+
+def _expense_property(ds, path):
+    """The sh:property node of :ExpenseShape whose sh:path is ``path``."""
+    g = _exp_data(ds)
+    (node,) = [p for p in g.objects(EXP.ExpenseShape, SH.property) if (p, SH.path, path) in g]
+    return node
 
 
 def _same_named_shape(ds):
@@ -916,6 +925,17 @@ CASES = [
         EXP.ExpenseShape,
         match="also a function",
     ),
+    Case(
+        "context-fields-share-a-name",
+        Site("jsonld", "_unique_names", "SH.name"),
+        EXPENSES_TRIG,
+        lambda ds: _replace(_exp_data(ds), _expense_property(ds, EXP.description), SH.name, Literal("amount")),
+        "jsonld",
+        EXP.ExpenseShape,
+        SH.name,
+        EXP.ExpenseShape,
+        match='both have the name "amount"',
+    ),
 ]
 
 
@@ -1086,6 +1106,18 @@ GENERATOR_ONLY: dict[Site, str] = {
     Site("dockerfile", "extract_dockerfile", "DEPLOY.context"): (
         "Whether the build context holds the model's directory depends on resolving the deploy:context path "
         "against the model file's location on disk, not on the graph; backlog A11 covers the build paths."
+    ),
+    Site("jsonld", "_class_term", "SH.targetClass"): (
+        "A target class and a field with one local name are distinct IRIs in any valid model; only a JSON-LD "
+        "context puts class and field names in one namespace of terms (ADR-0024 section 7)."
+    ),
+    Site("jsonld", "_unique_files", "SH.targetClass"): (
+        "Two target-classed shapes in different namespaces may share a local name in a valid model; a context "
+        f"file is named after it: {_NAMES}."
+    ),
+    Site("jsonld", "_check_label", "RDFS.label"): (
+        "A category member's rdfs:label is free text for every other generator; only a JSON-LD term must be "
+        "non-empty, not start with @ and contain no colon (ADR-0024 section 3)."
     ),
     Site("protocol", "check_preconditions", "shape"): (
         "A generator's precondition check is the shapes themselves: it raises exactly when ontology/shapes "

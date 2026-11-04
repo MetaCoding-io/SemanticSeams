@@ -25,6 +25,7 @@ from seams_gen.fastapi import route_module
 from seams_gen.htmx import generate_pages
 from seams_gen.ifmledit import generate as generate_ifmledit
 from seams_gen.ifmledit import unmapped_summary
+from seams_gen.jsonld import extract_jsonld, render_jsonld
 from seams_gen.protocol import Generator
 from seams_gen.smoke import generate_smoke
 from seams_gen.sources import SOURCES
@@ -44,7 +45,8 @@ def _legacy_ifmledit(trig: Path, out: Path) -> dict[str, str]:
     return files
 
 
-# generator name -> its generate(trig, out) before the protocol (M018/S01)
+# generator name -> its generate(trig, out) before the protocol (M018/S01); jsonld,
+# newer than the protocol, is its module's own render(extract(model))
 LEGACY = {
     "htmx": lambda trig, out: generate_pages(load(trig)),
     "fastapi": lambda trig, out: dict([route_module(trig)]),
@@ -54,6 +56,7 @@ LEGACY = {
     "dockerfile": lambda trig, out: generate_dockerfiles(trig),
     "ifmledit": _legacy_ifmledit,
     "acceptance": lambda trig, out: generate_acceptance(trig),
+    "jsonld": lambda trig, out: render_jsonld(extract_jsonld(load(trig))),
 }
 CASES = [(name, model) for name in LEGACY for model in MODELS]
 

@@ -56,7 +56,9 @@ class Field:
     sh:maxLength. ``category`` is the gist:Category subclass its sh:class
     names; a field with members and no sh:datatype has ``datatype``
     xsd:string, the type of its labels on the wire. ``node`` is set for a flattened sh:node field, whose datatype,
-    options and max_length come from the nested shape's free property."""
+    options and max_length come from the nested shape's free property.
+    ``reference`` is the sh:class of a reference field, a class that is not
+    a category (its wire value is another entity's id)."""
 
     iri: URIRef
     shape: URIRef
@@ -72,6 +74,7 @@ class Field:
     members: tuple[URIRef, ...] = ()
     category: URIRef | None = None
     node: FlatNode | None = None
+    reference: URIRef | None = None
 
     @property
     def path(self) -> URIRef:
@@ -142,6 +145,8 @@ class Shape(Element):
         if datatype is None and members:
             datatype = XSD.string  # the wire value of a member is its label
         editor = ds.value(node, DASH.editor) or ds.value(source, DASH.editor)
+        cls = ds.value(source, SH["class"])
+        reference = cls if isinstance(cls, URIRef) and category is None and not members else None
         return Field(
             iri=path,
             shape=self.iri,
@@ -157,6 +162,7 @@ class Shape(Element):
             members=members,
             category=category,
             node=None if flat is None else flat[0],
+            reference=reference,
         )
 
     def _name(self, node: Node, path: URIRef) -> str:

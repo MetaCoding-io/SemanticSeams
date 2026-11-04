@@ -1,0 +1,8 @@
+modelId: "expense-ontology"
+version: "1.0.0"
+name: "Expense Ontology"
+namespace: "urn:sempkm:model:expense-ontology:"
+entrypoints:
+  ontology: "ontology/expense-ontology.jsonld"
+  shapes: "shapes/expense-ontology.jsonld"
+  views: "views/expense-ontology.jsonld"

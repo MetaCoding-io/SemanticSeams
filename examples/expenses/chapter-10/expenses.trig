@@ -356,6 +356,8 @@
 
     :expense_ontology a seam:Model , owl:Ontology ;
         rdfs:label "Expense Ontology" ;
+        # The package version SemPKM's manifest carries (ADR-0026): three numbers.
+        owl:versionInfo "1.0.0" ;
         owl:versionIRI <https://example.org/expenses/expense_ontology/1.0> ;
         owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
 

@@ -10,9 +10,18 @@ is tests/test_runtime_sempkm_store.py's fake behind httpx.MockTransport, which
 applies commands and answers SPARQL the way SemPKM's handlers do. The
 relational half (process state, user tasks, approvals) runs on a temp SQLite
 store injected in place of the declared PostgreSQL.
+
+The chapter also writes the SemPKM Mental Model of its ontology (M024/S03,
+ADR-0026) to generated/mental-model. The committed package must equal a fresh
+render, and with SEAMS_E2E=1 the chapter's own compose stack installs it into
+its SemPKM through ``POST /api/models/install``.
 """
 
+import json
 import logging
+import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -28,9 +37,11 @@ for p in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(p))
 
 from fastapi.testclient import TestClient  # noqa: E402
+from seams import Model  # noqa: E402
 from seams_cli.__main__ import main  # noqa: E402
 from test_runtime_sempkm_store import DATA, TOKEN, URL, FakeSemPKM  # noqa: E402
 
+from seams_gen.mentalmodel import extract_mentalmodel, render_mentalmodel  # noqa: E402
 from seams_runtime import ModelGraph, Runtime, SplitStore, SQLiteStore  # noqa: E402
 from seams_runtime.host import build_app  # noqa: E402
 from seams_runtime.model import DEPLOY  # noqa: E402
@@ -43,6 +54,7 @@ TASK = EX + "approval_bpmn#approve_expense"
 EXPENSE = {"description": "Train to Leeds", "amount": "250.00", "date": "2026-10-01"}
 EMPLOYEE = {"X-Forwarded-User": "employee"}
 MANAGER = {"X-Forwarded-User": "manager"}
+MENTAL_MODEL = CHAPTER / "generated" / "mental-model"
 ENV = ("SEMPKM_URL_FILE", "SEMPKM_TOKEN_FILE", "SEAMS_STORE_OVERRIDE", "SEAMS_DEV_USER", "SEAMS_SEED", "DATABASE_URL")
 
 
@@ -202,3 +214,98 @@ def test_healthz_reports_the_sempkm_store_without_the_token(served, fake, caplog
     fake.healthy = False
     assert client.get("/healthz").json()["store"]["sempkm"]["reachable"] is False
     assert TOKEN not in r.text and TOKEN not in caplog.text
+
+
+# ── the Mental Model (M024/S03, ADR-0026) ──
+
+
+def test_the_committed_mental_model_is_a_fresh_render_of_the_model():
+    fresh = render_mentalmodel(extract_mentalmodel(Model(TRIG)))
+    committed = sorted(p.relative_to(MENTAL_MODEL).as_posix() for p in MENTAL_MODEL.rglob("*") if p.is_file())
+    assert (
+        sorted(fresh)
+        == committed
+        == [
+            "manifest.yaml",
+            "ontology/expense-ontology.jsonld",
+            "shapes/expense-ontology.jsonld",
+            "views/expense-ontology.jsonld",
+        ]
+    )
+    for name, text in fresh.items():
+        assert (MENTAL_MODEL / name).read_text(encoding="utf-8") == text, name
+
+
+def test_seams_lock_records_the_mental_model_from_the_ontology():
+    lock = json.loads((CHAPTER / "seams.lock").read_text(encoding="utf-8"))
+    outputs = {o["path"]: o for o in lock["outputs"] if o["generator"] == "mentalmodel"}
+    assert sorted(p for p in outputs if not p.endswith(".trace.json")) == [
+        f"generated/mental-model/{name}"
+        for name in ("manifest.yaml", *(f"{kind}/expense-ontology.jsonld" for kind in ("ontology", "shapes", "views")))
+    ]
+    assert EX + "expense_ontology" in outputs["generated/mental-model/manifest.yaml"]["sources"]
+
+
+# With SEAMS_E2E=1 nothing skips: a missing docker CLI or a SemPKM that does not
+# come up healthy is a failure. Only expense_pkm and its triplestore start; the
+# package is copied into the container, because SemPKM installs a directory on
+# its own filesystem. Install needs an owner session, which claiming the fresh
+# instance with its setup token (data/.setup-token in the container) gives.
+PROJECT = yaml.safe_load((CHAPTER / "compose.development.yaml").read_text(encoding="utf-8"))["name"]
+IN_CONTAINER = "/tmp/mental-model"
+INSTALL = """
+import json, sys, urllib.error, urllib.request
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+def post(path, body):
+    req = urllib.request.Request("http://127.0.0.1:8000" + path, json.dumps(body).encode(),
+                                 {"Content-Type": "application/json"})
+    try:
+        r = opener.open(req, timeout=60)
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+    return r.status, r.read().decode()
+token = open("data/.setup-token").read().strip()
+setup = post("/api/auth/setup", {"token": token})
+install = post("/api/models/install", {"path": sys.argv[1]})
+listed = opener.open("http://127.0.0.1:8000/api/models", timeout=30).read().decode()
+print(json.dumps({"setup": setup, "install": install, "listed": listed}))
+"""
+
+
+def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
+    files = ["-f", str(CHAPTER / "compose.development.yaml")]
+    return subprocess.run(
+        ["docker", "compose", "-p", PROJECT, *files, *args],
+        cwd=ROOT,
+        timeout=timeout,
+        check=check,
+        capture_output=True,
+        text=True,
+    )
+
+
+@pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1", reason="live docker compose test; set SEAMS_E2E=1")
+def test_the_chapters_sempkm_installs_the_mental_model():
+    if shutil.which("docker") is None:
+        pytest.fail("SEAMS_E2E=1 but the docker CLI is not on PATH")
+    try:
+        up = _compose("up", "-d", "--wait", "expense_pkm", timeout=300, check=False)
+        logs = _compose("logs", "--no-color", "expense_pkm", check=False).stdout
+        assert up.returncode == 0, f"docker compose up failed:\n{up.stdout}\n{up.stderr}\n{logs}"
+        _compose("cp", str(MENTAL_MODEL), f"expense_pkm:{IN_CONTAINER}")
+        run = _compose("exec", "-T", "expense_pkm", "python", "-c", INSTALL, IN_CONTAINER, check=False)
+        assert run.returncode == 0, f"{run.stdout}\n{run.stderr}"
+        answer = json.loads(run.stdout.strip().splitlines()[-1])
+        assert answer["setup"][0] == 200, answer["setup"]
+        status, body = answer["install"]
+        assert status == 201, body
+        installed = json.loads(body)
+        assert installed["model_id"] == "expense-ontology"
+        # SemPKM warns that the package ships no README; ADR-0026 section 4 accepts that.
+        assert all("documentation" in w for w in installed["warnings"]), installed["warnings"]
+        models = json.loads(answer["listed"])["models"]
+        assert [(m["model_id"], m["version"], m["name"]) for m in models if m["model_id"] == "expense-ontology"] == [
+            ("expense-ontology", "1.0.0", "Expense Ontology")
+        ]
+    finally:
+        _compose("down", "-v", "--remove-orphans", check=False, timeout=180)

@@ -4,9 +4,8 @@ Every model but chapter 10 is inline TriG built from ``model()``: a versioned
 ontology model importing gist 14.0.0, an expense shape with a datatype field, a
 category field, a flattened ``sh:node`` field and a ``seam:`` fact, a message
 shape with no target class, and an IFML model with a list and a details view of
-expenses and a form. Chapter 10 is read as committed, with the
-``owl:versionInfo "1.0.0"`` ADR-0026 section 4 gives it stated in memory when
-the file does not state it yet. Each negative case breaks one fact and asserts
+expenses and a form. Chapter 10 is read as committed; it states the
+``owl:versionInfo "1.0.0"`` ADR-0026 section 4 gives it. Each negative case breaks one fact and asserts
 the error names the subject, the predicate and the detail."""
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from typing import Any
 import pytest
 import seams
 import yaml
-from rdflib import OWL, RDF, RDFS, BNode, Dataset, Graph, Literal, Namespace, URIRef
+from rdflib import OWL, RDF, RDFS, BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import SH
 
 from seams_gen import GeneratorError
@@ -164,13 +163,8 @@ def error(tmp_path: Path, text: str) -> GeneratorError:
 
 
 def chapter_10() -> seams.Model:
-    """Chapter 10, with the owl:versionInfo ADR-0026 gives it stated (a no-op once the file states it)."""
-    ds = Dataset(default_union=True)
-    ds.parse(str(CHAPTER_10), format="trig")
-    ontology = ds.graph(URIRef("urn:seams:graph:model:expense_ontology"))
-    if (EX.expense_ontology, OWL.versionInfo, None) not in ds:
-        ontology.add((EX.expense_ontology, OWL.versionInfo, Literal("1.0.0")))
-    return seams.Model(CHAPTER_10, dataset=ds)
+    """Chapter 10 as committed."""
+    return seams.Model(CHAPTER_10)
 
 
 # ── the package (ADR-0026 sections 1 and 4) ──

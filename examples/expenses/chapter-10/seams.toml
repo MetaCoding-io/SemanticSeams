@@ -55,6 +55,12 @@ out = "generated/acceptance"
 name = "jsonld"
 out = "generated/contexts"
 
+# The SemPKM Mental Model (ADR-0026): manifest.yaml and the ontology, shapes and
+# views JSON-LD that SemPKM's POST /api/models/install takes as a directory.
+[[generators]]
+name = "mentalmodel"
+out = "generated/mental-model"
+
 # The model's arch:Environment :production; compose.production.yaml deploys it.
 [environments.production]
 

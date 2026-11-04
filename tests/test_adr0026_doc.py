@@ -140,4 +140,4 @@ def test_adr_0025_points_forward() -> None:
 def test_backlog_cites_adr_for_o5() -> None:
     backlog = (ROOT / "docs" / "backlog.md").read_text(encoding="utf-8")
     row = next(line for line in backlog.splitlines() if line.startswith("| O5 |"))
-    assert "decided ([ADR-0026](adr/0026-mental-model.md))" in row
+    assert "done (M024/S03): decided in [ADR-0026](adr/0026-mental-model.md)" in row

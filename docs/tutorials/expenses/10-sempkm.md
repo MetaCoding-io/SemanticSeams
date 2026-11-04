@@ -128,6 +128,60 @@ environment entry. `SEMPKM_TOKEN` becomes a secret mounted as `SEMPKM_TOKEN_FILE
 external secret in production and the local file in development. The generator knows
 nothing about SemPKM. It writes what the model says.
 
+## Teach SemPKM the expense
+
+SemPKM now stores each expense, but knows nothing about it: no form, no table, no type
+in its navigation. SemPKM learns a kind of data from a **Mental Model**, a directory it
+installs. The project file runs one more generator,
+[ADR-0026](../../adr/0026-mental-model.md)'s `mentalmodel`:
+
+```toml
+[[generators]]
+name = "mentalmodel"
+out = "generated/mental-model"
+```
+
+It writes the Mental Model of the ontology chapter 9 added, so the ontology needs one
+more fact, the version SemPKM's manifest carries, as three numbers:
+
+```trig
+    :expense_ontology a seam:Model , owl:Ontology ;
+        rdfs:label "Expense Ontology" ;
+        # The package version SemPKM's manifest carries (ADR-0026): three numbers.
+        owl:versionInfo "1.0.0" ;
+```
+
+`seams generate` then writes four files under `generated/mental-model`:
+
+- `manifest.yaml`. Its `modelId` (`expense-ontology`) comes from the ontology's IRI,
+  `version` from `owl:versionInfo` and `name` from `rdfs:label`. If a fact is missing,
+  the generator fails and names the ontology and the predicate.
+- `ontology/expense-ontology.jsonld`: the ontology node, importing gistCore 14.0.0.
+- `shapes/expense-ontology.jsonld`: every shape with a target class, so SemPKM's forms
+  ask for and check what the generated app does.
+- `views/expense-ontology.jsonld`: one table for each IFML list or details view that
+  reads a shape, with a column for each of the shape's fields.
+
+SemPKM accepts no subject outside its own namespace, so the package's own nodes are
+named `urn:sempkm:model:expense-ontology:…`, each derived from a model term. The classes
+and properties keep the model's IRIs, because they are the types and properties of the
+expenses the runtime writes.
+
+To install it, copy the directory where SemPKM can read it and, as SemPKM's owner, call
+`POST /api/models/install` with its path:
+
+```sh
+docker compose -f examples/expenses/chapter-10/compose.development.yaml \
+  cp examples/expenses/chapter-10/generated/mental-model expense_pkm:/tmp/mental-model
+```
+
+```json
+{"path": "/tmp/mental-model"}
+```
+
+SemPKM warns that the package ships no documentation, and installs it. **Expense** then
+appears among its types, with a form and the views.
+
 ## Run it
 
 You need a SemPKM and a PostgreSQL. To run the whole stack, start it from the
@@ -206,7 +260,8 @@ diff examples/expenses/chapter-09/expenses.trig examples/expenses/chapter-10/exp
 
 `tests/test_expense_sempkm.py` checks this chapter. It runs `seams check`, resolves the
 store plan (expenses in `:expense_pkm`, everything else in `:expense_db`), and checks the
-SemPKM services in both compose files. It also serves the committed route module against
+SemPKM services in both compose files. It checks that the committed Mental Model is a fresh
+render of the model and, with `SEAMS_E2E=1`, installs it into the chapter's SemPKM. It also serves the committed route module against
 a fake SemPKM that applies commands and answers SPARQL the way SemPKM does. In that run,
 a submitted expense is stored and read back under its minted IRI, approving it patches
 its status, an invalid expense sends nothing, and a SemPKM outage is a 503 naming the

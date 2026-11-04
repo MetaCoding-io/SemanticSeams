@@ -51,6 +51,7 @@ const decisions = [
   ["0022", "Ontology notation", "0022-ontology-notation"],
   ["0023", "Shapes target classes", "0023-shapes-target-classes"],
   ["0024", "JSON-LD context", "0024-json-ld-context"],
+  ["0025", "SemPKM as a store", "0025-sempkm-store"],
 ] as const;
 
 export default defineConfig({

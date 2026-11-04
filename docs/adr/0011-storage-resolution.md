@@ -95,6 +95,8 @@ In v1:
 | `deploy:SQLite` | none needed | embedded file; the path comes from `SEAMS_DB`, as today |
 | `deploy:PostgreSQL` | a `deploy:connectsTo` binding on the executing container | JSON columns are `jsonb` |
 
+[ADR-0025](./0025-sempkm-store.md) adds a third kind, `deploy:SemPKM`, for domain data only; it is never the default.
+
 A model that declares no store at all keeps embedded SQLite. Model health says so as an
 informational result, not by silence.
 

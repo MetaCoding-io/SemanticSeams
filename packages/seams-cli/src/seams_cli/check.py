@@ -1,6 +1,6 @@
 """``seams check``: does a project still hold together? (M012/S03, D044)
 
-Six checks run, and a seventh when the project asks for it; every finding
+Seven checks run, and an eighth when the project asks for it; every finding
 is reported and nothing is written.
 
 - ``shacl``: the model, unioned with ``ontology/*.ttl``, is validated against
@@ -39,6 +39,12 @@ is reported and nothing is written.
   the message. Review findings are advisory (ADVISORY_KINDS), like
   ``shacl-warning`` and ``vocabulary-migrated``: they are reported but do not
   make ``seams check`` fail.
+- ``ontology-superclass``: one advisory finding per ``rdfs:subClassOf``
+  target of a ``seam:Ontology`` class declared neither in the ontology nor in
+  a resolved import (ADR-0022 section 5): rdflib does not reason, so it is a
+  likely typo (``gist:Transation``), not a contradiction. The detail is the
+  class IRI, ``rdfs:subClassOf``, the target IRI and the message. An import
+  that does not resolve is a ``ResolutionError`` on load, so a ProjectError.
 - ``coverage``: with ``coverage = ["paths"]`` in the project file, one finding
   per BPMN path no verify:Scenario runs (``seams.coverage``, D054): the
   process IRI, then the path's flow node IRIs.
@@ -66,6 +72,7 @@ from typing import NamedTuple, cast
 import pyshacl
 import rdflib
 import seams
+from rdflib import RDFS
 from rdflib.plugins.sparql import prepareQuery
 from rdflib.query import ResultRow
 
@@ -84,7 +91,7 @@ SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 FILE_KINDS = frozenset({"missing", "stale", "hand-edited", "orphan", "lock-out-of-date"})
 
 # Finding kinds that flag the model for review but do not fail the check.
-ADVISORY_KINDS = frozenset({"review", "shacl-warning", "vocabulary-migrated"})
+ADVISORY_KINDS = frozenset({"ontology-superclass", "review", "shacl-warning", "vocabulary-migrated"})
 
 
 class Finding(NamedTuple):
@@ -212,6 +219,20 @@ def check_review(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding
     ]
 
 
+def check_ontology(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
+    """One advisory finding per undeclared superclass: the class, rdfs:subClassOf, the target, the message."""
+    return [
+        Finding(
+            "ontology-superclass",
+            f"{cls.iri} {RDFS.subClassOf} {sup.iri} declared neither in the ontology nor in a resolved import",
+        )
+        for ontology in load_model(model, ontology_dir).ontologies
+        for cls in ontology.classes()
+        for sup in cls.superclasses
+        if sup.source is None
+    ]
+
+
 def check_drafts(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """``draft-stale`` and ``draft-hand-edited`` findings for the lock's ``seams propose`` drafts."""
     lock = read_lock(project)
@@ -242,6 +263,7 @@ def run_check(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) 
     findings = check_gates(project, graph) + check_shapes(graph, ontology_dir / "shapes" / "seam-shapes.ttl")
     findings += check_migrations(model, ontology_dir) + check_outputs(project, model)
     findings += check_decisions(model, ontology_dir) + check_review(model, ontology_dir)
+    findings += check_ontology(model, ontology_dir)
     findings += check_coverage(project, model, ontology_dir) + check_drafts(project, model, ontology_dir)
     return sorted(findings)
 
@@ -254,6 +276,7 @@ __all__ = [
     "check_drafts",
     "check_gates",
     "check_migrations",
+    "check_ontology",
     "check_outputs",
     "check_review",
     "check_shapes",

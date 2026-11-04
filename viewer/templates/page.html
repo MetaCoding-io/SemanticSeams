@@ -131,6 +131,8 @@
     .health-panel .health-notes { margin-left: 0.75rem; color: #555; }
     .health-panel .health-profile { margin-left: 0.75rem; color: #555; }
     .health-panel .health-profile-error { margin-left: 0.75rem; color: #b71c1c; font-weight: 600; }
+    .health-panel .health-import { margin-left: 0.75rem; color: #555; }
+    .health-panel .health-import-error { margin-left: 0.75rem; color: #b71c1c; font-weight: 600; }
     .edit-controls button, .edit-actions button, .edit-actions a { margin-right: 0.5rem; }
     .modeler-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.35rem 0; }
     .modeler-bar .modeler-status[data-state="error"] { color: #b71c1c; }
@@ -162,6 +164,8 @@
     .c4-controls button { width: 2rem; height: 2rem; border: 1px solid #c7ccd4; border-radius: 4px; background: #fff; cursor: pointer; font-size: 1rem; }
     .c4-controls button:hover { background: #f4f5f7; }
     .c4-card, .c4-frame { cursor: pointer; }
+    .c4-card[data-read-only="true"] { cursor: default; }
+    .c4-card[data-read-only="true"] .c4-card-bg { stroke-dasharray: 4 3; }
     .c4-card .c4-card-bg { fill: #fff; stroke: #c7ccd4; stroke-width: 1; }
     .c4-card:hover .c4-card-bg { stroke: #555; stroke-width: 2; }
     .c4-frame > .c4-frame-bg { fill: #f8f9fb; stroke: #9aa0a8; stroke-width: 1; stroke-dasharray: 6 3; }

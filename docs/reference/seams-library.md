@@ -70,8 +70,9 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   raised when a graph hop is missing.
 - Namespaces: `SEAM`, `COMM`, `DEC`, `PROC`, `STATE`, `HYDRA`, `ODRL`,
   `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), `VERIFY` (ADR-0014 scenarios and examples), plus `local_name(iri)`.
-- `ModelGraph(path, dataset=None)` (and `ModelGraph.load(path)`) is a `Model`
-  plus the one-of-each resolvers the runtime and the generators share, such as
+- `ModelGraph(path, dataset=None, *, ontology_dir=None, check_versions=True,
+  check_imports=True)` (and `ModelGraph.load(path)`) is a `Model`, taking the
+  same load options, plus the one-of-each resolvers the runtime and the generators share, such as
   `landmark_page()`, `task_iri(bpmn_id)`, `triggering_operation(process)`,
   `is_channel_started(process)`, `decision_binding(task)`,
   `implementing_container(operation)`, `lifecycle_for(shape)`, `policy(policy)`

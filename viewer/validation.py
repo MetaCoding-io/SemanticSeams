@@ -22,6 +22,10 @@ into sh:in, sh:class pointing at a shape, shapes without sh:targetClass and
 undeclared sh:path IRIs. They flag the model for review and never change
 ``conforms``, not even when the check itself fails.
 
+Both build a seams.ModelGraph over the Dataset with the ontology import check
+off: an owl:imports that does not resolve is the health panel's own fact
+(ADR-0022, viewer/ontologygraph.py), not a failure of these checks.
+
 The lifted-IRI check of ADR-0002 rule 4 (get_lifted_iri_health()) is read-only
 and separate from ``conforms``: for each BPMN or DMN model with a
 seam:renderPayload, every IRI of the dataset starting with ``modelIRI#`` must
@@ -140,7 +144,7 @@ def _store_findings(ds: rdflib.Dataset) -> list[dict]:
     is passed). A failure of the check itself is reported as a violation
     rather than taking the page down."""
     try:
-        model = seams.ModelGraph(ROOT / "viewer.trig", dataset=ds)
+        model = seams.ModelGraph(ROOT / "viewer.trig", dataset=ds, check_imports=False)
         findings = model.store_health() + model.replica_health()
     except Exception as err:
         return [
@@ -160,7 +164,7 @@ def _review_findings(ds: rdflib.Dataset) -> list[dict]:
     subject as focusNode and the fact as path. A failure of the check itself is
     one Warning too, so review findings never change ``conforms``."""
     try:
-        findings = seams.review_findings(seams.ModelGraph(ROOT / "viewer.trig", dataset=ds))
+        findings = seams.review_findings(seams.ModelGraph(ROOT / "viewer.trig", dataset=ds, check_imports=False))
     except Exception as err:
         return [
             {

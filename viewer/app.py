@@ -25,7 +25,7 @@ import seams
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from rdflib import RDF, RDFS, BNode, Dataset, Namespace, URIRef
+from rdflib import OWL, RDF, RDFS, BNode, Dataset, Namespace, URIRef
 from rdflib.namespace import SH
 from rdflib.term import IdentifiedNode, Node
 from starlette.routing import BaseRoute
@@ -37,6 +37,7 @@ from seams_gen.sequence import derive, render
 from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, structural, validation, writeback
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
+from viewer.ontologygraph import ontology_graph_data, ontology_health, superclass_warnings
 from viewer.profiles import Profile, resolve_profile
 from viewer.shapegraph import shapegraph_graph_data
 from viewer.validation import get_lifted_iri_health, get_model_conformance
@@ -92,6 +93,7 @@ NOTATION_LABELS = {
     SEAM.DMN: "dmn",
     SEAM.Statechart: "statechart",
     SEAM.ShapeGraph: "shapegraph",
+    SEAM.Ontology: "ontology",
 }
 
 # ADR-0005 (amended M007/S02): each seam predicate declares a seam:reveal mode
@@ -112,10 +114,11 @@ LAYER_BY_NOTATION = {
     "bpmn": "process",
     "dmn": "decision",
     "shapegraph": "data",
+    "ontology": "data",
     "statechart": "lifecycle",
 }
 
-RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn", "shapegraph"}
+RENDERERS_IMPLEMENTED = {"c4", "ifml", "statechart", "bpmn", "dmn", "shapegraph", "ontology"}
 PAYLOAD_RENDERERS = {"bpmn", "dmn"}
 
 
@@ -170,13 +173,14 @@ def reload_model() -> None:
 
 
 def get_model() -> seams.Model:
-    """The loaded model (seams.load on MODEL_PATH, on first use)."""
+    """The loaded model (seams.load on MODEL_PATH, on first use). Ontology
+    imports are not checked on load: the health panel reports them (ADR-0022)."""
     global _model
     if _model is None:
         if not (MODEL_PATH.is_file() or MODEL_PATH.is_dir()):
             source = f" (from {MODEL_ENV})" if os.environ.get(MODEL_ENV) else ""
             raise FileNotFoundError(f"viewer model not found: {MODEL_PATH}{source}")
-        _model = seams.load(MODEL_PATH)
+        _model = seams.load(MODEL_PATH, check_imports=False)
         _resolve_profile(_model.ds)
     return _model
 
@@ -236,8 +240,15 @@ def model_health(ds: Dataset) -> dict:
     domain profile's shapes and out-of-profile warnings, ADR-0018), ``liftedIris``,
     the BPMN/DMN lifted IRIs with no matching id in their payload XML (ADR-0002
     rule 4), resolved against MODEL_DIR as payloads are, and ``profile`` when the
-    model states a seam:conformsTo (no key otherwise, so nothing changes)."""
+    model states a seam:conformsTo (no key otherwise, so nothing changes).
+    With seam:Ontology models (ADR-0022), ``ontologyImports`` lists each
+    owl:imports and its status, and each undeclared superclass joins
+    ``warnings``; neither changes ``conforms``."""
     health = {**get_model_conformance(ds, get_profile()), "liftedIris": get_lifted_iri_health(ds, MODEL_DIR)}
+    model = get_model()
+    if model.ontologies:
+        health["warnings"] = health["warnings"] + superclass_warnings(model)
+        health["ontologyImports"] = ontology_health(model)
     profile = profile_health()
     return health if profile is None else {**health, "profile": profile}
 
@@ -759,6 +770,7 @@ GRAPH_BUILDERS = {
     "ifml": ifml_graph_data,
     "statechart": statechart_graph_data,
     "shapegraph": shapegraph_graph_data,
+    "ontology": ontology_graph_data,
 }
 
 
@@ -1116,6 +1128,14 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         ):
             render_kind = "shapegraph"
             shape_model = model
+        # ADR-0022: a class of an ontology model draws its model's class view, itself highlighted.
+        elif (
+            model is not None
+            and (URIRef(focus), RDF.type, OWL.Class) in get_graph()
+            and notation_of(model) == "ontology"
+        ):
+            render_kind = "ontology"
+            shape_model = model
 
     root = root_iri()
     ctx = {
@@ -1179,8 +1199,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         nodes, edges = legend.contract_hidden(nodes, edges, view["hiddenTypes"])
         ctx["nodes"] = nodes
         ctx["edges"] = edges
-    elif render_kind == "shapegraph":
-        nodes, edges = shapegraph_graph_data(shape_model or focus, focus=focus)
+    elif render_kind in ("shapegraph", "ontology"):
+        nodes, edges = GRAPH_BUILDERS[render_kind](shape_model or focus, focus=focus)
         ctx["nodes"] = nodes
         ctx["edges"] = edges
     elif render_kind in GRAPH_BUILDERS:

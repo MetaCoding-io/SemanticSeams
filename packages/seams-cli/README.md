@@ -124,13 +124,15 @@ memory, leniently, to compare the outputs with the disk and `seams.lock`. Each f
 `hand-edited`, `orphan`, `lock-out-of-date`, `flagged` (the lock records
 faults from `seams generate --lenient`; the lock path and `N fault(s)`), `decision` (the decision or
 sequence flow IRI, the fact and a message), `review` (the shape or path IRI,
-the fact and a message) and, with `coverage = ["paths"]`,
+the fact and a message), `ontology-superclass` (an ontology class, `rdfs:subClassOf`
+and a superclass declared neither in the ontology nor in a resolved import,
+ADR-0022) and, with `coverage = ["paths"]`,
 `coverage` (the process IRI and the node IRIs of an unexercised path),
 `draft-stale` (a `seams propose` draft in `seams.lock` whose task's context hash
 changed; the task IRI and module path) and `draft-hand-edited` (the draft file's
 sha256 differs from the record, or the file is `missing`), followed by
 `seams check: N problem(s)` on stderr. `review` findings are warnings
-(`ADVISORY_KINDS`), and so are `shacl-warning` (a `sh:Warning` shape result: a
+(`ADVISORY_KINDS`), and so are `ontology-superclass`, `shacl-warning` (a `sh:Warning` shape result: a
 deprecated vocabulary term is used, ADR-0021) and `vocabulary-migrated` (one per
 migration step `seams.load` applied: the vocabulary, the model's version and the
 tool's): they print but are not counted, and when they are the only findings

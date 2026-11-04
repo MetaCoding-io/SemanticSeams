@@ -232,8 +232,24 @@ class ModelGraph(Model):
     other views, and turns a missing hop into ``ResolutionError`` naming the
     subject IRI and the predicate it could not follow."""
 
-    def __init__(self, trig_path: str | os.PathLike[str], dataset: Dataset | None = None) -> None:
-        super().__init__(trig_path, dataset)
+    def __init__(
+        self,
+        trig_path: str | os.PathLike[str],
+        dataset: Dataset | None = None,
+        *,
+        ontology_dir: str | os.PathLike[str] | None = None,
+        check_versions: bool = True,
+        check_imports: bool = True,
+    ) -> None:
+        """As ``Model``: the keyword arguments choose the ontology directory and
+        turn the vocabulary version and ontology import checks off."""
+        super().__init__(
+            trig_path,
+            dataset,
+            ontology_dir=ontology_dir,
+            check_versions=check_versions,
+            check_imports=check_imports,
+        )
         # Per-instance caches (never module-level id()-keyed dicts; see MEM010).
         self._contract_cache: dict[Any, Any] = {}
 

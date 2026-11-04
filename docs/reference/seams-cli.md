@@ -280,7 +280,16 @@ pre-commit hook (D044):
    shape or path IRI, the fact (the `sh:path`, `sh:targetClass` or `sh:path`
    itself) and a message. Review findings are warnings: they print, but they
    never fail the check.
-6. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+6. **Ontology.** A class of a `seam:Ontology` model whose `rdfs:subClassOf`
+   target is declared neither in the ontology nor in a resolved import (a
+   mistyped `gist:Transation`) is an `ontology-superclass` finding: the class
+   IRI, `rdfs:subClassOf`, the target IRI and a message. It is a warning, since
+   rdflib does not reason ([ADR-0022](/adr/0022-ontology-notation) section 5).
+   An `owl:imports` that does not resolve to a file in `ontology/vendor/` (an
+   unknown IRI, or another gist version than the vendored one) is a
+   `ResolutionError(<ontology>, owl:imports, …)` on load, so the model cannot be
+   loaded and the check exits 2.
+7. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
    start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
    the process IRI, then the path's flow node IRIs (see
    [seams coverage](#seams-coverage)). The other two coverage reports are gate
@@ -299,13 +308,14 @@ pre-commit hook (D044):
 | `flagged` | `seams.lock` records faults from `seams generate --lenient`; the detail is the lock path and `N fault(s)`. |
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
 | `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
+| `ontology-superclass` | A warning, not a problem: an ontology class's superclass is declared neither in the ontology nor in a resolved import, a likely typo. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
 | `draft-stale` | A `seams propose` draft recorded in `seams.lock` whose task's context hash has changed (or whose task no longer resolves): review it again. The detail is the task IRI and the module path. |
 | `draft-hand-edited` | A recorded draft whose file's sha256 differs from the record, or whose file is missing (detail ends `missing`). |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
 the working directory when they lie below it. A closing count of the problems,
-every kind but the advisory `review`, `shacl-warning` and `vocabulary-migrated`,
+every kind but the advisory `review`, `ontology-superclass`, `shacl-warning` and `vocabulary-migrated`,
 goes to stderr:
 
 ```
@@ -324,18 +334,18 @@ a deprecated vocabulary term, and the message says what to write instead
 ([ADR-0021](/adr/0021-vocabulary-versions) section 6). A `vocabulary-migrated`
 finding names a vocabulary, the version the model targets and the version the tool
 ships: the model was migrated in memory on load (section 5), and its files are
-unchanged. When the only findings are these advisory kinds
-and `review`, stderr says `seams check: N warning(s)` instead and the exit code is 0.
+unchanged. When the only findings are these advisory kinds,
+`ontology-superclass` and `review`, stderr says `seams check: N warning(s)` instead and the exit code is 0.
 
 `seams generate` fixes every output finding except `flagged`, which needs the
 model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
-`review` or `coverage` finding is fixed in the model.
+`review`, `ontology-superclass` or `coverage` finding is fixed in the model.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | No findings, or only `review`, `shacl-warning` and `vocabulary-migrated` warnings. |
+| 0 | No findings, or only `review`, `ontology-superclass`, `shacl-warning` and `vocabulary-migrated` warnings. |
 | 1 | At least one finding of another kind, or a file could not be read. |
 | 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a `seams.generators` entry point cannot be registered. A generator fault is never exit 2 here: the outputs check runs leniently. |
 

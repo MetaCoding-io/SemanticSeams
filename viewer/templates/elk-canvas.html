@@ -1,5 +1,5 @@
 {# Shared ELK + SVG card renderer (ADR-0008). Used by the C4 view and the
-   SHACL shape graph (M007/S03, D022). Include inside
+   SHACL shape graph (M007/S03, D022) and the ontology class view (ADR-0022). Include inside
    {% with canvas_id=..., render_label=... %}: canvas_id is the container
    element id, render_label prefixes the aria-label and console.error lines.
    Nodes may carry navigateTo (click target) and focused (highlight). #}
@@ -132,9 +132,11 @@
         g.setAttribute("data-focused", "true");
       }
       el("title", {}, g).textContent = n.label + (n.typeLabel ? " (" + n.typeLabel + ")" : "");
+      // Class view (ADR-0022): an imported or undeclared superclass is not in the model; no click.
+      if (n.readOnly) g.setAttribute("data-read-only", "true");
       g.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        if (moved) return;
+        if (moved || n.readOnly) return;
         window.seamsNavigate(n.navigateTo || n.id, "{{ next_path_qs }}", "{{ carried_level }}");
       });
       return g;

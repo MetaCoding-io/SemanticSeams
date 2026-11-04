@@ -20,7 +20,7 @@ import pytest
 import seams
 from seams_cli import Finding, load_project, run_check
 from seams_cli.__main__ import main
-from seams_cli.check import ADVISORY_KINDS, check_drafts, check_review
+from seams_cli.check import ADVISORY_KINDS, check_drafts, check_ontology, check_review
 from seams_cli.lockfile import Draft, read_lock, render_lock, with_draft
 from seams_cli.project import resolve_model
 from seams_cli.propose import build_prompt
@@ -246,8 +246,8 @@ def test_gate_rows_are_findings(app, capsys):
     assert _kinds(lines) == {"gate"}
 
 
-def test_review_and_vocabulary_warnings_are_the_advisory_kinds():
-    assert ADVISORY_KINDS == frozenset({"review", "shacl-warning", "vocabulary-migrated"})
+def test_review_vocabulary_and_ontology_warnings_are_the_advisory_kinds():
+    assert ADVISORY_KINDS == frozenset({"ontology-superclass", "review", "shacl-warning", "vocabulary-migrated"})
 
 
 def test_run_check_returns_sorted_findings(app):
@@ -480,3 +480,65 @@ def test_a_draft_whose_task_no_longer_resolves_is_stale(drafted):
     (drafted / "seams.lock").write_text(json.dumps(lock), encoding="utf-8")
     [finding] = _draft_findings(drafted)
     assert finding.kind == "draft-stale" and finding.detail.startswith("no_such_task handlers/notify.py ")
+
+
+# ── ontology faults and warnings (ADR-0022 section 5) ──
+
+CHAPTER_01 = Path("examples/expenses/chapter-01")
+GIST = "https://w3id.org/semanticarts/ns/ontology/gist/"
+
+ONTOLOGY_GRAPH = """
+<urn:seams:graph:model:expense_ontology> {{
+    :expense_ontology a seam:Model , owl:Ontology ;
+        seam:notation seam:Ontology ;
+        rdfs:label "Expense Ontology" ;
+        owl:versionIRI <https://example.org/expenses/expense_ontology/1.0> ;
+        owl:imports <{imports}> .
+
+    :Expense a owl:Class ;
+        rdfs:subClassOf <https://w3id.org/semanticarts/ns/ontology/gist/Transaction> ;
+        rdfs:label "Expense" ;
+        seam:inModel :expense_ontology .
+
+    :TravelExpense a owl:Class ;
+        rdfs:subClassOf :Expense , <https://w3id.org/semanticarts/ns/ontology/gist/Transation> ;
+        rdfs:label "Travel expense" ;
+        seam:inModel :expense_ontology .
+}}
+"""
+
+
+def _with_ontology(tmp_path: Path, imports: str) -> Path:
+    app = _copy(CHAPTER_01, tmp_path)
+    trig = app / "expenses.trig"
+    trig.write_text(trig.read_text(encoding="utf-8") + ONTOLOGY_GRAPH.format(imports=imports), encoding="utf-8")
+    return app
+
+
+def test_an_undeclared_superclass_is_an_advisory_ontology_finding(tmp_path, capsys):
+    app = _with_ontology(tmp_path, "https://w3id.org/semanticarts/ontology/gistCore14.0.0")
+    project = load_project(app)
+    finding = Finding(
+        "ontology-superclass",
+        "https://example.org/expenses/TravelExpense http://www.w3.org/2000/01/rdf-schema#subClassOf "
+        f"{GIST}Transation declared neither in the ontology nor in a resolved import",
+    )
+    assert check_ontology(project.model) == [finding]
+    assert finding in run_check(project, project.model)
+    # The edited model changes the locked model hash; regenerate, then the warning is the only finding.
+    assert main(["generate", "--project", str(app)]) == 0
+    capsys.readouterr()
+    code = main(["check", "--project", str(app)])
+    out, err = capsys.readouterr()
+    assert code == 0, out
+    assert f"ontology-superclass {finding.detail}" in out.splitlines()
+    assert "warning(s)" in err
+
+
+def test_an_import_version_mismatch_fails_the_check_as_a_model_fault(tmp_path, capsys):
+    app = _with_ontology(tmp_path, "https://w3id.org/semanticarts/ontology/gistCore14.1.0")
+    code = main(["check", "--project", str(app)])
+    _out, err = capsys.readouterr()
+    assert code == 2
+    assert "imports gistCore14.1.0; the vendored version is gistCore14.0.0" in err
+    assert "http://www.w3.org/2002/07/owl#imports" in err

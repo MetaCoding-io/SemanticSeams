@@ -112,8 +112,20 @@ removed from the diagram, is listed under *Lifted IRIs missing from the XML* wit
 own red count; a payload file that is missing or not well-formed XML is one entry
 naming the file. These findings leave the SHACL verdict as it is. Every committed
 example has none.
+A model with a `seam:Ontology` graph ([ADR-0022](/adr/0022-ontology-notation)) lists
+each `owl:imports` beside the badge. One that resolves names the vendored version it
+resolves to (*Import: gistCore14.0.0 (vendored)*). One that does not, an unknown IRI or
+another gist version than the one in `ontology/vendor/`, is shown in red with the
+`ResolutionError` facts: the ontology, `owl:imports` and what was expected. The viewer
+loads with the import check off, so the model still opens and the class view still
+draws the model's own classes, where `seams check` and `seams generate` refuse it. A
+superclass declared neither in the ontology nor in a resolved import (a mistyped
+`gist:Transation`) is one warning naming the class; none is given for an ontology
+whose import does not resolve, since the import fault already explains it. Neither
+changes the badge.
 The JSON view's `modelConformance` carries the same `violations`, `warnings` and
-`notes`, and the lifted-IRI findings as `liftedIris`.
+`notes`, the lifted-IRI findings as `liftedIris`, and, for a model with an ontology,
+each import's status as `ontologyImports`.
 
 **Breadcrumbs.** The path you clicked, not a fixed hierarchy: the same element can be
 reached from more than one parent. Each crumb is a link back.
@@ -128,6 +140,7 @@ reached from more than one parent. Each crumb is a link back.
 | BPMN | bpmn-js, from the model's native XML payload, tinted with the process colour and badged per seam |
 | DMN | dmn-js, from the model's native XML payload: the decision diagram, tinted with the decision colour and badged per seam, and its tables |
 | SHACL shape graph | The same ELK card renderer as C4: a frame per node shape, a card per property shape with its datatype (or target shape) and cardinality, and an edge for each `sh:class`/`sh:node` reference to another shape. A shape with no detail model of its own (e.g. ConversationShape) shows its model's shape graph with itself highlighted |
+| Ontology (class view) | The same ELK card renderer: a card per `owl:Class` with its label and `skos:definition`, the properties whose `rdfs:domain` it is nested inside it with their range, and a *subClassOf* edge to each superclass. A gist superclass is a grey, dashed, read-only card labelled from the vendored file; a superclass declared nowhere is an *Undeclared class* card. A click on a class shows its ontology's class view with the class highlighted |
 
 **Questions.** The canned queries that apply to the focused element's type, as buttons.
 Results appear inline with each value linked. The catalog is on the
@@ -261,6 +274,7 @@ gives each seam edge its `reveal` mode beside `navigational`. When you click an 
 4. Otherwise it opens the inspector for the element. A SHACL node shape with no detail
    model of its own (e.g. ConversationShape) also gets its model's shape graph on the
    canvas, with itself highlighted; the JSON view still reports its notation as none.
+   An `owl:Class` of a `seam:Ontology` model gets its model's class view the same way.
 
 ## Edit mode
 

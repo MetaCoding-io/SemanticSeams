@@ -303,6 +303,17 @@
       </div>
     </div>
     {% with canvas_id="shape-canvas", render_label="Shape graph" %}{% include "elk-canvas.html" %}{% endwith %}
+  {% elif render_kind == "ontology" %}
+    {# Class view (ADR-0022): classes as cards, their properties nested, an
+       edge to each superclass; imported superclasses are read-only cards. #}
+    <div id="class-canvas" class="c4-canvas shape-canvas" data-notation="ontology">
+      <div class="c4-controls">
+        <button type="button" data-zoom="in" title="Zoom in">+</button>
+        <button type="button" data-zoom="out" title="Zoom out">&minus;</button>
+        <button type="button" data-zoom="fit" title="Fit">&#9634;</button>
+      </div>
+    </div>
+    {% with canvas_id="class-canvas", render_label="Class view" %}{% include "elk-canvas.html" %}{% endwith %}
   {% elif not (detailed_by_candidates and detailed_by_candidates | length > 1) %}
     {# The disambiguation card above already says what to do next. #}
     <p><em>No renderer yet for notation "{{ notation }}" — showing inspector only.</em></p>

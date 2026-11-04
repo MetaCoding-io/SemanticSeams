@@ -17,8 +17,11 @@ response.
 - A shape change is also in the ``contract`` scope when an operation in either
   model accepts or returns that shape.
 
-A model that cannot be loaded raises ProjectError. ``shorten`` turns the IRIs of a
-subject or detail into CURIEs for the text output of ``seams diff``.
+The verdicts and the ``Change`` record live in ``seams_cli.classification``, which the
+vocabulary gate shares (ADR-0021 section 7); they are importable from here as well.
+``diff_graphs`` runs the same rules over two plain graphs. A model that cannot be loaded
+raises ProjectError. ``shorten`` turns the IRIs of a subject or detail into CURIEs for
+the text output of ``seams diff``.
 """
 
 from __future__ import annotations
@@ -31,29 +34,17 @@ import rdflib
 import seams
 from rdflib.term import Node
 
+from .classification import ABSENT, BREAKING, COMPATIBLE, Change, sort_changes
 from .project import ProjectError
 
 SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 SEAM = rdflib.Namespace("https://w3id.org/seams/seam#")
 OWL_SAME_AS = rdflib.OWL.sameAs
 
-COMPATIBLE = "compatible"
-BREAKING = "breaking"
 DATA = "data"
 CONTRACT = "contract"
-ABSENT = "-"
 
 CONTRACT_PREDICATES = {"accepts": SEAM.acceptsShape, "returns": SEAM.returnsShape}
-
-
-class Change(NamedTuple):
-    """One difference. ``subject`` is a shape or operation IRI; ``detail`` names the path and values."""
-
-    verdict: str
-    kind: str
-    subject: str
-    detail: str
-    scopes: tuple[str, ...]
 
 
 class _Property(NamedTuple):
@@ -164,7 +155,11 @@ def diff_models(old: Path, new: Path) -> list[Change]:
 
 def diff_loaded(old: seams.Model, new: seams.Model) -> list[Change]:
     """``diff_models`` over two models already loaded with ``load_model``."""
-    old_graph, new_graph = _union(old), _union(new)
+    return diff_graphs(_union(old), _union(new))
+
+
+def diff_graphs(old_graph: rdflib.Graph, new_graph: rdflib.Graph) -> list[Change]:
+    """Every shape and operation-contract change from OLD_GRAPH to NEW_GRAPH, sorted."""
     old_shapes, new_shapes = _shapes(old_graph), _shapes(new_graph)
     renames = _renames(new_graph, old_shapes - new_shapes, new_shapes - old_shapes)
     old_ops, new_ops = _operations(old_graph), _operations(new_graph)
@@ -223,7 +218,7 @@ def diff_loaded(old: seams.Model, new: seams.Model) -> list[Change]:
                 detail = f"{_values(old_ops[op][role])} -> {_values(after)}"
                 changes.append(Change(BREAKING, f"{role}-changed", op, detail, (CONTRACT,)))
 
-    return sorted(changes, key=lambda c: (c.subject, c.kind, c.detail, c.verdict))
+    return sort_changes(changes)
 
 
 def shorten(text: str, *models: seams.Model) -> str:
@@ -244,7 +239,7 @@ def shorten(text: str, *models: seams.Model) -> str:
 
 def to_json(changes: Iterable[Change]) -> dict:
     """A deterministic dict: the changes, sorted, and how many are breaking and compatible."""
-    ordered = sorted(changes, key=lambda c: (c.subject, c.kind, c.detail, c.verdict))
+    ordered = sort_changes(list(changes))
     return {
         "changes": [
             {"verdict": c.verdict, "kind": c.kind, "subject": c.subject, "detail": c.detail, "scopes": list(c.scopes)}

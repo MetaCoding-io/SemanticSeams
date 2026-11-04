@@ -257,6 +257,19 @@ change, 1 with any, after `seams diff: N breaking, M compatible` on stderr, and
 2 when a model cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-diff).
 
+The verdicts and the `Change` record live in `classification.py`, shared with the
+vocabulary gate (ADR-0021 section 7); `diff.py` still exports them. The same module
+classifies vocabulary terms: an added term, a new `owl:deprecated` flag or a looser
+`rdfs:domain`/`rdfs:range` (a superclass, or none) is compatible; a removed or renamed
+term (linked in NEW by `owl:sameAs`, `owl:equivalentClass`/`Property`,
+`dct:isReplacedBy` or `dct:replaces`) or a narrower or unrelated domain or range is
+breaking. `vocabulary_gate.py` compares two directories laid out like `ontology/`:
+`diff_vocabularies` gives each vocabulary's term changes and the `seams diff` changes
+of the shapes that target its terms, and `gate` lists the failures: a breaking change
+without a higher major, a major bump without its `migrations/<name>/<from>-to-<to>.ru`,
+a version going down, a removed vocabulary, or one without an `owl:versionIRI`.
+`tests/test_vocabulary_gate.py` runs it against the `ontology/` committed at HEAD.
+
 ## seams plan
 
 ```sh

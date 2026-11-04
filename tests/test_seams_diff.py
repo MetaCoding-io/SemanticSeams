@@ -183,3 +183,44 @@ def test_to_json_is_sorted_and_counts_verdicts(tmp_path):
     assert [c["kind"] for c in result["changes"]] == ["max-count-changed", "shape-added", "operation-added"]
     assert result["changes"][0]["scopes"] == ["contract", "data"]
     json.dumps(result)
+
+
+# ── fields read as their wire values (ADR-0023 section 5) ──
+
+RDFS_PREFIX = "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+STATUS_STRINGS = """
+:TicketShape a sh:NodeShape ;
+    sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:in ( "closed" "open" ) ; sh:minCount 1 ] .
+"""
+STATUS_CATEGORY = """
+:TicketShape a sh:NodeShape ;
+    sh:property [ sh:path :state ; sh:name "status" ; sh:in ( :s_closed :s_open ) ; sh:minCount 1 ] .
+:s_closed rdfs:label "closed" .
+:s_open rdfs:label "open" .
+"""
+
+
+def _wire_diff(tmp_path: Path, old: str, new: str) -> list[Change]:
+    (tmp_path / "old.trig").write_text(RDFS_PREFIX + _trig(old), encoding="utf-8")
+    (tmp_path / "new.trig").write_text(RDFS_PREFIX + _trig(new), encoding="utf-8")
+    return diff_models(tmp_path / "old.trig", tmp_path / "new.trig")
+
+
+def test_a_category_under_the_old_field_name_is_no_change(tmp_path):
+    assert _wire_diff(tmp_path, STATUS_STRINGS, STATUS_CATEGORY) == []
+    assert _wire_diff(tmp_path, STATUS_CATEGORY, STATUS_STRINGS) == []
+
+
+def test_a_new_sh_name_is_a_removed_and_an_added_field(tmp_path):
+    renamed = STATUS_CATEGORY.replace('sh:name "status"', 'sh:name "phase"')
+    changes = _wire_diff(tmp_path, STATUS_STRINGS, renamed)
+    assert [(c.verdict, c.kind, c.detail) for c in changes] == [
+        ("breaking", "property-added", EX + "state minCount 1"),
+        ("breaking", "property-removed", EX + "status"),
+    ]
+
+
+def test_a_category_field_keeps_its_count_checks(tmp_path):
+    optional = STATUS_CATEGORY.replace(" ; sh:minCount 1 ]", " ]")
+    change = _only(_wire_diff(tmp_path, optional, STATUS_CATEGORY))
+    assert (change.verdict, change.kind, change.detail) == ("breaking", "min-count-changed", EX + "state 0 -> 1")

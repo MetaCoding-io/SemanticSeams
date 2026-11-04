@@ -5,8 +5,8 @@
 @prefix seam:  <https://w3id.org/seams/seam#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/seam/1.1> ;
-    owl:versionInfo "1.1" ;
+    owl:versionIRI <https://w3id.org/seams/seam/1.2> ;
+    owl:versionInfo "1.2" ;
     rdfs:label "SemanticSeams Bridging Ontology" ;
     rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
 decision, state, data, communication, authorization, and planning models into one

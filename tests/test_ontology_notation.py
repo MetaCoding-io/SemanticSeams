@@ -101,7 +101,8 @@ def import_error(path: Path, ontology_dir: Path = ONTOLOGY) -> ResolutionError:
 def test_seam_ontology_is_a_notation_in_seam_1_1() -> None:
     vocabulary = Graph().parse(ONTOLOGY / "seam.ttl")
     assert (SEAM.Ontology, RDF.type, SEAM.Notation) in vocabulary
-    assert seams.shipped_versions(ONTOLOGY)["seam"] == (1, 1)
+    # Added in 1.1; 1.2 (ADR-0023) keeps it.
+    assert seams.shipped_versions(ONTOLOGY)["seam"] >= (1, 1)
 
 
 def test_the_vendored_gist_matches_its_recorded_checksum() -> None:

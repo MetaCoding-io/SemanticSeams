@@ -483,6 +483,13 @@ def test_each_fault_is_a_seam_shape_violation_naming_shape_and_field(
     assert any(says in message and focus in message for focus, _, message in found), found
 
 
+def test_a_shape_targeting_a_vocabulary_class_is_not_held_to_the_ontology_rule(tmp_path: Path) -> None:
+    # A profile's shapes (ADR-0018) target seams vocabulary classes to check model elements.
+    shapes = SHAPES_BODY.replace("sh:targetClass :Expense ;", "sh:targetClass state:State ;")
+    assert shapes != SHAPES_BODY
+    assert violations(tmp_path, model(shapes=shapes)) == set()
+
+
 def test_a_member_fault_is_a_seam_shape_violation(tmp_path: Path) -> None:
     lifecycle = LIFECYCLE_BODY.replace(' ; rdfs:label "paid"     ', "").replace(
         'rdfs:label "rejected"', 'rdfs:label "draft"'

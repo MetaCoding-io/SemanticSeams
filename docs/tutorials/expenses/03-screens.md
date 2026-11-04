@@ -36,7 +36,7 @@ manifest graph's imports at the end of the file ([chapter 1](./01-architecture#t
         owl:imports <https://w3id.org/seams/arch/1.0> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.1> .
+                    <https://w3id.org/seams/seam/1.2> .
 }
 ```
 

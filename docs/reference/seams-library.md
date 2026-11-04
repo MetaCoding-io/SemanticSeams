@@ -119,7 +119,7 @@ vocabulary it does not declare targets `1.0`.
 
 ```python
 model = seams.load("examples/expenses/chapter-01", ontology_dir="tests/fixtures/vocab-v2")
-model.migrations  # (MigrationStep(vocabulary='seam', source='1.1', target='2.0'),)
+model.migrations  # (MigrationStep(vocabulary='seam', source='1.2', target='2.0'),)
 ```
 
 - `DEFAULT_ONTOLOGY_DIR`: the repository's `ontology/`, which `load` checks against

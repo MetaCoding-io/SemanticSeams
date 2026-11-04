@@ -69,7 +69,7 @@ def test_context_hash_frames_items_sorted_by_kind_and_ref(manifest: Manifest) ->
 
 def test_items_hold_the_facts_the_rules_name(manifest: Manifest) -> None:
     shape = _item(manifest, "shape", f"{EX}PaymentShape").content
-    assert f"<{EX}paid_on>" in shape and f"<{namespace.XSD.date}>" in shape  # down to the property shapes
+    assert f"<{EX}paidOn>" in shape and f"<{namespace.XSD.date}>" in shape  # down to the property shapes
     assert str(SEAM.storedIn) not in shape and str(SEAM.lifecycle) not in shape
     transition = _item(manifest, "transition", f"{EX}t_send").content
     assert f"<{EX}s_scheduled>" in transition and f"<{EX}s_sent>" in transition

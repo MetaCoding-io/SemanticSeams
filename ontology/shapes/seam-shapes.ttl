@@ -1347,6 +1347,9 @@ seamsh:ShapeExampleShape a sh:NodeShape ;
 # targets the model's sh:NodeShapes and names the shape, the field (its
 # sh:name, else its sh:path) and the predicate; the typed view raises the
 # same faults as ResolutionError for callers that load without checking.
+# A shape that targets a seams vocabulary class (an rdfs:Class, not an
+# owl:Class) checks model elements, as a profile's shapes do (ADR-0018); it
+# describes no domain class, so the ontology-class rule passes it by.
 
 seamsh:TargetClassShape a sh:NodeShape ;
     sh:targetClass sh:NodeShape ;
@@ -1365,6 +1368,10 @@ seamsh:TargetClassShape a sh:NodeShape ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this sh:targetClass ?value .
+                FILTER NOT EXISTS {
+                    ?value a <http://www.w3.org/2000/01/rdf-schema#Class> .
+                    FILTER NOT EXISTS { ?value a <http://www.w3.org/2002/07/owl#Class> }
+                }
                 FILTER NOT EXISTS {
                     ?value a <http://www.w3.org/2002/07/owl#Class> ; seam:inModel ?ontology .
                     ?ontology seam:notation seam:Ontology .

@@ -50,6 +50,14 @@ the upper ontology its classes extend, is read to check the import and label the
 view but is never added to the model. The expense tutorial's chapter 9 declares
 `Expense`, `Payment`, `Approval`, `ExpenseState` and `ApprovalOutcome` this way.
 
+A shape joins the two with `sh:targetClass`: `ExpenseShape` describes an `Expense`
+([ADR-0023](/adr/0023-shapes-target-classes)). Its fields name themselves with
+`sh:name`, so the RDF property can change while a form field and a payload member keep
+their names. A field whose values are a category's members (`sh:class :ExpenseState`)
+gets its options from the model, the lifecycle's states in lifecycle order, instead of
+a copied list of strings. Forms and payloads still carry each member's label, so
+chapter 9's generated app is the same as before it targeted the classes.
+
 ## Derived sequence diagrams
 
 A sequence diagram is never authored. `seams sequence <event>` derives one from the

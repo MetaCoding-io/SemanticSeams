@@ -509,7 +509,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.1> ,
+                    <https://w3id.org/seams/seam/1.2> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.0> .
 }
@@ -706,12 +706,19 @@ gist by gist's version IRI:
         rdfs:label "Approval outcome" ;
         skos:definition "What an approval decides: approved or rejected." ;
         seam:inModel :expense_ontology .
+
+    # The outcomes themselves. An expense's states are :ExpenseState
+    # members too; they are typed where they are declared, in
+    # :expense_lifecycle.
+    :outcome_approved a :ApprovalOutcome ; rdfs:label "approved" ; seam:inModel :expense_ontology .
+    :outcome_rejected a :ApprovalOutcome ; rdfs:label "rejected" ; seam:inModel :expense_ontology .
 }
 ```
 
 Each class has a label, a definition and one gist superclass: `Expense` and `Payment`
 are `gist:Transaction`s, `Approval` a `gist:Determination`, and `ExpenseState` and
-`ApprovalOutcome` are `gist:Category`s. In the seams graph, give the model its notation:
+`ApprovalOutcome` are `gist:Category`s. A category's members are plain IRIs with one
+label each: the two approval outcomes here, and the expense's states below. In the seams graph, give the model its notation:
 
 ```turtle
     :expense_ontology seam:notation seam:Ontology .
@@ -729,8 +736,87 @@ A superclass that is in neither the ontology nor gist, such as a mistyped
 `gist:Transation`, is a warning instead. Open `:expense_ontology` in the viewer to see
 the class view: a card per class with its definition, an edge to its gist superclass,
 and gist's classes as grey read-only cards; the health panel lists the import as
-vendored. gist is never added to the model, and the shapes do not target these classes
-yet, so `seams generate` changes only the model hash in the generated files.
+vendored. gist is never added to the model.
+
+## Point the shapes at the classes
+
+The shapes still copy facts the model already has: `ExpenseShape`'s `status` lists the
+five state labels as strings, `ApprovalShape`'s `decision` lists two more, and nothing
+says that `ExpenseShape` describes an `Expense`. Rewrite them in the notation of
+[ADR-0023](../../adr/0023-shapes-target-classes.md). Each shape names its class with
+`sh:targetClass`, and each field names itself with `sh:name`, the name forms and payloads
+use. A field whose options are a category's members says `sh:class` instead of copying
+their labels:
+
+```trig
+    :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
+        sh:targetClass :Expense ;
+        sh:property [ sh:path :id ; sh:name "id" ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :description ; sh:name "description" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+        sh:property [ sh:path :amount ; sh:name "amount" ; sh:datatype xsd:decimal ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:minInclusive 0.01 ; sh:order 1 ] ;
+        sh:property [ sh:path :date ; sh:name "date" ; sh:datatype xsd:date ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 2 ] ;
+        # Set by the runtime, never entered: the expense's current state in
+        # :expense_lifecycle. The options are the :ExpenseState members (the
+        # lifecycle's states) in lifecycle order; the wire value is the
+        # member's rdfs:label, so the payload still carries "draft" (ADR-0023).
+        sh:property [ sh:path :status ; sh:name "status" ; sh:class :ExpenseState ;
+                      sh:maxCount 1 ; sh:order 3 ] ;
+        seam:inModel :expense_data .
+
+    # What the approver enters: a decision from the list, and an optional comment.
+    # The decision is an :ApprovalOutcome member, sent as its label.
+    :ApprovalShape a sh:NodeShape ; rdfs:label "Approval" ;
+        sh:targetClass :Approval ;
+        sh:property [ sh:path :decision ; sh:name "decision" ; sh:class :ApprovalOutcome ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+```
+
+The expense's states become the category's members where the lifecycle declares them:
+
+```trig
+    :s_draft     a state:State , :ExpenseState ; rdfs:label "draft"     ; seam:inModel :expense_lifecycle .
+    :s_submitted a state:State , :ExpenseState ; rdfs:label "submitted" ; seam:inModel :expense_lifecycle .
+    :s_approved  a state:State , :ExpenseState ; rdfs:label "approved"  ; seam:inModel :expense_lifecycle .
+    :s_rejected  a state:State , :ExpenseState ; rdfs:label "rejected"  ; seam:inModel :expense_lifecycle .
+    :s_paid      a state:State , :ExpenseState ; rdfs:label "paid"      ; seam:inModel :expense_lifecycle .
+```
+
+The payment has no state category, so its `status` lists the payment lifecycle's state
+IRIs with `sh:in` instead of their labels. Its date shows what `sh:name` is for: the RDF
+property can be `:paidOn` while the form field and the payload member stay `paid_on`.
+The screen parameter and the scenario that name the property move to `:paidOn` with it.
+
+```trig
+    :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
+        sh:targetClass :Payment ;
+        sh:property [ sh:path :reference ; sh:name "reference" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:maxLength 100 ; sh:order 0 ] ;
+        sh:property [ sh:path :paidOn ; sh:name "paid_on" ; sh:datatype xsd:date ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 1 ] ;
+        # Set by the runtime, never entered: the payment's current state in
+        # :payment_lifecycle. The payment has no state category yet, so the
+        # options are an sh:in of the state IRIs, sent as their labels.
+        sh:property [ sh:path :status ; sh:name "status" ; sh:maxCount 1 ; sh:order 2 ;
+                      sh:in ( :s_recorded :s_scheduled :s_batched :s_sent ) ] ;
+        seam:inModel :expense_data .
+```
+
+Options come in lifecycle order, from the initial state, and the value a form sends is
+still the member's label. Older tools would misread this notation, so the model now
+imports the seam vocabulary at 1.2; the manifest above already shows it:
+
+```turtle
+                    <https://w3id.org/seams/seam/1.2> ,
+```
+
+Run `seams generate --project examples/expenses/chapter-09` again. Every generated form,
+route, stub and test is the same as before, apart from the model hash. The status
+select still offers `draft` to `paid`, the approver still picks `approved` or `rejected`,
+and a payload with `"decision": "maybe"` is refused with the same 422. Rename a state
+now and its option is renamed with it. Add one and it joins the options in lifecycle order.
 
 ## Checkpoint
 

@@ -76,7 +76,10 @@ def test_dmn_type_ref_disagreeing_with_the_datatype_is_a_finding(tmp_path: Path)
 def test_shape_datatype_disagreeing_with_every_reading_decision(tmp_path: Path) -> None:
     model = ch09(
         tmp_path,
-        expenses_trig=("sh:path :amount ; sh:datatype xsd:decimal", "sh:path :amount ; sh:datatype xsd:string"),
+        expenses_trig=(
+            'sh:path :amount ; sh:name "amount" ; sh:datatype xsd:decimal',
+            'sh:path :amount ; sh:name "amount" ; sh:datatype xsd:string',
+        ),
     )
     assert type_ref_findings(model) == [
         DecisionFinding(
@@ -97,7 +100,10 @@ def test_shape_datatype_disagreeing_with_every_reading_decision(tmp_path: Path) 
 def test_integer_datatype_satisfies_a_number_type_ref(tmp_path: Path) -> None:
     model = ch09(
         tmp_path,
-        expenses_trig=("sh:path :amount ; sh:datatype xsd:decimal", "sh:path :amount ; sh:datatype xsd:integer"),
+        expenses_trig=(
+            'sh:path :amount ; sh:name "amount" ; sh:datatype xsd:decimal',
+            'sh:path :amount ; sh:name "amount" ; sh:datatype xsd:integer',
+        ),
     )
     assert decision_findings(model) == []
 
@@ -109,7 +115,10 @@ def test_missing_type_ref_is_no_finding(tmp_path: Path) -> None:
             '<inputExpression id="input_amount_expr" typeRef="number">',
             '<inputExpression id="input_amount_expr">',
         ),
-        expenses_trig=("sh:path :amount ; sh:datatype xsd:decimal", "sh:path :amount ; sh:datatype xsd:string"),
+        expenses_trig=(
+            'sh:path :amount ; sh:name "amount" ; sh:datatype xsd:decimal',
+            'sh:path :amount ; sh:name "amount" ; sh:datatype xsd:string',
+        ),
     )
     assert [f.subject for f in type_ref_findings(model)] == [f"{EX}payout_method"]
 

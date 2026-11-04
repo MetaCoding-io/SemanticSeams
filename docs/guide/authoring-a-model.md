@@ -532,12 +532,55 @@ The viewer draws an ontology model as a class view: a card per class with its
 definition, an edge to each superclass, and gist's classes as read-only cards. The
 health panel lists each import and whether it resolved
 ([the viewer](/guide/the-viewer)). Chapter 9 of the expense tutorial declares its
-ontology this way. Shapes that target these classes come in a later release.
+ontology this way, and its shapes target the classes, as the next section shows.
+
+## Shapes that target classes
+
+A shape says which class it describes, what each field is called on the wire, and where
+a field's options come from ([ADR-0023](/adr/0023-shapes-target-classes)). The notation
+needs `seam` 1.2 in the [manifest graph](#vocabulary-versions):
+
+```trig
+:ApprovalOutcome a owl:Class ; rdfs:subClassOf gist:Category ;
+    rdfs:label "Approval outcome" ; seam:inModel :expense_ontology .
+:outcome_approved a :ApprovalOutcome ; rdfs:label "approved" ; seam:inModel :expense_ontology .
+:outcome_rejected a :ApprovalOutcome ; rdfs:label "rejected" ; seam:inModel :expense_ontology .
+
+:ApprovalShape a sh:NodeShape ; rdfs:label "Approval" ;
+    sh:targetClass :Approval ;
+    sh:property [ sh:path :decision ; sh:name "decision" ; sh:class :ApprovalOutcome ;
+                  sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+    seam:inModel :expense_data .
+```
+
+- **`sh:targetClass`** names one class of an ontology model. The shapes allow at most
+  one.
+- **`sh:name`** is the field's name in forms, payloads, 422 results and handler stubs.
+  Without it, the name is the path's local name, as before. Use it when the RDF property
+  and the wire name differ: chapter 9's `PaymentShape` has `sh:path :paidOn ; sh:name
+  "paid_on"`. Names match `^[A-Za-z_][A-Za-z0-9_]*$` and are unique within a shape.
+- **Categories.** A field with `sh:class C`, where `C` is an `rdfs:subClassOf
+  gist:Category`, or with an `sh:in` of IRIs, offers the members. Each member needs
+  exactly one `rdfs:label`, and that label is the value a form sends and a payload
+  carries. If the members are a lifecycle's states (type each state `a state:State ,
+  :ExpenseState`), the options come in lifecycle order from the initial state;
+  otherwise by IRI. A category with no members is refused. Do not copy the state labels
+  into a string `sh:in`: a renamed or added state then reaches the form by itself.
+- **Flattening.** An `sh:node` to a shape with exactly one free property, all others
+  fixed by `sh:hasValue`, reads as one field: the free property's value under the outer
+  field's name. A nested shape with two free properties is refused.
+
+`seams check` and the viewer's health panel report each break with the shape, the field
+and the predicate; the typed shape view raises the same fault as a `ResolutionError`
+when a generator reads the field. Chapter 9's
+generated forms, routes and tests are the same in this notation as with string lists;
+only the model hash moves. `seams diff` reads fields the same way, by name and wire value,
+so moving chapter 8's shapes to this notation is no change.
 
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.1>`). A model says which versions it is written for in
+(`<https://w3id.org/seams/seam/1.2>`). A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -548,7 +591,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.0> ,
-                    <https://w3id.org/seams/seam/1.1> .
+                    <https://w3id.org/seams/seam/1.2> .
 }
 ```
 
@@ -622,7 +665,7 @@ versions:
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.1> .
+                    <https://w3id.org/seams/seam/1.2> .
 }
 ```
 

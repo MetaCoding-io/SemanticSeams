@@ -60,8 +60,10 @@
 # graph declares the classes Expense, Payment, Approval, ExpenseState and
 # ApprovalOutcome, each anchored in gist, the upper ontology that
 # ontology/vendor/ pins at gistCore 14.0.0. The ontology owl:imports that
-# version, and seams check resolves the import offline. The shapes do not
-# target these classes yet; they still say what each form and list carries.
+# version, and seams check resolves the import offline. The shapes target
+# these classes (sh:targetClass) and name each field with sh:name, the name
+# forms and payloads use (ADR-0023). States and outcomes are category
+# members, not copied strings: a field's options are the members' labels.
 #
 # See docs/tutorials/expenses/ for the walkthrough.
 
@@ -209,24 +211,29 @@
     # {expense} variable maps to it, and the process stores the expense under
     # that correlation key. The other properties are what a form asks for.
     :ExpenseShape a sh:NodeShape ; rdfs:label "Expense" ;
-        sh:property [ sh:path :id ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
-        sh:property [ sh:path :description ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:order 0 ] ;
-        sh:property [ sh:path :amount ; sh:datatype xsd:decimal ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:minInclusive 0.01 ; sh:order 1 ] ;
-        sh:property [ sh:path :date ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:order 2 ] ;
-        # Set by the runtime, never entered: the rdfs:label of the expense's
-        # current state in :expense_lifecycle.
-        sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 3 ;
-                      sh:in ( "draft" "submitted" "approved" "rejected" "paid" ) ] ;
+        sh:targetClass :Expense ;
+        sh:property [ sh:path :id ; sh:name "id" ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
+        sh:property [ sh:path :description ; sh:name "description" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+        sh:property [ sh:path :amount ; sh:name "amount" ; sh:datatype xsd:decimal ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:minInclusive 0.01 ; sh:order 1 ] ;
+        sh:property [ sh:path :date ; sh:name "date" ; sh:datatype xsd:date ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 2 ] ;
+        # Set by the runtime, never entered: the expense's current state in
+        # :expense_lifecycle. The options are the :ExpenseState members (the
+        # lifecycle's states) in lifecycle order; the wire value is the
+        # member's rdfs:label, so the payload still carries "draft" (ADR-0023).
+        sh:property [ sh:path :status ; sh:name "status" ; sh:class :ExpenseState ;
+                      sh:maxCount 1 ; sh:order 3 ] ;
         seam:inModel :expense_data .
 
     # What the approver enters: a decision from the list, and an optional comment.
+    # The decision is an :ApprovalOutcome member, sent as its label.
     :ApprovalShape a sh:NodeShape ; rdfs:label "Approval" ;
-        sh:property [ sh:path :decision ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:in ( "approved" "rejected" ) ; sh:order 0 ] ;
-        sh:property [ sh:path :comment ; sh:datatype xsd:string ; sh:maxCount 1 ;
+        sh:targetClass :Approval ;
+        sh:property [ sh:path :decision ; sh:name "decision" ; sh:class :ApprovalOutcome ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 0 ] ;
+        sh:property [ sh:path :comment ; sh:name "comment" ; sh:datatype xsd:string ; sh:maxCount 1 ;
                       sh:maxLength 500 ; sh:order 1 ] ;
         seam:inModel :expense_data .
 
@@ -249,16 +256,19 @@
         seam:inModel :expense_data .
 
     # What finance records when it pays an approved expense: the payment
-    # reference and the day it was paid.
+    # reference and the day it was paid. The RDF property is :paidOn; its
+    # sh:name keeps the form field and the payload member "paid_on".
     :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
-        sh:property [ sh:path :reference ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:maxLength 100 ; sh:order 0 ] ;
-        sh:property [ sh:path :paid_on ; sh:datatype xsd:date ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:order 1 ] ;
-        # Set by the runtime, never entered: the rdfs:label of the payment's
-        # current state in :payment_lifecycle.
-        sh:property [ sh:path :status ; sh:datatype xsd:string ; sh:maxCount 1 ; sh:order 2 ;
-                      sh:in ( "recorded" "scheduled" "batched" "sent" ) ] ;
+        sh:targetClass :Payment ;
+        sh:property [ sh:path :reference ; sh:name "reference" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:maxLength 100 ; sh:order 0 ] ;
+        sh:property [ sh:path :paidOn ; sh:name "paid_on" ; sh:datatype xsd:date ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 1 ] ;
+        # Set by the runtime, never entered: the payment's current state in
+        # :payment_lifecycle. The payment has no state category yet, so the
+        # options are an sh:in of the state IRIs, sent as their labels.
+        sh:property [ sh:path :status ; sh:name "status" ; sh:maxCount 1 ; sh:order 2 ;
+                      sh:in ( :s_recorded :s_scheduled :s_batched :s_sent ) ] ;
         seam:inModel :expense_data .
 }
 
@@ -310,6 +320,12 @@
         rdfs:label "Approval outcome" ;
         skos:definition "What an approval decides: approved or rejected." ;
         seam:inModel :expense_ontology .
+
+    # The outcomes themselves. An expense's states are :ExpenseState
+    # members too; they are typed where they are declared, in
+    # :expense_lifecycle.
+    :outcome_approved a :ApprovalOutcome ; rdfs:label "approved" ; seam:inModel :expense_ontology .
+    :outcome_rejected a :ApprovalOutcome ; rdfs:label "rejected" ; seam:inModel :expense_ontology .
 }
 
 #################################################################
@@ -449,7 +465,7 @@
         ifml:boundTo :reference ;
         seam:inModel :expense_ifml .
     :paid_on_input a ifml:Parameter ; rdfs:label "paid_on" ;
-        ifml:boundTo :paid_on ;
+        ifml:boundTo :paidOn ;
         seam:inModel :expense_ifml .
 
     :submit_payment a ifml:Event ; rdfs:label "Submit Payment" ;
@@ -651,11 +667,11 @@
         state:final :s_rejected , :s_paid ;
         state:hasTransition :t_submit , :t_approve , :t_reject , :t_pay .
 
-    :s_draft     a state:State ; rdfs:label "draft"     ; seam:inModel :expense_lifecycle .
-    :s_submitted a state:State ; rdfs:label "submitted" ; seam:inModel :expense_lifecycle .
-    :s_approved  a state:State ; rdfs:label "approved"  ; seam:inModel :expense_lifecycle .
-    :s_rejected  a state:State ; rdfs:label "rejected"  ; seam:inModel :expense_lifecycle .
-    :s_paid      a state:State ; rdfs:label "paid"      ; seam:inModel :expense_lifecycle .
+    :s_draft     a state:State , :ExpenseState ; rdfs:label "draft"     ; seam:inModel :expense_lifecycle .
+    :s_submitted a state:State , :ExpenseState ; rdfs:label "submitted" ; seam:inModel :expense_lifecycle .
+    :s_approved  a state:State , :ExpenseState ; rdfs:label "approved"  ; seam:inModel :expense_lifecycle .
+    :s_rejected  a state:State , :ExpenseState ; rdfs:label "rejected"  ; seam:inModel :expense_lifecycle .
+    :s_paid      a state:State , :ExpenseState ; rdfs:label "paid"      ; seam:inModel :expense_lifecycle .
 
     :t_submit  a state:Transition ; state:from :s_draft     ; state:to :s_submitted ; state:trigger "submit"  ; seam:inModel :expense_lifecycle .
     :t_approve a state:Transition ; state:from :s_submitted ; state:to :s_approved  ; state:trigger "approve" ; seam:inModel :expense_lifecycle .
@@ -1071,7 +1087,7 @@
                       [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ;
                         verify:actor :finance ;
                         verify:given [ verify:field :reference ; verify:value "PAY-0042" ] ,
-                                     [ verify:field :paid_on ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
+                                     [ verify:field :paidOn ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
         verify:expectState :s_paid ;
         verify:expectEndEvent <https://example.org/expenses/approval_bpmn#approved_end> .
 
@@ -1120,7 +1136,7 @@
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.1> ,
+                    <https://w3id.org/seams/seam/1.2> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.0> .
 }

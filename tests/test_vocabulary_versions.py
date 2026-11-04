@@ -1,7 +1,7 @@
 """Tests for vocabulary versions and the load check (M023/S02, ADR-0021).
 
 Every vocabulary in ontology/ carries owl:versionIRI <https://w3id.org/seams/<name>/1.0>,
-except seam at 1.1 (ADR-0022 added the seam:Ontology notation).
+except seam at 1.2 (ADR-0022 added the seam:Ontology notation, ADR-0023 the shape notation).
 A model declares the versions it targets as owl:imports in <urn:seams:graph:manifest>;
 no declaration means 1.0. ``seams.load`` refuses a model newer than the tool and migrates
 an older one in memory with ontology/migrations/<name>/<from>-to-<to>.ru.
@@ -9,7 +9,7 @@ an older one in memory with ontology/migrations/<name>/<from>-to-<to>.ru.
 Every shipped vocabulary is at major 1, so the older and newer paths run against the
 fixture tree tests/fixtures/vocab-v2 (D060): seam at 2.0, whose 1-to-2.ru renames
 seam:inModel to seam:partOfModel, loaded over the real expense chapter-01 checkpoint,
-which declares seam 1.1 and arch 1.0. Tests that need a model written before S02, with
+which declares seam 1.2 and arch 1.0. Tests that need a model written before S02, with
 no declaration, take the checkpoint with its manifest graph removed.
 """
 
@@ -31,7 +31,7 @@ ARCHITECTURE_GRAPH = URIRef("urn:seams:graph:model:expense_architecture")
 PART_OF_MODEL = URIRef("https://w3id.org/seams/seam#partOfModel")
 SEAM_V1 = URIRef("https://w3id.org/seams/seam/1.0")
 # What the checkpoints declare: the shipped seam.
-SEAM_V1_1 = URIRef("https://w3id.org/seams/seam/1.1")
+SEAM_V1_2 = URIRef("https://w3id.org/seams/seam/1.2")
 SEAM_V2 = URIRef("https://w3id.org/seams/seam/2.0")
 ARCH_V1 = "https://w3id.org/seams/arch/1.0"
 EXAMPLES = sorted(
@@ -90,8 +90,9 @@ def refused(err: pytest.ExceptionInfo[ResolutionError]) -> str:
 # ── shipped versions ──
 
 
-# seam 1.1 adds the seam:Ontology notation (ADR-0022), a compatible widening.
-SHIPPED = {"seam": (1, 1)}
+# seam 1.1 adds the seam:Ontology notation (ADR-0022) and 1.2 the shape notation of
+# ADR-0023 (sh:name, categories, sh:node flattening): compatible widenings.
+SHIPPED = {"seam": (1, 2)}
 
 
 def test_every_shipped_vocabulary_is_at_its_release() -> None:
@@ -134,7 +135,7 @@ def test_an_undeclared_model_loads_as_written_against_the_shipped_vocabularies(t
 def test_the_checkpoint_declares_the_shipped_versions_and_loads_as_written() -> None:
     model = seams.load(CHAPTER_01)
     assert model.migrations == ()
-    assert declarations(model) == [ARCH_V1, str(SEAM_V1_1)]
+    assert declarations(model) == [ARCH_V1, str(SEAM_V1_2)]
     assert quads(model) == quads(seams.load(CHAPTER_01, check_versions=False))
 
 
@@ -185,7 +186,7 @@ def test_an_older_model_is_migrated_in_memory() -> None:
     model = seams.load(CHAPTER_01, ontology_dir=FIXTURE)
     as_written = seams.load(CHAPTER_01, check_versions=False)
 
-    assert model.migrations == (MigrationStep("seam", "1.1", "2.0"),)
+    assert model.migrations == (MigrationStep("seam", "1.2", "2.0"),)
     assert not list(model.ds.quads((None, SEAM.inModel, None, None)))
     renamed = sorted(model.ds.quads((None, PART_OF_MODEL, None, None)))
     original = sorted(as_written.ds.quads((None, SEAM.inModel, None, None)))
@@ -196,7 +197,7 @@ def test_an_older_model_is_migrated_in_memory() -> None:
     # The declaration moves to the tool's version; arch is current and stays.
     assert declarations(model) == [ARCH_V1, str(SEAM_V2)]
     # Nothing else changes, and the files on disk are untouched.
-    untouched = {q for q in quads(as_written) if q[1] != str(SEAM.inModel) and q[2] != str(SEAM_V1_1)}
+    untouched = {q for q in quads(as_written) if q[1] != str(SEAM.inModel) and q[2] != str(SEAM_V1_2)}
     assert untouched <= set(quads(model))
     assert model.hash == as_written.hash
 
@@ -223,7 +224,7 @@ def test_steps_run_in_ascending_order(tmp_path: Path) -> None:
         "WHERE { GRAPH ?g { ?s seam:partOfModel ?o } }\n"
     )
     model = seams.load(CHAPTER_01, ontology_dir=vocab)
-    assert model.migrations == (MigrationStep("seam", "1.1", "2.0"), MigrationStep("seam", "2.0", "3.1"))
+    assert model.migrations == (MigrationStep("seam", "1.2", "2.0"), MigrationStep("seam", "2.0", "3.1"))
     assert len(list(model.ds.quads((None, SEAM.memberOf, None, ARCHITECTURE_GRAPH)))) == 3
     assert declarations(model) == [ARCH_V1, "https://w3id.org/seams/seam/3.1"]
 

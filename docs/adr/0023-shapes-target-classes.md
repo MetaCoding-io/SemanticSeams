@@ -200,7 +200,9 @@ the runtime writes is still the current state's `rdfs:label` under the key `stat
 `seams check`, the viewer's health panel and generation preconditions before any view
 raises:
 
-- at most one `sh:targetClass` per shape, an `owl:Class` of a `seam:Ontology` graph;
+- at most one `sh:targetClass` per shape, an `owl:Class` of a `seam:Ontology` graph. A
+  shape that targets a seams vocabulary class (an `rdfs:Class` such as `ifml:Form`)
+  checks model elements, as a profile's shapes do (ADR-0018), and is not held to this;
 - `sh:name` at most once per property shape, matching the pattern, unique within a shape;
 - a category class has at least one member, and each member has exactly one `rdfs:label`;
 - a flattened `sh:node` has exactly one free property (section 4).

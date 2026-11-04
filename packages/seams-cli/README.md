@@ -269,7 +269,10 @@ It compares the SHACL shapes and operation contracts (`seam:acceptsShape`,
 and classifies every change as compatible or breaking for stored data and for
 operation contracts (D052, `diff.py`, `diff_models`). It reads no `seams.toml`.
 Node shapes and operations are matched by IRI, with `new owl:sameAs old` in NEW
-read as a rename; property shapes by node shape and `sh:path`. A removed shape,
+read as a rename; property shapes by node shape and field name (`sh:name`, else the
+path's local name; ADR-0023), so a field moved to a new path under its old name is no
+change. A category or flattened `sh:node` field compares by the datatype of its wire
+value, so replacing a copied string `sh:in` with a category is no change either. A removed shape,
 property or operation, a new required property, a changed accepted or returned
 shape, a changed `sh:datatype` or `sh:class` and a tighter `sh:minCount` or
 `sh:maxCount` are breaking; additions of optional properties, shapes and

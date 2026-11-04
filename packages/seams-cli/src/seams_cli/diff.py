@@ -12,6 +12,11 @@ response.
   blank nodes. sh:datatype, sh:class, sh:minCount and sh:maxCount are compared:
   a new or changed constraint is breaking, a dropped or looser one compatible.
   An added property is breaking only when it is required (sh:minCount > 0).
+- Between two loaded models a property is read as it crosses the wire (ADR-0023
+  section 5): it is matched by its field name (``Field.name``: sh:name, else the
+  path's local name), and a category or flattened sh:node field compares by the
+  datatype of its wire value, not its sh:class. Moving a field to a new path under
+  its old name, or replacing a copied string sh:in with a category, is no change.
 - Operations are the subjects of seam:acceptsShape or seam:returnsShape,
   matched by IRI. Added is compatible; removed, or a changed target, breaking.
 - A shape change is also in the ``contract`` scope when an operation in either
@@ -19,14 +24,16 @@ response.
 
 The verdicts and the ``Change`` record live in ``seams_cli.classification``, which the
 vocabulary gate shares (ADR-0021 section 7); they are importable from here as well.
-``diff_graphs`` runs the same rules over two plain graphs. A model that cannot be loaded
+``diff_graphs`` runs the same rules over two plain graphs, matching properties by
+path. A model whose typed shape view raises ``ResolutionError`` (an empty category, an
+ambiguous sh:node) raises ProjectError naming the fault. A model that cannot be loaded
 raises ProjectError. ``shorten`` turns the IRIs of a subject or detail into CURIEs for
 the text output of ``seams diff``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import NamedTuple
 
@@ -48,6 +55,7 @@ CONTRACT_PREDICATES = {"accepts": SEAM.acceptsShape, "returns": SEAM.returnsShap
 
 
 class _Property(NamedTuple):
+    path: str
     datatypes: frozenset[str]
     classes: frozenset[str]
     min_count: int
@@ -60,6 +68,18 @@ def load_model(path: Path) -> seams.Model:
         return seams.load(path)
     except Exception as err:
         raise ProjectError(f"{path}: cannot load the model: {err}") from err
+
+
+# (shape IRI, sh:path IRI) -> the typed view's field, for reading a property as its wire value
+Fields = Mapping[tuple[str, str], seams.Field]
+
+
+def _fields(model: seams.Model) -> Fields:
+    """Every field of the model's shapes, from the typed view (ADR-0023)."""
+    try:
+        return {(str(f.shape), str(f.iri)): f for shape in model.shapes for f in shape.fields()}
+    except seams.ResolutionError as err:
+        raise ProjectError(f"cannot read the model's shapes: {err}") from err
 
 
 def _union(model: seams.Model) -> rdflib.Graph:
@@ -81,19 +101,35 @@ def _ints(graph: rdflib.Graph, node: Node, predicate: rdflib.URIRef) -> list[int
     return [int(v) for v in graph.objects(node, predicate) if isinstance(v, rdflib.Literal)]
 
 
-def _properties(graph: rdflib.Graph, shape: rdflib.URIRef) -> dict[str, _Property]:
-    """The shape's property shapes by path. Several shapes on one path merge into the tightest bounds."""
+def _properties(graph: rdflib.Graph, shape: rdflib.URIRef, fields: Fields | None = None) -> dict[str, _Property]:
+    """The shape's property shapes by path, or by field name when ``fields`` is given. Several shapes on
+    one key merge into the tightest bounds. A category or flattened field's sh:class is not on the wire:
+    it reads as the field's datatype instead."""
     grouped: dict[str, list[Node]] = {}
+    paths: dict[str, str] = {}
+    wire: dict[str, str] = {}
     for prop in graph.objects(shape, SH.property):
         for path in graph.objects(prop, SH.path):
-            grouped.setdefault(_key(graph, path), []).append(prop)
+            key = _key(graph, path)
+            field = fields.get((str(shape), key)) if fields is not None else None
+            name = key if field is None else field.name
+            grouped.setdefault(name, []).append(prop)
+            paths[name] = key
+            if field is not None and (field.members or field.node is not None) and field.datatype is not None:
+                wire[name] = str(field.datatype)
     result = {}
-    for path, props in grouped.items():
+    for name, props in grouped.items():
         mins = [n for p in props for n in _ints(graph, p, SH.minCount)]
         maxes = [n for p in props for n in _ints(graph, p, SH.maxCount)]
-        result[path] = _Property(
-            datatypes=frozenset(str(v) for p in props for v in graph.objects(p, SH.datatype)),
-            classes=frozenset(str(v) for p in props for v in graph.objects(p, SH["class"])),
+        lowered = wire.get(name)
+        result[name] = _Property(
+            path=paths[name],
+            datatypes=frozenset(str(v) for p in props for v in graph.objects(p, SH.datatype))
+            if lowered is None
+            else frozenset({lowered}),
+            classes=frozenset(str(v) for p in props for v in graph.objects(p, SH["class"]))
+            if lowered is None
+            else frozenset(),
             min_count=max(mins, default=0),
             max_count=min(maxes, default=None),
         )
@@ -154,12 +190,18 @@ def diff_models(old: Path, new: Path) -> list[Change]:
 
 
 def diff_loaded(old: seams.Model, new: seams.Model) -> list[Change]:
-    """``diff_models`` over two models already loaded with ``load_model``."""
-    return diff_graphs(_union(old), _union(new))
+    """``diff_models`` over two models already loaded with ``load_model``; fields read as their wire values."""
+    return diff_graphs(_union(old), _union(new), _fields(old), _fields(new))
 
 
-def diff_graphs(old_graph: rdflib.Graph, new_graph: rdflib.Graph) -> list[Change]:
-    """Every shape and operation-contract change from OLD_GRAPH to NEW_GRAPH, sorted."""
+def diff_graphs(
+    old_graph: rdflib.Graph,
+    new_graph: rdflib.Graph,
+    old_fields: Fields | None = None,
+    new_fields: Fields | None = None,
+) -> list[Change]:
+    """Every shape and operation-contract change from OLD_GRAPH to NEW_GRAPH, sorted. With each
+    graph's ``fields``, properties match by field name and compare as their wire values."""
     old_shapes, new_shapes = _shapes(old_graph), _shapes(new_graph)
     renames = _renames(new_graph, old_shapes - new_shapes, new_shapes - old_shapes)
     old_ops, new_ops = _operations(old_graph), _operations(new_graph)
@@ -194,16 +236,16 @@ def diff_graphs(old_graph: rdflib.Graph, new_graph: rdflib.Graph) -> list[Change
 
     pairs = [(iri, iri) for iri in old_iris & new_iris] + list(renames.items())
     for old_iri, new_iri in pairs:
-        before = _properties(old_graph, rdflib.URIRef(old_iri))
-        after = _properties(new_graph, rdflib.URIRef(new_iri))
-        for path in sorted(before.keys() - after.keys()):
-            shape_change(BREAKING, "property-removed", new_iri, path)
-        for path in sorted(after.keys() - before.keys()):
-            required = after[path].min_count > 0
-            detail = f"{path} minCount {after[path].min_count}"
+        before = _properties(old_graph, rdflib.URIRef(old_iri), old_fields)
+        after = _properties(new_graph, rdflib.URIRef(new_iri), new_fields)
+        for key in sorted(before.keys() - after.keys()):
+            shape_change(BREAKING, "property-removed", new_iri, before[key].path)
+        for key in sorted(after.keys() - before.keys()):
+            required = after[key].min_count > 0
+            detail = f"{after[key].path} minCount {after[key].min_count}"
             shape_change(BREAKING if required else COMPATIBLE, "property-added", new_iri, detail)
-        for path in sorted(before.keys() & after.keys()):
-            for verdict, kind, detail in _compare_property(path, before[path], after[path]):
+        for key in sorted(before.keys() & after.keys()):
+            for verdict, kind, detail in _compare_property(after[key].path, before[key], after[key]):
                 shape_change(verdict, kind, new_iri, detail)
 
     for op in sorted(old_ops.keys() - new_ops.keys()):

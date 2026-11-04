@@ -25,6 +25,13 @@ From them it renders:
   (``file: ${KEY_FILE:-path}``) and service URLs;
 - for a container that ``deploy:proxies`` another, Caddy's reverse-proxy
   command from its own single port to the target's;
+- SemPKM's services (ADR-0025 section 10): a ``deploy:SemPKM`` store that a
+  contained container reaches through a ``deploy:connectsTo`` or
+  ``deploy:authenticatesTo`` binding, and the containers that store
+  ``arch:dependsOn``, are services too when the arch:System does not
+  ``arch:contains`` them, each from its own facts; nothing about SemPKM is
+  hard-coded. The URL binding renders as an environment entry and the token
+  binding as a secret, as for PostgreSQL;
 - the ``seam:deployedTo`` node's placement constraint, only in the
   environment that ``arch:contains`` the node;
 - the project ``name:``, the arch:System's local name lower-cased, and a
@@ -239,6 +246,8 @@ def extract_compose(model: Model, base_dir, environment) -> ComposeModel:
     if not containers:
         raise GeneratorError(system.iri, ARCH.contains, "the arch:System contains no arch:Container")
 
+    sempkm = _sempkm_containers(containers, env)
+    containers = sorted({*containers, *sempkm}, key=lambda c: str(c.iri))
     executing = _executing(model)
     mounts = _model_mounts(model, base_dir, executing) if executing else ()
     with view_errors():
@@ -249,7 +258,10 @@ def extract_compose(model: Model, base_dir, environment) -> ComposeModel:
     context = _Context(model, Path(base_dir), env, set(containers), healthy, nodes)
     secrets: dict[str, Secret] = {}
     volumes: set[str] = set()
-    services = tuple(_service(context, c, mounts if c in executing else None, secrets, volumes) for c in containers)
+    services = tuple(
+        _service(context, c, mounts if c in executing else None, secrets, volumes, sempkm.get(c, frozenset()))
+        for c in containers
+    )
     return ComposeModel(
         model_stem=model.path.stem,
         model_hash=model_hash,
@@ -275,6 +287,35 @@ class _Context:
     @property
     def development(self) -> bool:
         return local_name(self.environment.iri) == DEVELOPMENT
+
+
+def _sempkm_containers(containers, environment: Environment) -> dict[Container, frozenset[str]]:
+    """SemPKM's containers that the arch:System does not arch:contain
+    (ADR-0025 section 10): each deploy:SemPKM store a contained container
+    is, or reaches through a deploy:connectsTo or deploy:authenticatesTo
+    binding in ``environment``, then each container such a store
+    arch:dependsOn (its triplestore, its frontend). Each maps to the IRIs
+    that bring it in, its further trace origins. Their images, ports,
+    volumes and healthchecks are their own model facts, so a missing
+    deploy:artifact raises as for any container."""
+    contained = set(containers)
+    stores: dict[Container, set[str]] = {}
+    with view_errors():
+        for c in containers:
+            if DEPLOY.SemPKM in c.store_kinds:
+                stores.setdefault(c, set())
+            for b in c.for_environment(environment).bindings:
+                for store in (b.connects_to, b.authenticates_to):
+                    if store is not None and DEPLOY.SemPKM in store.store_kinds:
+                        stores.setdefault(store, set()).add(str(c.iri))
+        added: dict[Container, set[str]] = {}
+        for store, reached_by in stores.items():
+            if store not in contained:
+                added.setdefault(store, set()).update(reached_by)
+            for target in store.depends_on:
+                if target not in contained:
+                    added.setdefault(target, set()).add(str(store.iri))
+    return {c: frozenset(origins) for c, origins in added.items()}
 
 
 def _executing(model: Model):
@@ -332,7 +373,9 @@ def _single_port(c: Container, what: str) -> int:
     return ports[0].container_port
 
 
-def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -> Service:
+def _service(
+    ctx: _Context, c: Container, mounts, secrets: dict, volumes: set, brought_in_by: frozenset[str]
+) -> Service:
     model = ctx.model
     serving = mounts is not None
     with view_errors():
@@ -411,7 +454,7 @@ def _service(ctx: _Context, c: Container, mounts, secrets: dict, volumes: set) -
             ) from err
         placement = _scalar(f"node.labels.seams.node == {node_label}")
 
-    origins = {str(x.iri) for x in (*systems, *executes)}
+    origins = {str(x.iri) for x in (*systems, *executes)} | brought_in_by
     origins |= {str(x.iri) for x in (node if placement else None, proxied) if x is not None}
     return Service(
         iri=str(c.iri),

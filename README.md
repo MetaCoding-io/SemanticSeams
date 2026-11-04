@@ -147,6 +147,10 @@ runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off 
 code depends on, each hashed, with a context hash over them (`--json` for the manifest).
 `seams propose TASK` sends a draft prompt for that task to an LLM command and writes the
 handler only when its acceptance tests pass.
+`seams suggest` asks the same LLM command for a model change, such as moving a gateway's
+inline condition into a DMN decision, checks it in a scratch copy and keeps it pending with
+a diff until `seams suggest --accept ID` writes it
+([ADR-0028](docs/adr/0028-copilot-suggestions.md)).
 The project file, the commands, the lockfile, the action and the hook are described in the
 [seams CLI reference](docs/reference/seams-cli.md).
 

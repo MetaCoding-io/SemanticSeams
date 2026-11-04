@@ -917,6 +917,43 @@ and the context hash. Keep the output beside a hand-written implementation and c
 it after a model change to see which facts moved. `--json` prints the same as JSON. See
 the [seams CLI reference](/reference/seams-cli#seams-context).
 
+## Copilot suggestions (optional)
+
+A gateway whose outgoing conditions compute over a form field, such as
+`amount <= 2000`, keeps a business rule in the BPMN file. `seams suggest` asks an LLM
+command to move that rule into a DMN decision, checks the change, and keeps it pending
+until you accept it ([ADR-0028](/adr/0028-copilot-suggestions)). The provider is the
+same command `seams propose` uses, `[propose] provider` in `seams.toml` or `--provider`:
+
+```sh
+seams suggest --project my-project --provider "my-llm --model some-model"
+```
+
+The LLM only proposes a JSON answer: the gateway, a decision id and name, its inputs,
+its rules and one condition per outgoing flow. Deterministic code turns the answer into
+the change: `dec:Decision` facts shaped like the model's existing decision, a
+business-rule task before the gateway, and conditions over the decision's output
+variable. The change is written into a scratch copy, which must pass the seam shapes,
+the decision checks and every generator. A passing suggestion prints its id, one
+`changed <file>` line per file, `validated pass` and `generated pass`, and is stored in
+`.seams/suggestions/<id>/` (gitignored). A rejected one prints
+`rejected <kind> <subject> <predicate> <detail>` and stores nothing.
+
+Review it before accepting. Each changed file has a unified diff beside
+`suggestion.json`:
+
+```sh
+seams suggest --project my-project --list
+cat my-project/.seams/suggestions/<id>/*.diff
+seams suggest --project my-project --accept <id>
+```
+
+`--accept` takes the id or a unique prefix of it. It refuses a suggestion made for an
+older model (ask again), checks the change once more and writes it through `seams_edit`,
+the TriG files and the payloads together or not at all. Nothing in the model changes
+before that step, and `seams suggest` never runs in CI. The output lines and exit codes
+are in the [seams CLI reference](/reference/seams-cli#seams-suggest).
+
 ## View it
 
 The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your

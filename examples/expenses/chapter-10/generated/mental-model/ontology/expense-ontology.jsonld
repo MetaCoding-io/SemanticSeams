@@ -1,0 +1,16 @@
+{
+  "@graph": [
+    {
+      "@id": "urn:sempkm:model:expense-ontology:expense_ontology",
+      "@type": "http://www.w3.org/2002/07/owl#Ontology",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Expense Ontology",
+      "http://www.w3.org/2002/07/owl#imports": {
+        "@id": "https://w3id.org/semanticarts/ontology/gistCore14.0.0"
+      },
+      "http://www.w3.org/2002/07/owl#versionInfo": "1.0.0",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/expense_ontology/1.0"
+      }
+    }
+  ]
+}

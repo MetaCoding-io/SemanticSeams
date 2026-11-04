@@ -1,0 +1,258 @@
+{
+  "@graph": [
+    {
+      "@id": "urn:sempkm:model:expense-ontology:ApprovalShape",
+      "@type": "http://www.w3.org/ns/shacl#NodeShape",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Approval",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/ApprovalShape"
+      },
+      "http://www.w3.org/ns/shacl#property": [
+        {
+          "http://www.w3.org/ns/shacl#class": {
+            "@id": "https://example.org/expenses/ApprovalOutcome"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "decision",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "0"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/decision"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#maxLength": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "500"
+          },
+          "http://www.w3.org/ns/shacl#name": "comment",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/comment"
+          }
+        }
+      ],
+      "http://www.w3.org/ns/shacl#targetClass": {
+        "@id": "https://example.org/expenses/Approval"
+      }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:ExpenseShape",
+      "@type": "http://www.w3.org/ns/shacl#NodeShape",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Expense",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/ExpenseShape"
+      },
+      "http://www.w3.org/ns/shacl#property": [
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "description",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "0"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/description"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#minInclusive": {
+            "@type": "http://www.w3.org/2001/XMLSchema#decimal",
+            "@value": "0.01"
+          },
+          "http://www.w3.org/ns/shacl#name": "amount",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/amount"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#date"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "date",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "2"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/date"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#class": {
+            "@id": "https://example.org/expenses/ExpenseState"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "status",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "3"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/status"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "id",
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/id"
+          }
+        }
+      ],
+      "http://www.w3.org/ns/shacl#targetClass": {
+        "@id": "https://example.org/expenses/Expense"
+      }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:PaymentShape",
+      "@type": "http://www.w3.org/ns/shacl#NodeShape",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Payment",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/PaymentShape"
+      },
+      "http://www.w3.org/ns/shacl#property": [
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#string"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#maxLength": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "100"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "reference",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "0"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/reference"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#datatype": {
+            "@id": "http://www.w3.org/2001/XMLSchema#date"
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#minCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "paid_on",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/paidOn"
+          }
+        },
+        {
+          "http://www.w3.org/ns/shacl#in": {
+            "@list": [
+              {
+                "@id": "https://example.org/expenses/s_recorded"
+              },
+              {
+                "@id": "https://example.org/expenses/s_scheduled"
+              },
+              {
+                "@id": "https://example.org/expenses/s_batched"
+              },
+              {
+                "@id": "https://example.org/expenses/s_sent"
+              }
+            ]
+          },
+          "http://www.w3.org/ns/shacl#maxCount": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "1"
+          },
+          "http://www.w3.org/ns/shacl#name": "status",
+          "http://www.w3.org/ns/shacl#order": {
+            "@type": "http://www.w3.org/2001/XMLSchema#integer",
+            "@value": "2"
+          },
+          "http://www.w3.org/ns/shacl#path": {
+            "@id": "https://example.org/expenses/status"
+          }
+        }
+      ],
+      "http://www.w3.org/ns/shacl#targetClass": {
+        "@id": "https://example.org/expenses/Payment"
+      }
+    }
+  ]
+}

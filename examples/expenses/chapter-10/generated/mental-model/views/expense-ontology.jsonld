@@ -1,0 +1,74 @@
+{
+  "@graph": [
+    {
+      "@id": "urn:sempkm:model:expense-ontology:awaiting_approval",
+      "@type": "urn:sempkm:vocab:ViewSpec",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Awaiting approval",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/awaiting_approval"
+      },
+      "urn:sempkm:vocab:columns": "description,amount,date,status,id",
+      "urn:sempkm:vocab:rendererType": "table",
+      "urn:sempkm:vocab:sparqlQuery": "SELECT ?s ?description ?amount ?date ?status ?id WHERE { ?s a <https://example.org/expenses/Expense> . OPTIONAL { ?s <https://example.org/expenses/description> ?description } OPTIONAL { ?s <https://example.org/expenses/amount> ?amount } OPTIONAL { ?s <https://example.org/expenses/date> ?date } OPTIONAL { ?s <https://example.org/expenses/status> ?status } OPTIONAL { ?s <https://example.org/expenses/id> ?id } }",
+      "urn:sempkm:vocab:targetClass": {
+        "@id": "https://example.org/expenses/Expense"
+      }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:expense_details",
+      "@type": "urn:sempkm:vocab:ViewSpec",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Expense",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/expense_details"
+      },
+      "urn:sempkm:vocab:columns": "description,amount,date,status,id",
+      "urn:sempkm:vocab:rendererType": "table",
+      "urn:sempkm:vocab:sparqlQuery": "SELECT ?s ?description ?amount ?date ?status ?id WHERE { ?s a <https://example.org/expenses/Expense> . OPTIONAL { ?s <https://example.org/expenses/description> ?description } OPTIONAL { ?s <https://example.org/expenses/amount> ?amount } OPTIONAL { ?s <https://example.org/expenses/date> ?date } OPTIONAL { ?s <https://example.org/expenses/status> ?status } OPTIONAL { ?s <https://example.org/expenses/id> ?id } }",
+      "urn:sempkm:vocab:targetClass": {
+        "@id": "https://example.org/expenses/Expense"
+      }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:expense_list",
+      "@type": "urn:sempkm:vocab:ViewSpec",
+      "http://www.w3.org/2000/01/rdf-schema#label": "My Expenses",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/expense_list"
+      },
+      "urn:sempkm:vocab:columns": "description,amount,date,status,id",
+      "urn:sempkm:vocab:rendererType": "table",
+      "urn:sempkm:vocab:sparqlQuery": "SELECT ?s ?description ?amount ?date ?status ?id WHERE { ?s a <https://example.org/expenses/Expense> . OPTIONAL { ?s <https://example.org/expenses/description> ?description } OPTIONAL { ?s <https://example.org/expenses/amount> ?amount } OPTIONAL { ?s <https://example.org/expenses/date> ?date } OPTIONAL { ?s <https://example.org/expenses/status> ?status } OPTIONAL { ?s <https://example.org/expenses/id> ?id } }",
+      "urn:sempkm:vocab:targetClass": {
+        "@id": "https://example.org/expenses/Expense"
+      }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:paid_expenses",
+      "@type": "urn:sempkm:vocab:ViewSpec",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Expenses",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/paid_expenses"
+      },
+      "urn:sempkm:vocab:columns": "description,amount,date,status,id",
+      "urn:sempkm:vocab:rendererType": "table",
+      "urn:sempkm:vocab:sparqlQuery": "SELECT ?s ?description ?amount ?date ?status ?id WHERE { ?s a <https://example.org/expenses/Expense> . OPTIONAL { ?s <https://example.org/expenses/description> ?description } OPTIONAL { ?s <https://example.org/expenses/amount> ?amount } OPTIONAL { ?s <https://example.org/expenses/date> ?date } OPTIONAL { ?s <https://example.org/expenses/status> ?status } OPTIONAL { ?s <https://example.org/expenses/id> ?id } }",
+      "urn:sempkm:vocab:targetClass": {
+        "@id": "https://example.org/expenses/Expense"
+      }
+    },
+    {
+      "@id": "urn:sempkm:model:expense-ontology:payment_list",
+      "@type": "urn:sempkm:vocab:ViewSpec",
+      "http://www.w3.org/2000/01/rdf-schema#label": "Payments",
+      "http://www.w3.org/ns/prov#wasDerivedFrom": {
+        "@id": "https://example.org/expenses/payment_list"
+      },
+      "urn:sempkm:vocab:columns": "reference,paid_on,status",
+      "urn:sempkm:vocab:rendererType": "table",
+      "urn:sempkm:vocab:sparqlQuery": "SELECT ?s ?reference ?paid_on ?status WHERE { ?s a <https://example.org/expenses/Payment> . OPTIONAL { ?s <https://example.org/expenses/reference> ?reference } OPTIONAL { ?s <https://example.org/expenses/paidOn> ?paid_on } OPTIONAL { ?s <https://example.org/expenses/status> ?status } }",
+      "urn:sempkm:vocab:targetClass": {
+        "@id": "https://example.org/expenses/Payment"
+      }
+    }
+  ]
+}

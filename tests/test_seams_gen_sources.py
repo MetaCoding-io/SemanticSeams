@@ -2,7 +2,9 @@
 
 Every example project with generators is checked: the source file names equal
 the generator's file names, every tuple is non-empty, sorted and unique, and
-every IRI is a subject of the loaded model.
+every IRI is a subject of the loaded model or, for a BPMN element the graph does not
+lift (a gateway flow the acceptance generator's decision tests read), the ADR-0002
+IRI of a flow node or sequence flow in a process's BPMN.
 """
 
 from pathlib import Path
@@ -36,6 +38,16 @@ def test_projects_found():
     assert {Path(f"examples/expenses/chapter-0{n}") for n in range(3, 9)} <= set(PROJECTS)
 
 
+def bpmn_elements(model) -> set[str]:
+    """``<bpmn_model>#<id>`` of every flow node and sequence flow of every process."""
+    found = set()
+    for process in model.processes:
+        for node in process.nodes():
+            found.add(str(node.iri))
+            found.update(str(process.element_iri(f.id)) for f in (*node.incoming, *node.outgoing))
+    return found
+
+
 @pytest.mark.parametrize(("rel", "name"), TARGETS, ids=[f"{rel}:{name}" for rel, name in TARGETS])
 def test_sources_match_generated_files(rel, name):
     project = load_project(ROOT / rel)
@@ -43,7 +55,8 @@ def test_sources_match_generated_files(rel, name):
     (target,) = [t for t in project.generators if t.name == name]
     sources = output_sources(name, model, target.out)
     assert sources.keys() == GENERATORS[name][1](model, target.out).keys()
-    subjects = {str(s) for s in load(model).ds.subjects()}
+    loaded = load(model)
+    subjects = {str(s) for s in loaded.ds.subjects()} | bpmn_elements(loaded)
     for file, iris in sources.items():
         assert iris, file
         assert list(iris) == sorted(set(iris)), file

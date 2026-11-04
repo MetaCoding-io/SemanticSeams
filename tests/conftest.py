@@ -20,6 +20,12 @@ import pytest
 
 from seams_runtime.store import PostgresStore, SQLiteStore
 
+# tests/golden holds golden generator outputs, compared byte for byte by the generator
+# tests. The acceptance golden is named test_*.py because the generated file is, but
+# it is output to compare, not a test of this repository: it only runs inside a
+# project with a seams.toml (examples/expenses/chapter-09/generated/acceptance).
+collect_ignore = ["golden"]
+
 POSTGRES_URL_ENV = "SEAMS_TEST_POSTGRES_URL"
 REQUIRE_POSTGRES_ENV = "SEAMS_REQUIRE_POSTGRES"
 

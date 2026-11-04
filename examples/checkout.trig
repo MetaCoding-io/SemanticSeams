@@ -6,6 +6,7 @@
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
 @prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 @prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
@@ -309,4 +310,21 @@
 
     # Authorization
     :customer_policy a odrl:Policy ; rdfs:label "Customers may submit their own orders" .
+}
+
+#################################################################
+# Manifest graph: the vocabulary versions the model is written for
+#################################################################
+
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/deploy/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/proc/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/state/1.0> .
 }

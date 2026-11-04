@@ -12,14 +12,15 @@ into named graphs. Start with the prefixes:
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
 @prefix seam:   <https://w3id.org/seams/seam#> .
 @prefix arch:   <https://w3id.org/seams/arch#> .
 @prefix :       <https://example.org/expenses/> .
 ```
 
 `seam:` is the vocabulary that ties models together, `arch:` is the architecture layer's
-vocabulary, and `:` is your app's own namespace. `xsd:` and `sh:` are not used yet;
-chapter 2 needs them.
+vocabulary, and `:` is your app's own namespace. `owl:` is for the version declaration at
+the end of the file. `xsd:` and `sh:` are not used yet; chapter 2 needs them.
 
 ## The architecture model
 
@@ -69,6 +70,27 @@ notation.
 `seam:notation` tells the viewer how to draw a model. Every `seam:Model` must have exactly
 one; you will see what happens when one is missing in chapter 2. The viewer's root opens
 the model whose notation is `seam:C4`.
+
+## The vocabulary versions
+
+Each vocabulary has a version, and the vocabularies change over time. The last graph in
+the file, the manifest graph, says which version of each one the model is written for. It
+imports the version of every vocabulary the model uses, here `arch:` and `seam:` at 1.0:
+
+```trig
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> .
+}
+```
+
+When a later version of a vocabulary renames or removes a term, the tools migrate a model
+that targets the older version as they load it, and `seams migrate` writes the migration
+into your file. A model with no declaration for a vocabulary targets its 1.0.
+[Authoring a model](/guide/authoring-a-model#vocabulary-versions) has the details.
 
 ## View it
 

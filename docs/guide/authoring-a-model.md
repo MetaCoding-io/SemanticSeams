@@ -17,6 +17,7 @@ viewer loads, and [`examples/checkout.trig`](../../examples/checkout.trig).
 |---|---|
 | `<urn:seams:graph:model:{id}>`, one per model | The layer-internal triples of one diagram: its elements, their labels, and the layer's own predicates (`arch:contains`, `ifml:hasEvent`, `state:from` and so on). |
 | `<urn:seams:graph:seams>` | Every cross-layer edge: all `seam:` predicates except `seam:inModel`, including `seam:notation` and `seam:renderPayload`. |
+| `<urn:seams:graph:manifest>` | Facts about the model's files: the vocabulary versions the model is written for ([below](#vocabulary-versions)). |
 
 Keeping the seams in one graph makes "show me every cross-layer connection" a
 single-graph query and lets the seams be audited on their own. The test suite enforces
@@ -473,13 +474,59 @@ the path's user tasks, in order, up to what it expects. Put `coverage = ["paths"
 the two `docs/queries/coverage/` gates in `seams.toml` to make `seams check` fail on a
 gap.
 
+## Vocabulary versions
+
+Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
+(`<https://w3id.org/seams/seam/1.0>`). A model says which versions it is written for in
+the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
+version IRI of each SemanticSeams vocabulary the model uses
+([ADR-0021](/adr/0021-vocabulary-versions)):
+
+```trig
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<urn:seams:graph:manifest> {
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> .
+}
+```
+
+Every example and tutorial checkpoint declares its versions this way, and a test checks
+that each one imports exactly the vocabularies it uses. `dec:`, `hydra:`, `odrl:` and other
+namespaces that have no file in `ontology/` are not declared. The rules:
+
+- **No declaration means 1.0.** A model written before versions existed, or one that
+  leaves a vocabulary out, targets that vocabulary's 1.0.
+- **Declarations agree.** In a directory model several files may declare, but two
+  versions of one vocabulary are an error, and so is a version that was never
+  published (`seam/1.7`).
+- **Same, newer, older.** Every tool loads through `seams.load`, which compares each
+  declared version with the shipped one. The same major (and a minor no higher than the
+  shipped one) loads as written. A newer version is refused:
+  `targets seam 2.1; this tool supports seam up to 2.0`. An older major is migrated in
+  memory with the SPARQL Update steps in `ontology/migrations/<vocabulary>/`, so the
+  viewer, the generators and the runtime all see the current terms, and
+  [`seams check`](/reference/seams-cli#seams-check) prints a `vocabulary-migrated`
+  warning per step.
+- **`seams migrate` writes the migration.** It applies the same steps to your files as
+  one patch through the editor's write path, comments and layout kept, and rewrites the
+  declaration to the shipped versions. Run it, review the diff and commit it; a second
+  run does nothing. See [`seams migrate`](/reference/seams-cli#seams-migrate).
+- **Deprecated terms warn.** A term marked `owl:deprecated` in its vocabulary has an
+  `sh:Warning` shape: `seams check`, generation and the viewer's health panel list its
+  uses as warnings and never fail on them. Replace the term before the major that
+  removes it.
+
 ## A skeleton
 
 Two models, an architecture with one container and the interface that container
-presents, and the seams graph joining them:
+presents, the seams graph joining them, and the manifest graph naming the vocabulary
+versions:
 
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix seam: <https://w3id.org/seams/seam#> .
 @prefix arch: <https://w3id.org/seams/arch#> .
 @prefix ifml: <https://w3id.org/seams/ifml#> .
@@ -509,6 +556,13 @@ presents, and the seams graph joining them:
 
     :notes_architecture seam:notation seam:C4 .
     :notes_ifml seam:notation seam:IFML .
+}
+
+<urn:seams:graph:manifest> {
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> .
 }
 ```
 

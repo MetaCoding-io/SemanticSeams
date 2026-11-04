@@ -7,7 +7,9 @@ an older one in memory with ontology/migrations/<name>/<from>-to-<to>.ru.
 
 Every shipped vocabulary is at 1.0, so the older and newer paths run against the
 fixture tree tests/fixtures/vocab-v2 (D060): seam at 2.0, whose 1-to-2.ru renames
-seam:inModel to seam:partOfModel, loaded over the real expense chapter-01 checkpoint.
+seam:inModel to seam:partOfModel, loaded over the real expense chapter-01 checkpoint,
+which declares seam 1.0 and arch 1.0. Tests that need a model written before S02, with
+no declaration, take the checkpoint with its manifest graph removed.
 """
 
 import re
@@ -28,6 +30,19 @@ ARCHITECTURE_GRAPH = URIRef("urn:seams:graph:model:expense_architecture")
 PART_OF_MODEL = URIRef("https://w3id.org/seams/seam#partOfModel")
 SEAM_V1 = URIRef("https://w3id.org/seams/seam/1.0")
 SEAM_V2 = URIRef("https://w3id.org/seams/seam/2.0")
+ARCH_V1 = "https://w3id.org/seams/arch/1.0"
+EXAMPLES = sorted(
+    [ROOT / "examples" / "chat-app" / "chat-app.trig", ROOT / "examples" / "checkout.trig"]
+    + list((ROOT / "examples" / "expenses").glob("chapter-*/expenses.trig"))
+)
+MANIFEST_BLOCK = re.compile(r"\n#+\n# Manifest graph[^\n]*\n#+\n\n<urn:seams:graph:manifest> \{.*?\n\}\n", re.S)
+
+
+def undeclared(trig: Path) -> str:
+    """``trig``'s text without its manifest graph: the model as written before S02."""
+    text, removed = MANIFEST_BLOCK.subn("", trig.read_text(encoding="utf-8"))
+    assert removed == 1, f"{trig} has no manifest graph block"
+    return text
 
 
 def manifest(*imports: str) -> str:
@@ -41,11 +56,12 @@ def manifest(*imports: str) -> str:
 
 
 def chapter_01(tmp_path: Path, *imports: str) -> Path:
-    """chapter-01's TriG in tmp_path, with a manifest graph declaring ``imports``."""
+    """chapter-01's TriG in tmp_path, its own declaration replaced by a manifest graph
+    declaring ``imports`` (none: no manifest graph at all)."""
     model = tmp_path / "model"
     model.mkdir()
     trig = model / "expenses.trig"
-    trig.write_text(CHAPTER_01_TRIG.read_text(encoding="utf-8") + (manifest(*imports) if imports else ""))
+    trig.write_text(undeclared(CHAPTER_01_TRIG) + (manifest(*imports) if imports else ""))
     return trig
 
 
@@ -100,10 +116,37 @@ def test_a_vocabulary_without_a_version_iri_is_refused(tmp_path: Path) -> None:
 # ── same ──
 
 
-def test_an_undeclared_model_loads_as_written_against_the_shipped_vocabularies() -> None:
+def test_an_undeclared_model_loads_as_written_against_the_shipped_vocabularies(tmp_path: Path) -> None:
+    trig = chapter_01(tmp_path)
+    model = seams.load(trig)
+    assert model.migrations == ()
+    assert quads(model) == quads(seams.load(trig, check_versions=False))
+
+
+def test_the_checkpoint_declares_the_shipped_versions_and_loads_as_written() -> None:
     model = seams.load(CHAPTER_01)
     assert model.migrations == ()
+    assert declarations(model) == [ARCH_V1, str(SEAM_V1)]
     assert quads(model) == quads(seams.load(CHAPTER_01, check_versions=False))
+
+
+@pytest.mark.parametrize("trig", EXAMPLES, ids=lambda p: str(p.relative_to(ROOT)))
+def test_every_example_declares_each_vocabulary_it_uses_at_the_shipped_version(trig: Path) -> None:
+    shipped = seams.shipped_versions(ONTOLOGY)
+    ds = Dataset()
+    ds.parse(trig, format="trig")
+    used = {
+        str(term).removeprefix("https://w3id.org/seams/").split("#")[0]
+        for *triple, graph in ds.quads((None, None, None, None))
+        if graph != MANIFEST_GRAPH
+        for term in triple
+        if isinstance(term, URIRef) and str(term).startswith("https://w3id.org/seams/")
+    }
+    expected = sorted(
+        f"https://w3id.org/seams/{name}/{major}.{minor}" for name, (major, minor) in shipped.items() if name in used
+    )
+    assert sorted(str(o) for o in ds.graph(MANIFEST_GRAPH).objects(MANIFEST_GRAPH, OWL.imports)) == expected
+    assert (MANIFEST_GRAPH, RDF.type, OWL.Ontology) in ds.graph(MANIFEST_GRAPH)
 
 
 def test_a_model_declaring_the_tool_version_loads_as_written(tmp_path: Path) -> None:
@@ -142,19 +185,19 @@ def test_an_older_model_is_migrated_in_memory() -> None:
     # Each renamed triple stays in the named graph it was written in.
     assert [(s, o, g) for s, _p, o, g in renamed] == [(s, o, g) for s, _p, o, g in original]
     assert {g for *_t, g in renamed} == {ARCHITECTURE_GRAPH}
-    # The declaration moves to the tool's version.
-    assert declarations(model) == [str(SEAM_V2)]
-    assert (MANIFEST_GRAPH, RDF.type, OWL.Ontology) in model.ds.graph(MANIFEST_GRAPH)
+    # The declaration moves to the tool's version; arch is current and stays.
+    assert declarations(model) == [ARCH_V1, str(SEAM_V2)]
     # Nothing else changes, and the files on disk are untouched.
-    untouched = {q for q in quads(as_written) if q[1] != str(SEAM.inModel)}
+    untouched = {q for q in quads(as_written) if q[1] != str(SEAM.inModel) and q[2] != str(SEAM_V1)}
     assert untouched <= set(quads(model))
     assert model.hash == as_written.hash
 
 
-def test_a_declared_older_version_is_replaced(tmp_path: Path) -> None:
-    model = seams.load(chapter_01(tmp_path, str(SEAM_V1), "https://w3id.org/seams/arch/1.0"), ontology_dir=FIXTURE)
+def test_an_undeclared_model_is_migrated_and_gains_the_declaration(tmp_path: Path) -> None:
+    model = seams.load(chapter_01(tmp_path), ontology_dir=FIXTURE)
     assert model.migrations == (MigrationStep("seam", "1.0", "2.0"),)
-    assert declarations(model) == ["https://w3id.org/seams/arch/1.0", str(SEAM_V2)]
+    assert declarations(model) == [str(SEAM_V2)]
+    assert (MANIFEST_GRAPH, RDF.type, OWL.Ontology) in model.ds.graph(MANIFEST_GRAPH)
 
 
 def test_the_same_model_migrates_to_the_same_quads() -> None:
@@ -174,7 +217,7 @@ def test_steps_run_in_ascending_order(tmp_path: Path) -> None:
     model = seams.load(CHAPTER_01, ontology_dir=vocab)
     assert model.migrations == (MigrationStep("seam", "1.0", "2.0"), MigrationStep("seam", "2.0", "3.1"))
     assert len(list(model.ds.quads((None, SEAM.memberOf, None, ARCHITECTURE_GRAPH)))) == 3
-    assert declarations(model) == ["https://w3id.org/seams/seam/3.1"]
+    assert declarations(model) == [ARCH_V1, "https://w3id.org/seams/seam/3.1"]
 
 
 def test_check_versions_off_keeps_the_model_as_written() -> None:
@@ -218,7 +261,7 @@ def test_an_unpublished_version_is_refused(tmp_path: Path, iri: str) -> None:
 def test_disagreeing_declarations_are_refused(tmp_path: Path) -> None:
     model = tmp_path / "model"
     model.mkdir()
-    shutil.copy(CHAPTER_01_TRIG, model / "a.trig")
+    (model / "a.trig").write_text(undeclared(CHAPTER_01_TRIG))
     (model / "b.trig").write_text(manifest(str(SEAM_V1)))
     (model / "c.trig").write_text(manifest(str(SEAM_V2)))
     with pytest.raises(ResolutionError) as err:
@@ -229,7 +272,7 @@ def test_disagreeing_declarations_are_refused(tmp_path: Path) -> None:
 def test_agreeing_declarations_in_a_directory_model_load(tmp_path: Path) -> None:
     model = tmp_path / "model"
     model.mkdir()
-    shutil.copy(CHAPTER_01_TRIG, model / "a.trig")
+    (model / "a.trig").write_text(undeclared(CHAPTER_01_TRIG))
     (model / "b.trig").write_text(manifest(str(SEAM_V2)))
     (model / "c.trig").write_text(manifest(str(SEAM_V2)))
     assert seams.load(model, ontology_dir=FIXTURE).migrations == ()

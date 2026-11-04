@@ -1,6 +1,7 @@
 # TriG model of an LLM chat application with named-graph partitioning per ADR-0001.
 # Each seam:Model gets its own named graph; cross-layer seam predicates live in
-# the dedicated seams graph. Ontology graphs are loaded separately from .ttl files.
+# the dedicated seams graph. Ontology graphs are loaded separately from .ttl files;
+# the manifest graph at the end names the vocabulary versions this file targets.
 #
 # 5 pillars modeled:
 #   1. Data shapes     — MessageShape, ConversationShape (SHACL)
@@ -13,6 +14,7 @@
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
 @prefix dash:   <http://datashapes.org/dash#> .
 @prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
@@ -495,4 +497,21 @@
                           odrl:action odrl:use ;
                           odrl:assignee :authenticated_user ] .
     :authenticated_user a odrl:PartyCollection ; rdfs:label "Authenticated users" .
+}
+
+#################################################################
+# Manifest graph: the vocabulary versions the model is written for
+#################################################################
+
+<urn:seams:graph:manifest> {
+
+    # One owl:imports per vocabulary the model uses (ADR-0021).
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/arch/1.0> ,
+                    <https://w3id.org/seams/comm/1.0> ,
+                    <https://w3id.org/seams/deploy/1.0> ,
+                    <https://w3id.org/seams/ifml/1.0> ,
+                    <https://w3id.org/seams/proc/1.0> ,
+                    <https://w3id.org/seams/seam/1.0> ,
+                    <https://w3id.org/seams/state/1.0> .
 }

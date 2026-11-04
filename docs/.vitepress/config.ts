@@ -50,6 +50,7 @@ const decisions = [
   ["0021", "Vocabulary versions", "0021-vocabulary-versions"],
   ["0022", "Ontology notation", "0022-ontology-notation"],
   ["0023", "Shapes target classes", "0023-shapes-target-classes"],
+  ["0024", "JSON-LD context", "0024-json-ld-context"],
 ] as const;
 
 export default defineConfig({

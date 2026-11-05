@@ -33,8 +33,9 @@ existing file for writing, and it is not a ``GENERATORS`` entry, so neither
   ``sha256:`` over their sorted hashes (each followed by a newline) when
   several do, and no line when none does.
 - ``render_module`` renders one module through templates/handler_stub.py.j2:
-  the generated-once header with the model and context hashes, the typing
-  import and the classes, then per function the signature
+  the generated-once header with the model and context hashes, the imports
+  (``from decimal import Decimal`` only when a field is ``xsd:decimal``, then
+  the typing names) and the classes, then per function the signature
   ``def <fn>(entity: <Accepts>) -> <Returns>`` (``dict`` for an operation
   with no ``seam:acceptsShape``, ``None`` for one with no
   ``seam:returnsShape``, unions when the operations differ), a docstring
@@ -148,6 +149,7 @@ class StubModule:
     functions: tuple[StubFunction, ...]  # sorted by name; () for a bare package __init__.py
     classes: tuple[StubClass, ...] = ()  # sorted by name
     typing_import: str = ""  # the names imported from typing, "" when there are no classes
+    decimal_import: bool = False  # a field is a Decimal (xsd:decimal), so the module imports it
 
 
 @dataclass(frozen=True)
@@ -170,13 +172,14 @@ class StubPlan:
 PYTHON_TYPES = {
     XSD.string: "str",
     XSD.integer: "int",
-    XSD.decimal: "float",
+    XSD.decimal: "Decimal",
     XSD.double: "float",
     XSD.boolean: "bool",
     XSD.date: "str",
     XSD.dateTime: "str",
 }
 OBJECT_TYPE = "str"
+DECIMAL = PYTHON_TYPES[XSD.decimal]  # imported from decimal when a field uses it
 
 
 def _module_file(module: str, packages: set[str]) -> str:
@@ -375,9 +378,10 @@ def _module(path: str, header: tuple[str, ...], functions: list[StubFunction], c
             raise GeneratorError(c.iri, RDF.type, f"the shape's local name is also a function of {path}")
     imports = ["NotRequired"] if any(f.annotation.startswith("NotRequired[") for c in own for f in c.fields) else []
     imports += ["TypedDict"] if own else []
+    decimal = any(f.annotation in (DECIMAL, f"NotRequired[{DECIMAL}]") for c in own for f in c.fields)
     hashed = context_hash(fns)
     lines = header + ((f"# context-hash: {hashed}",) if hashed is not None else ())
-    return StubModule(path, lines, fns, tuple(own), ", ".join(imports))
+    return StubModule(path, lines, fns, tuple(own), ", ".join(imports), decimal)
 
 
 def extract_stubs(model: ModelGraph) -> StubsModel:

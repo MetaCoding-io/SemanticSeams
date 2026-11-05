@@ -161,6 +161,7 @@ it, and a body that raises:
 # model-hash: sha256:a13fe61ea9f61e671cb3b5354897b972dc00f09a5840cb1da1df3546d7c9c970
 # context-hash: sha256:622fb3abfd7cab3b12cc6bc41d4a34acb84b57e64cb166e961c5511aee9327de
 
+from decimal import Decimal
 from typing import NotRequired, TypedDict
 
 
@@ -168,7 +169,7 @@ class ExpenseShape(TypedDict):
     """:ExpenseShape (sh:NodeShape): one key per sh:property."""
 
     description: str
-    amount: float
+    amount: Decimal
     date: str
     status: NotRequired[str]
     id: NotRequired[str]
@@ -193,7 +194,8 @@ def notify_manager(entity: ExpenseShape) -> NotificationShape:
     raise NotImplementedError("notify.notify_manager: write the handler for :notify_manager_op")
 ```
 
-The class fields come from the shapes: `xsd:decimal` becomes `float`, `xsd:date` becomes
+The class fields come from the shapes: `xsd:decimal` becomes `Decimal` (imported from
+`decimal`, so an amount stays exact), `xsd:date` becomes
 `str`, and a property with no `sh:minCount` is `NotRequired`. The notify task fires no
 transition, so there is no `Fires` line. The `.trace.json` sidecar maps each line of the
 stub to the model IRIs behind it, for the generation view.

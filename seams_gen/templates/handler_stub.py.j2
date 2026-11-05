@@ -3,6 +3,9 @@
 [% endfor %]
 [% if module.typing_import %]
 
+[% if module.decimal_import %]
+from decimal import Decimal
+[% endif %]
 from typing import [[ module.typing_import ]]
 [% endif %]
 [% for cls in module.classes %]

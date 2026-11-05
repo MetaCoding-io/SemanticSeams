@@ -214,13 +214,13 @@ def test_an_expenses_stub_is_typed_from_its_shapes(tmp_path, capsys):
     assert (code, err) == (0, "")
     text = (trig.parent / "handlers" / "notify.py").read_text(encoding="utf-8")
     # One TypedDict per accepted and returned shape, keys in sh:order, then path IRI.
-    assert "from typing import NotRequired, TypedDict\n" in text
+    assert "\nfrom decimal import Decimal\nfrom typing import NotRequired, TypedDict\n" in text
     assert (
         "class ExpenseShape(TypedDict):\n"
         '    """:ExpenseShape (sh:NodeShape): one key per sh:property."""\n'
         "\n"
         "    description: str\n"
-        "    amount: float\n"
+        "    amount: Decimal\n"
         "    date: str\n"
         "    status: NotRequired[str]\n"
         "    id: NotRequired[str]\n"
@@ -319,7 +319,7 @@ def test_the_sidecar_cites_shapes_and_operations_on_the_signature_and_fields(tmp
     )
     assert terms["class ExpenseShape(TypedDict):"] == [expense, op]
     # A field cites its sh:path, its shape and the operation that uses the shape.
-    assert terms["    amount: float"] == [expense, f"{EXPENSES}amount", op]
+    assert terms["    amount: Decimal"] == [expense, f"{EXPENSES}amount", op]
     assert terms["    recipient: str"] == [notification, op, f"{EXPENSES}recipient"]
     assert terms["    entity: the current :ExpenseShape entity (seam:acceptsShape)."] == [expense, op]
 
@@ -436,6 +436,27 @@ def test_an_unmapped_datatype_exits_2_and_writes_nothing(tmp_path, capsys):
     assert err.startswith(f"python -m seams_gen.stubs: {CHAT}LinkShape: http://www.w3.org/ns/shacl#datatype: ")
     assert ":href: no Python type for http://www.w3.org/2001/XMLSchema#anyURI" in err
     assert not (trig.parent / "handlers").exists()
+
+
+def test_only_a_module_with_a_decimal_key_imports_decimal(tmp_path, capsys):
+    trig = chat_model(
+        tmp_path,
+        NOTIFY,
+        '    :PriceShape a sh:NodeShape ; rdfs:label "Price" ;\n'
+        "        sh:property [ sh:path :cost ; sh:datatype xsd:decimal ] .\n"
+        '    :price_op a hydra:Operation ; rdfs:label "price" ; seam:acceptsShape :PriceShape ;\n'
+        "        seam:implementedBy :price_impl .\n"
+        '    :price_impl a comm:PythonHandler ; rdfs:label "price handler" ; comm:handler "prices.quote" .',
+    )
+    code, _, err = stubs(capsys, trig)
+    assert (code, err) == (0, "")
+    handlers = trig.parent / "handlers"
+    # An optional xsd:decimal key is NotRequired[Decimal] and still imports Decimal, stdlib order.
+    prices = (handlers / "prices.py").read_text(encoding="utf-8")
+    assert "\nfrom decimal import Decimal\nfrom typing import NotRequired, TypedDict\n" in prices
+    assert "    cost: NotRequired[Decimal]\n" in prices
+    # MessageShape has no xsd:decimal key: no decimal import.
+    assert "decimal" not in (handlers / "notify.py").read_text(encoding="utf-8")
 
 
 def test_a_keyword_shape_name_is_a_shape_violation(tmp_path):

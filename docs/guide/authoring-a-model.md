@@ -306,7 +306,8 @@ in `seams.toml` and it writes `generated/<route module>.Dockerfile` (here
 `expense_api.Dockerfile`) from the container's development `deploy:build`, with the app
 directory, route module and seed data as literal paths and the model hash and container
 IRI as image labels. Point the development `deploy:dockerfile` at that file, relative to
-the context; compose passes no build args.
+the context; compose passes no build args. If it is missing or names another file,
+`seams generate` and `seams check` fail with a `GeneratorError` on `deploy:dockerfile`.
 
 Production names images by `deploy:reference` and `deploy:version`. The gated
 `.github/workflows/publish-images.yml` workflow builds each project's generated

@@ -21,12 +21,16 @@ Every path is written literally; the file has no ARG. A model without a
 serving container raises ``GeneratorError(model, seam:executes)``, a serving
 container without a development deploy:artifact or deploy:build raises it on
 the container with that predicate, and a build context that does not hold
-the model's directory raises it with deploy:context.
+the model's directory raises it with deploy:context. A deploy:dockerfile that
+does not name the file this generator writes (compared as normalised posix
+paths), or a deploy:build without one, raises it with deploy:dockerfile:
+compose would build the image from another file (backlog A11).
 """
 
 from __future__ import annotations
 
 import os
+import posixpath
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -86,6 +90,14 @@ def extract_dockerfile(model: Model) -> DockerfileModel:
         )
     name = dockerfile_name(container.iri)
     dockerfile = f"{app_dir}/generated/{name}"
+    stated = artifact.build.dockerfile
+    if stated is None or posixpath.normpath(stated) != posixpath.normpath(dockerfile):
+        raise GeneratorError(
+            container.iri,
+            DEPLOY.dockerfile,
+            f"the {env.iri} deploy:build states {stated!r}; it must name the generated Dockerfile, "
+            f"{posixpath.normpath(dockerfile)!r} relative to the build context",
+        )
     return DockerfileModel(
         model_stem=model.path.stem,
         model_hash=model_hash,

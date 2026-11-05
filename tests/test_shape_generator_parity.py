@@ -1131,6 +1131,12 @@ GENERATOR_ONLY: dict[Site, str] = {
         "Whether the build context holds the model's directory depends on resolving the deploy:context path "
         "against the model file's location on disk, not on the graph; backlog A11 covers the build paths."
     ),
+    Site("dockerfile", "extract_dockerfile", "DEPLOY.dockerfile"): (
+        "The file the generator writes, <app dir>/generated/<route module>.Dockerfile, is relative to the "
+        "deploy:context resolved against the model file's location on disk, not to anything in the graph; a "
+        "deploy:build without a deploy:dockerfile is valid for a container whose image is built by hand "
+        "(backlog A11)."
+    ),
     Site("fastapi", "_contexts", "SH.targetClass"): (
         "A route path or handler name equal to /contexts/<shape>.jsonld or <shape name>_context is valid for "
         "every other generator; only the fastapi generator also routes a target-classed shape's JSON-LD "

@@ -126,3 +126,36 @@ def test_the_model_builds_the_committed_generated_dockerfile(trig):
     committed = context / d.dockerfile
     assert committed.is_file()
     assert committed.read_text(encoding="utf-8") == generate_dockerfiles(trig)[committed.name]
+
+
+STATED = 'deploy:dockerfile "examples/chat-app/generated/chat_api.Dockerfile"'
+
+
+def test_a_stale_deploy_dockerfile_names_it(tmp_path):
+    trig = _chat_copy(tmp_path, STATED, 'deploy:dockerfile "examples/chat-app/generated/old_api.Dockerfile"')
+    with pytest.raises(GeneratorError) as err:
+        extract_dockerfile(load(trig))
+    assert err.value.subject == "https://example.org/chat/chat_api"
+    assert err.value.predicate == DEPLOY + "dockerfile"
+    assert "'examples/chat-app/generated/old_api.Dockerfile'" in str(err.value)
+    assert "'examples/chat-app/generated/chat_api.Dockerfile'" in str(err.value)
+
+
+def test_a_build_without_a_deploy_dockerfile_names_it(tmp_path):
+    trig = _chat_copy(tmp_path, " ;\n                                             " + STATED, "")
+    with pytest.raises(GeneratorError) as err:
+        extract_dockerfile(load(trig))
+    assert err.value.subject == "https://example.org/chat/chat_api"
+    assert err.value.predicate == DEPLOY + "dockerfile"
+    assert "states None" in str(err.value)
+
+
+def test_an_equivalent_deploy_dockerfile_path_is_accepted(tmp_path):
+    trig = _chat_copy(tmp_path, STATED, 'deploy:dockerfile "./examples/chat-app/generated/chat_api.Dockerfile"')
+    assert extract_dockerfile(load(trig)).dockerfile == "examples/chat-app/generated/chat_api.Dockerfile"
+
+
+@pytest.mark.parametrize("chapter", ["chapter-08", "chapter-09", "chapter-10"])
+def test_each_expenses_build_names_the_generated_dockerfile(chapter):
+    d = extract_dockerfile(load(ROOT / "examples" / "expenses" / chapter / "expenses.trig"))
+    assert d.dockerfile == f"examples/expenses/{chapter}/generated/expense_api.Dockerfile"

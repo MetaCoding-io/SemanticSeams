@@ -21,7 +21,8 @@ import seams
 from seams_cli import Finding, load_project, run_check
 from seams_cli.__main__ import main
 from seams_cli.check import ADVISORY_KINDS, check_drafts, check_ontology, check_review
-from seams_cli.lockfile import Draft, read_lock, render_lock, with_draft
+from seams_cli.generate import generate_project
+from seams_cli.lockfile import Draft, Fault, read_lock, render_lock, with_draft
 from seams_cli.project import resolve_model
 from seams_cli.propose import build_prompt
 
@@ -589,3 +590,27 @@ def test_a_path_positional_and_its_flag_is_a_usage_error(app, capsys, argv, mess
         main(["check", str(path), *argv])
     assert exc.value.code == 2
     assert f"check: {message}" in capsys.readouterr().err
+
+
+def test_a_stale_deploy_dockerfile_fails_the_check(tmp_path, capsys):
+    """Backlog A11: a deploy:dockerfile naming a file the dockerfile generator does not write. Lenient
+    generation collects the fault, so the check reports the lock it would write as out of date."""
+    app = _chapter_9(tmp_path)
+    model = app / "expenses.trig"
+    stated = 'deploy:dockerfile "examples/expenses/chapter-09/generated/expense_api.Dockerfile"'
+    text = model.read_text(encoding="utf-8")
+    assert text.count(stated) == 1
+    model.write_text(text.replace(stated, 'deploy:dockerfile "docker/runtime.Dockerfile"'), encoding="utf-8")
+    code, lines, _err = _check(app, capsys)
+    assert code == 1
+    assert f"lock-out-of-date {app / LOCK}" in lines
+    faults = generate_project(load_project(app), model, lenient=True).faults
+    assert [f for f in faults if f.generator == "dockerfile"] == [
+        Fault(
+            "dockerfile",
+            "https://w3id.org/seams/deploy#dockerfile",
+            f"{EX}expense_api",
+            f"the {EX}development deploy:build states 'docker/runtime.Dockerfile'; it must name the generated "
+            "Dockerfile, 'examples/expenses/chapter-09/generated/expense_api.Dockerfile' relative to the build context",
+        )
+    ]

@@ -20,6 +20,11 @@ is an "unknown-field" violation, not silently dropped. A field the payload
 omits takes its property's ``sh:defaultValue``, if it has one, before
 validation; nothing else is filled in.
 
+``handler_values`` prepares an entity for a Python handler: each
+``xsd:decimal`` value becomes a ``decimal.Decimal``, as the handler stub
+types it. A ``Decimal`` in a payload (what such a handler returns) is
+normalised back to its plain lexical form, so stored state stays JSON.
+
 ``problem_body`` builds and validates the RFC 9457 problem+json body of an
 error an operation declares (ADR-0013): ``title`` from the status's
 rdfs:label, ``status`` from its hydra:statusCode, ``detail`` and extension
@@ -33,6 +38,7 @@ import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 
 from pyshacl import validate as _shacl_validate
 from rdflib import RDF, RDFS, BNode, Graph, Literal, URIRef
@@ -190,6 +196,8 @@ def _items(payload) -> list[tuple[str, object]]:
 
 
 def _well_formed(value, datatype) -> bool:
+    if isinstance(value, Decimal):
+        return value.is_finite()  # xsd:decimal has no NaN or infinity
     check = _LEXICAL.get(datatype)
     if check is None or not isinstance(value, str):
         return True
@@ -260,8 +268,36 @@ def to_rdf(model: ModelGraph, shape, payload: Mapping, focus=None, operation=Non
         path, datatype = contract.fields[key]
         for v in value if isinstance(value, list) else [value]:
             g.add((focus, path, _literal(v, datatype)))
-        normalised[key] = value
+        normalised[key] = [_stored(v) for v in value] if isinstance(value, list) else _stored(value)
     return g, focus, normalised
+
+
+def _stored(value):
+    """A Decimal (a handler's xsd:decimal) is kept as its plain lexical form,
+    so instance state stays JSON (``handler_values`` turns it back)."""
+    return format(value, "f") if isinstance(value, Decimal) else value
+
+
+def handler_values(model: ModelGraph, shape, data: Mapping) -> dict:
+    """``data`` of ``shape`` as a Python handler gets it: each value of an
+    xsd:decimal field becomes a ``decimal.Decimal`` (element-wise for a
+    list), so a handler stub's ``Decimal`` annotation holds at run time.
+    Values of other fields, and booleans, are passed as they are. HTTP and
+    LLM bodies stay JSON and never go through this."""
+    contract = shape_contract(model, shape)
+    out = dict(data)
+    for key, value in out.items():
+        field = contract.fields.get(key)
+        if field is None or field[1] != XSD.decimal:
+            continue
+        out[key] = [_decimal_value(v) for v in value] if isinstance(value, list) else _decimal_value(value)
+    return out
+
+
+def _decimal_value(value):
+    if isinstance(value, bool) or isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
 
 
 def _results(results: Graph, shape: URIRef, names: dict) -> list[dict]:

@@ -731,7 +731,7 @@ def handler_result(
     ``OperationError`` whose code is one of the operation's
     hydra:possibleStatus, with a problem body that conforms to the
     status's error shape."""
-    from .contracts import problem_body, validate
+    from .contracts import handler_values, problem_body, validate
     from .errors import OperationError, RuntimeModelError
 
     op = model.operations.by_iri(URIRef(operation))
@@ -749,6 +749,7 @@ def handler_result(
         return Check(False, f"{what}: {err}")
     if model.has_lifecycle(accepts.iri):
         entity.pop("status", None)
+    entity = handler_values(model, accepts.iri, entity)
     try:
         result = _call(target, entity)
     except OperationError as err:

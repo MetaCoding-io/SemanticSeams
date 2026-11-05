@@ -120,7 +120,7 @@ from urllib.parse import quote
 from rdflib import URIRef
 from SpiffWorkflow.util.task import TaskState
 
-from .contracts import problem_body, validate
+from .contracts import handler_values, problem_body, validate
 from .engine import Engine
 from .errors import MODEL_MEMBERS, OperationError, ResolutionError, RuntimeModelError
 from .handlers import EndpointClient, EndpointError, HandlerError
@@ -522,7 +522,8 @@ class Worker:
 
     async def _invoke_python(self, instance: Instance, op, handler: str, target) -> None:
         st = instance.state
-        entity = self._entity(op, self._accepted(st, op))
+        # an xsd:decimal field reaches the handler as a Decimal, as its stub says
+        entity = handler_values(self.model, self.model.accepted_shape(op), self._entity(op, self._accepted(st, op)))
         log.info("instance %s: calling handler %s for %s", instance.id, handler, op)
         try:
             if inspect.iscoroutinefunction(target):

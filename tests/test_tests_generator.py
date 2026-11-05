@@ -33,6 +33,7 @@ from test_verify_vocabulary import SEAMSH, ontology, violating_shapes
 from seams_gen import GeneratorError
 from seams_gen.__main__ import main
 from seams_gen.tests import extract_tests, generate_tests
+from tests.workspace_copy import copy_example
 
 CHAPTER = "chapter-09"
 TRIG = chapter_dir(CHAPTER) / "expenses.trig"
@@ -48,8 +49,7 @@ MANAGER_EXPECTS = (
 
 def copy_chapter(tmp_path, old: str, new: str):
     """Chapter 9 copied to tmp_path with ``old`` replaced by ``new`` (once) in expenses.trig."""
-    copy = tmp_path / CHAPTER
-    shutil.copytree(chapter_dir(CHAPTER), copy, ignore=shutil.ignore_patterns("__pycache__"))
+    copy = copy_example(chapter_dir(CHAPTER), tmp_path, ignore=shutil.ignore_patterns("__pycache__"))
     trig = copy / "expenses.trig"
     text = trig.read_text(encoding="utf-8")
     assert text.count(old) == 1, old

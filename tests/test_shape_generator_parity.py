@@ -1131,6 +1131,19 @@ GENERATOR_ONLY: dict[Site, str] = {
         "Whether the build context holds the model's directory depends on resolving the deploy:context path "
         "against the model file's location on disk, not on the graph; backlog A11 covers the build paths."
     ),
+    Site("dockerfile", "_read_pyproject", "DEPLOY.context"): (
+        "The build context's root pyproject.toml and its workspace members' pyproject.toml files are files on "
+        "disk beside the model, not facts in the graph; only the Dockerfile generator reads them (backlog A12)."
+    ),
+    Site("dockerfile", "_workspace_members", "DEPLOY.context", "no members"): (
+        "The [tool.uv.workspace] members are read from the build context's root pyproject.toml on disk, not "
+        "from the graph; only the Dockerfile generator needs them (backlog A12)."
+    ),
+    Site("dockerfile", "_workspace_members", "DEPLOY.context", "glob"): (
+        "A uv workspace member written as a glob pattern is valid uv; the Dockerfile copies each member's "
+        "files by literal path, so the generator cannot expand it, and the pattern is on disk, not in the "
+        "graph (backlog A12)."
+    ),
     Site("dockerfile", "extract_dockerfile", "DEPLOY.dockerfile"): (
         "The file the generator writes, <app dir>/generated/<route module>.Dockerfile, is relative to the "
         "deploy:context resolved against the model file's location on disk, not to anything in the graph; a "

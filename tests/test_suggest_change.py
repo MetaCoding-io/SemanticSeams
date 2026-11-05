@@ -28,6 +28,7 @@ from seams_cli.suggest import (
 )
 
 from seams_edit import Patch
+from tests.workspace_copy import copy_example
 
 ROOT = Path(__file__).resolve().parent.parent
 CH10 = ROOT / "examples" / "expenses" / "chapter-10"
@@ -44,8 +45,7 @@ def _no_ambient_model(monkeypatch):
 
 @pytest.fixture
 def app(tmp_path) -> Path:
-    root = tmp_path / "chapter-10"
-    shutil.copytree(CH10, root, ignore=shutil.ignore_patterns("__pycache__"))
+    root = copy_example(CH10, tmp_path, ignore=shutil.ignore_patterns("__pycache__"))
     bpmn = root / "approval.bpmn"
     text = bpmn.read_text(encoding="utf-8")
     for outcome, condition in (("approved", INLINE["flow_approved"]), ("rejected", INLINE["flow_rejected"])):

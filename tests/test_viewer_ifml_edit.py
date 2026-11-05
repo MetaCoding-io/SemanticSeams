@@ -30,6 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import seams_edit  # noqa: E402
+from tests.workspace_copy import copy_example  # noqa: E402
 from viewer import app as viewer_app  # noqa: E402
 from viewer import preview, validation  # noqa: E402
 
@@ -60,8 +61,7 @@ def restore_viewer(monkeypatch):
 @pytest.fixture
 def model(tmp_path, monkeypatch, restore_viewer) -> Path:
     """A copy of the chat app loaded in the viewer with edit mode on."""
-    copy = tmp_path / "chat-app"
-    shutil.copytree(CHAT_APP, copy, ignore=shutil.ignore_patterns("generated"))
+    copy = copy_example(CHAT_APP, tmp_path, ignore=shutil.ignore_patterns("generated"))
     monkeypatch.setenv(viewer_app.EDIT_ENV, "1")
     viewer_app.configure(copy)
     return copy
@@ -221,8 +221,9 @@ def test_remove_a_field(client, model):
 
 def test_remove_a_field_takes_its_bound_input(tmp_path, monkeypatch, restore_viewer):
     """A form input ifml:boundTo the removed path goes too, so the htmx still generates."""
-    copy = tmp_path / "chapter-08"
-    shutil.copytree(ROOT / "examples" / "expenses" / "chapter-08", copy, ignore=shutil.ignore_patterns("generated"))
+    copy = copy_example(
+        ROOT / "examples" / "expenses" / "chapter-08", tmp_path, ignore=shutil.ignore_patterns("generated")
+    )
     monkeypatch.setenv(viewer_app.EDIT_ENV, "1")
     viewer_app.configure(copy)
     expenses = "https://example.org/expenses/"
@@ -448,8 +449,7 @@ def test_a_model_that_is_not_ifml_is_404(client, model):
 
 
 def test_route_absent_without_seams_edit(tmp_path, monkeypatch, restore_viewer):
-    copy = tmp_path / "chat-app"
-    shutil.copytree(CHAT_APP, copy, ignore=shutil.ignore_patterns("generated"))
+    copy = copy_example(CHAT_APP, tmp_path, ignore=shutil.ignore_patterns("generated"))
     monkeypatch.delenv(viewer_app.EDIT_ENV, raising=False)
     viewer_app.configure(copy)
     before = (copy / "chat-app.trig").read_bytes()
@@ -504,8 +504,7 @@ def test_ifml_fragment_carries_the_save_url_but_not_the_modules(client):
 
 
 def test_ifml_view_has_no_modeling_hook_or_save_url_without_seams_edit(tmp_path, monkeypatch, restore_viewer):
-    copy = tmp_path / "chat-app"
-    shutil.copytree(CHAT_APP, copy, ignore=shutil.ignore_patterns("generated"))
+    copy = copy_example(CHAT_APP, tmp_path, ignore=shutil.ignore_patterns("generated"))
     monkeypatch.delenv(viewer_app.EDIT_ENV, raising=False)
     viewer_app.configure(copy)
     html = TestClient(viewer_app.app).get(VIEW).text

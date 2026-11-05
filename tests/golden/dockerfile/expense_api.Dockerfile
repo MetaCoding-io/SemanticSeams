@@ -26,14 +26,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 # uv checks the whole workspace against the lock, so every member's pyproject.toml
+# (the [tool.uv.workspace] members of the root pyproject.toml, with their readmes)
 # is needed; no member is installed (--no-install-workspace).
 COPY pyproject.toml uv.lock .python-version /app/
-COPY packages/seams/pyproject.toml packages/seams/README.md /app/packages/seams/
-COPY seams_runtime/pyproject.toml /app/seams_runtime/
-COPY seams_gen/pyproject.toml /app/seams_gen/
+COPY packages/seams/README.md packages/seams/pyproject.toml /app/packages/seams/
+COPY packages/seams-cli/README.md packages/seams-cli/pyproject.toml /app/packages/seams-cli/
+COPY seams_edit/pyproject.toml /app/seams_edit/
 COPY seams_gateway/pyproject.toml /app/seams_gateway/
+COPY seams_gen/pyproject.toml /app/seams_gen/
+COPY seams_runtime/pyproject.toml /app/seams_runtime/
 COPY viewer/pyproject.toml /app/viewer/
-COPY packages/seams-cli/pyproject.toml packages/seams-cli/README.md /app/packages/seams-cli/
 RUN uv sync --locked --no-dev --package semanticseams-runtime --no-install-workspace
 # seams_runtime builds on the seams library (D034): install it, not editable, so
 # the image needs no source tree for it beyond this build step.

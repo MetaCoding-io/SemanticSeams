@@ -9,7 +9,8 @@ module turns that edit into a one-triple patch to the model, or refuses it:
   is required; none or several is a ``Refusal`` listing the candidates, sorted.
 - ``draft`` is the patch: remove that quad, add the same subject, predicate and
   graph with the edited value, keeping the literal's language and datatype.
-- ``check`` (``regenerate``, then the comparison) copies the model files and payloads to a temporary directory laid
+- ``check`` (``regenerate``, then the comparison) copies the model files and payloads, and the files beyond
+  the model the generators read (``seams_cli.generator_inputs``, ADR-0016), to a temporary directory laid
   out as the project is (generated paths are relative to the model), applies the
   patch there through ``seams_edit.apply`` and regenerates in memory with
   ``seams_cli.generate_project``. The regenerated output must equal the old
@@ -40,7 +41,7 @@ import seams
 from rdflib import Dataset, Literal, URIRef
 from rdflib.term import Node
 from seams import SeamsError
-from seams_cli import Generated, ProjectError, generate_project, load_project
+from seams_cli import Generated, ProjectError, generate_project, generator_inputs, load_project
 from seams_cli.project import PROJECT_FILE
 
 from seams_edit import Patch, PatchError, Quad, apply
@@ -231,12 +232,13 @@ def regenerate(project_dir: Path, model_path: Path, patch: Patch, subject: objec
         project = load_project(project_dir)
         model = seams.load(model_path)
         payloads = [path for _rel, path in model.payloads()]
+        inputs = generator_inputs(project, model_path)
     except ProjectError as err:
         raise Refusal(PROJECT_FILE, "project", str(err)) from err
     except (SeamsError, OSError) as err:
         raise Refusal(subject, predicate, f"the model cannot be read: {err}") from err
     outs = [Path(os.path.normpath(t.out)) for t in project.generators]
-    sources = [*model.files, *payloads]
+    sources = [*model.files, *payloads, *inputs]
     anchor = Path(os.path.commonpath([project.root, model.path, *outs, *sources]))
 
     with tempfile.TemporaryDirectory(prefix="seams-writeback-") as scratch:

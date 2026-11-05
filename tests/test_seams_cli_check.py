@@ -26,6 +26,8 @@ from seams_cli.lockfile import Draft, Fault, read_lock, render_lock, with_draft
 from seams_cli.project import resolve_model
 from seams_cli.propose import build_prompt
 
+from tests.workspace_copy import copy_workspace
+
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
 CHAPTER = Path("examples/expenses/chapter-05")
@@ -46,6 +48,7 @@ def _no_ambient_model(monkeypatch):
 def _copy(rel: Path, tmp_path: Path) -> Path:
     dest = tmp_path / rel
     shutil.copytree(ROOT / rel, dest, ignore=shutil.ignore_patterns("__pycache__"))
+    copy_workspace(tmp_path)
     for target in load_project(ROOT / rel).generators:
         out = target.out.resolve()
         if target.name != "compose" or out.is_relative_to(ROOT / rel):

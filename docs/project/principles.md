@@ -84,6 +84,9 @@ Generation is deterministic. The same model always produces byte-identical outpu
 - Sort every collection explicitly; do not rely on graph or dictionary order.
 - No timestamps, absolute paths or host names in output. Identify the model by its
   content hash (`model.hash`).
+- Read nothing but the model and its payloads. A generator that must read another file
+  names it with `Generator.inputs` (ADR-0016), so every scratch-copy regeneration carries
+  it; the output is then the same for the same model and inputs.
 - **Check:** golden tests and the "Generated outputs are current" CI step regenerate the
   committed outputs and fail on any diff.
 
@@ -180,7 +183,7 @@ the committed outputs and confirm they are what you intend. CI fails if regenera
 changes anything you did not commit:
 
 ```sh
-for project in examples/chat-app examples/expenses/chapter-0*; do
+for project in examples/chat-app examples/expenses/chapter-*; do
   uv run seams generate --project "$project"
 done
 git status --short -- examples compose.*.yaml compose.*.yaml.trace.json

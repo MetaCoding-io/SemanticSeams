@@ -1,7 +1,8 @@
 """The runtime image Dockerfile generator (M016/S03, ADR-0015).
 
 Goldens in tests/golden/dockerfile/ hold sha256:<model-hash> where the model
-hash goes. Error cases edit a copy of the chat app in tmp_path.
+hash goes. Error cases edit a copy of the chat app in tmp_path, beside a copy
+of the root pyproject.toml and each workspace member's pyproject.toml.
 """
 
 from __future__ import annotations
@@ -11,10 +12,12 @@ from pathlib import Path
 
 import pytest
 from seams import load
+from seams_cli import generator_inputs, load_project
 
-from seams_gen import GeneratorError
+from seams_gen import GeneratorError, builtin
 from seams_gen.__main__ import main
-from seams_gen.dockerfile import extract_dockerfile, generate_dockerfiles
+from seams_gen.dockerfile import dockerfile_inputs, extract_dockerfile, generate_dockerfiles
+from tests.workspace_copy import copy_workspace, workspace_members
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / "tests" / "golden" / "dockerfile"
@@ -70,7 +73,9 @@ def test_the_cli_writes_the_file(tmp_path):
     assert [p.name for p in tmp_path.iterdir()] == ["chat_api.Dockerfile"]
 
 
-def _chat_copy(tmp_path: Path, old: str, new: str) -> Path:
+def _chat_copy(tmp_path: Path, old: str, new: str, workspace: bool = True) -> Path:
+    if workspace:
+        copy_workspace(tmp_path)
     app = tmp_path / "examples" / "chat-app"
     shutil.copytree(CHAT_DIR, app, ignore=shutil.ignore_patterns("generated"))
     trig = app / "chat-app.trig"
@@ -159,3 +164,75 @@ def test_an_equivalent_deploy_dockerfile_path_is_accepted(tmp_path):
 def test_each_expenses_build_names_the_generated_dockerfile(chapter):
     d = extract_dockerfile(load(ROOT / "examples" / "expenses" / chapter / "expenses.trig"))
     assert d.dockerfile == f"examples/expenses/{chapter}/generated/expense_api.Dockerfile"
+
+
+def test_the_members_are_the_root_workspace_members_sorted():
+    d = extract_dockerfile(load(CHAT))
+    assert [m.path for m in d.members] == sorted(workspace_members())
+    assert "seams_edit" in [m.path for m in d.members]
+    by_path = {m.path: m.files for m in d.members}
+    assert by_path["packages/seams"] == ("README.md", "pyproject.toml")
+    assert by_path["seams_edit"] == ("pyproject.toml",)
+    text = generate_dockerfiles(CHAT)["chat_api.Dockerfile"]
+    assert "COPY seams_edit/pyproject.toml /app/seams_edit/" in text
+
+
+def test_a_context_without_a_pyproject_names_deploy_context(tmp_path):
+    trig = _chat_copy(tmp_path, STATED, STATED, workspace=False)
+    with pytest.raises(GeneratorError) as err:
+        extract_dockerfile(load(trig))
+    assert err.value.subject == "https://example.org/chat/chat_api"
+    assert err.value.predicate == DEPLOY + "context"
+    assert "pyproject.toml" in str(err.value)
+
+
+def test_a_missing_member_pyproject_names_it_and_deploy_context(tmp_path):
+    trig = _chat_copy(tmp_path, STATED, STATED)
+    (tmp_path / "seams_edit" / "pyproject.toml").unlink()
+    with pytest.raises(GeneratorError) as err:
+        extract_dockerfile(load(trig))
+    assert err.value.predicate == DEPLOY + "context"
+    assert "seams_edit/pyproject.toml" in str(err.value)
+
+
+@pytest.mark.parametrize(
+    "workspace",
+    ['[project]\nname = "x"\n', "[tool.uv.workspace]\nmembers = []\n", "[tool.uv.workspace\n"],
+    ids=["no-workspace", "no-members", "malformed"],
+)
+def test_a_root_pyproject_without_members_names_deploy_context(tmp_path, workspace):
+    trig = _chat_copy(tmp_path, STATED, STATED)
+    (tmp_path / "pyproject.toml").write_text(workspace, encoding="utf-8")
+    with pytest.raises(GeneratorError) as err:
+        extract_dockerfile(load(trig))
+    assert err.value.predicate == DEPLOY + "context"
+    assert "pyproject.toml" in str(err.value)
+
+
+def test_a_globbed_member_names_it_and_deploy_context(tmp_path):
+    trig = _chat_copy(tmp_path, STATED, STATED)
+    (tmp_path / "pyproject.toml").write_text('[tool.uv.workspace]\nmembers = ["packages/*"]\n', encoding="utf-8")
+    with pytest.raises(GeneratorError) as err:
+        extract_dockerfile(load(trig))
+    assert err.value.predicate == DEPLOY + "context"
+    assert "'packages/*'" in str(err.value)
+
+
+def test_the_inputs_are_the_workspace_pyprojects():
+    """The files beyond the model extract_dockerfile reads (ADR-0016), absolute and sorted."""
+    expected = sorted([ROOT / "pyproject.toml", *(ROOT / m / "pyproject.toml" for m in workspace_members())])
+    assert list(dockerfile_inputs(CHAT, CHAT_DIR / "generated")) == expected
+    assert builtin.dockerfile.inputs is dockerfile_inputs
+    assert generator_inputs(load_project(CHAT_DIR), CHAT) == tuple(expected)
+
+
+def test_the_inputs_leave_out_what_is_missing_and_never_raise(tmp_path):
+    trig = _chat_copy(tmp_path, STATED, STATED, workspace=False)
+    assert dockerfile_inputs(trig, tmp_path) == ()
+    copy_workspace(tmp_path)
+    (tmp_path / "seams_edit" / "pyproject.toml").unlink()
+    found = dockerfile_inputs(trig, tmp_path)
+    assert (tmp_path / "pyproject.toml").resolve() in found
+    assert (tmp_path / "seams_edit" / "pyproject.toml").resolve() not in found
+    no_build = _chat_copy(tmp_path / "other", RUNTIME_BUILD, " ] ;", workspace=False)
+    assert dockerfile_inputs(no_build, tmp_path) == ()

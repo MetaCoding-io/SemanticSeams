@@ -2,7 +2,8 @@
 
 ``seams generate`` reads an app's seams.toml project file (``load_project``),
 picks the model (``resolve_model``) and rewrites every output its generators
-name (``generate_project``, giving ``Generated``, then ``apply``), recording them
+name (``generate_project``, giving ``Generated``, then ``apply``; the files
+beyond the model they read are ``generator_inputs``), recording them
 and any lenient-mode ``Fault`` in seams.lock (``read_lock``, ``build_lock``,
 ``render_lock``, ``audit``). ``seams check`` (``run_check``) reports every ``Finding`` without writing; ``seams status``
 (``run_status``) gives a ``Status`` per running runtime container; ``seams
@@ -13,7 +14,7 @@ and seams_runtime import from any working directory.
 """
 
 from .check import Finding, run_check
-from .generate import Generated, apply, generate_project, write_outputs
+from .generate import Generated, apply, generate_project, generator_inputs, write_outputs
 from .lockfile import (
     LOCK_FILE,
     Audit,
@@ -53,6 +54,7 @@ __all__ = [
     "Project",
     "ProjectError",
     "generate_project",
+    "generator_inputs",
     "load_project",
     "resolve_model",
     "run_check",

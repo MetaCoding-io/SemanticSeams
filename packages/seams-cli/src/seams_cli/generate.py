@@ -33,6 +33,10 @@ A generator with a ``trace`` hook (ADR-0019) also writes, beside each output
 output of the same generator, and both its lock ``sources`` and those of the
 file it traces are the sorted union of the trace's terms; ``Generator.sources``
 is used only for generators without the hook, which write no sidecar.
+
+``generator_inputs`` lists the files beyond the model that the project's
+generators read (``Generator.inputs``, ADR-0016). A tool that regenerates in a
+scratch copy copies them to the same place relative to the model.
 """
 
 from __future__ import annotations
@@ -111,6 +115,22 @@ def generate_project(project: Project, model: Path, *, lenient: bool = False) ->
         for name, (text, sources) in produced.items():
             files[(out / name).resolve()] = Output(gen.name, gen.version, text, sources)
     return Generated(files, tuple(sorted(faults)), tuple(warnings))
+
+
+def generator_inputs(project: Project, model: Path) -> tuple[Path, ...]:
+    """The absolute paths of the files beyond the model that the generators of
+    ``project`` read on ``model`` (each ``Generator.inputs``), sorted and
+    de-duplicated. Never raises a GeneratorError: a generator names only the
+    files it finds."""
+    from seams_gen.registry import discover
+
+    registry = discover()
+    found: set[Path] = set()
+    for target in project.generators:
+        gen = registry[target.name]
+        if gen.inputs is not None:
+            found.update(path.resolve() for path in gen.inputs(model, target.out))
+    return tuple(sorted(found))
 
 
 TRACE_SUFFIX = ".trace.json"

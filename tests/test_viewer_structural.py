@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from seams_edit import Patch  # noqa: E402
+from tests.workspace_copy import copy_workspace  # noqa: E402
 from viewer import generation, structural, writeback  # noqa: E402
 
 CHAT = ROOT / "examples" / "chat-app"
@@ -46,6 +47,7 @@ def project(tmp_path: Path) -> Path:
     """The chat app at tmp_path/examples/chat-app, its compose files at tmp_path."""
     copy = tmp_path / "examples" / "chat-app"
     shutil.copytree(CHAT, copy, ignore=shutil.ignore_patterns("__pycache__"))
+    copy_workspace(tmp_path)
     for compose in sorted(ROOT.glob("compose.*.yaml*")):
         shutil.copyfile(compose, tmp_path / compose.name)
     return copy

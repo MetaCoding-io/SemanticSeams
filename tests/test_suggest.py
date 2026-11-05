@@ -26,6 +26,8 @@ from seams_cli.suggest import (
     suggest,
 )
 
+from tests.workspace_copy import copy_workspace
+
 ROOT = Path(__file__).resolve().parent.parent
 CH10 = ROOT / "examples" / "expenses" / "chapter-10"
 CH05 = ROOT / "examples" / "expenses" / "chapter-05"
@@ -48,6 +50,7 @@ def app(tmp_path) -> Path:
     # At the depth chapter 10's seams.toml expects, so its gate query resolves.
     root = tmp_path / CH10.relative_to(ROOT)
     shutil.copytree(CH10, root, ignore=shutil.ignore_patterns("__pycache__"))
+    copy_workspace(tmp_path)
     shutil.copytree(ROOT / "docs" / "queries" / "gates", tmp_path / "docs" / "queries" / "gates")
     bpmn = root / "approval.bpmn"
     text = bpmn.read_text(encoding="utf-8")

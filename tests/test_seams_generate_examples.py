@@ -18,6 +18,8 @@ import pytest
 from seams_cli import load_project
 from seams_cli.__main__ import main
 
+from tests.workspace_copy import copy_workspace
+
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = sorted(p.parent.relative_to(ROOT) for p in (ROOT / "examples").rglob("seams.toml"))
 # Every compose file is generated (ADR-0015 removed the hand-written overrides),
@@ -35,6 +37,7 @@ def _no_ambient_model(monkeypatch):
 def _copy_without_outputs(rel: Path, tmp_path: Path) -> Path:
     dest = tmp_path / rel
     shutil.copytree(ROOT / rel, dest, ignore=shutil.ignore_patterns("generated", COMPOSE, COMPOSE_TRACE, "__pycache__"))
+    copy_workspace(tmp_path)
     return dest
 
 

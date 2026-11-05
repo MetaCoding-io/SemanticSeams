@@ -241,6 +241,13 @@ other model elements it was derived from. `seams generate` writes each trace bes
 terms as both files' `sources`. Leave `trace` out (it defaults to `None`) and the
 generator writes no trace; `sources` is what `seams.lock` records.
 
+Read only the model and its payloads if you can. If `extract` must read another file, name
+it with `inputs(trig, out)`: the absolute paths of those files, found without raising
+(the built-in `dockerfile` generator names the uv workspace's `pyproject.toml` files this
+way). The viewer's write-back and `seams suggest` regenerate in a scratch copy and copy
+only the model and these files into it, so an undeclared file is missing there
+([ADR-0016](/adr/0016-generator-protocol#inputs-beyond-the-model-amendment-m027-s02)).
+
 Put the checklist in its own package, here
 `seams_checklist/__init__.py`, and import the `checklist` function from the module
 above:

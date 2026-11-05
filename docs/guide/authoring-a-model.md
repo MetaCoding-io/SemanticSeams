@@ -308,6 +308,10 @@ directory, route module and seed data as literal paths and the model hash and co
 IRI as image labels. Point the development `deploy:dockerfile` at that file, relative to
 the context; compose passes no build args. If it is missing or names another file,
 `seams generate` and `seams check` fail with a `GeneratorError` on `deploy:dockerfile`.
+The image copies each uv workspace member's `pyproject.toml` (and its readme) so that
+`uv sync --locked` sees the whole workspace; the generator reads the members from
+`[tool.uv.workspace]` in the `pyproject.toml` at the root of the build context, and a
+missing root or member `pyproject.toml` is a `GeneratorError` on `deploy:context`.
 
 Production names images by `deploy:reference` and `deploy:version`. The gated
 `.github/workflows/publish-images.yml` workflow builds each project's generated

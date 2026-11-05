@@ -16,6 +16,8 @@ from seams_cli.__main__ import main
 from seams_cli.project import ProjectError, load_project
 from seams_cli.propose import CACHE_DIR, extract_draft, propose
 
+from tests.workspace_copy import copy_example
+
 ROOT = Path(__file__).resolve().parent.parent
 CH09 = ROOT / "examples" / "expenses" / "chapter-09"
 FIXTURES = ROOT / "tests" / "fixtures" / "propose"
@@ -33,8 +35,7 @@ def _no_ambient_model(monkeypatch):
 
 @pytest.fixture
 def app(tmp_path) -> Path:
-    root = tmp_path / "chapter-09"
-    shutil.copytree(CH09, root, ignore=shutil.ignore_patterns("__pycache__"))
+    root = copy_example(CH09, tmp_path, ignore=shutil.ignore_patterns("__pycache__"))
     (root / "handlers" / "notify.py").unlink()
     return root
 
@@ -92,8 +93,7 @@ def test_missing_provider_command_is_reported(app, capsys):
 
 
 def test_refuses_to_overwrite_an_existing_module_without_force(tmp_path, capsys):
-    root = tmp_path / "chapter-09"
-    shutil.copytree(CH09, root, ignore=shutil.ignore_patterns("__pycache__"))
+    root = copy_example(CH09, tmp_path, ignore=shutil.ignore_patterns("__pycache__"))
     before = (root / "handlers" / "notify.py").read_text()
     args = ["propose", TASK, "--project", str(root), "--provider", _provider("bad_provider.py")]
     assert main(args) == 2

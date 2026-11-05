@@ -52,7 +52,7 @@ import seams_edit
 from seams_gen import GeneratorError
 
 from .check import ONTOLOGY_DIR, check_shapes, load_model, model_graph
-from .generate import generate_project
+from .generate import generate_project, generator_inputs
 from .project import Project, ProjectError, load_project, resolve_model
 from .propose import cache_key, call_provider, extract_draft, quote
 
@@ -771,9 +771,19 @@ def _check(project: Project, change: Change, model: Path | None) -> tuple[Verdic
     model_rel = _inside(project, resolve_model(project, model), "model")
     payloads = [(_inside(project, path, "payload"), text) for path, text in change.payloads]
     project_rel = project.path.relative_to(project.root)
+    # The files beyond the model the generators read (ADR-0016) keep their place
+    # relative to the project in the copy, so the copy is laid out from their
+    # common directory with the project.
+    inputs = generator_inputs(project, project.root / model_rel)
+    anchor = Path(os.path.commonpath([project.root, *inputs]))
     with tempfile.TemporaryDirectory(prefix="seams-suggest-") as tmp:
-        root = Path(tmp).resolve() / "project"
+        base = Path(tmp).resolve() / "project"
+        root = base / project.root.relative_to(anchor)
         shutil.copytree(project.root, root, ignore=_SCRATCH_IGNORE, symlinks=True)
+        for path in inputs:
+            if not path.is_relative_to(project.root):
+                (base / path.relative_to(anchor)).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, base / path.relative_to(anchor))
         scratch, scratch_model = load_project(root / project_rel), root / model_rel
         files = load_model(scratch_model, ONTOLOGY_DIR).files
         try:

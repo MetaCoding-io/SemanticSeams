@@ -6,7 +6,9 @@ each at ``seams_gen.__version__`` and with its ``sources`` from
 generator's own extract step; each ``render`` is its render step, so
 ``generate`` returns the same bytes as the generator's old ``generate``
 function. ``htmx``, ``fastapi``, ``compose``, ``dockerfile`` and
-``acceptance`` also have a ``trace`` (ADR-0019).
+``acceptance`` also have a ``trace`` (ADR-0019). ``dockerfile`` alone reads
+files beyond the model, its build context's uv workspace files, and names
+them with ``inputs`` (ADR-0016).
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from seams import ModelGraph, load
 from . import __version__
 from .acceptance import AcceptanceModel, extract_acceptance, render_acceptance, trace_acceptance
 from .compose import ComposeFile, extract_compose_environments, render_compose_environments, trace_compose_environments
-from .dockerfile import DockerfileModel, extract_dockerfile, render_dockerfile, trace_dockerfile
+from .dockerfile import DockerfileModel, dockerfile_inputs, extract_dockerfile, render_dockerfile, trace_dockerfile
 from .fastapi import RoutesModel, extract_route_module, render_routes, trace_routes
 from .htmx import ServedPage, extract_pages, render_pages, trace_pages
 from .ifmledit import FILE as IFMLEDIT_FILE
@@ -161,6 +163,7 @@ dockerfile = Generator(
     render=_dockerfile_render,
     sources=SOURCES["dockerfile"],
     trace=trace_dockerfile,
+    inputs=dockerfile_inputs,
 )
 
 ifmledit = Generator(

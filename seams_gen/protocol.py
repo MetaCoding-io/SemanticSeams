@@ -18,6 +18,15 @@ exactly the file names ``render`` returns, the line-level generation trace
 of each file (ADR-0019, ``seams_gen.trace``). ``None`` (the default) means
 the generator writes no trace sidecars.
 
+and, optionally, ``inputs(trig, out)``: the absolute paths of the files
+outside the model and its payloads that ``extract`` reads (ADR-0016,
+"Inputs beyond the model"; the ``dockerfile`` generator's uv workspace
+files). A tool that regenerates in a scratch copy (the viewer's write-back,
+``seams suggest``) copies them to the same place relative to the model. It
+never raises: a file it cannot find is left out, and ``extract`` raises on
+it. ``None`` (the default) means the generator reads nothing beyond the
+model.
+
 ``precondition_faults(results, shapes)`` reads a pyshacl results graph of the
 model validated against ``shapes`` (ontology/shapes) and returns a sorted
 ``GeneratorError`` per result of one of ``preconditions``;
@@ -55,6 +64,7 @@ class Generator[V]:
     sources: Callable[[Path, Path], Sources]
     preconditions: tuple[str, ...] = ()  # sh:NodeShape IRIs
     trace: Callable[[V], dict[str, Trace]] | None = None  # ADR-0019
+    inputs: Callable[[Path, Path], tuple[Path, ...]] | None = None  # ADR-0016, inputs beyond the model
 
     def generate(self, trig: Path, out: Path) -> Files:
         """{relative file name: text}: ``render(extract(trig, out))``."""

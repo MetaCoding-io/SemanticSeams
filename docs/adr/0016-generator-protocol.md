@@ -53,6 +53,38 @@ extract and render step over its existing `extract_*` and `render_*` functions. 
 version is `seams_gen.__version__`, their sources come from `seams_gen/sources.py`, and
 they declare no preconditions. Every golden and committed output is byte-identical.
 
+### Inputs beyond the model (amendment, M027/S02)
+
+A generator should read only the model and its payloads, but one fact may live in a file
+the model does not hold. The `dockerfile` generator reads the uv workspace members from
+the `pyproject.toml` at the root of the build context, and each member's `pyproject.toml`
+(backlog A12). Tools that regenerate in a scratch copy hold only the model files, or only
+the project directory: the viewer's write-back (`viewer/writeback.py`) and
+`seams suggest`. With such a file missing from the copy, they refused every edit.
+
+So a generator that reads such a file names it. `Generator` has an optional field:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `inputs` | `(trig: Path, out: Path) -> tuple[Path, ...]`, or `None` (default) | the absolute paths of the files beyond the model and its payloads that `extract` reads. It never raises: a file it cannot find is left out, and `extract` raises the `GeneratorError` |
+
+`seams_cli.generator_inputs(project, model)` is the sorted union over a project's
+generators. A tool that regenerates in a scratch copy copies these files to the same place
+relative to the model: the write-back adds them to the files it copies, and `seams
+suggest` lays its copy out from the common directory of the project and the inputs. A new
+scratch-copy path must do the same. Of the built-ins, only `dockerfile` has `inputs`
+(`seams_gen.dockerfile.dockerfile_inputs`).
+
+The output still depends only on what is declared, so principle 6 ("Same model, same
+bytes") holds for the model plus the declared inputs. `seams.lock` does not record the
+inputs' hashes: `seams check` regenerates, so a changed input shows up as an out-of-date
+output.
+
+Rejected alternatives: state the member list in `seams.toml` or the model, which keeps
+the model the only input but repeats the workspace in two places; and have each
+scratch copy copy the workspace files itself, which spreads knowledge of one generator
+into the viewer and the CLI.
+
 ### Discovery: the `seams.generators` group
 
 `seams_gen.registry.discover()` loads every entry point of the
@@ -190,6 +222,9 @@ pyshacl, which only the parity helpers need, loads only when they run.
   entry point and distribution, rather than silently picking one.
 - A generator can state the shapes it relies on and get a shape-level error before
   `extract` runs, instead of the first `GeneratorError` it meets.
+- A generator that reads a file beyond the model declares it with `inputs`, and every
+  scratch-copy regeneration carries it, so the viewer and `seams suggest` regenerate as
+  `seams generate` does.
 - `seams generate` validates with pyshacl only when some generator in the project
   declares preconditions, so projects using only the built-ins pay nothing.
 

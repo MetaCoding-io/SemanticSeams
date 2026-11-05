@@ -22,6 +22,7 @@ from seams_gen import extract_routes
 from seams_gen.stubs import generate_stubs
 from seams_gen.stubs import main as stubs_main
 from seams_runtime import ModelGraph
+from tests.workspace_copy import copy_example
 
 CHAPTER = "chapter-09"
 EX = "https://example.org/expenses/"
@@ -141,8 +142,7 @@ def test_a_handler_fault_fails_the_instance_naming_the_operation(app, monkeypatc
 
 
 def test_seams_generate_never_touches_the_handlers_package(tmp_path, capsys):
-    copy = tmp_path / CHAPTER
-    shutil.copytree(chapter_dir(CHAPTER), copy, ignore=shutil.ignore_patterns("__pycache__"))
+    copy = copy_example(chapter_dir(CHAPTER), tmp_path, ignore=shutil.ignore_patterns("__pycache__"))
     before = _handler_files(copy)
     assert set(before) == {"__init__.py", "notify.py"}
 

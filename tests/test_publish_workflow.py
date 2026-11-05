@@ -22,6 +22,7 @@ from seams import load
 from seams_gen import GeneratorError
 from seams_gen.compose import _executing, _resolve_environment
 from seams_gen.images import ProjectError, list_images, registry, short_hash
+from tests.workspace_copy import copy_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "publish-images.yml"
@@ -201,6 +202,7 @@ def _copy_chapter_09(tmp_path) -> Path:
     src = ROOT / "examples/expenses/chapter-09"
     dst = tmp_path / "examples/expenses/chapter-09"
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
+    copy_workspace(tmp_path)
     return dst
 
 

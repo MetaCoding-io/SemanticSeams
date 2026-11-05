@@ -22,9 +22,10 @@ iteration order. A missing or ambiguous required fact raises
 from __future__ import annotations
 
 import re
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import jinja2
 from rdflib import RDF, XSD, URIRef
@@ -229,6 +230,34 @@ class Component:
     # the IRIs of the read and written shapes, the guard's lifecycle and
     # states and the parameters, sorted: further trace origins
     origins: tuple[str, ...] = ()
+
+
+class _ComponentBase(TypedDict):
+    """The Component fields every ifml component kind sets; the kind-specific
+    ones are passed beside ``**base``."""
+
+    iri: str
+    origins: tuple[str, ...]
+    id: str
+    curie: str
+    kind: str
+    type_curie: str
+    label: str
+    order: int
+    reads: str | None
+    writes: str | None
+    guard_variable: str | None
+    guard_states: tuple[str, ...]
+    guard_state_curies: tuple[str, ...]
+    parameters: tuple[str, ...]
+    is_list: bool
+    is_details: bool
+    is_form: bool
+    seam_note: str
+    single_guard_state: bool
+    guard_states_text: str
+    section_close: str
+    parameter_items: tuple[Item, ...]
 
 
 @dataclass(frozen=True)
@@ -455,7 +484,9 @@ def _presenter(imodel):
     return presenter
 
 
-def _component(model: Model, c, order, presenter, page_params, sse_channels, mintable=frozenset()) -> Component:
+def _component(
+    model: Model, c, order, presenter, page_params, sse_channels, mintable: AbstractSet[str] = frozenset()
+) -> Component:
     types = c.types
     if len(types) != 1:
         raise GeneratorError(c.iri, RDF.type, f"expected one of {[model.compact(t) for t in COMPONENT_TYPES]}")
@@ -494,7 +525,7 @@ def _component(model: Model, c, order, presenter, page_params, sse_channels, min
     parameters = tuple(sorted(_parameters(model, c)))
     origins = guard_iris | {str(x.iri) for x in (reads, writes) if x is not None}
     origins |= {str(p.iri) for p in c.parameter_bindings}
-    base = dict(
+    base = _ComponentBase(
         iri=str(c.iri),
         origins=tuple(sorted(origins)),
         id=local_name(c.iri),
@@ -706,7 +737,7 @@ def _list_link(model: Model, c) -> Link:
     )
 
 
-def _submit(model: Model, c, presenter, fill_param, mintable=frozenset()) -> Submit:
+def _submit(model: Model, c, presenter, fill_param, mintable: AbstractSet[str] = frozenset()) -> Submit:
     all_events = c.events()
     events = [e for e in all_events if e.submits_to is not None]
     if len(events) != 1:
@@ -766,7 +797,7 @@ def _submit(model: Model, c, presenter, fill_param, mintable=frozenset()) -> Sub
 
 def _task_forms(model: Model, presenter) -> tuple[TaskForm, ...]:
     """One TaskForm per ifml:Form some proc:UserTask seam:completedOn, by IRI."""
-    found = {}
+    found: dict[URIRef, tuple[ComponentView, ProcessElement]] = {}  # form IRI -> (form, task)
     for task in model.views.all(ProcessElement, PROC.UserTask):
         form = task.completed_on
         if form is None:
@@ -778,7 +809,9 @@ def _task_forms(model: Model, presenter) -> tuple[TaskForm, ...]:
                 f"completes both {found[form.iri][1].iri} and {task.iri}; expected one user task",
             )
         found[form.iri] = (form, task)
-    return tuple(_task_form(model, *found[iri], presenter) for iri in sorted(found, key=str))
+    return tuple(
+        _task_form(model, form, task, presenter) for form, task in (found[iri] for iri in sorted(found, key=str))
+    )
 
 
 def _task_form(model: Model, form, task, presenter) -> TaskForm:

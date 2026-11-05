@@ -27,7 +27,7 @@ filterwarnings = [
 ]
 
 [tool.pyright]
-include = ["packages/seams", "seams_edit"]
+include = ["packages/seams", "seams_edit", "seams_gen"]
 strict = ["packages/seams", "seams_edit"]
 pythonVersion = "3.12"
 # The uv workspace venv, so a bare .venv/bin/pyright resolves rdflib and lxml

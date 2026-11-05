@@ -243,6 +243,9 @@ def shape_violations(dataset: Dataset, shapes, ontology: Iterable = ()) -> list[
     for s, p, o, _ctx in dataset.quads((None, None, None, None)):
         union.add((s, p, o))
     _conforms, results, _text = pyshacl.validate(union, shacl_graph=_as_graph(shapes), inference="none")
+    # pyshacl types the report loosely; with the default abort_on_first=False it is a Graph
+    if not isinstance(results, Graph):
+        raise TypeError(f"pyshacl returned a {type(results).__name__} report, not a Graph")
     out = []
     for result in results.subjects(RDF.type, _SH.ValidationResult):
         if results.value(result, _SH.resultSeverity) == _SH.Warning:

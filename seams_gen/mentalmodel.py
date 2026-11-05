@@ -246,7 +246,8 @@ class _Shapes:
             return self.describe(node, {})
         if isinstance(node, Literal):
             return _literal(node)
-        if predicate == SH.node and node in self.archive:
+        # the archive is keyed by IRI; BNodes and Literals returned above
+        if predicate == SH.node and isinstance(node, URIRef) and node in self.archive:
             return _iri(self.archive[node])
         return _iri(node)
 

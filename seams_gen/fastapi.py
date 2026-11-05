@@ -84,7 +84,8 @@ REQUEST_BODIES = {
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 PROBLEM_JSON = "application/problem+json"  # RFC 9457
 # sh:datatype -> JSON Schema type of an error shape's member; any other datatype is a string
-JSON_TYPES = {XSD.integer: "integer", XSD.decimal: "number", XSD.boolean: "boolean"}
+# Keyed by sh:datatype; a field without one (None) falls back to "string".
+JSON_TYPES: dict[URIRef | None, str] = {XSD.integer: "integer", XSD.decimal: "number", XSD.boolean: "boolean"}
 # ADR-0024 section 5: where a context is served, and the Link relation naming it (JSON-LD 1.1, 6.1)
 CONTEXTS = "/contexts"
 JSONLD = "application/ld+json"

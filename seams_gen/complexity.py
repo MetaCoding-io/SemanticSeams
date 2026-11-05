@@ -27,6 +27,7 @@ from pathlib import Path
 
 import rdflib
 import seams
+from rdflib.query import ResultRow
 
 MIN_MULTI_MODEL_NOTATIONS = 3
 MIN_MAX_REACH = 5
@@ -91,7 +92,11 @@ def measure(graph: rdflib.Graph) -> Complexity:
     per_notation = _ranked(graph.query(_query("models-per-notation.rq")))
     unlimited = re.sub(r"\s*LIMIT\s+\d+\s*$", "\n", _query("most-reached.rq").rstrip())
     reached = _ranked(graph.query(unlimited))[:TOP_REACHED]
-    edges = int(next(iter(graph.query(_query("seam-edges.rq"))))[0])
+    row = next(iter(graph.query(_query("seam-edges.rq"))))
+    # rdflib types a result row as ASK, CONSTRUCT or SELECT; seam-edges.rq is a SELECT
+    if not isinstance(row, ResultRow):
+        raise TypeError(f"seam-edges.rq returned {row!r}, not a SELECT row")
+    edges = int(row[0])
     return Complexity(per_notation, reached, edges)
 
 

@@ -160,7 +160,9 @@ to I5 are the plan.
 - The repository is a **uv workspace**. Install with `uv sync --locked --all-packages`,
   and run everything through `uv run`. Do not use `pip install`, requirements files or
   unpinned installs. `uv.lock` is committed.
-- Python 3.12 (`.python-version`). The `seams` library is checked with strict pyright.
+- Python 3.12 (`.python-version`). The `seams` library and `seams_edit` are checked
+  with strict pyright, and `seams_gen` with standard pyright (`[tool.pyright]` in
+  `pyproject.toml`).
 
 ### Gates before every push
 

@@ -16,6 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from seams import Many, Model, ResolutionError
+from seams.views import HasIri
 
 from . import GeneratorError
 
@@ -24,7 +25,7 @@ def _found(items: Many) -> str:
     return "none" if not items else ", ".join(str(i) for i in items.iris())
 
 
-def only[T](many: Many[T], detail: str = "") -> T:
+def only[T: HasIri](many: Many[T], detail: str = "") -> T:
     """The single item; ``GeneratorError(many.subject, many.predicate)`` otherwise."""
     if len(many) != 1:
         text = f"expected exactly one, found {_found(many)}"
@@ -32,7 +33,7 @@ def only[T](many: Many[T], detail: str = "") -> T:
     return many[0]
 
 
-def optional[T](many: Many[T]) -> T | None:
+def optional[T: HasIri](many: Many[T]) -> T | None:
     """None or the single item; several raise ``GeneratorError(many.subject, many.predicate)``."""
     if len(many) > 1:
         raise GeneratorError(many.subject, many.predicate, f"expected at most one, found {_found(many)}")

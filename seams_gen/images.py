@@ -158,8 +158,10 @@ def _built_images(model: Model, production, serving, cwd: Path) -> list[Image]:
                 continue
             artifact = c.for_environment(production).artifact
         artifact = required(artifact, str(c.iri), DEPLOY.artifact, f"in the {PRODUCTION} environment")
+        # a build without deploy:dockerfile names the fact instead of failing on Path / None
+        name = required(build.dockerfile, str(c.iri), DEPLOY.dockerfile, "in the development environment")
         context = (model.path.parent / build.context).resolve()
-        dockerfile = context / build.dockerfile
+        dockerfile = context / name
         if not dockerfile.is_file():
             raise ProjectError(f"{model.path}: {dockerfile}, the deploy:dockerfile of {c.iri}, is missing")
         images.append(

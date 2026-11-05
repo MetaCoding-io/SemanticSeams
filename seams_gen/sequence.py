@@ -599,7 +599,8 @@ def _row(b: _Builder, api: URIRef, process, nodes, containers, channels, process
         actor = _by(b, str(by))
         form = None if node is None else node.completed_on
         ui = None if form is None else _presenter([form])
-        if ui is None:
+        # ui is None whenever form is; both checks narrow form for the else branch
+        if form is None or ui is None:
             b.gap(f"{where}: completed by {by} on no seam:completedOn form presented by one container")
             b.arrow(actor, api, f"complete {task}", *el)
         else:

@@ -211,7 +211,8 @@ is never opened for writing.
 
 Replace the body with the real code. `entity` is the expense as a plain dict: its
 `description`, `amount` and `date`, with no `id` and no `status`, because statuses belong
-to the runtime. The result must match `NotificationShape`:
+to the runtime. The `amount` arrives as a `Decimal`, as the stub types it, so it prints
+as the submitted `250.00`. The result must match `NotificationShape`:
 
 ```python
 # Who the notification is for: the approval process only runs this handler on

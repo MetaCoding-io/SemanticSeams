@@ -403,7 +403,8 @@ provider through `propose.call_provider` and reads one `condition-to-dmn` JSON
 answer, which `parse_suggestion` checks against the model, `build_change` turns
 into a `seams_edit.Patch` plus new BPMN and DMN payload text, and
 `check_change` validates (shapes, `seams.decision_findings`) and generates in a
-scratch copy. A passing suggestion goes to `.seams/suggestions/<id>/`
+scratch copy, laid out from the common directory of the project and the files
+its generators name with `Generator.inputs` (`generator_inputs`, ADR-0016). A passing suggestion goes to `.seams/suggestions/<id>/`
 (`suggestion.json` and one `<file>.diff` per changed file), id =
 sha256(model hash, template, provider, answer); its answer is cached in
 `.seams/suggest-cache/` by sha256(model hash, template, provider). A rejected

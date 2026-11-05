@@ -63,14 +63,9 @@ def test_chat_app_names_every_gap_by_iri(capsys):
     )
 
 
-def test_chapter_9_has_only_path_gaps(capsys):
-    code, lines, err = _run(capsys, str(CH09 / "expenses.trig"))
-    assert code == 1
-    assert [line.split()[0] for line in lines] == ["path"] * 6
-    assert lines[0].split()[:2] == ["path", E + "approval_process"]
-    assert lines[0].endswith(E + "approval_bpmn#rejected_end")
-    assert lines[-1].split()[1] == E + "payout_process"
-    assert "6 unexercised path(s), 0 unfired transition(s), 0 permission(s)" in err
+def test_chapter_9_is_covered(capsys):
+    """Every path of both processes is run by a scenario (ADR-0014 as amended), so the gate is on in its seams.toml."""
+    assert _run(capsys, str(CH09 / "expenses.trig")) == (0, [], "")
 
 
 def test_model_argument_and_project_agree(capsys):

@@ -18,6 +18,7 @@ from urllib.parse import quote
 import pytest
 from expense_app import chapter_dir, copy_checkpoint, serve, status, trace, until
 from fastapi.testclient import TestClient
+from rdflib import URIRef
 
 from seams_runtime import OperationError, ResolutionError, Runtime
 from seams_runtime.store import SQLiteStore
@@ -182,6 +183,42 @@ def test_finance_approves_the_escalated_expense_and_it_goes_on_to_payment(app):
     assert "approve_expense" not in tasks
     [expense] = runtime.query(":ExpenseShape", expense="e-esc")
     assert expense["status"] == "approved"
+
+
+# ── a failure a scenario asks for (worker rule 3b, ADR-0014 verify:failure) ───
+
+
+def test_a_failed_operation_takes_the_boundary_without_calling_the_handler(app, monkeypatch):
+    c, runtime = app
+
+    def never_called(entity):
+        raise AssertionError("the handler ran although the scenario fails its operation")
+
+    op = URIRef(NOTIFY_OP)
+    monkeypatch.setitem(runtime.worker.implementations, op, (runtime.worker.implementations[op][0], never_called))
+    runtime.fail_operation("e-forced", ":notify_manager_op", "notify-failed")
+    _submit(c, runtime, "e-forced", "Train to Leeds")
+    by_task = {r["task"]: r for r in trace(runtime, "e-forced")}
+    notify = by_task["notify_manager"]
+    assert notify["failed"] == "notify-failed"
+    assert notify["error"] == {"code": "notify-failed", "status": NOTIFY_FAILED, "operation": NOTIFY_OP}
+    assert notify["boundary"] == BOUNDARY
+    assert by_task["notify_failed_boundary"]["caught"] == "notify-failed"
+    assert _open_tasks(runtime, "e-forced") == {"finance_approve_expense"}
+
+
+def test_a_failure_is_scoped_to_its_correlation_key(app):
+    c, runtime = app
+    runtime.fail_operation("e-other", ":notify_manager_op", "notify-failed")
+    _submit(c, runtime, "e-mine", "Train to Leeds")
+    assert _open_tasks(runtime, "e-mine") == {"approve_expense"}
+
+
+def test_failing_an_operation_with_a_code_it_does_not_declare_raises(app):
+    _c, runtime = app
+    with pytest.raises(ResolutionError, match="no-such-code"):
+        runtime.fail_operation("e-bad", ":notify_manager_op", "no-such-code")
+    assert runtime.worker.failures == {}
 
 
 def test_a_message_that_fits_takes_the_happy_path(app):

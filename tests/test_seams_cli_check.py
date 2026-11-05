@@ -317,20 +317,42 @@ def _chapter_9(tmp_path: Path) -> Path:
     return _copy(Path("examples/expenses/chapter-09"), tmp_path)
 
 
-def test_coverage_paths_reports_each_unexercised_path(tmp_path, capsys):
-    """Chapter 9 runs three of its approval paths; the other six (D054, tests/test_seams_coverage.py) are findings."""
+def _unset_coverage(app: Path) -> None:
+    toml = app / "seams.toml"
+    text = toml.read_text(encoding="utf-8")
+    assert text.count('coverage = ["paths"]\n') == 1
+    toml.write_text(text.replace('coverage = ["paths"]\n', ""), encoding="utf-8")
+
+
+def test_chapter_9_passes_with_the_paths_gate_on(tmp_path, capsys):
+    """Every chapter 9 path is run by a scenario (D054, tests/test_seams_coverage.py), so its gate is on and clean."""
     app = _chapter_9(tmp_path)
-    _set_coverage(app, '["paths"]')
+    assert load_project(app).coverage == ("paths",)
+    assert _check(app, capsys) == (0, [], _warnings(app))
+
+
+def test_coverage_paths_reports_each_unexercised_path(tmp_path, capsys):
+    """Without two of chapter 9's scenarios, the paths only they run are findings."""
+    app = _chapter_9(tmp_path)
+    trig = app / "expenses.trig"
+    text = trig.read_text(encoding="utf-8")
+    for name in ("manager_rejected", "paid_now"):
+        start = text.index(f"    :{name} a verify:Scenario ;")
+        text = text[:start] + text[text.index("\n\n", start) + 2 :]
+    trig.write_text(text, encoding="utf-8")
+    assert main(["generate", "--project", str(app)]) == 0
+    capsys.readouterr()
     code, lines, err = _check(app, capsys)
     expected = sorted(
         "coverage " + " ".join((str(p.process.iri), *(str(i) for i in p.iris)))
-        for p in seams.unexercised_paths(seams.load(app / "expenses.trig"))
+        for p in seams.unexercised_paths(seams.load(trig))
     )
     assert code == 1
-    assert len(expected) == 6
+    assert len(expected) == 2
     assert lines == expected
-    assert err.strip() == "seams check: 6 problem(s)"
-    assert "https://example.org/expenses/approval_bpmn#rejected_end" in lines[0]
+    assert err.strip() == "seams check: 2 problem(s)"
+    assert lines[0].endswith("https://example.org/expenses/approval_bpmn#rejected_end")
+    assert lines[1].endswith("https://example.org/expenses/payout_bpmn#paid_out")
 
 
 def test_a_type_ref_disagreeing_with_the_datatype_is_a_decision_finding(tmp_path, capsys):
@@ -367,6 +389,7 @@ def test_a_condition_reading_an_unset_variable_is_a_decision_finding(tmp_path, c
 
 def test_coverage_unset_adds_no_findings(tmp_path, capsys):
     app = _chapter_9(tmp_path)
+    _unset_coverage(app)
     assert load_project(app).coverage == ()
     assert _check(app, capsys) == (0, [], _warnings(app))
 

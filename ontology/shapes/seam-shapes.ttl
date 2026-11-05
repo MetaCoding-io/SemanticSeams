@@ -1345,7 +1345,7 @@ seamsh:OfferedClassShape a sh:NodeShape ;
 
 seamsh:ScenarioShape a sh:NodeShape ;
     sh:targetClass verify:Scenario ;
-    sh:targetSubjectsOf verify:process , verify:step , verify:expectState , verify:expectEndEvent ;
+    sh:targetSubjectsOf verify:process , verify:step , verify:expectState , verify:expectEndEvent , verify:failure ;
     sh:class verify:Scenario ;
     sh:nodeKind sh:IRI ;
     sh:property [ sh:path verify:process ; sh:minCount 1 ; sh:maxCount 1 ; sh:class proc:Process ;
@@ -1360,6 +1360,8 @@ seamsh:ScenarioShape a sh:NodeShape ;
         sh:message "A scenario expects at most one verify:expectState, a state:State." ] ;
     sh:property [ sh:path verify:expectEndEvent ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
         sh:message "A scenario expects at most one verify:expectEndEvent, an IRI." ] ;
+    sh:property [ sh:path verify:failure ; sh:node seamsh:FailureShape ;
+        sh:message "Each verify:failure names one verify:operation (a hydra:Operation) and one verify:status, an error of that operation (a hydra:possibleStatus with a comm:errorCode)." ] ;
     sh:sparql [
         sh:message "A scenario states what it expects: a verify:expectState, a verify:expectEndEvent, or both." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
@@ -1399,13 +1401,19 @@ seamsh:ScenarioShape a sh:NodeShape ;
             }""" ;
     ] ;
     sh:sparql [
-        sh:message "verify:expectEndEvent is lifted into the scenario's process model (seam:inModel)." ;
+        sh:message "verify:expectEndEvent is lifted into the model (seam:inModel) of the scenario's process, or of a process the run starts: one whose start event seam:subscribesTo a channel an element of the scenario's process seam:publishesTo." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
-                $this verify:process/seam:inModel ?model ;
-                      verify:expectEndEvent ?value .
-                FILTER NOT EXISTS { ?value seam:inModel ?model }
+                $this verify:expectEndEvent ?value .
+                FILTER NOT EXISTS {
+                    { $this verify:process/seam:inModel ?model }
+                    UNION
+                    { $this verify:process/seam:inModel ?publisher .
+                      ?out seam:inModel ?publisher ; seam:publishesTo ?channel .
+                      ?in seam:subscribesTo ?channel ; seam:inModel ?model }
+                    ?value seam:inModel ?model
+                }
             }""" ;
     ] ;
     sh:sparql [
@@ -1417,7 +1425,48 @@ seamsh:ScenarioShape a sh:NodeShape ;
                 FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle ?machine }
             }""" ;
     ] ;
-    sh:message "Only a verify:Scenario carries verify:process, verify:step or an expected state or end event, and a scenario is an IRI (its local name names its generated test)." .
+    sh:sparql [
+        sh:message "A verify:failure's operation is one the run invokes: an element of the scenario's process model, or of a process the run starts through a channel, seam:invokes it." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:failure/verify:operation ?value .
+                FILTER NOT EXISTS {
+                    { $this verify:process/seam:inModel ?model }
+                    UNION
+                    { $this verify:process/seam:inModel ?publisher .
+                      ?out seam:inModel ?publisher ; seam:publishesTo ?channel .
+                      ?in seam:subscribesTo ?channel ; seam:inModel ?model }
+                    ?task seam:inModel ?model ; seam:invokes ?value
+                }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A scenario makes each operation fail at most once (one verify:failure per verify:operation)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:failure ?a , ?b .
+                ?a verify:operation ?value .
+                ?b verify:operation ?value .
+                FILTER (?a != ?b)
+            }""" ;
+    ] ;
+    sh:message "Only a verify:Scenario carries verify:process, verify:step, verify:failure or an expected state or end event, and a scenario is an IRI (its local name names its generated test)." .
+
+# Not targeted: applied to each verify:failure of a scenario.
+seamsh:FailureShape a sh:NodeShape ;
+    sh:property [ sh:path verify:operation ; sh:minCount 1 ; sh:maxCount 1 ; sh:class hydra:Operation ] ;
+    sh:property [ sh:path verify:status ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+    sh:sparql [
+        sh:message "verify:status is an error of verify:operation: one of its hydra:possibleStatus, with a comm:errorCode." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this verify:status ?value ; verify:operation ?op .
+                FILTER NOT EXISTS { ?op hydra:possibleStatus ?value . ?value comm:errorCode ?code }
+            }""" ;
+    ] .
 
 # Not targeted: applied to each member of a scenario's verify:step list.
 seamsh:StepShape a sh:NodeShape ;

@@ -38,7 +38,7 @@ from .operations import Channel, Operation, PathTemplate, Status
 from .policies import Policy
 from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes
 from .shapes import Field, FlatNode, Shape
-from .verify import DecisionExample, ExpectedOutput, Given, Scenario, Step
+from .verify import DecisionExample, ExpectedOutput, Failure, Given, Scenario, Step
 
 if TYPE_CHECKING:
     from ..loader import Model
@@ -60,6 +60,7 @@ __all__ = [
     "ErrorBoundary",
     "Event",
     "ExpectedOutput",
+    "Failure",
     "Field",
     "FlatNode",
     "Flow",

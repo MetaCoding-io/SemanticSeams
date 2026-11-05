@@ -13,8 +13,13 @@ fact it checks (principle 7, the P007 thin-handler rule applied to tests).
 - ``run_scenario`` drives a ``Scenario`` through that app's routes as a
   person would: it submits the start form as the scenario's party, then
   completes each step's user task as the step's party, waiting after each
-  request until the instance settles. It returns a ``Run``: the instance
-  status, the entity's lifecycle state and the BPMN elements reached. A
+  request until the instance settles. Before the start, each of the
+  scenario's ``failures`` is registered with ``Runtime.fail_operation``, so
+  the operation fails whenever the run invokes it. The run takes in every
+  instance it starts through a channel (ADR-0010): each is waited for too.
+  It returns a ``Run``: the status (failed if any instance of the run
+  failed), the entity's lifecycle state and the BPMN elements reached by
+  the scenario's instance, then by each instance it started. A
   request that is not answered 200, a step whose task is not open, or a run
   that never settles raises ``ScenarioError`` (an ``AssertionError``, so
   pytest reports it as the scenario's failure) naming the scenario and step.
@@ -104,7 +109,10 @@ class Scenario:
     """A verify:Scenario resolved to routes. ``key_variable`` is the
     process's proc:correlationKey path variable; ``key`` fills it.
     ``entity_shape`` is the shape whose stored status the run's ``state``
-    reads (the shape whose seam:lifecycle holds the expected state), or None."""
+    reads (the shape whose seam:lifecycle holds the expected state), or None.
+    ``failures`` are the (operation IRI, comm:errorCode) pairs of its
+    verify:failures: each operation fails with that code whenever the run
+    invokes it."""
 
     iri: str
     process: str
@@ -113,6 +121,7 @@ class Scenario:
     start: Request
     steps: tuple[Step, ...]
     entity_shape: str | None
+    failures: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -261,6 +270,8 @@ def _drive(client, runtime, scenario: Scenario, steps: int, timeout: float) -> d
     instance row (None when ``steps`` is negative, so nothing was sent)."""
     if steps < 0:
         return None
+    for operation, code in scenario.failures:
+        runtime.fail_operation(scenario.key, URIRef(operation), code)
     _send(client, scenario, scenario.start, "start")
     row = _settle(runtime, scenario, "the start", timeout)
     for number, step in enumerate(scenario.steps[:steps], 1):
@@ -270,16 +281,43 @@ def _drive(client, runtime, scenario: Scenario, steps: int, timeout: float) -> d
     return row
 
 
+def _settled(runtime, scenario: Scenario, instance_id: str, timeout: float) -> dict:
+    """The row of instance ``instance_id`` once it settles; ``ScenarioError`` after ``timeout``."""
+    deadline = time.monotonic() + timeout
+    while True:
+        row = runtime.store.get_instance(instance_id)
+        if row is not None and row["status"] in SETTLED:
+            return row
+        if time.monotonic() >= deadline:
+            status = None if row is None else row["status"]
+            raise ScenarioError(
+                f"{scenario.iri}: started instance {instance_id} did not settle in {timeout}s (status {status!r})"
+            )
+        time.sleep(0.02)
+
+
 def run_scenario(client, runtime, scenario: Scenario, timeout: float = DEFAULT_TIMEOUT) -> Run:
     """Drive ``scenario`` through the app ``serve`` built and return its ``Run``."""
     row = _drive(client, runtime, scenario, len(scenario.steps), timeout)
+    status, error = row["status"], row.get("error")
+    reached: list[str] = []
+    pending = [row["instance_id"]]
+    while pending:
+        current = _settled(runtime, scenario, pending.pop(0), timeout)
+        if current["status"] == FAILED and status != FAILED:
+            status, error = FAILED, current.get("error")
+        workflow = runtime.engine.deserialize(runtime.store.load_state(current["instance_id"]))
+        for r in workflow.data["seams"]["trace"]:
+            reached.append(r["iri"])
+            for started in r.get("started", ()):
+                if started.get("instance") is None:
+                    raise ScenarioError(f"{scenario.iri}: {r['iri']} could not start {started}")
+                pending.append(started["instance"])
     state = None
     if scenario.entity_shape is not None:
         entities = runtime.store.query(URIRef(scenario.entity_shape), correlation_key=scenario.key)
         state = entities[-1].get("status") if entities else None
-    workflow = runtime.engine.deserialize(runtime.store.load_state(row["instance_id"]))
-    reached = tuple(r["iri"] for r in workflow.data["seams"]["trace"])
-    return Run(row["status"], row.get("error"), state, reached)
+    return Run(status, error, state, tuple(reached))
 
 
 def _store_snapshot(runtime) -> tuple:

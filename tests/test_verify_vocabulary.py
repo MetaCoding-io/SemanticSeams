@@ -30,6 +30,9 @@ DEC = Namespace("https://w3id.org/seams/dec#")
 IFML = Namespace("https://w3id.org/seams/ifml#")
 SEAMSH = Namespace("https://w3id.org/seams/shapes#")
 SH = Namespace("http://www.w3.org/ns/shacl#")
+HYDRA = Namespace("http://www.w3.org/ns/hydra/core#")
+COMM = Namespace("https://w3id.org/seams/comm#")
+NOTIFY = URIRef("https://example.org/expenses/approval_bpmn#notify_manager")
 EX = Namespace("https://example.org/expenses/")
 APPROVE = URIRef("https://example.org/expenses/approval_bpmn#approve_expense")
 APPROVED_END = URIRef("https://example.org/expenses/approval_bpmn#approved_end")
@@ -52,6 +55,9 @@ PROPERTIES = [
     VERIFY.expectOutput,
     VERIFY.validExample,
     VERIFY.invalidExample,
+    VERIFY.failure,
+    VERIFY.operation,
+    VERIFY.status,
 ]
 
 
@@ -255,6 +261,117 @@ def test_expected_end_event_that_is_not_lifted_is_flagged():
 def test_literal_end_event_is_flagged():
     g = model()
     g.add((SCENARIO, VERIFY.expectEndEvent, Literal("approved_end")))
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+# ---------------------------------------------------------------- SHACL: failures and channel-started runs
+
+
+def with_failing_operation() -> rdflib.Graph:
+    """The ADR example plus an operation a task of the approval model invokes, with one declared error."""
+    g = model()
+    g.add((NOTIFY, RDF.type, PROC.ServiceTask))
+    g.add((NOTIFY, SEAM.inModel, EX.approval_bpmn))
+    g.add((NOTIFY, SEAM.invokes, EX.notify_op))
+    g.add((EX.notify_op, RDF.type, HYDRA.Operation))
+    g.add((EX.notify_op, HYDRA.possibleStatus, EX.notify_failed))
+    g.add((EX.notify_failed, RDF.type, HYDRA.Status))
+    g.add((EX.notify_failed, COMM.errorCode, Literal("notify-failed")))
+    return g
+
+
+def add_failure(g: rdflib.Graph, operation=EX.notify_op, status=EX.notify_failed) -> BNode:
+    failure = BNode()
+    g.add((SCENARIO, VERIFY.failure, failure))
+    if operation is not None:
+        g.add((failure, VERIFY.operation, operation))
+    if status is not None:
+        g.add((failure, VERIFY.status, status))
+    return failure
+
+
+def test_failure_of_an_invoked_operation_with_a_declared_error_conforms():
+    g = with_failing_operation()
+    baseline = violating_shapes(g)
+    add_failure(g)
+    assert violating_shapes(g) == baseline
+    assert SEAMSH.ScenarioShape not in baseline
+
+
+def test_failure_without_operation_is_flagged():
+    g = with_failing_operation()
+    add_failure(g, operation=None)
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def test_failure_without_status_is_flagged():
+    g = with_failing_operation()
+    add_failure(g, status=None)
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def test_failure_status_the_operation_does_not_declare_is_flagged():
+    g = with_failing_operation()
+    g.add((EX.other_failed, RDF.type, HYDRA.Status))
+    g.add((EX.other_failed, COMM.errorCode, Literal("other-failed")))
+    add_failure(g, status=EX.other_failed)
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def test_failure_status_without_error_code_is_flagged():
+    g = with_failing_operation()
+    g.remove((EX.notify_failed, COMM.errorCode, None))
+    add_failure(g)
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def test_failure_of_an_operation_the_run_never_invokes_is_flagged():
+    g = with_failing_operation()
+    g.remove((NOTIFY, SEAM.invokes, EX.notify_op))
+    add_failure(g)
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def test_failing_one_operation_twice_is_flagged():
+    g = with_failing_operation()
+    add_failure(g)
+    add_failure(g)
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def test_failure_on_something_that_is_not_a_scenario_is_flagged():
+    g = with_failing_operation()
+    failure = BNode()
+    g.add((DECISION_EXAMPLE, VERIFY.failure, failure))
+    g.add((failure, VERIFY.operation, EX.notify_op))
+    g.add((failure, VERIFY.status, EX.notify_failed))
+    assert SEAMSH.ScenarioShape in violating_shapes(g)
+
+
+def started_through_a_channel(g: rdflib.Graph) -> URIRef:
+    """Make approved_end publish on a channel a payout process's start event subscribes to; its end event."""
+    paid_out = URIRef("https://example.org/expenses/payout_bpmn#paid_out")
+    start = URIRef("https://example.org/expenses/payout_bpmn#payout_requested")
+    g.add((APPROVED_END, SEAM.publishesTo, EX.payouts))
+    g.add((start, SEAM.subscribesTo, EX.payouts))
+    g.add((start, SEAM.inModel, EX.payout_bpmn))
+    g.add((paid_out, SEAM.inModel, EX.payout_bpmn))
+    return paid_out
+
+
+def test_end_event_of_a_process_the_run_starts_conforms():
+    g = model()
+    paid_out = started_through_a_channel(g)
+    baseline = violating_shapes(g)
+    g.add((SCENARIO, VERIFY.expectEndEvent, paid_out))
+    assert violating_shapes(g) == baseline
+
+
+def test_end_event_of_a_process_on_a_channel_nothing_in_the_run_publishes_to_is_flagged():
+    g = model()
+    paid_out = started_through_a_channel(g)
+    g.remove((APPROVED_END, SEAM.publishesTo, EX.payouts))
+    g.add((SCENARIO, VERIFY.expectEndEvent, paid_out))
     assert SEAMSH.ScenarioShape in violating_shapes(g)
 
 

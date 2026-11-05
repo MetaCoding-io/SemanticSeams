@@ -9,6 +9,10 @@ model = "expenses.trig"
 # `seams check` fails if any UI event can write data with no policy governing it.
 gates = ["../../../docs/queries/gates/ungoverned-writes.rq"]
 
+# `seams check` also fails if any BPMN path of either process is one no
+# verify:Scenario runs (`seams coverage` lists them).
+coverage = ["paths"]
+
 [[generators]]
 name = "fastapi"
 out = "generated"

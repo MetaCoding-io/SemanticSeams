@@ -1020,7 +1020,7 @@ seams coverage examples/expenses/chapter-09 --json
 
 | Kind | Printed as | Meaning |
 |---|---|---|
-| `path` | `path <process> <node>...` | A start-to-end BPMN path no `verify:Scenario` runs. Paths are walked over the BPMN sequence flows (ADR-0007), so this is a Python join, not SPARQL. A path through a boundary event is never exercised. |
+| `path` | `path <process> <node>...` | A start-to-end BPMN path no `verify:Scenario` runs. Paths are walked over the BPMN sequence flows (ADR-0007), so this is a Python join, not SPARQL. A path through an error boundary is run only by a scenario whose `verify:failure` fails the operation the boundary catches. A path of a channel-started process is run by a scenario whose run starts it and that expects a state or end event on it. |
 | `transition` | `transition <lifecycle> <transition>` | A `state:Transition` nothing `seam:fires` (`coverage/unfired-transitions.rq`). |
 | `policy` | `policy <policy> <target> <assignee>` | An `odrl:permission` the `tests` generator writes no party deny test for, because no party in the model is outside its assignee (`coverage/policies-without-deny.rq`). `-` stands for an absent target or assignee. |
 
@@ -1058,12 +1058,12 @@ gates = [
 coverage = ["paths"]
 ```
 
-Expenses chapter 9 does not turn these on. Every transition is fired and every
-permission has a deny test, but its three scenarios run only the auto,
-manager-approve and finance-approve paths of the approval process. The two
-reject paths, the two escalations through the notify-failed boundary event and
-both payout paths have no scenario, so `seams coverage examples/expenses/chapter-09`
-reports six paths and exits 1.
+Expenses chapter 9 turns on `coverage = ["paths"]`. Its nine scenarios run every
+path: both outcomes of each route, the two escalations through the
+notify-failed boundary event (each with a `verify:failure`), and both payout
+paths, which the runs that pay an expense start through `:payouts`. Every
+transition is fired and every permission has a deny test too, so
+`seams coverage examples/expenses/chapter-09` prints nothing and exits 0.
 
 ### Exit codes
 

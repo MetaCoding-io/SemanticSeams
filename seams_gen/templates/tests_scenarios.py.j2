@@ -5,7 +5,9 @@
 
 Each test submits the start form as the scenario's party, completes each
 step's user task as the step's party, and checks the state or end event the
-model expects (seams_runtime.verify.run_scenario).
+model expects (seams_runtime.verify.run_scenario). An operation a
+verify:failure names fails whenever the run invokes it, and the run takes in
+every process it starts through a channel.
 """
 
 import pytest
@@ -28,6 +30,9 @@ def app(tmp_path):
 # [[ s.curie ]] a verify:Scenario ; verify:process [[ s.process_curie ]]
 [% for step in s.steps %]
 #   step [[ loop.index ]]: [[ step.curie ]]
+[% endfor %]
+[% for f in s.failures %]
+#   verify:failure [[ f.curie ]]
 [% endfor %]
 [% if s.expect_state_curie %]
 #   verify:expectState [[ s.expect_state_curie ]]
@@ -73,6 +78,13 @@ def [[ s.name ]](app):
         ),
 [% endif %]
         entity_shape=[[ s.entity_shape ]],
+[% if s.failures %]
+        failures=(
+[% for f in s.failures %]
+            ([[ f.operation ]], [[ f.code ]]),
+[% endfor %]
+        ),
+[% endif %]
     )
     run = run_scenario(*app, scenario)
     assert run.status != FAILED, run.error

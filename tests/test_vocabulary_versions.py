@@ -92,7 +92,7 @@ def refused(err: pytest.ExceptionInfo[ResolutionError]) -> str:
 
 # seam 1.1 adds the seam:Ontology notation (ADR-0022) and 1.2 the shape notation of
 # ADR-0023 (sh:name, categories, sh:node flattening): compatible widenings.
-SHIPPED = {"seam": (1, 2)}
+SHIPPED = {"seam": (1, 2), "verify": (1, 1)}
 
 
 def test_every_shipped_vocabulary_is_at_its_release() -> None:

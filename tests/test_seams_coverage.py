@@ -1,10 +1,12 @@
 """seams.coverage: BPMN paths no scenario exercises, plus the two SPARQL coverage wrappers (M015/S04, D054).
 
-Chapter 9's three scenarios run the auto, manager-approve and finance-approve
-paths of the approval process. Its two reject paths, the two escalation paths
-through the notify-failed boundary event and both payout paths are not run by
-any scenario, and that is the real result pinned here. A small fixture written
-in the test covers loops, step order and expectations that are not on a path.
+Chapter 9's nine scenarios run every path: the auto, manager and finance
+routes with both outcomes, the two escalation paths through the notify-failed
+boundary event (the scenario fails :notify_manager_op, ADR-0014 as amended),
+and both payout paths, which the runs that pay an expense start through the
+:payouts channel. That is the real result pinned here; removing a fact shows
+what each scenario is credited for. A small fixture written in the test covers
+loops, step order and expectations that are not on a path.
 """
 
 from pathlib import Path
@@ -12,7 +14,7 @@ from pathlib import Path
 import pytest
 import seams
 from rdflib import RDF, URIRef
-from seams import VERIFY, ResolutionError
+from seams import SEAM, VERIFY, ResolutionError
 from seams.coverage import exercises
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +39,7 @@ MANAGER_APPROVE = (
 MANAGER_REJECT = (*HEAD, "notify_manager", "approve_expense", "decision_gateway", "record_rejection", "rejected_end")
 ESCALATE = (*HEAD, "notify_manager", "notify_failed_boundary", "finance_approve_expense", "decision_gateway")
 FINANCE = (*HEAD, "finance_approve_expense", "decision_gateway")
+PAYOUT_HEAD = ("payout_requested", "schedule_payout", "choose_payout", "method_gateway")
 
 
 @pytest.fixture(scope="module")
@@ -52,49 +55,76 @@ def test_chapter_9_paths_and_the_scenarios_that_run_them(chapter9: seams.Model) 
     found = [(p.bpmn_ids, [str(s.iri) for s in p.scenarios]) for p in seams.process_paths(chapter9, APPROVAL)]
     assert found == [
         (AUTO, [EX + "auto_approved"]),
-        (MANAGER_APPROVE, [EX + "manager_approved"]),
-        (MANAGER_REJECT, []),
-        ((*ESCALATE, "record_approval", "pay_expense", "approved_end"), []),
-        ((*ESCALATE, "record_rejection", "rejected_end"), []),
-        ((*FINANCE, "record_approval", "pay_expense", "approved_end"), [EX + "finance_approved"]),
-        ((*FINANCE, "record_rejection", "rejected_end"), []),
+        (MANAGER_APPROVE, [EX + "manager_approved", EX + "paid_in_batch"]),
+        (MANAGER_REJECT, [EX + "manager_rejected"]),
+        ((*ESCALATE, "record_approval", "pay_expense", "approved_end"), [EX + "notify_failed_approved"]),
+        ((*ESCALATE, "record_rejection", "rejected_end"), [EX + "notify_failed_rejected"]),
+        ((*FINANCE, "record_approval", "pay_expense", "approved_end"), [EX + "finance_approved", EX + "paid_now"]),
+        ((*FINANCE, "record_rejection", "rejected_end"), [EX + "finance_rejected"]),
     ]
 
 
-def test_chapter_9_unexercised_paths(chapter9: seams.Model) -> None:
-    uncovered = seams.unexercised_paths(chapter9)
-    assert _ids(uncovered) == [
-        (str(APPROVAL), MANAGER_REJECT),
-        (str(APPROVAL), (*ESCALATE, "record_approval", "pay_expense", "approved_end")),
-        (str(APPROVAL), (*ESCALATE, "record_rejection", "rejected_end")),
-        (str(APPROVAL), (*FINANCE, "record_rejection", "rejected_end")),
-        (
-            str(PAYOUT),
-            ("payout_requested", "schedule_payout", "choose_payout", "method_gateway", "add_to_batch", "paid_out"),
-        ),
-        (
-            str(PAYOUT),
-            ("payout_requested", "schedule_payout", "choose_payout", "method_gateway", "send_now", "paid_out"),
-        ),
+def test_chapter_9_payout_paths_are_run_by_the_scenarios_that_pay(chapter9: seams.Model) -> None:
+    """The payout process starts from :payouts; only a scenario expecting a payment state on a path is credited."""
+    found = [(p.bpmn_ids, [str(s.iri) for s in p.scenarios]) for p in seams.process_paths(chapter9, PAYOUT)]
+    assert found == [
+        ((*PAYOUT_HEAD, "add_to_batch", "paid_out"), [EX + "paid_in_batch"]),
+        ((*PAYOUT_HEAD, "send_now", "paid_out"), [EX + "paid_now"]),
     ]
-    reject = uncovered[0]
+
+
+def test_chapter_9_has_no_unexercised_paths(chapter9: seams.Model) -> None:
+    assert seams.unexercised_paths(chapter9) == ()
+
+
+def test_an_unexercised_path_names_its_nodes() -> None:
+    model = seams.load(CHAPTER_09)
+    model.ds.remove((URIRef(EX + "manager_rejected"), None, None))
+    (reject,) = seams.unexercised_paths(model)
+    assert reject.bpmn_ids == MANAGER_REJECT
     assert reject.end.iri == URIRef(EX + "approval_bpmn#rejected_end")
     assert reject.start.bpmn_id == "start"
     assert reject.iris[-1] == reject.end.iri
     assert not reject.exercised
 
 
+def test_without_its_failure_a_scenario_leaves_the_boundary_path() -> None:
+    """Coverage is static: the user tasks then match the direct finance path, which never invokes the operation."""
+    model = seams.load(CHAPTER_09)
+    scenario = URIRef(EX + "notify_failed_approved")
+    model.ds.remove((scenario, VERIFY.failure, None))
+    escalate = (*ESCALATE, "record_approval", "pay_expense", "approved_end")
+    direct = (*FINANCE, "record_approval", "pay_expense", "approved_end")
+    assert [p.bpmn_ids for p in seams.unexercised_paths(model)] == [escalate]
+    credited = {p.bpmn_ids: [str(s.iri) for s in p.scenarios] for p in seams.process_paths(model, APPROVAL)}
+    assert credited[direct] == [EX + "finance_approved", EX + "notify_failed_approved", EX + "paid_now"]
+
+
+def test_without_the_channel_the_payout_paths_are_unexercised() -> None:
+    model = seams.load(CHAPTER_09)
+    model.ds.remove((URIRef(EX + "approval_bpmn#approved_end"), SEAM.publishesTo, None))
+    assert [p.end.bpmn_id for p in seams.unexercised_paths(model)] == ["paid_out", "paid_out"]
+
+
+def test_a_scenario_expecting_nothing_in_the_started_process_is_not_credited_there() -> None:
+    model = seams.load(CHAPTER_09)
+    model.ds.remove((URIRef(EX + "paid_now"), None, None))
+    uncovered = seams.unexercised_paths(model)
+    assert [p.bpmn_ids for p in uncovered] == [(*PAYOUT_HEAD, "send_now", "paid_out")]
+
+
 def test_a_process_can_be_named_by_curie_and_an_unknown_one_raises(chapter9: seams.Model) -> None:
-    assert _ids(seams.unexercised_paths(chapter9, ":payout_process")) == _ids(seams.unexercised_paths(chapter9, PAYOUT))
+    assert _ids(seams.process_paths(chapter9, ":payout_process")) == _ids(seams.process_paths(chapter9, PAYOUT))
     with pytest.raises(ResolutionError, match="no_such_process"):
         seams.process_paths(chapter9, ":no_such_process")
 
 
 def test_removing_a_scenario_leaves_its_path_unexercised() -> None:
     model = seams.load(CHAPTER_09)  # a fresh copy: the views are built on first use
-    scenario = URIRef(EX + "manager_approved")
-    assert (scenario, RDF.type, VERIFY.Scenario) in model.ds
-    model.ds.remove((scenario, None, None))
+    for name in ("manager_approved", "paid_in_batch"):  # both run the manager-approve path
+        scenario = URIRef(EX + name)
+        assert (scenario, RDF.type, VERIFY.Scenario) in model.ds
+        model.ds.remove((scenario, None, None))
     uncovered = [p.bpmn_ids for p in seams.unexercised_paths(model, APPROVAL)]
     assert MANAGER_APPROVE in uncovered
     assert AUTO not in uncovered

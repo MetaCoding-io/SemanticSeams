@@ -502,6 +502,15 @@ class Runtime:
         log.info("started %s instance %s (correlation %s)", process, instance.id, correlation_key)
         return self._launch(instance)
 
+    def fail_operation(self, correlation_key: str, operation_curie, code: str) -> None:
+        """Make ``operation_curie`` fail with the declared error ``code`` for
+        every instance with ``correlation_key`` (worker rule 3b): what a
+        scenario's verify:failure asks for (ADR-0014). ``ResolutionError``
+        unless ``code`` is the comm:errorCode of one of the operation's errors."""
+        op = self.model.curie(operation_curie)
+        self.model.operations.by_iri(op).error(code)  # ResolutionError(op, comm:errorCode)
+        self.worker.fail(correlation_key, op, code)
+
     async def start_subscribed(
         self, process_curie, correlation_key: str, current: dict, status: dict, *, stop_after=None
     ) -> Instance:

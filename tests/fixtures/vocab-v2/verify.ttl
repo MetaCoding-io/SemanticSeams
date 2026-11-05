@@ -6,11 +6,12 @@
 @prefix proc:   <https://w3id.org/seams/proc#> .
 @prefix dec:    <https://w3id.org/seams/dec#> .
 @prefix state:  <https://w3id.org/seams/state#> .
+@prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
 @prefix verify: <https://w3id.org/seams/verify#> .
 
 <https://w3id.org/seams/verify> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/verify/1.0> ;
-    owl:versionInfo "1.0" ;
+    owl:versionIRI <https://w3id.org/seams/verify/1.1> ;
+    owl:versionInfo "1.1" ;
     rdfs:label "SemanticSeams Scenario and Example Vocabulary" ;
     rdfs:comment """What a model says it should do, stated so a generator can turn it into
 tests (ADR-0014). A scenario runs a process through its user tasks and names the state
@@ -32,7 +33,10 @@ verify:Scenario a rdfs:Class ;
     rdfs:comment """One run of a process: the verify:actor starts verify:process with the
 verify:given field values, the parties in verify:step complete its user tasks in order,
 and the run ends in verify:expectState, at verify:expectEndEvent, or both. The process
-is one a UI event seam:triggers, so the run starts the way a person starts it.""" .
+is one a UI event seam:triggers, so the run starts the way a person starts it. The run
+also takes in every process it starts through a channel (ADR-0010), so an expectation may
+name a state or end event of one of those. Each verify:failure makes an operation fail
+whenever the run invokes it.""" .
 
 verify:process a rdf:Property ;
     rdfs:label "process" ;
@@ -79,14 +83,38 @@ verify:expectState a rdf:Property ;
     rdfs:domain verify:Scenario ;
     rdfs:range state:State ;
     rdfs:comment """The state:State the process's entity is in when the steps are done.
-The entity is the one whose shape seam:lifecycle holds that state.""" .
+The entity is the one whose shape seam:lifecycle holds that state. It may be an entity
+a process the run starts through a channel moves.""" .
 
 verify:expectEndEvent a rdf:Property ;
     rdfs:label "expect end event" ;
     rdfs:domain verify:Scenario ;
     rdfs:comment """The BPMN end event the run finishes on: its IRI is the process model's
 IRI with the end event's id as fragment (ADR-0002), and it is lifted into the process's
-model graph like any element a seam names.""" .
+model graph like any element a seam names. It may instead be an end event of a process
+the run starts through a channel: one whose message start event seam:subscribesTo a
+channel an element of the scenario's process seam:publishesTo.""" .
+
+verify:failure a rdf:Property ;
+    rdfs:label "failure" ;
+    rdfs:domain verify:Scenario ;
+    rdfs:comment """An operation that fails in this run, as a blank node with one
+verify:operation and one verify:status. Whenever the run invokes the operation, the
+runtime raises the status's comm:errorCode instead of calling the implementation, so the
+run takes the error boundary that seam:catches the status (ADR-0013). Failing the
+operation is the scenario's input, like a given value: the handler's own reasons for
+failing are not part of the model.""" .
+
+verify:operation a rdf:Property ;
+    rdfs:label "operation" ;
+    rdfs:range hydra:Operation ;
+    rdfs:comment "The hydra:Operation a verify:failure makes fail." .
+
+verify:status a rdf:Property ;
+    rdfs:label "status" ;
+    rdfs:range hydra:Status ;
+    rdfs:comment """The hydra:Status the operation fails with: one of its hydra:possibleStatus
+that carries a comm:errorCode.""" .
 
 #################################################################
 # Decision examples

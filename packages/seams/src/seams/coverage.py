@@ -18,13 +18,22 @@ the task it is attached to, so its path runs through that task. A walk whose
 every way out is already on it (a loop back) is not a start-to-end path and
 is dropped.
 
-A scenario exercises a path when it runs that path's process, every
-expectation it states is on the path (its verify:expectEndEvent, and a node
-that seam:fires a transition whose state:to is its verify:expectState), and
-its verify:step tasks are exactly the user tasks on the path up to the last
-of those expectations, in order: a run cannot pass a user task without a step
-completing it. A path through a boundary event is never exercised, since the
-verify vocabulary has no way to make a task's operation fail.
+A scenario's run is a walk: a path of its process, then, when a node on it
+seam:publishesTo a channel, a path of a process whose start event
+seam:subscribesTo that channel (ADR-0010; one hop). A scenario exercises a
+walk when every expectation it states is on the walk (its
+verify:expectEndEvent, and a node that seam:fires a transition whose state:to
+is its verify:expectState), its verify:step tasks are exactly the user tasks
+on the walk up to the last of those expectations, in order (a run cannot pass
+a user task without a step completing it), and the walk agrees with its
+verify:failures: it invokes every operation the scenario fails (a failure
+the walk never meets says it is not this run), a task whose operation the scenario fails leaves through
+the error boundary that catches the failure's status, and a walk passes a
+boundary event only from a task whose operation the scenario fails with the
+status the boundary catches. The scenario then exercises the walk's own-process
+path, and the started process's path too when an expectation lies on it:
+a started path no expectation reaches is not credited, since nothing the run
+checks tells its branches apart.
 
 Every list comes in a fixed order (principle 6): processes by IRI, then
 paths in BPMN flow order (start events in flow order, outgoing flows in
@@ -122,6 +131,32 @@ def _paths(process: Process) -> list[tuple[FlowNode, ...]]:
     return found
 
 
+def _failures_agree(scenario: Scenario, walk: tuple[FlowNode, ...]) -> bool:
+    """True when ``walk`` invokes every failed operation, leaves its task through the boundary catching its
+    status, and passes a boundary only that way (the failure rule in the module docstring)."""
+    failing = {f.operation.iri: f.status.iri for f in scenario.failures}
+    invoked = {op.iri for op in (n.invokes for n in walk) if op is not None}
+    if not set(failing) <= invoked:
+        return False
+    for i, n in enumerate(walk):
+        if n.tag == "boundaryEvent":
+            task = walk[i - 1] if i > 0 else None
+            caught = n.catches
+            if task is None or task.bpmn_id != n.node.attached_to or caught is None:
+                return False
+            op = task.invokes
+            if op is None or failing.get(op.iri) != caught.iri:
+                return False
+            continue
+        op = n.invokes
+        if op is None or op.iri not in failing:
+            continue
+        after = walk[i + 1] if i + 1 < len(walk) else None
+        if after is None or after.tag != "boundaryEvent" or after.node.attached_to != n.bpmn_id:
+            return False
+    return True
+
+
 def _expectation_index(scenario: Scenario, path: tuple[FlowNode, ...]) -> int | None:
     """The index of the last node the scenario's expectations name, or None when one is not on the path."""
     last = len(path) - 1
@@ -143,17 +178,24 @@ def _expectation_index(scenario: Scenario, path: tuple[FlowNode, ...]) -> int | 
     return cut
 
 
+def _walk_cut(scenario: Scenario, walk: tuple[FlowNode, ...]) -> int | None:
+    """The index of the walk's last expected node when ``scenario`` exercises ``walk``, else None."""
+    if not _failures_agree(scenario, walk):
+        return None
+    cut = _expectation_index(scenario, walk)
+    if cut is None:
+        return None
+    user_tasks = tuple(n.iri for n in walk[: cut + 1] if n.tag == "userTask")
+    return cut if user_tasks == tuple(step.task.iri for step in scenario.steps) else None
+
+
 def exercises(scenario: Scenario, process: Process, path: tuple[FlowNode, ...]) -> bool:
-    """True when ``scenario`` runs ``process`` along ``path`` (the rule in the module docstring)."""
+    """True when ``scenario`` runs ``process`` along ``path`` and stops there:
+    the walk is ``path`` alone (the rule in the module docstring). A path
+    a scenario reaches through a channel is credited by ``process_paths``."""
     if scenario.process.iri != process.iri:
         return False
-    if any(n.tag == "boundaryEvent" for n in path):
-        return False
-    cut = _expectation_index(scenario, path)
-    if cut is None:
-        return False
-    user_tasks = tuple(n.iri for n in path[: cut + 1] if n.tag == "userTask")
-    return user_tasks == tuple(step.task.iri for step in scenario.steps)
+    return _walk_cut(scenario, path) is not None
 
 
 def process_paths(model: Model, process: object = None) -> tuple[ProcessPath, ...]:
@@ -162,12 +204,32 @@ def process_paths(model: Model, process: object = None) -> tuple[ProcessPath, ..
     scenarios that exercise each."""
     processes = model.processes
     chosen = list(processes) if process is None else [processes.by_iri(process)]
-    scenarios = model.scenarios
+    every = {proc.iri: _paths(proc) for proc in processes}
+    # The paths each channel starts: those whose start event seam:subscribesTo it.
+    started: dict[URIRef, list[tuple[FlowNode, ...]]] = {}
+    for paths in every.values():
+        for path in paths:
+            channel = path[0].starts_from
+            if channel is not None:
+                started.setdefault(channel.iri, []).append(path)
+    credit: dict[int, list[Scenario]] = {}
+    for scenario in model.scenarios:
+        for own in every.get(scenario.process.iri, []):
+            if _walk_cut(scenario, own) is not None:
+                credit.setdefault(id(own), []).append(scenario)
+            channels = sorted({ch.iri for n in own for ch in n.publishes_to}, key=str)
+            for then in (p for ch in channels for p in started.get(ch, [])):
+                cut = _walk_cut(scenario, own + then)
+                if cut is None:
+                    continue
+                for path in (own, then) if cut >= len(own) else (own,):
+                    if scenario not in credit.setdefault(id(path), []):
+                        credit[id(path)].append(scenario)
     out: list[ProcessPath] = []
     for proc in chosen:
-        runs = [s for s in scenarios if s.process.iri == proc.iri]
-        for path in _paths(proc):
-            out.append(ProcessPath(proc, path, tuple(s for s in runs if exercises(s, proc, path))))
+        for path in every[proc.iri]:
+            runs = credit.get(id(path), [])
+            out.append(ProcessPath(proc, path, tuple(s for s in model.scenarios if s in runs)))
     return tuple(out)
 
 

@@ -374,13 +374,18 @@ def test_execute_unexercised_paths_chat_app():
 
 def test_execute_unexercised_paths_chapter_09():
     import seams
+    from rdflib import URIRef
 
     model = seams.load(CHAPTER_09)
+    # Chapter 9 runs every path; without these two, one path of each process is left.
+    for name in ("manager_rejected", "paid_now"):
+        model.ds.remove((URIRef(EXPENSES + name), None, None))
     approval = queries.execute_query(model.ds, "unexercised-paths", EXPENSES + "approval_process", model=model)
     payout = queries.execute_query(model.ds, "unexercised-paths", EXPENSES + "payout_process", model=model)
-    # Same answer as seams.coverage (tests/test_seams_coverage.py pins the six paths).
+    # Same answer as seams.coverage (tests/test_seams_coverage.py).
     expected = seams.unexercised_paths(model)
-    assert approval["resultCount"] + payout["resultCount"] == len(expected) == 6
+    assert approval["resultCount"] == payout["resultCount"] == 1
+    assert len(expected) == 2
     assert [r["end"] for r in approval["rows"] + payout["rows"]] == [str(p.end.iri) for p in expected]
 
 

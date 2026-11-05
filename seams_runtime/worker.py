@@ -60,6 +60,12 @@ is completed) and applies these rules to each BPMN element, in this order:
    running it cancels the task, and the process goes on down the error path.
    With no such boundary the HandlerError or EndpointError fails the
    instance as rule 7 says, its error also naming ``code`` and ``status``.
+
+   3b. A failure a scenario asks for (``Worker.fail``, ADR-0014's
+   verify:failure): when the instance's correlation key has a failure
+   registered for op, the implementation is not called. The registered
+   code is raised as a declared error and routed as 3a, and the row
+   records ``failed`` (the code).
 4. ``seam:writes Shape``: persist the current entity of that shape (the
    first write persists the user message; after an invoke, the reply). A
    shape with a ``seam:lifecycle`` and no status yet (a user task's output,
@@ -200,6 +206,14 @@ class Worker:
         # Set by Runtime: called as on_published(instance, channel IRI) after
         # rule 6 publishes; returns [{process, instance}] for the trace row.
         self.on_published = None
+        # {(correlation key, operation IRI): errorCode}, from fail (rule 3b)
+        self.failures: dict[tuple[str, str], str] = {}
+
+    def fail(self, correlation_key: str, operation, code: str) -> None:
+        """Rule 3b: from now on, every instance with ``correlation_key`` that
+        invokes ``operation`` fails it with the declared error ``code``
+        instead of calling its implementation (a verify:failure, ADR-0014)."""
+        self.failures[(correlation_key, str(operation))] = code
 
     # ── the loop ──
 
@@ -372,6 +386,14 @@ class Worker:
         """Rule 3; True when a declared error was routed to a boundary (3a)."""
         container = self.model.implementing_container(op, instance.process)
         row.update(invokes=str(op), container=str(container.iri), in_process=container.in_process)
+        forced = self.failures.get((instance.correlation_key, str(op)))
+        if forced is not None:  # 3b
+            row["failed"] = forced
+            reason = f"a scenario fails it with {forced!r} (verify:failure)"
+            error = OperationError(forced, reason)
+            self._route(instance, task, iri, op, error, row, HandlerError(op, "verify:failure", reason))
+            instance.invoking = None
+            return True
         if op not in self.implementations:
             raise ResolutionError(op, SEAM.implementedBy, "operation was not resolved when the runtime loaded")
         impl, target = self.implementations[op]

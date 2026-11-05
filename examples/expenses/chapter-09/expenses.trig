@@ -10,9 +10,10 @@
 # `python -m seams_gen.stubs` wrote that file once; from then on it is owned
 # code, and `seams generate` never touches it.
 #
-# The model also says what the app should do (ADR-0014): five verify:Scenario
-# runs of the approval process (auto, manager and finance routes, and the
-# manager's and finance's rejections), a
+# The model also says what the app should do (ADR-0014): nine verify:Scenario
+# runs of the approval process (auto, manager and finance routes, the
+# manager's and finance's rejections, both outcomes after the manager's
+# notification fails, and a payment the payout process batches or sends), a
 # verify:DecisionExample for every rule of approval.dmn and payout.dmn, and a
 # valid and an invalid example of :ExpenseShape. They live at the end of the
 # seams graph, and the tests generator turns each one into a test.
@@ -1123,6 +1124,75 @@
         verify:expectState :s_rejected ;
         verify:expectEndEvent <https://example.org/expenses/approval_bpmn#rejected_end> .
 
+    # When the manager cannot be told, :notify_manager_op fails with
+    # :notify_failed and the error boundary sends the expense to finance
+    # (ADR-0013). The verify:failure makes the operation fail in the run,
+    # whatever the handler would have done.
+    :notify_failed_approved a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:failure [ verify:operation :notify_manager_op ; verify:status :notify_failed ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ]
+                      [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :reference ; verify:value "PAY-0043" ] ,
+                                     [ verify:field :paidOn ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
+        verify:expectState :s_paid ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#approved_end> .
+
+    # The same failure, then finance rejects the escalated expense.
+    :notify_failed_rejected a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:failure [ verify:operation :notify_manager_op ; verify:status :notify_failed ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "rejected" ] ] ) ;
+        verify:expectState :s_rejected ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#rejected_end> .
+
+    # Paying an expense publishes on :payouts, which starts :payout_process,
+    # so a scenario's run goes on into it and may expect a payment state.
+    # Up to 500 the payout table batches the payment.
+    :paid_in_batch a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#approve_expense> ;
+                        verify:actor :manager ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ]
+                      [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :reference ; verify:value "PAY-0044" ] ,
+                                     [ verify:field :paidOn ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
+        verify:expectState :s_batched .
+
+    # Above 500 the payout table sends the payment now.
+    :paid_now a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Conference in Lisbon" ] ,
+                     [ verify:field :amount ; verify:value 5000.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ]
+                      [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :reference ; verify:value "PAY-0045" ] ,
+                                     [ verify:field :paidOn ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
+        verify:expectState :s_sent .
+
     # Decision examples: one per rule of each table, at the rule's limit, so
     # moving a threshold breaks a named test.
     :routes_up_to_100_automatically a verify:DecisionExample ;
@@ -1170,5 +1240,5 @@
                     <https://w3id.org/seams/proc/1.0> ,
                     <https://w3id.org/seams/seam/1.2> ,
                     <https://w3id.org/seams/state/1.0> ,
-                    <https://w3id.org/seams/verify/1.0> .
+                    <https://w3id.org/seams/verify/1.1> .
 }

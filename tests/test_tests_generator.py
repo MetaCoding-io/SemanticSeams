@@ -120,7 +120,17 @@ def test_names_and_header_come_from_the_model():
     assert [s.name for s in tests.scenarios] == [
         "test_scenario_auto_approved",
         "test_scenario_finance_approved",
+        "test_scenario_finance_rejected",
         "test_scenario_manager_approved",
+        "test_scenario_manager_rejected",
+        "test_scenario_notify_failed_approved",
+        "test_scenario_notify_failed_rejected",
+        "test_scenario_paid_in_batch",
+        "test_scenario_paid_now",
+    ]
+    assert [s.name for s in tests.scenarios if s.failures] == [
+        "test_scenario_notify_failed_approved",
+        "test_scenario_notify_failed_rejected",
     ]
     assert len(tests.decision_examples) == len(model.decision_examples) == 5
     assert [x.name for x in tests.shape_examples] == [
@@ -141,7 +151,13 @@ def test_a_wrong_expected_state_fails_its_generated_test(tmp_path):
     assert outcomes.by_name == {
         "test_scenario_auto_approved": "passed",
         "test_scenario_finance_approved": "passed",
+        "test_scenario_finance_rejected": "passed",
         "test_scenario_manager_approved": "failed",
+        "test_scenario_manager_rejected": "passed",
+        "test_scenario_notify_failed_approved": "passed",
+        "test_scenario_notify_failed_rejected": "passed",
+        "test_scenario_paid_in_batch": "passed",
+        "test_scenario_paid_now": "passed",
     }
     # the failure names the scenario, the expectation and what the run reached
     assert (
@@ -212,12 +228,12 @@ def test_an_unenforced_permission_fails_its_denials(tmp_path):
 
 
 def test_a_target_no_scenario_reaches_is_probed(tmp_path):
-    # without :manager_approved no scenario completes approve_expense
-    start = "    # Up to 1000 the manager is told, then approves.\n"
-    end = "    # Above 1000 finance approves, then pays"
+    # without these three no scenario completes approve_expense
     text = TRIG.read_text(encoding="utf-8")
-    block = text[text.index(start) : text.index(end)]
-    copy = copy_chapter(tmp_path, block, "")
+    for name in ("manager_approved", "manager_rejected", "paid_in_batch"):
+        start = text.index(f"    :{name} a verify:Scenario ;")
+        text = text[:start] + text[text.index("\n\n", start) + 2 :]
+    copy = copy_chapter(tmp_path, TRIG.read_text(encoding="utf-8"), text)
     project = load_project(copy)
     write_outputs(generate_project(project, project.model).files)
 

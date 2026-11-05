@@ -471,7 +471,11 @@ policies.
 - A **`verify:Scenario`** starts a process a UI event `seam:triggers`, as one
   `verify:actor`, with `verify:given` field values. Its `verify:step` list completes
   user tasks in order, each as a named party with the form it is submitted with. It
-  ends with a `verify:expectState`, a `verify:expectEndEvent`, or both.
+  ends with a `verify:expectState`, a `verify:expectEndEvent`, or both. The run takes in
+  every process it starts through a channel, so it may expect a state or end event of
+  one of those. A `verify:failure` (a `verify:operation` and one of its errors as
+  `verify:status`) makes that operation fail whenever the run invokes it, so the run
+  takes the error boundary that catches the status.
 - A **`verify:DecisionExample`** gives a value for every `dec:input` of a decision and
   the `verify:expectOutput` it must return, named by the output's `dec:variable`.
 - **`verify:validExample`** and **`verify:invalidExample`** point a `sh:NodeShape` at
@@ -502,7 +506,7 @@ test. The shapes in `ontology/shapes/seam-shapes.ttl` check every statement (see
 [Validate it](#validate-it)), for example that a decision example gives exactly the
 decision's inputs. Chapter 9 of the expense tutorial,
 [Say what it should do](/tutorials/expenses/09-hand-written-code#say-what-it-should-do),
-adds five scenarios, five decision examples and a pair of shape examples.
+adds nine scenarios, five decision examples and a pair of shape examples.
 
 The `smoke` generator (backlog A9) uses the same examples against a running app: it
 writes one test per `hydra:Operation`, filling the path and body from the first
@@ -536,7 +540,10 @@ To see what the scenarios leave out, run
 start-to-end BPMN path no scenario runs, every transition nothing `seam:fires` and every
 permission with no deny test; the viewer asks the same three under **Questions** on a
 BPMN view, a statechart and a policy. A scenario runs a path when its steps are exactly
-the path's user tasks, in order, up to what it expects. Put `coverage = ["paths"]` and
+the path's user tasks, in order, up to what it expects. A path through an error
+boundary needs a scenario that fails the operation the boundary catches. A path of a
+process started through a channel needs a scenario whose run starts it and that expects
+something on that path. Put `coverage = ["paths"]` and
 the two `docs/queries/coverage/` gates in `seams.toml` to make `seams check` fail on a
 gap.
 

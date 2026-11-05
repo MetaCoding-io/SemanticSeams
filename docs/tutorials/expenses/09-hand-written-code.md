@@ -511,7 +511,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/proc/1.0> ,
                     <https://w3id.org/seams/seam/1.2> ,
                     <https://w3id.org/seams/state/1.0> ,
-                    <https://w3id.org/seams/verify/1.0> .
+                    <https://w3id.org/seams/verify/1.1> .
 }
 ```
 
@@ -592,15 +592,60 @@ decision:
 A scenario may only expect an end event that the model lifts into the process graph, so
 `rejected_end` is lifted with a label and `seam:inModel`, as `approved_end` already is.
 
-Four paths still have no scenario: the two escalations through the notify-failed
-boundary event, and both payout paths. The command lists each by IRI and exits 1. In
-the viewer, open the Expense Approval process and ask **Which paths does no scenario
-run?** under Questions for the same paths of that process. No scenario can express
-them. A scenario cannot make Notify Manager's operation fail, so the escalation paths
-stay uncovered. A scenario also starts its process from a submitted form, and
-`payout_process` starts on a message, so the payout paths stay uncovered too. Chapter
-9's `seams.toml` leaves the coverage gates off for that reason (see
-[seams coverage](/reference/seams-cli#seams-coverage)).
+Four paths are still left. The command lists each by IRI and exits 1. In the viewer,
+open the Expense Approval process and ask **Which paths does no scenario run?** under
+Questions to see the same paths for that process. Two are the escalations through the
+notify-failed boundary event. A scenario makes Notify Manager's operation fail with a
+`verify:failure`. It names the operation and the error, and the runtime raises that
+error whenever the run invokes the operation, whatever the handler would do:
+
+```trig
+    :notify_failed_rejected a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:failure [ verify:operation :notify_manager_op ; verify:status :notify_failed ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "rejected" ] ] ) ;
+        verify:expectState :s_rejected ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#rejected_end> .
+```
+
+`:notify_failed_approved` is the same run with `"approved"`, followed by the payment.
+The other two are the payout paths. `payout_process` starts on a message, not a form,
+but a run that pays an expense publishes on `:payouts` and starts it. A scenario's run
+takes in that process too, so it can expect the state a payout leaves the payment in:
+
+```trig
+    :paid_now a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Conference in Lisbon" ] ,
+                     [ verify:field :amount ; verify:value 5000.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :decision ; verify:value "approved" ] ]
+                      [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ;
+                        verify:actor :finance ;
+                        verify:given [ verify:field :reference ; verify:value "PAY-0045" ] ,
+                                     [ verify:field :paidOn ; verify:value "2026-10-05"^^xsd:date ] ] ) ;
+        verify:expectState :s_sent .
+```
+
+`:paid_in_batch` pays 200.00 after the manager approves and expects `:s_batched`. Both
+terms came with the 1.1 version of the `verify` vocabulary, so the manifest graph now
+imports `verify/1.1` ([ADR-0014](/adr/0014-scenarios-and-derived-tests), as amended).
+Now `seams coverage` lists nothing and exits 0, so chapter 9's `seams.toml` turns the
+paths gate on, and `seams check` fails if a later change leaves a path unrun (see
+[seams coverage](/reference/seams-cli#seams-coverage)):
+
+```toml
+coverage = ["paths"]
+```
 
 ### Smoke tests against the running stack
 

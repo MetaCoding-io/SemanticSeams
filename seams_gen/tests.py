@@ -99,6 +99,13 @@ class StepModel:
 
 
 @dataclass(frozen=True)
+class FailureModel:
+    operation: str  # IRI literal
+    code: str  # the comm:errorCode literal
+    curie: str  # "<operation curie> <status curie>", for the comment
+
+
+@dataclass(frozen=True)
 class ScenarioModel:
     name: str  # the test function name
     curie: str
@@ -116,6 +123,7 @@ class ScenarioModel:
     expect_end_event_curie: str | None
     state_failure: str  # assertion message literals
     end_event_failure: str
+    failures: tuple[FailureModel, ...]
 
 
 @dataclass(frozen=True)
@@ -261,6 +269,16 @@ def _scenario(model: Model, scenario: Scenario) -> ScenarioModel:
     end = scenario.expect_end_event
     if state is None and end is None:
         raise GeneratorError(scenario.iri, VERIFY.expectState, "a scenario needs an expected state or end event")
+    failures = []
+    for failure in scenario.failures:
+        code = required(failure.status.error_code, failure.status.iri, COMM.errorCode, f"failure of {scenario.iri}")
+        failures.append(
+            FailureModel(
+                _py(failure.operation.iri),
+                _py(code),
+                f"{model.compact(failure.operation.iri)} {model.compact(failure.status.iri)}",
+            )
+        )
     return ScenarioModel(
         name=_name("test_scenario", scenario.iri),
         curie=model.compact(scenario.iri),
@@ -284,6 +302,7 @@ def _scenario(model: Model, scenario: Scenario) -> ScenarioModel:
         end_event_failure=_py(
             None if end is None else f"{model.compact(scenario.iri)} expects {model.compact(end)}; the run reached "
         ),
+        failures=tuple(failures),
     )
 
 

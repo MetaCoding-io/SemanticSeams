@@ -1,6 +1,6 @@
 # ADR-0014: Scenarios and Derived Tests — a Model States What It Should Do, a Generator Tests It
 
-**Status:** Accepted
+**Status:** Accepted, amended 2026-11-05 (M026: operation failures and channel-started runs)
 
 **Date:** 2026-10-31
 
@@ -66,7 +66,7 @@ example's expected output.
 
 A new namespace, `verify:` = `https://w3id.org/seams/verify#` in
 [`ontology/verify.ttl`](../../ontology/verify.ttl), following the other ontology files.
-It has two classes and thirteen properties:
+It has two classes and thirteen properties (the 2026-11-05 amendment below adds three):
 
 | Term | Used on | Meaning |
 |---|---|---|
@@ -257,6 +257,111 @@ Each file carries the generator's header and the model hash (principle 7). Test 
 embed the local names of the scenario, example or policy they check. All data comes from
 the model, and the templates hold no domain literals (principle 1). Because CI collects
 only `tests/`, a test there (T05) runs the generated suite.
+
+## Amendment: operation failures and channel-started runs (2026-11-05, M026)
+
+The coverage report (S04) showed two kinds of path that no scenario could run. In
+expense chapter 9, four BPMN paths stayed unexercised, so its `coverage = ["paths"]`
+gate could not be turned on:
+
+- **A path through an error boundary.** The two paths through `notify_failed_boundary`
+  run only when `:notify_manager_op` fails with `:notify_failed` (ADR-0013). A scenario
+  could give form values but could not make an operation fail.
+- **A path of a channel-started process.** The payout process starts from a message on
+  `:payouts`, not from a UI event. The rule above ("tested through the scenario of the
+  process that publishes to its channel") had no way to say what that run must reach.
+
+### `verify:failure`: the scenario makes an operation fail
+
+| Term | Used on | Meaning |
+|---|---|---|
+| `verify:failure` | scenario | An operation that fails in this run: a blank node with `verify:operation` and `verify:status` |
+| `verify:operation` | failure | The `hydra:Operation` that fails |
+| `verify:status` | failure | The `hydra:Status` it fails with: one of its `hydra:possibleStatus`, with a `comm:errorCode` |
+
+```trig
+:notify_failed_approved a verify:Scenario ;
+    verify:process :approval_process ;
+    verify:actor :employee ;
+    verify:given [ verify:field :amount ; verify:value 200.00 ] , ... ;
+    verify:failure [ verify:operation :notify_manager_op ; verify:status :notify_failed ] ;
+    verify:step ( [ verify:task <https://example.org/expenses/approval_bpmn#finance_approve_expense> ; ... ]
+                  [ verify:task <https://example.org/expenses/approval_bpmn#pay_expense> ; ... ] ) ;
+    verify:expectState :s_paid .
+```
+
+Whenever the run invokes the operation, the runtime raises the status's error code
+instead of calling the implementation (worker rule 3b, `Runtime.fail_operation`). The
+error is then routed as any declared error is: to the boundary that `seam:catches` the
+status, or the instance fails. The failure is an input to the scenario, like a given
+value, and it says nothing about why the implementation would fail.
+
+**Why not drive the failure with data?** Chapter 9's handler happens to raise
+`notify-failed` for a message over 160 characters, so a long description would take the
+boundary. That would make the scenario depend on a limit that lives only in hand-written
+code, which principle 1 does not allow. It also cannot work for an HTTP endpoint or an
+LLM call, whose failures do not depend on the input. Rejected.
+
+**Why name both the operation and the status?** A status can be declared by more than one
+operation. Naming both makes the failure unambiguous, and lets a shape check that the
+status is one of the operation's errors.
+
+### Runs take in the processes they start through channels
+
+A scenario's process is still one a UI event `seam:triggers`. Its run now includes every
+process it starts through a channel (ADR-0010): one whose message start event
+`seam:subscribesTo` a channel that an element of the scenario's process
+`seam:publishesTo`. `verify:expectState` may name a state of an entity such a process
+moves, and `verify:expectEndEvent` may name one of its end events. Chapter 9's
+`:paid_in_batch` and `:paid_now` pay an expense and expect the payment's `:s_batched`
+and `:s_sent`.
+
+A channel-started process stays out of `verify:process`. Starting it on its own would
+need the publisher's entities and statuses, which the given fields of one form cannot
+supply. The run that publishes already supplies them.
+
+### Shapes
+
+- `seamsh:ScenarioShape` also targets the subjects of `verify:failure`. Each failure
+  conforms to the new `seamsh:FailureShape`: exactly one `verify:operation` (a
+  `hydra:Operation`) and one `verify:status`, which is one of that operation's
+  `hydra:possibleStatus` with a `comm:errorCode`. The failure's operation is one the run
+  invokes: an element in the model of the scenario's process, or of a process the run
+  starts through a channel, `seam:invokes` it. A scenario fails each operation at most
+  once.
+- `verify:expectEndEvent` is lifted into the model of the scenario's process, or of a
+  process the run starts through a channel.
+
+### Coverage
+
+`seams.coverage` (S04) follows the run. A scenario's walk is a path of its process,
+followed by a path of a process that path starts through a channel (one hop). The walk
+must agree with the scenario's failures:
+
+- it invokes every operation the scenario fails;
+- the task of a failed operation leaves through the boundary that catches the failure's
+  status;
+- the walk passes a boundary only from a task whose operation fails with the status
+  that boundary catches.
+
+A started process's path is credited only when one of the scenario's expectations lies
+on it. Coverage does not evaluate gateway conditions, so without such an expectation
+nothing tells the started paths apart.
+
+### Generated tests
+
+`test_scenarios.py` passes each failure to `Scenario(failures=...)` as (operation IRI,
+error code). `run_scenario` registers them before the start. It then waits for every
+instance the run starts through a channel and appends those instances' traces to
+`Run.reached`. A started instance that fails fails the run.
+
+### Consequences of the amendment
+
+- `verify` goes from 1.0 to 1.1 (ADR-0021: additions are a minor step, with no
+  migration). Chapter 9 imports `verify/1.1`.
+- Chapter 9 gains four scenarios: `:notify_failed_approved`, `:notify_failed_rejected`,
+  `:paid_in_batch` and `:paid_now`. `seams coverage` reports no unexercised path, and its
+  `seams.toml` sets `coverage = ["paths"]`.
 
 ## Alternatives Considered
 

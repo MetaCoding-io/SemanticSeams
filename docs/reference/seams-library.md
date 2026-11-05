@@ -331,7 +331,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
 - **`model.scenarios`** and **`model.decision_examples`**: what the model says it should
   do ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
   - `Scenario` has `process` (a `Process`), `actor` (the party IRI), `givens`,
-    `steps`, `expect_state` (a `State` or None) and `expect_end_event` (an IRI or None).
+    `steps`, `failures`, `expect_state` (a `State` or None) and `expect_end_event` (an
+    IRI or None). A `Failure` has `operation` (an `Operation`) and `status` (the
+    `Status` it fails with), sorted by operation IRI.
     A `Given` has `field` (the `sh:path` IRI) and `value` (a `Literal`), sorted by
     field. A `Step` has `task` (a `ProcessElement`), `actor` and `givens`, in
     `verify:step` list order.
@@ -527,25 +529,32 @@ exercises (D054). It covers three things:
   walk from a `bpmn:startEvent` to a node with no way out. A boundary event
   counts as one more way out of its task. A walk that can only loop back is
   dropped.
-- A scenario exercises a path when all of these hold:
-  - it runs that path's process;
-  - its `verify:expectEndEvent` is on the path;
-  - a node on the path `seam:fires` a transition into its
+- A scenario's run is a walk: a path of its process, then, when a node on
+  that path `seam:publishesTo` a channel, a path of a process whose start
+  event `seam:subscribesTo` it (one hop). A scenario exercises a walk when all
+  of these hold:
+  - its `verify:expectEndEvent` is on the walk;
+  - a node on the walk `seam:fires` a transition into its
     `verify:expectState`;
-  - its steps are exactly the user tasks on the path, in order, up to the
-    last of those expectations.
+  - its steps are exactly the user tasks on the walk, in order, up to the
+    last of those expectations;
+  - the walk invokes every operation a `verify:failure` names, leaves each
+    such task through the boundary that catches the failure's status, and
+    passes a boundary only that way.
 
-  No scenario exercises a path through a boundary event, because the
-  vocabulary cannot make an operation fail.
+  The scenario then exercises its own process's path. It also exercises the
+  started process's path when one of its expectations lies on it.
 - `seams.unfired_transitions(model, lifecycle=None)` runs
   `coverage/unfired-transitions` and returns a `Many[Transition]`.
 - `seams.policies_without_deny(model, policy=None)` runs
   `coverage/policies-without-deny` and returns `UndeniedPermission`
   records (`policy`, `target`, `assignee`).
 
-On chapter 9 the three scenarios run the auto, manager-approve and
-finance-approve paths. The two reject paths, the two notify-failed escalation
-paths and both payout paths are unexercised. Both SPARQL reports are empty.
+On chapter 9 the nine scenarios run every path: both outcomes of each route,
+the two notify-failed escalations (`:notify_failed_approved` and
+`:notify_failed_rejected` fail `:notify_manager_op`) and both payout paths
+(`:paid_in_batch` and `:paid_now` expect the payment's final state). Both
+SPARQL reports are empty too.
 
 ## Decision checks
 

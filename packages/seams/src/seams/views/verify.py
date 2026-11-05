@@ -2,7 +2,9 @@
 
 A ``Scenario`` is one run of a process: who starts it with which values,
 which user tasks named parties complete in order and with which form
-values, and the lifecycle state or BPMN end event the run must reach. A
+values, which operations fail when the run invokes them, and the lifecycle
+state or BPMN end event the run must reach (in its process, or in one the
+run starts through a channel). A
 ``DecisionExample`` is a decision's inputs and the outputs its DMN table
 must return. Shape examples are read from the shape
 (``Shape.valid_examples`` / ``Shape.invalid_examples``).
@@ -31,6 +33,7 @@ from ._base import Element, element_type, one_value
 if TYPE_CHECKING:
     from .decisions import Decision
     from .lifecycles import State
+    from .operations import Operation, Status
     from .processes import Process, ProcessElement
 
 
@@ -57,6 +60,14 @@ class Step:
     task: ProcessElement
     actor: URIRef
     givens: tuple[Given, ...]
+
+
+@dataclass(frozen=True)
+class Failure:
+    """One verify:failure: the operation that fails and the error ``status`` it fails with."""
+
+    operation: Operation
+    status: Status
 
 
 def _iri(subject: Node, predicate: URIRef, value: Node) -> URIRef:
@@ -120,6 +131,21 @@ class Scenario(Element):
         return tuple(steps)
 
     @property
+    def failures(self) -> tuple[Failure, ...]:
+        """Each verify:failure, by operation IRI; an operation failed twice raises."""
+        from .operations import Operation, Status
+
+        ds = self.views.ds
+        out: dict[URIRef, Failure] = {}
+        for node in ds.objects(self.iri, VERIFY.failure):
+            op = _iri(node, VERIFY.operation, one_value(ds, node, VERIFY.operation))
+            status = _iri(node, VERIFY.status, one_value(ds, node, VERIFY.status))
+            if op in out:
+                raise ResolutionError(self.iri, VERIFY.failure, f"{op} fails twice")
+            out[op] = Failure(self.views.intern(Operation, op), self.views.intern(Status, status))
+        return tuple(out[o] for o in sorted(out, key=str))
+
+    @property
     def expect_state(self) -> State | None:
         """The state:State the entity must end in (verify:expectState), or None."""
         from .lifecycles import State
@@ -166,4 +192,4 @@ class DecisionExample(Element):
         return tuple(sorted(out, key=lambda o: o.variable))
 
 
-__all__ = ["DecisionExample", "ExpectedOutput", "Given", "Scenario", "Step"]
+__all__ = ["DecisionExample", "ExpectedOutput", "Failure", "Given", "Scenario", "Step"]

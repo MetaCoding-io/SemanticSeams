@@ -168,7 +168,11 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:b9639a1139ed38c357cde34616cc29a9605c277ecee4143539760a673df810c6",
       "path": "generated/expense_api.Dockerfile",
+<<<<<<< HEAD
       "sha256": "908909a8722d7375e2248ddbebce7f1cadc472b975fd87233b81b6385d65396f",
+=======
+      "sha256": "78d40664b0cb312269257621e07c1cfa4cdb2a3569bae0621d58978ee6f5eb1b",
+>>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       "sources": [
         "https://example.org/expenses/expense_api"
       ]
@@ -178,7 +182,11 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:b9639a1139ed38c357cde34616cc29a9605c277ecee4143539760a673df810c6",
       "path": "generated/expense_api.Dockerfile.trace.json",
+<<<<<<< HEAD
       "sha256": "01307e8bbbc2d3a0fddbd0e3973828aa3b1350cc5d83b41bc4ae7a8fd8f8b328",
+=======
+      "sha256": "961a70e32583daa9b40d3c0ca29be86043e39a9260af9764907cf595da6ffb7d",
+>>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       "sources": [
         "https://example.org/expenses/expense_api"
       ]

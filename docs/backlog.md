@@ -178,6 +178,7 @@ strategic layer it lacks, a derived event-storm view, and DDD as the second prof
 | B4 | **Derived event-storm view**: `seams storm <process>`, a timeline per process from the graph (actor, command, aggregate, transitions, decisions, channels, started processes, read models), with a golden test on the expense tutorial, then a viewer section; the bounded context canvas as a second derived view | S | none for the storm; B1 for the canvas | none | storm done (M028/S01): `seams storm` and the viewer's Storm section; the canvas waits for B1 |
 | B5 | **DDD profile**: a shapes library attached by `seam:conformsTo` (one correlation key, lifecycle and store per aggregate; no shape written from two contexts; cross-context calls translated unless declared conformist; bundles today's ungoverned-writes and unfired-transitions gates), as the second profile after IDesign; Context Mapper import and export | L | I5, B1, B2 | extends `seam:Profile` | proposed |
 
+<<<<<<< HEAD
 ## From the research notes, triaged 2026-11-05
 
 *Added after M026. Each row is a gap one of the research notes names that had no
@@ -203,6 +204,48 @@ schedules all of them except X10, which stays parked.*
 
 Not taken up: LionWeb interoperability (watch only, as the generator kit note suggests)
 and levels for IFML (item 14, re-parked with its threshold).
+=======
+*Added 2026-11-03 from the [product review note](research/2026-11-03-product-review-and-ui-ideas.md),
+which reads the project as a modelling product and runs the viewer on the expense tutorial.
+The engine is ahead of the dashboard: the viewer misses the brief's RDF-invisibility
+principle, two canvases render as thumbnails, and nobody can start a model without
+writing TriG. V1 to V3 get people in; V4 to V10 make the thread visible. The note's
+one bet is V4 and V2 before further generator or vocabulary work.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| V1 | **Fundamentals**: fit to view on load for IFML and the shape graph, labels over IRIs in the inspector with the IRI behind a disclosure, the preview pane showing the rendered screen for the selected page instead of the file list, and a search box in the header. Note section 4.10 | S | none | none | proposed |
+| V2 | **Sentence editing**: one sentence per element kind ("Submit Expense submits to [operation] which accepts [shape] and triggers [process]"), each slot a picker filtered by the predicate's shape, a missing value a placeholder; replaces I2's IRI inputs. Note section 4.2 | M | I2 | none; labels come from `rdfs:label` and the shapes | proposed |
+| V3 | **Questions cockpit**: the question catalog, the coverage and gate queries and `seams diff` against the main branch as the landing page, one card per question with a live count, red on a failing gate. Note section 4.3 | S | none | none | proposed |
+| V4 | **Storm board as capture**: B4's derived storm view made editable, each sticky placed a patch through `seams_edit` (orange a transition or publish, blue a POST operation and its event, large yellow a shape with a lifecycle, purple a decision or channel-started process, green a List or Details with its GET), a sticky the model cannot derive shown as a gap, and deriving the view from the edited model giving the board back as the acceptance test. Note section 4.1 | L | B4, I1, V2 | none expected; B1 if contexts are drawn | proposed |
+| V5 | **Thread strip**: one panel docked under every renderer for the selected element, joining health, the trace index (T3), the lock, `seams status`, the scenarios that cover it and its policy tests as status chips that open the page behind each. Note section 4.4 | M | T3 | none | proposed |
+| V6 | **Role lens**: a party selector that dims what the party's policies deny on every renderer and names the policy on a badge; `screens-by-role-writing-shape.rq` drawn as a filter. Note section 4.5 | S | none | none | proposed |
+| V7 | **Scenario player**: step a `verify:` scenario through its derived sequence diagram with the DMN row that hit, the lifecycle state and the payload per arrow; overlay a recorded run from `seams sequence --trace` on the same lifelines. Note section 4.6 | M | U1, U4, U5 | none | proposed |
+| V8 | **Diff on canvas**: draw the named-graph diff behind `seams plan` on each renderer (added green, removed red and dashed, changed seams dashed) with the change plan beside it, for pull requests that change a model. Note section 4.7 | M | A7 | none | proposed |
+| V9 | **Runtime heat**: overlays from the store and the worker's trace rows (open instances per task, stuck and never-reached tasks, entities per state, nodes current, behind or unreachable) on BPMN, statecharts and deployment nodes. Note section 4.8 | M | U4, U9 | the as-observed named graph, if the rows are stored | proposed |
+| V10 | **Layers focus**: focus and context on the layers view (one element traced, the rest dimmed), planes that collapse to a bar, and the undrawn elements as a list by kind. Note section 4.9 | S | item 11 | none | proposed |
+
+*Added 2026-11-02 from the [SysML v2 note](research/2026-11-02-sysml-v2.md). SysML v2 has
+no diagram to author here: its views are queries plus renderings, as ours are. These items
+export the model in its textual notation, and borrow the terms it has that the graph lacks.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| W1 | **`sysml` generator**: one `<system>.sysml` in the SysML v2 textual notation from every layer (architecture, deployment as a variation per environment, ports and interfaces, items from shapes, state defs, actions from BPMN, calcs from DMN, verification cases from `verify:`, views from the query catalog), gaps as comment lines, goldens for the chat app and chapter 9, a trace sidecar, listed in `seams.toml`; parsed by the pilot implementation or Syside in a test that runs when the tool is installed | M | ADR-0016, ADR-0019 | none | proposed |
+| W2 | **Requirements vocabulary** `req:` beside `verify:`, in the shape of SysML v2's requirement, satisfy, verify, derive and frame: requirement, satisfied by, verified by (a `verify:` case), derived from, concern and frames (stakeholder as `odrl:Party`); an ADR first on the subject, and on whether a property shape is a subject or a satisfier | M | ADR first; ADR-0014 | a new `req:` namespace; `req:satisfiedBy` is a seam | proposed |
+| W3 | **Requirement coverage and the requirements table**: queries for requirements with no verification, elements that satisfy no requirement, and requirements a breaking change (U8) touches; a table in the viewer and in `seams coverage` | S | V2, U8 | none | proposed |
+| W4 | **Snapshot vocabulary for the as-observed graph**: individual, snapshot and timeslice terms (SysML v2's) for trace rows and monitoring facts, so the as-executed and as-deployed graphs share one shape with the model | M | U4, ADR-0001 | a small vocabulary for the as-deployed graph | proposed |
+| W5 | **Model API shaped like the Systems Modeling API**: projects, commits and branches over the write path, elements addressed per commit, the query catalog as resources read with HTTP QUERY | L | ADR-0017, O4; ADR first | none | proposed |
+
+*Added 2026-11-03 from the [domain vocabulary as spec note](research/2026-11-03-domain-vocabulary-as-spec.md):
+the glossary a coding agent is given is a projection of the model, never its source, and
+hand-written specs are checked against the model's terms.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| C6 | **Glossary generator**: the domain vocabulary as one markdown file for coding agents, from the ontology and shapes: per class and property its label, definition, gist anchor, the shapes that target it, its lifecycle and the processes, operations and screens that touch it, each with its IRI; traced and listed in `seams.toml`. Sits beside C3 in M022 | S | O1, O2, ADR-0016, ADR-0019 | none | proposed |
+| R4 | **Spec-term check**: terms in hand-written markdown in the model directory (`CLAUDE.md`, specs, READMEs) that match no label or local name in the model, and model classes and shapes no document mentions, reported by `seams check` alongside R1's checks | S | R1 | none | proposed |
+>>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
 
 ## Generator kit and domain IDE
 

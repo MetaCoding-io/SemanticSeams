@@ -481,6 +481,76 @@ and batches or sends it. The expense stays `approved`. To run the whole stack, s
 The project file drops chapter 10's `mentalmodel` generator: a SemPKM Mental Model is
 written for one ontology, and this dataset has two.
 
+## Paid once
+
+An expense is paid once. The rule crosses two aggregates, the expense and its
+payments, so no single write can enforce it: the payout instance that records a second
+payment does not hold the first. It is eventually consistent, so the runtime reports a
+broken one and never refuses the write
+([ADR-0036](../../adr/0036-cross-aggregate-invariants.md)).
+
+First the payment has to name its expense. `:PaymentShape` gains a field the runtime
+sets, never entered:
+
+```trig
+        sh:property [ sh:path :paysExpense ; sh:name "expense" ; sh:datatype xsd:string ;
+                      sh:maxCount 1 ; sh:order 3 ] ;
+```
+
+Its `sh:name` is the label of the payout process's correlation key, so the runtime fills
+it from the instance's key whenever it validates a payment. The form does not show it,
+and a payload that already names its expense keeps it.
+
+The rule goes in the DDD profile's `ddd-shapes.ttl`, as a `sh:sparql` shape of severity
+`sh:Warning`:
+
+```turtle
+ddd:PaidOnce a sh:NodeShape ;
+    rdfs:label "Paid once" ;
+    sh:targetObjectsOf <https://example.org/expenses/paysExpense> ;
+    sh:severity sh:Warning ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:message "expense {$this} is paid by {?payments} payments, and an expense is paid once" ;
+        sh:select """
+            SELECT $this (COUNT(DISTINCT ?payment) AS ?payments) WHERE {
+              ?payment <https://example.org/expenses/paysExpense> $this .
+            }
+            GROUP BY $this
+            HAVING (COUNT(DISTINCT ?payment) > 1)
+            """ ] .
+```
+
+A profile shape with `sh:Warning` and a `sh:sparql` constraint is an instance-data rule.
+It checks the app's data, not the model: the model holds no payment, so `seams check`
+finds nothing for it to target and still prints `0 result(s)`.
+
+`Runtime.data_health()` runs these rules. It reads every stored entity of each stored
+shape, lifts it to RDF through the shape's contract (only the shape's `sh:path`s, no
+`seam:` term), runs the rules on the result and returns the findings, sorted. Pay the
+hotel expense, then submit, approve and pay it again, and both payments are stored.
+`data_health()` gives one finding, logged at INFO with a `seams.data_health` span:
+
+```
+data health https://example.org/profiles/ddd 1 warning(s)
+```
+
+Its message names the expense:
+
+```
+expense hotel is paid by 2 payments, and an expense is paid once
+```
+
+No write calls the report: it reads the whole store, so you run it on request. The
+viewer runs the same function in its [data-health view](../../guide/the-viewer.md#data-health).
+Point it at the host's SQLite file, which it opens read-only:
+
+```sh
+SEAMS_MODEL=examples/expenses/chapter-11 SEAMS_VIEWER_STORE=seams.sqlite \
+  uv run uvicorn viewer.app:app --port 8000
+```
+
+`/data-health` lists the same warning, with its rule, focus and message.
+
 ## Checkpoint
 
 Your files should now match
@@ -508,4 +578,6 @@ payout instance, an employee's payment is a 403, and finance's payment is batche
 the expense stays approved. `tests/test_ddd_profile.py` checks that `seams check` passes
 on the chapter and names the profile, that each rule fails a small model that breaks
 it with a message naming the fact, and that each rule restating a query reports that
-query's rows.
+query's rows. `tests/test_expense_chapter11_data_health.py` pays one expense twice
+through the app and checks that both payments are stored and that `data_health` gives
+exactly one warning, naming the expense.

@@ -77,6 +77,14 @@ naming the aggregate and seam:aggregateMember). ``write_aggregate`` validates
 one payload per member shape and writes them all in one
 ``store.transaction()``, or nothing (``AggregateRolledBack``).
 
+Data health (ADR-0036): ``data_health`` resolves the attached profile
+(``seams.resolve_profile``) and runs its instance-data rules, the sh:Warning
+shapes with a sh:sparql constraint, on the stored entities lifted to RDF
+through the shape contracts (``seams_runtime.invariants``). It returns the
+findings sorted, logs ``data health <profile> N warning(s)`` and emits a
+``seams.data_health`` span. No write calls it: a broken rule never refuses a
+write.
+
 Tracing (D049): ``telemetry=`` injects a ``Telemetry`` (tests); otherwise
 ``tracer_from_env()`` builds one, a no-op unless ``OTEL_EXPORTER_OTLP_ENDPOINT``
 is set and the otel extra is installed (``seams_runtime.telemetry``).
@@ -92,6 +100,7 @@ import uuid
 from pathlib import Path
 
 from fastapi.responses import HTMLResponse, JSONResponse
+from seams import model_dir, resolve_profile
 
 from .channels import ChannelBus, Subscription
 from .contracts import _items, problem_body, shape_contract
@@ -100,6 +109,8 @@ from .engine import Engine
 from .errors import ModelHashMismatch, OperationError, PolicyDenied, ResolutionError, RuntimeModelError, TaskNotOpen
 from .fragments import FragmentRenderer, flatten
 from .handlers import EndpointClient, HandlersPackage, handlers_dir
+from .invariants import Finding
+from .invariants import data_health as _data_health
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient
 from .model import COMM, DEPLOY, SEAM, ModelGraph, local_name
@@ -801,6 +812,22 @@ class Runtime:
         for name, value in filters.items():
             mapped["correlation_key" if name in labels else name] = value
         return self.store.query(self.model.curie(shape_curie), **mapped)
+
+    def data_health(self) -> list[Finding]:
+        """The findings of the attached profile's instance-data rules on the
+        stored entities (ADR-0036), sorted; ``[]`` when the model attaches no
+        profile. Raises the resolver's ``ResolutionError`` (seam:conformsTo or
+        seam:profileShapes) when the profile cannot be loaded, and a stored
+        entity's ``ContractViolation`` when the shape contract refuses it."""
+        profile = resolve_profile(self.model.ds, model_dir(self.model.path))
+        if profile is None:
+            log.info("data health: the model attaches no profile")
+            return []
+        with self.telemetry.data_health_span(profile.iri) as span:
+            findings = _data_health(self.model, self.store, profile.shapes)
+            span.count(len(findings))
+        log.info("data health %s %d warning(s)", profile.iri, len(findings))
+        return findings
 
     def subscribe(self, channel_curie, scope) -> Subscription:
         """SSE frames of one channel scope (backlog replay, then live)."""

@@ -43,6 +43,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `await runtime.receive_webhook(":vendor_changes", body)` | Handles one SemPKM webhook delivery, the raw request body, on a channel whose `comm:transport` is `comm:SemPKMWebhook` ([ADR-0027](../docs/adr/0027-sempkm-webhook-channel.md)). It returns a `JSONResponse`: 202 with `started` and `skipped`, or problem+json naming the channel. See [SemPKM webhooks](#sempkm-webhooks-adr-0027). A generated webhook route only calls this. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id (the IRI SemPKM mints, for a shape stored in a SemPKM store) and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
 | `runtime.write_aggregate(":Order", {":OrderShape": order, ":LineShape": line})` | Writes one new entity per member shape of an aggregate, all or none ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). The keys are `seam:aggregateMember` shapes of the aggregate (CURIE or IRI), and each payload follows `write`'s rules (the `:id` convention, the initial status). Every payload is validated first: a `ContractViolation` (422) stores nothing. The entities are then written in member-IRI order inside one `store.transaction()`, and the stored rows come back keyed by shape IRI. A store failure rolls them all back and raises `AggregateRolledBack` naming the aggregate, the failing shape and the cause (chained), with the cause's HTTP status or 500. A shape that is not a member, an empty mapping or an aggregate that names no members raises `ResolutionError(shape or aggregate, seam:aggregateMember)`. |
+| `runtime.data_health()` | The findings of the attached profile's instance-data rules on the stored entities ([ADR-0036](../docs/adr/0036-cross-aggregate-invariants.md)), sorted; see [Data health](#data-health-adr-0036). `[]` when the model attaches no profile. No write calls it. |
 | `runtime.problem(operation, error)` | The `application/problem+json` response for an `OperationError` raised while serving `operation` (ADR-0013); a generated route module's `problem_handler` calls it. `contracts.problem_body` builds the body: `title` from the status's `rdfs:label`, `status` from its `hydra:statusCode`, then `detail` and the error's extension members, validated (closed-world, as `validate`) against the status's `seam:returnsShape`. The response has that status code. A code the operation does not declare (`ResolutionError(operation, comm:errorCode)`), a route with no declared errors (`operation` None), or a body that violates the error shape (`ContractViolation` whose `operation` is the status) is a server fault: 500 with `{"detail": fault.to_dict()}`, logged at ERROR. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
 | `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once. |
@@ -263,6 +264,39 @@ is logged at INFO with its members. Every commit logs one INFO line naming the a
 the members and the entity ids, and a rollback one ERROR line naming the aggregate, the
 failing shape and the cause, never a payload value. A model that declares no
 `seam:aggregateMember` behaves as before.
+
+### Data health (ADR-0036)
+
+A rule across aggregates, such as "an expense is paid once", is eventually consistent:
+the runtime reports a broken one and never refuses the write
+([ADR-0036](../docs/adr/0036-cross-aggregate-invariants.md)). Such a rule is an
+**instance-data rule**: a `sh:NodeShape` of the attached profile's shapes graph with
+`sh:severity sh:Warning` and at least one `sh:sparql` constraint
+(`seams_runtime.invariants.instance_rules`). The profile's other shapes are model rules
+for `seams check`, and the report does not run them.
+
+`runtime.data_health()` resolves the profile with `seams.resolve_profile` and builds one
+data graph from the store (`invariants.lift`): every `sh:NodeShape` that is
+`seam:storedIn` a store, in IRI order, is read with `store.query(shape)`, and each
+entity's data keys that are fields of the shape's contract go through
+`contracts.to_rdf` with the focus node `urn:seams:entity:<percent-encoded id>`. Only
+the shapes' `sh:path`s appear: no `rdf:type`, no store column and no `seam:` term.
+pyshacl then runs the rules alone on the union, inference off. Each result is a
+`Finding(shape, focus, message, severity)`; duplicates collapse and the list is sorted.
+`seams_runtime.data_health(model, store, shapes)` is the same computation for a caller
+that holds the profile's shapes graph itself, such as the viewer.
+
+- With no `seam:conformsTo`, it returns `[]` and logs `data health: the model attaches
+  no profile`.
+- A profile that cannot be loaded raises the resolver's `ResolutionError`, naming
+  `seam:conformsTo` or `seam:profileShapes`.
+- A stored entity whose value is not a lexical form of its field's datatype raises its
+  `ContractViolation`, focus the entity's node: it is a store fault, not skipped.
+- Otherwise it logs `data health <profile> N warning(s)` at INFO and emits one
+  `seams.data_health` span (see [Tracing](#tracing-opentelemetry)).
+
+The report reads every stored entity on each call, so it is run on request, not per
+write.
 
 ## Host
 
@@ -555,6 +589,7 @@ never sets the global one.
 |---|---|---|
 | Instance: one per worker run. A resumed instance or a user-task completion is another instance span with the same instance id. | the process's local name, for example `send_message_process` | `seams.process.iri`, `seams.instance.id`, `seams.correlation_key`. A failed instance has status ERROR described by the error type, plus `seams.error.type` and `seams.error.message`. |
 | Aggregate commit: one per `write_aggregate` call or worker aggregate commit ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)); in the worker, a child of the element span | `seams.aggregate.commit` | `seams.aggregate.iri`, `seams.aggregate.members` (the written shapes, sorted) and `seams.store.kind`; in the worker also the instance attributes. A rollback records the exception and has status ERROR described by `AggregateRolledBack`, plus `seams.error.type` and `seams.error.message`. |
+| Data health: one per `runtime.data_health()` call with a profile attached ([ADR-0036](../docs/adr/0036-cross-aggregate-invariants.md)) | `seams.data_health` | `seams.profile.iri` and `seams.data_health.count`, the number of findings. A report that raises records the exception. |
 | Element: a child of the instance span for each BPMN element, one per trace row | the bpmn id, for example `invoke_llm` | The instance attributes, `seams.element.iri` and `bpmn.id`, and, when the trace row has them, `seams.fires`, `seams.decision`, `seams.invokes`, `seams.container`, `seams.channel` (from `streamed` or `published`), `seams.status` and `seams.by`; for a declared error, `seams.error.code`, `seams.error.status` and `seams.boundary` on the raising task and `seams.caught` on the boundary. An element that raises records the exception and has status ERROR. |
 
 The attributes are read from the finished trace row when the span ends. The trace rows

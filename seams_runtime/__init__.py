@@ -17,6 +17,7 @@ from .errors import (
     StoreUnavailable,
     TaskNotOpen,
 )
+from .invariants import Finding, data_health
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient, LLMError
 from .model import ModelGraph, model_hash
@@ -45,6 +46,7 @@ __all__ = [
     "ChannelBus",
     "ContractViolation",
     "Engine",
+    "Finding",
     "HeaderAuthenticator",
     "Identity",
     "Instance",
@@ -77,6 +79,7 @@ __all__ = [
     "Worker",
     "__version__",
     "authenticator_from_env",
+    "data_health",
     "model_hash",
     "tracer_from_env",
     "validate",

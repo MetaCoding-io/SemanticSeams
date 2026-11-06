@@ -35,6 +35,10 @@ element span and also carries the instance attributes. A rollback records
 the exception and ends it with status ERROR, described by
 ``AggregateRolledBack``.
 
+One span per data-health report (ADR-0036), ``seams.data_health``, with
+``seams.profile.iri`` and ``seams.data_health.count``, the number of
+findings; a report that raises records the exception.
+
 Spans mirror the trace rows; the rows stay the record ``seams sequence
 --trace`` renders. Nothing here imports opentelemetry until tracing is on.
 """
@@ -69,6 +73,9 @@ _ROW_ATTRIBUTES = {
 
 class _NoSpan:
     def error(self, type_: str, message: str = "") -> None:
+        pass
+
+    def count(self, n: int) -> None:
         pass
 
 
@@ -132,6 +139,17 @@ class Telemetry:
         with self.tracer.start_as_current_span("seams.aggregate.commit", attributes=attrs) as span:
             yield _SpanHandle(span)
 
+    @contextmanager
+    def data_health_span(self, profile):
+        """The span around one ``Runtime.data_health`` report of ``profile``.
+        Yields a handle whose ``count(n)`` sets the result count."""
+        if self.tracer is None:
+            yield _NoSpan()
+            return
+        attrs = {"seams.profile.iri": str(profile)}
+        with self.tracer.start_as_current_span("seams.data_health", attributes=attrs) as span:
+            yield _SpanHandle(span)
+
     def shutdown(self) -> None:
         if self.provider is not None:
             self.provider.shutdown()
@@ -148,6 +166,9 @@ class _SpanHandle:
         self.span.set_attribute("seams.error.type", type_)
         if message:
             self.span.set_attribute("seams.error.message", message)
+
+    def count(self, n: int) -> None:
+        self.span.set_attribute("seams.data_health.count", n)
 
 
 def _instance_attributes(instance) -> dict:

@@ -232,11 +232,26 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   both a `Many` with extra lookups. `model.operations`, `model.channels`,
   `model.shapes`, `model.decisions`, `model.policies`, `model.scenarios` and
   `model.decision_examples` are plain `Many`s.
-- **`model.architecture`** has `systems()`, `containers()`,
+- **`model.architecture`** has `domains()`, `contexts()`, `systems()`, `containers()`,
   `deployment_nodes()`, `environments()` and `serving_containers()` (each
   container that `seam:executes` a process or `seam:exposes` an operation an
   `ifml:Event` `seam:submitsTo`: the ones that serve routes and hold process
   state).
+  - `Domain` ([ADR-0030](/adr/0030-domains-and-bounded-contexts)) has
+    `classification` (the `arch:Core`, `arch:Supporting` or `arch:Generic`
+    IRI; none, several or a literal raise
+    `ResolutionError(domain, arch:classification)`), `classification_label`
+    (its `rdfs:label`: the model's own when it states one, else the shipped
+    arch vocabulary's, such as `"core"`), and `systems` and `contexts` (the
+    `arch:System`s and `arch:BoundedContext`s it `arch:contains`).
+  - `BoundedContext` has `domain` (the one `arch:Domain` that
+    `arch:contains` it, else `ResolutionError(context, arch:contains)`),
+    `models` (the `seam:Model`s it `seam:owns`), `ontology` (the one owned
+    model whose notation is `seam:Ontology`, an `Ontology`, else
+    `ResolutionError(context, seam:owns)`) and `containers`, derived: each
+    `arch:Container` that `seam:presents` an owned model or `seam:executes` a
+    process in one. A model that declares no context has empty `domains()`
+    and `contexts()`.
   - `System.containers` (the `arch:Container`s it `arch:contains`).
   - `Container` has `technology`, `exposes` and `consumes` (a
     `Many[Operation | Channel]`), `executes`, `deployed_to`, `depends_on`

@@ -21,6 +21,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
 the views (`model.architecture`, `interfaces`, `processes`, `decisions`,
 `shapes`, `operations`, `channels`, `lifecycles`, `policies`, and the ADR-0014
 `scenarios` and `decision_examples`) read every model of a layer at once.
+`model.architecture.domains()` and `contexts()` read the ADR-0030 domains and
+bounded contexts (`Domain`, `BoundedContext`: classification, owned models, the
+one ontology, and the containers that run a context).
 `model.sparql` and `model.question` run read-only SPARQL.
 
 ## Vocabulary versions

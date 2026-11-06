@@ -143,6 +143,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --all-packages
+      # Fails in seconds, before the long jobs fail on its downstream effects (f925033).
+      - run: .githooks/check-conflict-markers
       - run: uv run ruff check
       - run: uv run ruff format --check
 

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Refuse a commit whose staged files still hold merge conflict markers.
+#
+# GSD's auto-commit runs `git commit` with hooks enabled, so this stops the
+# failure where a merge commit lands with unresolved <<<<<<< / >>>>>>> blocks
+# (f925033). Enable with: git config core.hooksPath .githooks
+# Only lines that start with a marker followed by a space or end of line count,
+# which matches what git writes and nothing in the tracked docs.
+markers=$(git grep --cached -nIE '^(<<<<<<<|>>>>>>>)( |$)' -- . 2>/dev/null)
+if [ -n "$markers" ]; then
+    echo "Commit refused: the index holds merge conflict markers." >&2
+    echo "$markers" | sed 's/^/  /' >&2
+    echo "Resolve the source (for a generated file, its template) and regenerate." >&2
+    exit 1
+fi

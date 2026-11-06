@@ -31,6 +31,7 @@ you are changing. An accepted ADR wins over the principles page.
 
 ```sh
 uv sync --locked --all-packages
+git config core.hooksPath .githooks   # once per clone: refuses commits with conflict markers
 uv run ruff check && uv run ruff format --check
 uv run pyright
 uv run pytest -q

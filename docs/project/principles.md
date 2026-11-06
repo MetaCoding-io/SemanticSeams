@@ -169,6 +169,10 @@ to I5 are the plan.
 
 ### Gates before every push
 
+Enable the repository's git hooks once per clone with `git config core.hooksPath .githooks`.
+They refuse any commit or merge commit whose files still hold conflict markers, including
+GSD's auto-commits, which run hooks.
+
 Run what CI runs, for the parts you touched:
 
 ```sh

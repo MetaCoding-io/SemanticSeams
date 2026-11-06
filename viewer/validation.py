@@ -44,6 +44,11 @@ element whose class is neither offered by the profile nor a subclass of an
 offered class is one Warning naming the element, rdf:type and the class: flagged,
 never refused, so it does not change ``conforms``.
 
+The same pyshacl run derives the profile's type pills (ADR-0033 section 4,
+get_profile_pills()): each focus node of a pill shape's standard targets that the
+run reports no result of the shape for gets the shape's label. The pills' names
+come from the profile's shapes file; this module holds none.
+
 Results are cached per Dataset and profile identity: the model is loaded once per
 process, so each dataset is validated at most once per profile.
 """
@@ -74,11 +79,13 @@ LIFTED_NOTATIONS = (SEAM.BPMN, SEAM.DMN)
 # caches; the viewer holds one Dataset per process. Python recycles id() values,
 # so both are cleared together (MEM010).
 _cache: dict[tuple[int, int | None], dict] = {}
+_pill_cache: dict[tuple[int, int | None], dict[str, list[dict]]] = {}
 _lifted_cache: dict[int, list[dict]] = {}
 
 
 def _clear_cache() -> None:
     _cache.clear()
+    _pill_cache.clear()
     _lifted_cache.clear()
 
 
@@ -135,6 +142,39 @@ def _out_of_profile(ds: rdflib.Dataset, union: rdflib.Graph, profile: Profile) -
         }
         for s, cls in found
     ]
+
+
+def _targets(shapes: rdflib.Graph, shape: URIRef, data: rdflib.Graph) -> set[URIRef]:
+    """The IRI focus nodes of ``shape``'s standard targets over ``data`` (sh:targetNode,
+    sh:targetClass with rdfs:subClassOf, sh:targetSubjectsOf, sh:targetObjectsOf)."""
+    nodes: set = set(shapes.objects(shape, SH.targetNode))
+    for cls in shapes.objects(shape, SH.targetClass):
+        for sub in data.transitive_subjects(RDFS.subClassOf, cls):
+            nodes.update(data.subjects(RDF.type, sub))
+    for predicate in shapes.objects(shape, SH.targetSubjectsOf):
+        nodes.update(data.subjects(predicate, None))
+    for predicate in shapes.objects(shape, SH.targetObjectsOf):
+        nodes.update(data.objects(None, predicate))
+    return {n for n in nodes if isinstance(n, URIRef)}
+
+
+def _pills(data: rdflib.Graph, results: rdflib.Graph, profile: Profile) -> dict[str, list[dict]]:
+    """Focus IRI -> its pills, each {"label", "shape"}, sorted by label then shape IRI
+    and one per label (ADR-0033 section 4). A focus node conforms to a pill shape when
+    ``results`` has no result whose source is the shape or one of its sh:property shapes."""
+    failed: dict[URIRef, set] = {}
+    for shape in profile.pills:
+        sources = {shape, *profile.shapes.objects(shape, SH.property)}
+        failed[shape] = {
+            results.value(r, SH.focusNode)
+            for r in results.subjects(RDF.type, SH.ValidationResult)
+            if results.value(r, SH.sourceShape) in sources
+        }
+    found: dict[str, dict[str, str]] = {}
+    for shape, label in sorted(profile.pills.items(), key=lambda item: (item[1], str(item[0]))):
+        for node in _targets(profile.shapes, shape, data) - failed[shape]:
+            found.setdefault(str(node), {}).setdefault(label, str(shape))
+    return {node: [{"label": label, "shape": shape} for label, shape in pills.items()] for node, pills in found.items()}
 
 
 def _finding(finding: seams.StoreFinding) -> dict:
@@ -277,6 +317,7 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
     )
     if profile is not None:
         warnings += _out_of_profile(ds, union, profile)
+    _pill_cache[key] = {} if profile is None else _pills(union, results_graph, profile)
     notes = [f for f in store if f["severity"] == "Info"]
 
     summary = {
@@ -288,6 +329,15 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
     }
     _cache[key] = summary
     return summary
+
+
+def get_profile_pills(ds: rdflib.Dataset, profile: Profile | None) -> dict[str, list[dict]]:
+    """Focus IRI -> the profile's type pills on it (ADR-0033 section 4), from the run
+    get_model_conformance() caches; empty with no profile or no pill shapes."""
+    if profile is None or not profile.pills:
+        return {}
+    get_model_conformance(ds, profile)
+    return _pill_cache[(id(ds), id(profile))]
 
 
 def _payload_ids(path: Path) -> set[str]:

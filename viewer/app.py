@@ -235,6 +235,12 @@ def get_graph() -> Dataset:
     return get_model().ds
 
 
+def profile_pills(iri: str) -> list[dict]:
+    """The attached profile's type pills on the element (ADR-0033 section 4), each
+    {"label", "shape"}, sorted by label then shape IRI; empty with no profile."""
+    return validation.get_profile_pills(get_graph(), get_profile()).get(iri, [])
+
+
 def model_health(ds: Dataset) -> dict:
     """The health panel's facts: the cached SHACL conformance summary (with the
     domain profile's shapes and out-of-profile warnings, ADR-0018), ``liftedIris``,
@@ -1226,6 +1232,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "notation": notation,
         "render_kind": render_kind,
         "types_str": ", ".join(view["types"]) or "—",
+        # Template-only (ADR-0033 section 4): the profile's derived type pills.
+        "pills": profile_pills(focus),
         "native_element_id": view["nativeElementId"],
         "render_payload": view["renderPayload"],
         "warnings": view["warnings"],

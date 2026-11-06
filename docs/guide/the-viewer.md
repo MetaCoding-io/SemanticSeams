@@ -528,8 +528,18 @@ things:
 A part the profile leaves out restricts nothing (ADR-0033 section 3): a profile with no
 `seam:offersClass` shows no palette and flags no class, and one with no
 `seam:usesGenerator` previews every configured generator. Expense chapter 11's DDD
-profile is such a profile, a shapes library and nothing else. A profile's labelled
-`sh:Info` shapes are type pills, not rules, so their results are not shown in health.
+profile is such a profile, a shapes library and nothing else. Its rules' violations
+show in health like any other shape's, with the rule's message and the focus node.
+
+**Type pills.** A profile's labelled `sh:Info` shapes are type pills, not rules
+([ADR-0033](/adr/0033-ddd-profile) section 4), so their results are not shown in health.
+Instead, an element's heading shows a pill with the shape's label (`skos:prefLabel`, else
+`rdfs:label`) when the element is one of the shape's targets and conforms to it. The
+viewer works them out from the same SHACL run as health, adds no `rdf:type` to the model,
+and lists them by label then shape IRI. In chapter 11 `ExpenseShape` and the `Expense`
+class show *Aggregate*, the operations a UI event submits to show *Command*, and the
+lifecycle transitions and `vendor_changes` channel show *Domain event*: the words are the
+DDD profile's, not the viewer's. A model with no profile shows no pills.
 
 The health panel names the attached profile with its class and generator counts, and the
 server log records one line when the model loads, naming the profile IRI and the same

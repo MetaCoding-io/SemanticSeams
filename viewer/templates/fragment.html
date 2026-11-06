@@ -7,7 +7,7 @@
 </nav>
 
 <main>
-  <h2>{{ label }}{% if notation != "none" %} <small>({{ notation }})</small>{% endif %}</h2>
+  <h2>{{ label }}{% if notation != "none" %} <small>({{ notation }})</small>{% endif %}{% for p in pills %} <span class="type-pill profile-pill" data-shape="{{ p.shape }}">{{ p.label }}</span>{% endfor %}</h2>
 
   {% for w in warnings %}
     <div class="warning">{{ w.message }}</div>

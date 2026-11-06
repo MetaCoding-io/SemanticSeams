@@ -234,7 +234,7 @@ schedules all of them except X10, which stays parked.*
 | X4 | **External systems and inbound webhooks**: a convention for third-party APIs (`arch:System` marked external, its operations external) and for inbound webhooks in general, of which O6's SemPKM webhook is one case. [UML note §3.7](research/2026-10-29-uml-coverage-and-gaps.md) | M | U6, O6; ADR first | an external marker on systems and operations | proposed |
 | X5 | **Stored-data migrations from the shape diff**: when U8 classifies a stored shape change as breaking, generate a migration or refuse the deploy, by store kind. [UML note §3.4](research/2026-10-29-uml-coverage-and-gaps.md); a candidate task for C4 drafts in the [LLM note](research/2026-10-31-llm-generator.md) | M | U8, U9; ADR first | none expected | proposed |
 | X6 | **Cross-aggregate invariants**: `sh:sparql` rules across instances, at `sh:Warning`, with a reader for them (a runtime report and a data-health view), since nothing reads a warning on instance data today. [DDD note §2.4](research/2026-11-02-domain-driven-design.md) | M | O4, B5 | none; plain SHACL | proposed |
-| X7 | **Transactional boundary of an aggregate**: state which entities a process must change together, so `Runtime.write` can commit them as one. [DDD note §2.4](research/2026-11-02-domain-driven-design.md) | M | B1, B3; ADR first | one fact per aggregate, probably in the DDD profile | proposed |
+| X7 | **Transactional boundary of an aggregate**: state which entities a process must change together, so `Runtime.write` can commit them as one. [DDD note §2.4](research/2026-11-02-domain-driven-design.md) | M | B1, B3; ADR first | `seam:aggregateMember` (seam 1.5), in the seams graph; the DDD profile checks it | done (M029/S04): [ADR-0035](adr/0035-aggregate-transaction-boundary.md); `seam:aggregateMember` names an aggregate's member shapes, with seam shapes, the `model.aggregates` view and the profile's one-transaction-store rule; `Store.transaction()` on SQLite and PostgreSQL, `Runtime.write_aggregate` and the worker commit an aggregate's members all or none (`AggregateRolledBack`, one `seams.aggregate.commit` span), and `Runtime.load` refuses a multi-member SemPKM or cross-store aggregate |
 | X8 | **Rationale links**: ADRs and decisions name the elements they decide, so the inspector can say why an element exists. [UML note §3.7](research/2026-10-29-uml-coverage-and-gaps.md) | S | none | none if `dcterms:references` serves | proposed |
 | X9 | **Interchange exports**: the C4 layer as Structurizr DSL and LikeC4, and derived sequence and storm views as PlantUML beside Mermaid. Context Mapper stays with B5. [UML note §3.7](research/2026-10-29-uml-coverage-and-gaps.md) | S | none | none | proposed |
 | X10 | **Imports from OpenAPI, SQL DDL and compose files**: the enterprise persona's entry point, drafting a model that is flagged, not refused | L | X9 | none | parked: a v1 non-goal in the product brief; revisit after X9 and the storm import (X12) show what an import has to carry |
@@ -662,7 +662,10 @@ UI work must not eat M3.*
       [ADR-0034](adr/0034-context-mapper-interchange.md); `seams cml export` writes the
       context map as Context Mapper DSL and `seams cml import` adds a CML map's
       relationships, flagging what does not map; chapter 11's export re-imports to the
-      same facts.*
+      same facts. X7 done, M029/S04: [ADR-0035](adr/0035-aggregate-transaction-boundary.md)
+      and seam 1.5; `seam:aggregateMember` names an aggregate's member shapes, and the
+      runtime commits their writes in one store transaction on SQLite and PostgreSQL,
+      refusing at load an aggregate SemPKM or two stores cannot commit atomically.*
     - **M030, Time and Scale** (U10, A10): timer start events, then replicas with a
       shared stream channel.
     - **M031, Data Care** (X3, X4, X5): classification, external systems, migrations.

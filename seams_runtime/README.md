@@ -42,6 +42,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
 | `await runtime.receive_webhook(":vendor_changes", body)` | Handles one SemPKM webhook delivery, the raw request body, on a channel whose `comm:transport` is `comm:SemPKMWebhook` ([ADR-0027](../docs/adr/0027-sempkm-webhook-channel.md)). It returns a `JSONResponse`: 202 with `started` and `skipped`, or problem+json naming the channel. See [SemPKM webhooks](#sempkm-webhooks-adr-0027). A generated webhook route only calls this. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id (the IRI SemPKM mints, for a shape stored in a SemPKM store) and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
+| `runtime.write_aggregate(":Order", {":OrderShape": order, ":LineShape": line})` | Writes one new entity per member shape of an aggregate, all or none ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). The keys are `seam:aggregateMember` shapes of the aggregate (CURIE or IRI), and each payload follows `write`'s rules (the `:id` convention, the initial status). Every payload is validated first: a `ContractViolation` (422) stores nothing. The entities are then written in member-IRI order inside one `store.transaction()`, and the stored rows come back keyed by shape IRI. A store failure rolls them all back and raises `AggregateRolledBack` naming the aggregate, the failing shape and the cause (chained), with the cause's HTTP status or 500. A shape that is not a member, an empty mapping or an aggregate that names no members raises `ResolutionError(shape or aggregate, seam:aggregateMember)`. |
 | `runtime.problem(operation, error)` | The `application/problem+json` response for an `OperationError` raised while serving `operation` (ADR-0013); a generated route module's `problem_handler` calls it. `contracts.problem_body` builds the body: `title` from the status's `rdfs:label`, `status` from its `hydra:statusCode`, then `detail` and the error's extension members, validated (closed-world, as `validate`) against the status's `seam:returnsShape`. The response has that status code. A code the operation does not declare (`ResolutionError(operation, comm:errorCode)`), a route with no declared errors (`operation` None), or a body that violates the error shape (`ContractViolation` whose `operation` is the status) is a server fault: 500 with `{"detail": fault.to_dict()}`, logged at ERROR. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
 | `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once. |
@@ -117,6 +118,7 @@ tables: `workflow_state`, `entities` and `user_tasks`. `Store` is a `typing.Prot
 Both backends return the same rows. `data` comes back decoded with its keys sorted.
 `query` applies its data filters in Python on both backends, so the results match. Every
 operation opens and closes its own connection, and every statement is parameterised.
+`transaction()` is the one exception, below.
 
 | Method | What it does |
 |---|---|
@@ -128,6 +130,7 @@ operation opens and closes its own connection, and every statement is parameteri
 | `query(shape, **filters)` | Entities of `shape`, oldest first. `correlation_key=` matches the column; any other filter must equal that top-level key of `data`. |
 | `replace_user_tasks(instance_id, rows)` | Makes `rows` the instance's open user tasks. A task that was already open keeps its `created`, and an empty list clears the instance. On PostgreSQL an advisory lock per instance serialises concurrent replacements. |
 | `list_user_tasks()` / `get_user_task(task, correlation_key)` | Every open user task, oldest first. `get_user_task` returns the newest open row of the task for that key, or `None`. |
+| `transaction()` | A context manager, one all-or-nothing unit of writes ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). Inside `with store.transaction():`, every call on that store from the calling thread uses one connection, reads included, so they see the block's writes. The writes commit when the block exits normally and all roll back when it raises; the exception propagates unchanged. A nested `transaction()` joins the outer one. `SQLiteStore` starts it with `BEGIN IMMEDIATE`, taking the write lock up front, so two concurrent transactions wait on each other (up to `timeout`) instead of failing halfway. `PostgresStore` holds one connection whose `with` block is the transaction. `SplitStore` delegates to its relational store. |
 
 `seams_runtime.store.redact(url)` replaces the password in a URL, in a `password` query
 parameter or in a libpq `password=` keyword string with `***`. `location`, `repr()` and
@@ -181,7 +184,7 @@ naming the SemPKM store, and reads neither binding. The token is never logged.
 
 | Class | What it does |
 |---|---|
-| `SplitStore(relational, entities)` | A `Store`. Workflow state and user tasks go to `relational`. For a shape `entities` holds, `put_entity` with an id that has no index row creates the entity in SemPKM and returns the row under SemPKM's IRI (the worker and `Runtime.write` adopt it); an indexed id is updated. The relational `entities` table keeps one index row per entity, `id` the IRI and `data` `{}`, holding its correlation key, instance, status and `created`. The row is written only after SemPKM accepted the data. `get_entity` and `query` read the data from SemPKM. `query` without `correlation_key=` also lists objects of the shape's class that others wrote, after the indexed ones, by IRI, with no correlation key. `kind` and `location` are the relational store's. |
+| `SplitStore(relational, entities)` | A `Store`. `transaction()` is the relational store's: `Runtime.load` refuses an aggregate of more than one member with one stored in SemPKM (see [Aggregates](#aggregates-adr-0035)), so no transaction spans the two. Workflow state and user tasks go to `relational`. For a shape `entities` holds, `put_entity` with an id that has no index row creates the entity in SemPKM and returns the row under SemPKM's IRI (the worker and `Runtime.write` adopt it); an indexed id is updated. The relational `entities` table keeps one index row per entity, `id` the IRI and `data` `{}`, holding its correlation key, instance, status and `created`. The row is written only after SemPKM accepted the data. `get_entity` and `query` read the data from SemPKM. `query` without `correlation_key=` also lists objects of the shape's class that others wrote, after the indexed ones, by IRI, with no correlation key. `kind` and `location` are the relational store's. |
 | `SemPKMStore(model, plan, url, token, *, transport=None, timeout=...)` | The entity backend. `create` sends one `POST /api/commands` request: an `object.create` typed by the shape's `sh:targetClass` with a map from each field's `sh:path` to its value, then for each flattened `sh:node` field an `object.create` of the nested node (typed by the nested shape's `sh:targetClass`, with its free and fixed properties) and an `edge.create` joining them through `@slot:` references. SemPKM commits the request in one event. Values are JSON: integers as ints, decimal, double and float as numbers, booleans as bools, a category member as its IRI, everything else as a string. A field named `id` is never sent and reads back as the IRI. `read` / `get` send `POST /api/sparql` scoped to the class and the fields' paths, following SemPKM's edge resources one level, with sorted variables. Member IRIs read back as labels, decimals as plain lexical strings. `update` sends an `object.patch` of the top-level fields whose value changed; changing a nested value raises `ResolutionError(shape, path)`. `affected(event)` reads the `sempkm:affectedIRI`s of one `urn:sempkm:event:` from its event graph, with an `all_graphs` query (ADR-0027): it returns them sorted, or `None` when SemPKM has no such event. A 401 or 403 on that query names the owner role as well as the scope. `reachable()` is `GET /api/health`, with no token. A shape or nested shape without `sh:targetClass` raises `ResolutionError` when the store is built. |
 
 Run-time failures raise `StoreError`s that name the store container (`store`) and never
@@ -236,6 +239,30 @@ The SemPKM reads run in a thread (`asyncio.to_thread`), as do the worker's write
 (dispatch rules 4 and 5). SemPKM waits for its delivery inside the command request, so a
 runtime write that blocked the event loop would keep the receiver from answering it
 (ADR-0027 section 7).
+
+### Aggregates (ADR-0035)
+
+An aggregate's `seam:aggregateMember` shapes (`model.aggregates`) commit together
+([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). `Runtime.write_aggregate`
+writes them in one `store.transaction()`, and so does the worker when one element's
+`seam:writes` include two or more members of one aggregate (dispatch rule 4).
+
+`Runtime.load` refuses, while the store plan resolves and before any store is opened,
+an aggregate the store cannot commit atomically. It raises
+`ResolutionError(aggregate, seam:aggregateMember)` in two cases, whatever store is
+injected or forced:
+
+- the aggregate has more than one member and one of them is `seam:storedIn` a
+  `deploy:SemPKM` store: SemPKM cannot commit more than one entity of an aggregate
+  atomically. A one-member SemPKM aggregate is accepted, since its write is a
+  single-entity write;
+- its members are `seam:storedIn` more than one store.
+
+A shape listed by two aggregates also raises, naming the shape. Each accepted aggregate
+is logged at INFO with its members. Every commit logs one INFO line naming the aggregate,
+the members and the entity ids, and a rollback one ERROR line naming the aggregate, the
+failing shape and the cause, never a payload value. A model that declares no
+`seam:aggregateMember` behaves as before.
 
 ## Host
 
@@ -318,7 +345,12 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    3a. A declared error the invoke raised goes down the error boundary that catches it,
    see [Error boundaries](#error-boundaries); then rules 4 and 5 are skipped.
 4. `seam:writes Shape`: persists the current entity of that shape, in a thread so that a
-   store reached over HTTP does not block the event loop (ADR-0027 section 7).
+   store reached over HTTP does not block the event loop (ADR-0027 section 7). When two
+   or more of the element's written shapes are members of one aggregate (ADR-0035), they
+   are persisted in member-IRI order in one `store.transaction()` inside one thread:
+   both or neither. A rollback restores the instance's entity state and fails the
+   element as any store error does (rule 7), with `AggregateRolledBack`. The other
+   writes are persisted one by one.
 5. After dispatch: the fired transition is applied and its status is persisted, also in
    a thread.
 6. Message throw events publish a completion event named after the channel's
@@ -522,6 +554,7 @@ never sets the global one.
 | Span | Name | Attributes |
 |---|---|---|
 | Instance: one per worker run. A resumed instance or a user-task completion is another instance span with the same instance id. | the process's local name, for example `send_message_process` | `seams.process.iri`, `seams.instance.id`, `seams.correlation_key`. A failed instance has status ERROR described by the error type, plus `seams.error.type` and `seams.error.message`. |
+| Aggregate commit: one per `write_aggregate` call or worker aggregate commit ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)); in the worker, a child of the element span | `seams.aggregate.commit` | `seams.aggregate.iri`, `seams.aggregate.members` (the written shapes, sorted) and `seams.store.kind`; in the worker also the instance attributes. A rollback records the exception and has status ERROR described by `AggregateRolledBack`, plus `seams.error.type` and `seams.error.message`. |
 | Element: a child of the instance span for each BPMN element, one per trace row | the bpmn id, for example `invoke_llm` | The instance attributes, `seams.element.iri` and `bpmn.id`, and, when the trace row has them, `seams.fires`, `seams.decision`, `seams.invokes`, `seams.container`, `seams.channel` (from `streamed` or `published`), `seams.status` and `seams.by`; for a declared error, `seams.error.code`, `seams.error.status` and `seams.boundary` on the raising task and `seams.caught` on the boundary. An element that raises records the exception and has status ERROR. |
 
 The attributes are read from the finished trace row when the span ends. The trace rows

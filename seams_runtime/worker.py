@@ -70,6 +70,12 @@ is completed) and applies these rules to each BPMN element, in this order:
    first write persists the user message; after an invoke, the reply). A
    shape with a ``seam:lifecycle`` and no status yet (a user task's output,
    say) is stored in, and from then on tracked at, its ``state:initial``.
+   When two or more written shapes are seam:aggregateMember of one aggregate
+   (ADR-0035), they are persisted in member-IRI order in one
+   ``store.transaction()`` inside one thread (``commit_aggregate``): all of
+   them or none. A rollback restores the instance's entity state and fails
+   the element as any store error does (rule 7), with
+   ``AggregateRolledBack``. The other writes are persisted one by one.
 5. After dispatch, the fired transition is applied: the status becomes T's
    ``state:to`` label (for example "sending") and is persisted on every
    entity of that shape the instance has written.
@@ -112,6 +118,7 @@ marks the instance span ERROR. The default ``Telemetry()`` is a no-op.
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
 import logging
 import uuid
@@ -122,7 +129,7 @@ from SpiffWorkflow.util.task import TaskState
 
 from .contracts import handler_values, problem_body, validate
 from .engine import Engine
-from .errors import MODEL_MEMBERS, OperationError, ResolutionError, RuntimeModelError
+from .errors import MODEL_MEMBERS, AggregateRolledBack, OperationError, ResolutionError, RuntimeModelError
 from .handlers import EndpointClient, EndpointError, HandlerError
 from .model import COMM, SEAM, ModelGraph, local_name
 from .telemetry import Telemetry
@@ -131,6 +138,35 @@ log = logging.getLogger(__name__)
 
 RUNNING, STOPPED, COMPLETE, FAILED, WAITING = "running", "stopped", "complete", "failed", "waiting"
 RUNTIME = "runtime"  # row["implementation"] of an in-process operation that declares no implementation
+
+
+def commit_aggregate(store, telemetry: Telemetry, aggregate, members, write, instance=None) -> list:
+    """``write(shape)`` for each of ``aggregate``'s ``members``, in IRI order,
+    inside one ``store.transaction()`` (ADR-0035), in one span
+    (``Telemetry.aggregate_span``). Returns the results in that order. Any
+    failure rolls every write back and raises ``AggregateRolledBack`` naming
+    the aggregate and the failing shape, the cause chained."""
+    members = sorted(members, key=str)
+    with telemetry.aggregate_span(aggregate, members, store.kind, instance) as span:
+        current = None
+        results = []
+        try:
+            with store.transaction():
+                for shape in members:
+                    current = shape
+                    results.append(write(shape))
+        except Exception as exc:
+            error = AggregateRolledBack(aggregate, current, exc)
+            log.error("aggregate %s rolled back: writing %s failed (%s)", aggregate, current, error.cause)
+            span.error(type(error).__name__, str(error))
+            raise error from exc
+        ids = [r["id"] if isinstance(r, dict) else r for r in results]
+        log.info(
+            "committed aggregate %s: %s",
+            aggregate,
+            ", ".join(f"{shape} {entity_id}" for shape, entity_id in zip(members, ids, strict=True)),
+        )
+    return results
 
 
 def new_state(process, correlation_key: str) -> dict:
@@ -348,8 +384,7 @@ class Worker:
 
         # 4. writes, off the event loop: a store reached over HTTP (SemPKM) must
         # not stop the loop from serving its own webhook delivery (ADR-0027 section 7)
-        for written in self.model.written_shapes(iri):
-            row.setdefault("writes", []).append(await asyncio.to_thread(self._persist, instance, iri, written))
+        await self._write(instance, iri, self.model.written_shapes(iri), row)
 
         # 5. apply the transition
         if transition is not None:
@@ -561,6 +596,58 @@ class Worker:
         st["current"][str(returns)] = {"id": None, "data": validate(self.model, returns, body, operation=op)}
 
     # ── entities and statuses ──
+
+    async def _write(self, instance: Instance, iri, written, row: dict) -> None:
+        """Rule 4: persist each of ``written``; the members of one aggregate
+        among them in one transaction (ADR-0035). The ids go to ``row["writes"]``."""
+        groups = self._aggregate_groups(written)
+        done: set = set()
+        for shape in written:
+            if shape in done:
+                continue
+            group = groups.get(shape)
+            if group is None:
+                ids = [await asyncio.to_thread(self._persist, instance, iri, shape)]
+                done.add(shape)
+            else:
+                aggregate, members = group
+                ids = await self._commit(instance, iri, aggregate, members)
+                done.update(members)
+            row.setdefault("writes", []).extend(ids)
+
+    def _aggregate_groups(self, written) -> dict:
+        """``{shape: (aggregate IRI, members)}`` for every written shape whose
+        aggregate has two or more of its members among ``written``."""
+        by_aggregate: dict = {}
+        for shape in written:
+            aggregate = self.model.shape(shape).aggregate
+            if aggregate is not None:
+                by_aggregate.setdefault(aggregate.iri, []).append(shape)
+        return {
+            shape: (aggregate, members)
+            for aggregate, members in by_aggregate.items()
+            if len(members) > 1
+            for shape in members
+        }
+
+    async def _commit(self, instance: Instance, iri, aggregate, members) -> list[str]:
+        """The members' writes in one transaction, in one thread. A rollback
+        restores the instance's entity state as it was before."""
+        st = instance.state
+        saved = copy.deepcopy({k: st[k] for k in ("current", "status", "history", "written")})
+        try:
+            return await asyncio.to_thread(
+                commit_aggregate,
+                self.store,
+                self.telemetry,
+                aggregate,
+                members,
+                lambda shape: self._persist(instance, iri, shape),
+                instance,
+            )
+        except AggregateRolledBack:
+            st.update(saved)
+            raise
 
     def _persist(self, instance: Instance, iri, shape) -> str:
         st = instance.state

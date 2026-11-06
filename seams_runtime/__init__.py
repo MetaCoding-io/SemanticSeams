@@ -4,6 +4,7 @@ from .channels import ChannelBus
 from .contracts import validate
 from .engine import Engine
 from .errors import (
+    AggregateRolledBack,
     ContractViolation,
     LifecycleViolation,
     ModelHashMismatch,
@@ -39,6 +40,7 @@ from .worker import Instance, Worker
 __version__ = "0.1.0"  # must equal [project].version in seams_runtime/pyproject.toml
 
 __all__ = [
+    "AggregateRolledBack",
     "Authenticator",
     "ChannelBus",
     "ContractViolation",

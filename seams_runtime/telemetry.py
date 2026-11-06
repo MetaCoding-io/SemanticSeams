@@ -28,6 +28,13 @@ set when the span ends, from the instance state and the finished trace row:
   that caught it. An element that raises records the exception and ends with
   status ERROR.
 
+One span per aggregate commit (ADR-0035), ``seams.aggregate.commit``, with
+``seams.aggregate.iri``, ``seams.aggregate.members`` (the written shapes,
+sorted) and ``seams.store.kind``; inside the worker it is a child of the
+element span and also carries the instance attributes. A rollback records
+the exception and ends it with status ERROR, described by
+``AggregateRolledBack``.
+
 Spans mirror the trace rows; the rows stay the record ``seams sequence
 --trace`` renders. Nothing here imports opentelemetry until tracing is on.
 """
@@ -105,6 +112,25 @@ class Telemetry:
                 yield
             finally:
                 span.set_attributes(_instance_attributes(instance) | element_attributes(row))
+
+    @contextmanager
+    def aggregate_span(self, aggregate, members, store_kind: str, instance=None):
+        """The span around one aggregate commit: ``members`` are the written
+        shape IRIs, ``instance`` the worker instance (None for
+        ``Runtime.write_aggregate``). Yields a handle whose ``error(type,
+        message)`` marks the span failed; an exception is recorded."""
+        if self.tracer is None:
+            yield _NoSpan()
+            return
+        attrs = {
+            "seams.aggregate.iri": str(aggregate),
+            "seams.aggregate.members": sorted(str(m) for m in members),
+            "seams.store.kind": store_kind,
+        }
+        if instance is not None:
+            attrs |= _instance_attributes(instance)
+        with self.tracer.start_as_current_span("seams.aggregate.commit", attributes=attrs) as span:
+            yield _SpanHandle(span)
 
     def shutdown(self) -> None:
         if self.provider is not None:

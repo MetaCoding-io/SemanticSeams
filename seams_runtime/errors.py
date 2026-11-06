@@ -11,6 +11,7 @@ from __future__ import annotations
 from seams import ResolutionError, SeamsError
 
 __all__ = [
+    "AggregateRolledBack",
     "ContractViolation",
     "LifecycleViolation",
     "ModelHashMismatch",
@@ -128,6 +129,25 @@ class TaskNotOpen(RuntimeModelError):
 
     def _fields(self) -> dict:
         return {"task": self.task, "correlation_key": self.correlation_key}
+
+
+class AggregateRolledBack(RuntimeModelError):
+    """A write of one aggregate's members failed, so its store transaction
+    rolled every one of them back (ADR-0035). ``aggregate`` and ``shape`` (the
+    member whose write failed, None when the transaction failed before any
+    write) are IRIs and ``cause`` the error's text; the cause is chained. The
+    HTTP status is the cause's when it has one."""
+
+    def __init__(self, aggregate, shape, cause: BaseException):
+        self.aggregate = str(aggregate)
+        self.shape = None if shape is None else str(shape)
+        self.cause = f"{type(cause).__name__}: {cause}"
+        self.http_status = getattr(cause, "http_status", 500)
+        what = "the store transaction" if self.shape is None else f"writing {self.shape}"
+        super().__init__(f"aggregate {self.aggregate} rolled back: {what} failed ({self.cause})")
+
+    def _fields(self) -> dict:
+        return {"aggregate": self.aggregate, "shape": self.shape, "cause": self.cause}
 
 
 class StoreError(RuntimeModelError):

@@ -69,6 +69,14 @@ when the runtime is built (``resolve_boundaries``, through
 ``ResolutionError`` naming the boundary. The worker routes a declared error
 its task's operation raises down the boundary that catches it.
 
+Aggregates (ADR-0035): ``load`` refuses, before any store is opened, an
+aggregate whose seam:aggregateMember shapes the store cannot commit
+atomically: more than one member with one stored in a deploy:SemPKM store, or
+members stored in two stores (``resolve_aggregates``, ``ResolutionError``
+naming the aggregate and seam:aggregateMember). ``write_aggregate`` validates
+one payload per member shape and writes them all in one
+``store.transaction()``, or nothing (``AggregateRolledBack``).
+
 Tracing (D049): ``telemetry=`` injects a ``Telemetry`` (tests); otherwise
 ``tracer_from_env()`` builds one, a no-op unless ``OTEL_EXPORTER_OTLP_ENDPOINT``
 is set and the otel extra is installed (``seams_runtime.telemetry``).
@@ -100,7 +108,7 @@ from .sempkm import SemPKMStore
 from .store import PostgresStore, SplitStore, SQLiteStore, Store
 from .telemetry import Telemetry, tracer_from_env
 from .webhooks import WebhookReceiver
-from .worker import RUNNING, Instance, Worker, new_state
+from .worker import RUNNING, Instance, Worker, commit_aggregate, new_state
 
 log = logging.getLogger(__name__)
 
@@ -241,6 +249,38 @@ def resolve_boundaries(model: ModelGraph) -> dict:
     return resolved
 
 
+def resolve_aggregates(model: ModelGraph) -> None:
+    """ADR-0035 section 5: every aggregate's members can commit in one store
+    transaction. More than one member with one seam:storedIn a deploy:SemPKM
+    store, or members stored in more than one store, raises
+    ``ResolutionError(aggregate, seam:aggregateMember)``; so does a member
+    listed by two aggregates (``Shape.aggregate``)."""
+    for aggregate in model.aggregates:
+        members = aggregate.members
+        names = [str(m) for m in members.iris()]
+        for member in members:
+            member.aggregate  # noqa: B018 - raises for a shape listed by two aggregates
+            if len(members) < 2:
+                continue
+            for store in member.stored_in:
+                if DEPLOY.SemPKM in store.store_kinds:
+                    raise ResolutionError(
+                        aggregate.iri,
+                        SEAM.aggregateMember,
+                        f"{member.iri} is stored in the deploy:SemPKM store {store.iri}, which cannot commit "
+                        f"more than one entity of an aggregate atomically (ADR-0035); its members are {names}",
+                    )
+        stores = sorted({str(store.iri) for member in members for store in member.stored_in})
+        if len(stores) > 1:
+            raise ResolutionError(
+                aggregate.iri,
+                SEAM.aggregateMember,
+                f"its members are stored in more than one store, {stores}; "
+                "an aggregate commits in one store transaction (ADR-0035)",
+            )
+        log.info("aggregate %s commits %s in one transaction", aggregate.iri, ", ".join(names))
+
+
 class Runtime:
     def __init__(
         self,
@@ -345,6 +385,7 @@ class Runtime:
         implementations = resolve_implementations(model, handlers)
         boundaries = resolve_boundaries(model)  # ADR-0013, also before the store
         webhooks = model.webhook_channels()  # ADR-0027, also before the store
+        resolve_aggregates(model)  # ADR-0035, also before the store, whatever store is used
         declared = STORE_KINDS[plan.kind]
         override = False
         forced = bool(os.environ.get(STORE_OVERRIDE_ENV)) and store is None
@@ -441,6 +482,14 @@ class Runtime:
         Returns the stored row (the form ``query`` returns), or raises
         ContractViolation (422) and stores nothing."""
         shape = self.model.curie(shape_curie)
+        entity_id, data, status = self._prepare(shape, payload)
+        entity = self.store.put_entity(entity_id, shape, data, status=status)
+        log.info("wrote %s entity %s (status %s)", shape, entity["id"], status)
+        return entity
+
+    def _prepare(self, shape, payload) -> tuple[str, dict, str | None]:
+        """``write``'s rules before the store: a new id (in the ``:id`` field
+        when the shape has one), the validated data and its initial status."""
         entity_id = str(uuid.uuid4())
         if "id" in shape_contract(self.model, shape).fields:
             payload = {**dict(_items(payload)), "id": entity_id}
@@ -449,9 +498,46 @@ class Runtime:
         if self.model.has_lifecycle(shape):
             status = data.get("status") or self.model.lifecycle_for(shape).initial
             data["status"] = status
-        entity = self.store.put_entity(entity_id, shape, data, status=status)
-        log.info("wrote %s entity %s (status %s)", shape, entity["id"], status)
-        return entity
+        return entity_id, data, status
+
+    def write_aggregate(self, aggregate_curie, payloads) -> dict:
+        """Persist one new entity per member shape of an aggregate, all or
+        none (ADR-0035). ``payloads`` maps member shapes (CURIE or IRI) to
+        payloads, each written by ``write``'s rules. Every payload is
+        validated before anything is written; then the entities are written
+        in member-IRI order in one ``store.transaction()``. Returns the stored
+        rows keyed by shape IRI. Raises ``ResolutionError(shape or aggregate,
+        seam:aggregateMember)`` for a shape that is not a member, no payloads
+        or an aggregate that names no members; ``ContractViolation`` (422)
+        storing nothing; or ``AggregateRolledBack`` when a write fails and
+        the transaction rolled them all back."""
+        aggregate = self.model.curie(aggregate_curie)
+        found = [a for a in self.model.aggregates if a.iri == aggregate]
+        if not found:
+            raise ResolutionError(
+                aggregate, SEAM.aggregateMember, "names no member shapes, so it declares no transaction boundary"
+            )
+        members = found[0].members.iris()
+        if not payloads:
+            raise ResolutionError(aggregate, SEAM.aggregateMember, "no member payloads to write")
+        shapes = {self.model.curie(s): p for s, p in dict(payloads).items()}
+        for shape in sorted(shapes, key=str):
+            if shape not in members:
+                raise ResolutionError(
+                    shape,
+                    SEAM.aggregateMember,
+                    f"not a member of {aggregate}; its members are {[str(m) for m in members]}",
+                )
+        prepared = {
+            shape: self._prepare(shape, payload) for shape, payload in sorted(shapes.items(), key=lambda i: str(i[0]))
+        }
+
+        def put(shape) -> dict:
+            entity_id, data, status = prepared[shape]
+            return self.store.put_entity(entity_id, shape, data, status=status)
+
+        rows = commit_aggregate(self.store, self.telemetry, aggregate, list(prepared), put)
+        return {str(shape): row for shape, row in zip(sorted(prepared, key=str), rows, strict=True)}
 
     def problem(self, operation_curie, error: OperationError) -> JSONResponse:
         """The problem+json response for ``error`` raised while serving

@@ -17,6 +17,10 @@ SQLite's rowid as the insertion-order tie-breaker. Both return the same rows.
 
 Every operation opens and closes its own connection, so one store can be
 shared by coroutines and by the worker threads asyncio hands blocking calls to.
+``with store.transaction():`` is the exception (ADR-0035): inside the block,
+every call on that store from the calling thread uses one connection, and
+its writes commit when the block exits normally or all roll back when it
+raises. A ``transaction()`` inside another joins the outer one.
 
 ``SplitStore`` puts a relational store in front of an entity backend
 (``sempkm.SemPKMStore``, ADR-0025): process state, user tasks and the entities
@@ -33,8 +37,10 @@ import json
 import logging
 import re
 import sqlite3
+import threading
 import time
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, closing, contextmanager
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -84,6 +90,10 @@ class Store(Protocol):
     def list_user_tasks(self) -> list[dict]: ...
 
     def get_user_task(self, task_iri, correlation_key: str) -> dict | None: ...
+
+    def transaction(self) -> AbstractContextManager[None]:
+        """One all-or-nothing unit of this thread's writes (ADR-0035)."""
+        ...
 
 
 def redact(url: str) -> str:
@@ -166,6 +176,7 @@ class SQLiteStore:
         self.path = Path(path)
         self.location = str(self.path)
         self.timeout = timeout
+        self._local = threading.local()  # .con: this thread's open transaction, if any
         with closing(self._connect()) as con:
             con.execute("PRAGMA journal_mode=WAL")
             con.executescript(_SQLITE_SCHEMA)
@@ -178,12 +189,47 @@ class SQLiteStore:
         con.row_factory = sqlite3.Row
         return con
 
-    def _write(self, sql: str, params: tuple) -> None:
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        """This thread's operations on one connection until the block exits:
+        committed on a normal exit, rolled back when it raises (the exception
+        propagates). ``BEGIN IMMEDIATE`` takes the write lock up front, so two
+        concurrent transactions wait on each other, bounded by ``timeout``. A
+        nested call joins the outer transaction."""
+        if getattr(self._local, "con", None) is not None:
+            yield
+            return
+        with closing(self._connect()) as con:
+            con.isolation_level = None  # the transaction is the explicit BEGIN ... COMMIT below
+            con.execute("BEGIN IMMEDIATE")
+            self._local.con = con
+            try:
+                yield
+            except BaseException:
+                con.execute("ROLLBACK")
+                raise
+            else:
+                con.execute("COMMIT")
+            finally:
+                self._local.con = None
+
+    @contextmanager
+    def _session(self) -> Iterator[sqlite3.Connection]:
+        """This thread's transaction connection, else a new one committed on
+        success, rolled back on error and closed afterwards."""
+        con = getattr(self._local, "con", None)
+        if con is not None:
+            yield con
+            return
         with closing(self._connect()) as con, con:
+            yield con
+
+    def _write(self, sql: str, params: tuple) -> None:
+        with self._session() as con:
             con.execute(sql, params)
 
     def _read(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        with closing(self._connect()) as con:
+        with self._session() as con:
             return con.execute(sql, params).fetchall()
 
     # ── workflow state ──
@@ -234,7 +280,7 @@ class SQLiteStore:
     ) -> dict:
         """Insert or update an entity. An update keeps the original ``created``."""
         payload = json.dumps(data, sort_keys=True)
-        with closing(self._connect()) as con, con:
+        with self._session() as con:
             con.execute(
                 f"INSERT INTO entities({_ENTITY_COLUMNS}) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
@@ -267,7 +313,7 @@ class SQLiteStore:
         its ``created``; an empty ``rows`` clears the instance."""
         instance_id = str(instance_id)
         now = time.time()
-        with closing(self._connect()) as con, con:
+        with self._session() as con:
             created = {
                 r["task"]: r["created"]
                 for r in con.execute("SELECT task, created FROM user_tasks WHERE instance_id = ?", (instance_id,))
@@ -354,6 +400,7 @@ class PostgresStore:
         self.schema = schema
         self.connect_timeout = connect_timeout
         self.location = redact(url) + (f" (schema {schema})" if schema else "")
+        self._local = threading.local()  # .con: this thread's open transaction, if any
         with self._connect(create_schema=True) as con:
             con.execute("SELECT pg_advisory_xact_lock(%s)", (_SCHEMA_LOCK,))
             for statement in _POSTGRES_SCHEMA:
@@ -382,8 +429,35 @@ class PostgresStore:
                 raise
         return con
 
-    def _read(self, query: str, params: tuple = ()) -> list[dict]:
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        """This thread's operations on one connection whose ``with`` block is
+        the transaction: committed on a normal exit, rolled back when the
+        block raises (the exception propagates). A nested call joins the
+        outer transaction."""
+        if getattr(self._local, "con", None) is not None:
+            yield
+            return
         with self._connect() as con:
+            self._local.con = con
+            try:
+                yield
+            finally:
+                self._local.con = None
+
+    @contextmanager
+    def _session(self):
+        """This thread's transaction connection, else a new one-transaction
+        connection (``_connect``)."""
+        con = getattr(self._local, "con", None)
+        if con is not None:
+            yield con
+            return
+        with self._connect() as con:
+            yield con
+
+    def _read(self, query: str, params: tuple = ()) -> list[dict]:
+        with self._session() as con:
             return con.execute(query, params).fetchall()
 
     # ── workflow state ──
@@ -392,7 +466,7 @@ class PostgresStore:
         self, instance_id: str, process, state: str, *, correlation_key: str | None = None, status: str | None = None
     ) -> None:
         # seq = DEFAULT mirrors SQLite's INSERT OR REPLACE, which gives the row a new rowid.
-        with self._connect() as con:
+        with self._session() as con:
             con.execute(
                 "INSERT INTO workflow_state(instance_id, process, correlation_key, state, status, updated) "
                 "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (instance_id) DO UPDATE SET "
@@ -436,7 +510,7 @@ class PostgresStore:
     ) -> dict:
         """Insert or update an entity. An update keeps the original ``created``."""
         payload = json.dumps(data, sort_keys=True)
-        with self._connect() as con:
+        with self._session() as con:
             con.execute(
                 f"INSERT INTO entities({_ENTITY_COLUMNS}) "
                 "VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s) ON CONFLICT (id) DO UPDATE SET "
@@ -469,7 +543,7 @@ class PostgresStore:
         its ``created``; an empty ``rows`` clears the instance."""
         instance_id = str(instance_id)
         now = time.time()
-        with self._connect() as con:
+        with self._session() as con:
             # One replacement per instance at a time, as SQLite's write lock gives.
             con.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (instance_id,))
             created = {
@@ -548,6 +622,12 @@ class SplitStore:
 
     def get_user_task(self, task_iri, correlation_key: str) -> dict | None:
         return self.relational.get_user_task(task_iri, correlation_key)
+
+    def transaction(self) -> AbstractContextManager[None]:
+        """The relational store's transaction. ``Runtime.load`` refuses an
+        aggregate of more than one member in the entity backend (ADR-0035),
+        so no transaction has to span the two."""
+        return self.relational.transaction()
 
     # ── entities ──
 

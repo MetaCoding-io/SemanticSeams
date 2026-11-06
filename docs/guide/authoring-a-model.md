@@ -749,6 +749,11 @@ member for each aggregate:
 - **Typed view.** `model.aggregates` lists the aggregates that declare members, by IRI;
   each one's `members` are its shapes, by IRI, and `Shape.aggregate` is the aggregate a
   shape belongs to.
+- **At run time.** When one process element `seam:writes` two or more members of an
+  aggregate, the worker writes them in one store transaction: all of them or none.
+  `Runtime.write_aggregate` does the same for an operation that starts no process. A
+  rollback raises `AggregateRolledBack`, naming the aggregate and the shape whose write
+  failed ([seams_runtime README](../../seams_runtime/README.md#aggregates-adr-0035)).
 
 A `state:Transition` is a domain event, identified by its IRI, and may
 `seam:publishesTo` a `comm:Channel`. The event's name is the transition's IRI or its

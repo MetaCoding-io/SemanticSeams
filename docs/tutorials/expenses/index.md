@@ -2,8 +2,8 @@
 
 This tutorial builds a whole application from an empty file, one layer per chapter.
 Employees submit expenses, managers approve them and finance pays them out. Each
-chapter adds one model to a single TriG file, `expenses.trig`, and ends with something
-you can see in the viewer or run in a browser.
+chapter adds one model to a single TriG file, `expenses.trig` (until chapter 11 splits it
+in two), and ends with something you can see in the viewer or run in a browser.
 
 If you want to see the pipeline end to end first, the
 [quick start](/tutorial) runs the finished chat app in about ten minutes. This tutorial
@@ -24,11 +24,13 @@ triple is there.
 | 8 | [Growing up](./08-growing-up) | A payouts channel, a payout process started from it with its own decision and payment lifecycle, a finance console, deploy facts, and where the data lives (a PostgreSQL store the shapes are `seam:storedIn`) | The payout running on its own after finance pays, the whole system under `docker compose up`, and the complexity check passing |
 | 9 | [Hand-written code](./09-hand-written-code) | A Notify Manager service task whose operation is `seam:implementedBy` a Python function, the stub that function starts from, the function itself, and an error it declares with a boundary event that catches it | The manager's notification stored before the approval task opens, `seams generate` leaving your code alone, and an unsendable notification taking the expense to finance |
 | 10 | [Expenses in SemPKM](./10-sempkm) | A `deploy:SemPKM` store and its triplestore, a URL binding that `deploy:connectsTo` it and a secret token binding that `deploy:authenticatesTo` it, and `:ExpenseShape` `seam:storedIn` it; a `comm:SemPKMWebhook` channel accepting `:VendorShape` and a vendor review process that `seam:subscribesTo` it | Expenses stored in SemPKM under the IRIs it mints and read back through SPARQL, the process unchanged, SemPKM's services in the compose files, `/healthz` reporting the store, and a vendor changed in SemPKM starting the vendor review |
+| 11 | [A second bounded context](./11-bounded-contexts) | Two domains, an expense and a finance context, what each `seam:owns`, a `finance.trig` with the finance ontology the expense ontology imports by version IRI, and Pay Expense moved to the payout process | The approval storm writing no payment, `:payouts` as the one line between the contexts, and `seams check` resolving the import from the dataset |
 
-All ten chapters are written. Chapter 8 ends with the whole system running under
+All eleven chapters are written. Chapter 8 ends with the whole system running under
 `docker compose up` and a model large enough to pass `python -m seams_gen.complexity`.
 Chapter 9 adds the one piece the model cannot generate: a function you write yourself.
 Chapter 10 moves the expenses into SemPKM without changing a line of code.
+Chapter 11 splits the model into two bounded contexts, one file each.
 
 ## Prerequisites
 
@@ -64,6 +66,8 @@ examples/expenses/chapter-07/expenses.trig
 examples/expenses/chapter-08/expenses.trig
 examples/expenses/chapter-09/expenses.trig
 examples/expenses/chapter-10/expenses.trig
+examples/expenses/chapter-11/expenses.trig
+examples/expenses/chapter-11/finance.trig
 ```
 
 Each checkpoint is the previous one plus that chapter's additions, so a `diff` between
@@ -72,6 +76,9 @@ two checkpoints shows exactly what a chapter adds:
 ```sh
 diff examples/expenses/chapter-01/expenses.trig examples/expenses/chapter-02/expenses.trig
 ```
+
+From chapter 11 the checkpoint is a directory of two files, one per bounded context,
+which its `seams.toml` loads as one model (`model = "."`).
 
 If your file stops working, compare it with the checkpoint for the chapter you are on,
 or copy the checkpoint and carry on from there.
@@ -84,7 +91,8 @@ chapter 4 on (`tests/test_expense_process_app.py`), checks chapter 6's lifecycle
 (`tests/test_expense_lifecycle.py`), chapter 7's roles (`tests/test_expense_roles.py`), chapter 8's payout
 (`tests/test_expense_payout.py`) and chapter 9's hand-written handler
 (`tests/test_expense_handler.py`, and `tests/test_expense_e2e.py` under docker compose)
-and chapter 10's SemPKM store (`tests/test_expense_sempkm.py`),
+chapter 10's SemPKM store (`tests/test_expense_sempkm.py`)
+and chapter 11's contexts (`tests/test_expense_chapter11.py`),
 and checks that every model excerpt on these pages
 appears verbatim in its chapter's checkpoint (`tests/test_expense_tutorial_doc.py`).
 

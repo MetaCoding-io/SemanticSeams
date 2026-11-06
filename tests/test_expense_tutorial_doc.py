@@ -2,8 +2,9 @@
 
 docs/tutorials/expenses/NN-*.md walks the reader through chapter NN. Every
 ```trig block on a page is a verbatim excerpt of that chapter's checkpoint,
-examples/expenses/chapter-NN/expenses.trig (compared line by line with
-surrounding whitespace stripped and blank lines ignored), every ```xml block
+examples/expenses/chapter-NN/expenses.trig, or from chapter 11 of one of the
+checkpoint directory's TriG files (compared line by line with surrounding
+whitespace stripped and blank lines ignored), every ```xml block
 is likewise an excerpt of one of the chapter's BPMN or DMN payload files, and
 the page links the checkpoint. The pages are chapters 1, 2, 3... with no gap. Chapter 3 and
 every process chapter (4 onward) show the ``seams generate`` command
@@ -75,13 +76,15 @@ def test_pages_are_contiguous_chapters_from_1():
 
 @pytest.mark.parametrize("page", PAGES, ids=PAGE_IDS)
 def test_every_trig_block_is_an_excerpt_of_the_checkpoint(page):
-    checkpoint = normalised((EXPENSES / chapter_of(page) / "expenses.trig").read_text(encoding="utf-8"))
+    # One file per chapter up to 10; chapter 11 has one per bounded context.
+    files = sorted((EXPENSES / chapter_of(page)).glob("*.trig"))
+    checkpoints = [normalised(f.read_text(encoding="utf-8")) for f in files]
     trig_blocks = blocks(page, "trig")
     assert trig_blocks, f"{page.name} shows no ```trig block"
-    missing = [body for body in trig_blocks if not contains_run(checkpoint, normalised(body))]
+    missing = [body for body in trig_blocks if not any(contains_run(c, normalised(body)) for c in checkpoints)]
     assert not missing, (
-        f"{page.name}: these ```trig blocks are not verbatim in "
-        f"examples/expenses/{chapter_of(page)}/expenses.trig:\n" + "\n---\n".join(missing)
+        f"{page.name}: these ```trig blocks are not verbatim in a .trig file of "
+        f"examples/expenses/{chapter_of(page)}/:\n" + "\n---\n".join(missing)
     )
 
 

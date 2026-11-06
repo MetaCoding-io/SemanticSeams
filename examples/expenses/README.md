@@ -7,7 +7,8 @@ from there.
 
 ## Layout
 
-Each chapter has its own directory with one file of the same name:
+Each chapter has its own directory with one file of the same name, until
+chapter 11 splits the model into one file per bounded context:
 
 ```
 examples/expenses/
@@ -99,6 +100,17 @@ examples/expenses/
                              services, SEMPKM_URL on the API and the sempkm_token secret (from
                              docker/local-secrets/expense_sempkm_token in development)
                              (payloads, handlers and seed.json are chapter 9's)
+  chapter-11/expenses.trig   two bounded contexts (ADR-0030): the architecture, its two arch:Domain
+                             and arch:BoundedContext elements, the expense context's models and
+                             the seams graph with each context's seam:owns; :expense_ontology 1.2
+                             owl:imports finance_ontology's version IRI
+  chapter-11/finance.trig    the finance context: :finance_ontology (Payment and Vendor, version 1.0),
+                             the payout process and decision, the payment lifecycle, the vendor
+                             review and the finance console
+  chapter-11/seams.toml      model = "." : every *.trig file here loads as one dataset
+  chapter-11/approval.bpmn, chapter-11/payout.bpmn
+                             Pay Expense moved from the approval process to the start of the payout
+  chapter-11/generated/      the route module, templates and other outputs (no Mental Model)
 ```
 
 Every checkpoint is a cumulative copy of the one before it, so the diff between
@@ -192,6 +204,13 @@ approving patches its status, an invalid expense sends nothing, a SemPKM
 outage is a 503 problem+json naming the store, and `/healthz` reports the
 store without the token. The process tests above also run chapter 10 with
 `SEAMS_STORE_OVERRIDE=sqlite`.
+
+For chapter 11, `tests/test_expense_chapter11.py` checks the two classified
+domains and contexts, that every model but the architecture has exactly one
+`seam:owns` owner and lives in its owner's file, that the finance import
+resolves from the dataset (and that `expenses.trig` alone or a wrong finance
+version is a `ResolutionError` naming `owl:imports`), that the approval storm
+writes no payment, and that an approved expense is paid in its payout instance.
 
 ## Running chapter 8 under docker compose
 

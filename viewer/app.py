@@ -52,6 +52,9 @@ ROOT_ENV = "SEAMS_VIEWER_ROOT"
 # ADR-0017: edit mode is off unless SEAMS_EDIT=1 when the viewer starts (or when
 # configure() runs); without it no route that writes is mounted.
 EDIT_ENV = "SEAMS_EDIT"
+# ADR-0036: the data-health view reads the SQLite store at SEAMS_VIEWER_STORE,
+# read-only; without it the view says no store is configured.
+STORE_ENV = "SEAMS_VIEWER_STORE"
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "examples" / "chat-app" / "chat-app.trig"
 
 
@@ -965,6 +968,30 @@ def layers_endpoint(request: Request):
         "layer_warnings": data["warnings"],
         "reveal_modes": [(mode, title) for mode, title, _hint in RELATION_GROUPS],
     }
+    return templates.TemplateResponse(request, "page.html", ctx)
+
+
+def store_path_from_env() -> Path | None:
+    """SEAMS_VIEWER_STORE when set and non-empty, else None (no store configured)."""
+    value = os.environ.get(STORE_ENV)
+    return Path(value).resolve() if value else None
+
+
+@app.get("/data-health")
+def data_health_endpoint(request: Request):
+    """The data-health view (ADR-0036): the attached profile's instance-data
+    warnings on the store at SEAMS_VIEWER_STORE, computed by
+    validation.get_data_health on every request. JSON on request, the
+    data-health.html fragment for htmx, otherwise that fragment in the page shell."""
+    get_model()
+    health = validation.get_data_health(MODEL_PATH, get_graph(), _profile, _profile_error, store_path_from_env())
+    logger.info("viewer data health %s: %s, %d warning(s)", health["store"], health["state"], health["count"])
+    if wants_json(request):
+        return JSONResponse(health)
+    ctx = {"request": request, "label": "Data health", "data_health": health, "store_env": STORE_ENV}
+    if request.headers.get("hx-request") == "true":
+        return templates.TemplateResponse(request, "data-health.html", ctx)
+    ctx = {**ctx, "model_conformance": model_health(get_graph()), "content_template": "data-health.html"}
     return templates.TemplateResponse(request, "page.html", ctx)
 
 

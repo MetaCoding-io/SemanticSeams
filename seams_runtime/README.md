@@ -113,7 +113,7 @@ tables: `workflow_state`, `entities` and `user_tasks`. `Store` is a `typing.Prot
 
 | Backend | `kind` | `location` | Notes |
 |---|---|---|---|
-| `SQLiteStore(path, timeout=30.0)` | `"sqlite"` | the file path (`.path` is kept) | Embedded stdlib sqlite3 in WAL mode. `Runtime.load` builds one at `db_path`, `SEAMS_DB` or `./seams.sqlite`. |
+| `SQLiteStore(path, timeout=30.0, *, read_only=False)` | `"sqlite"` | the file path (`.path` is kept) | Embedded stdlib sqlite3 in WAL mode. `Runtime.load` builds one at `db_path`, `SEAMS_DB` or `./seams.sqlite`. With `read_only=True` the file must already be a seams store: nothing is created, connections open with `mode=ro`, a write raises sqlite3's error, and a missing file or one without the `entities` table raises `StoreUnavailable`. The viewer's data-health view opens its store this way. |
 | `PostgresStore(url, *, schema=None, connect_timeout=10)` | `"postgresql"` | the URL with its password replaced by `***` (plus ` (schema …)`) | psycopg 3. `data` is jsonb and the timestamps are double precision. A `seq bigserial` column replaces SQLite's rowid as the tie-breaker for ordering and is never returned. Upserts use `ON CONFLICT`. `schema=` creates that schema if needed and sets `search_path` to it on every connection (the tests use one per test). Table creation takes an advisory lock, so runtimes that start together on one database do not collide. |
 
 Both backends return the same rows. `data` comes back decoded with its keys sorted.

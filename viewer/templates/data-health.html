@@ -1,0 +1,47 @@
+{# The data-health view (ADR-0036, M029/S05): the attached profile's
+   instance-data warnings on the configured store. Everything is computed in
+   viewer/validation.py get_data_health(); this template only picks the state's
+   text and loops over the sorted findings. Served alone to htmx (the Refresh
+   button swaps it in place) and inside page.html's #view-content otherwise. #}
+<style>
+  .data-health { padding: 1rem 1.5rem; }
+  .data-health h2 { margin: 0 0 0.25rem 0; }
+  .data-health-meta { margin: 0 0 0.75rem 0; color: #555; font-size: 0.9rem; }
+  .data-health-meta code { font-size: 0.85rem; }
+  .data-health-error { color: #b71c1c; }
+  .data-health table { border-collapse: collapse; background: #fff; }
+  .data-health th, .data-health td { border: 1px solid #d9e1e6; padding: 0.3rem 0.6rem; text-align: left; font-size: 0.9rem; }
+  .data-health-severity { color: #b45309; font-weight: 600; }
+</style>
+<section class="data-health" id="data-health" data-state="{{ data_health.state }}">
+  <h2>Data health</h2>
+  <p class="data-health-meta">
+    {% if data_health.store %}Store <code>{{ data_health.store }}</code>, read-only.{% endif %}
+    {% if data_health.profile %}Profile <code>{{ data_health.profile }}</code>.{% endif %}
+    <button type="button" hx-get="/data-health" hx-target="#data-health" hx-swap="outerHTML">Refresh</button>
+  </p>
+  {% if data_health.state == "no-store" %}
+    <p class="data-health-empty">No store configured. Set <code>{{ store_env }}</code> to a runtime's SQLite file to check its data.</p>
+  {% elif data_health.state == "no-profile" %}
+    <p class="data-health-empty">The model attaches no profile, so there are no instance-data rules to check.</p>
+  {% elif data_health.state == "error" %}
+    <p class="data-health-error">{{ data_health.error }}</p>
+  {% elif data_health.findings %}
+    <p class="data-health-count">{{ data_health.count }} warning{{ "" if data_health.count == 1 else "s" }}</p>
+    <table id="data-health-findings">
+      <thead><tr><th>Severity</th><th>Rule</th><th>Focus</th><th>Message</th></tr></thead>
+      <tbody>
+        {% for f in data_health.findings %}
+          <tr data-shape="{{ f.shape }}">
+            <td class="data-health-severity">{{ f.severity }}</td>
+            <td><code>{{ f.shape }}</code></td>
+            <td><code>{{ f.focus }}</code></td>
+            <td>{{ f.message }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="data-health-ok">No warnings: the stored data keeps every rule.</p>
+  {% endif %}
+</section>

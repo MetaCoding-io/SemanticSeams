@@ -51,6 +51,11 @@ come from the profile's shapes file; this module holds none.
 
 Results are cached per Dataset and profile identity: the model is loaded once per
 process, so each dataset is validated at most once per profile.
+
+The data-health view (ADR-0036, get_data_health()) is the one check here that
+reads instance data: the attached profile's sh:Warning sh:sparql rules run, through
+seams_runtime's public ``data_health``, on the entities of a SQLite store opened
+read-only. The store changes under the viewer, so this result is never cached.
 """
 
 from __future__ import annotations
@@ -63,6 +68,7 @@ import seams
 from lxml import etree
 from rdflib import RDF, RDFS, Namespace, URIRef
 
+from seams_runtime import ContractViolation, SQLiteStore, StoreError, data_health
 from viewer.profiles import Profile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -396,3 +402,49 @@ def get_lifted_iri_health(ds: rdflib.Dataset, base_dir: Path) -> list[dict]:
 
     _lifted_cache[key] = findings
     return findings
+
+
+def _data_health_state(state: str, store: Path | None, profile: Profile | None, error: str | None = None) -> dict:
+    return {
+        "state": state,
+        "store": None if store is None else str(store),
+        "profile": None if profile is None else str(profile.iri),
+        "error": error,
+        "findings": [],
+        "count": 0,
+    }
+
+
+def get_data_health(
+    model_path: Path,
+    ds: rdflib.Dataset,
+    profile: Profile | None,
+    profile_error: dict | None,
+    store_path: Path | None,
+) -> dict:
+    """The data-health view's facts (ADR-0036): the attached profile's
+    instance-data rules run on the SQLite store at ``store_path``, opened
+    read-only, so nothing is created or written.
+
+    Returns {"state", "store", "profile", "error", "findings", "count"}.
+    ``state`` is "no-store" without ``store_path``, "no-profile" when the model
+    attaches none, "error" when the profile did not resolve, the store cannot be
+    opened or a stored entity fails its shape contract (``error`` says which),
+    else "ok". Each finding is {"shape", "focus", "message", "severity"}, in
+    seams_runtime's sorted order.
+    """
+    if store_path is None:
+        return _data_health_state("no-store", None, profile)
+    if profile_error is not None:
+        detail = f"{profile_error['subject']} {profile_error['predicate']}: {profile_error['detail']}"
+        return _data_health_state("error", store_path, None, f"profile not resolved: {detail}")
+    if profile is None:
+        return _data_health_state("no-profile", store_path, None)
+    try:
+        store = SQLiteStore(store_path, read_only=True)
+        model = seams.ModelGraph(model_path, dataset=ds, check_imports=False)
+        findings = data_health(model, store, profile.shapes)
+    except (StoreError, ContractViolation) as err:
+        return _data_health_state("error", store_path, profile, str(err))
+    rows = [{"shape": f.shape, "focus": f.focus, "message": f.message, "severity": f.severity} for f in findings]
+    return {**_data_health_state("ok", store_path, profile), "findings": rows, "count": len(rows)}

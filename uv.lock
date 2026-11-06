@@ -1345,6 +1345,7 @@ dependencies = [
     { name = "semanticseams" },
     { name = "semanticseams-cli" },
     { name = "semanticseams-edit" },
+    { name = "semanticseams-runtime" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1357,6 +1358,7 @@ requires-dist = [
     { name = "semanticseams", editable = "packages/seams" },
     { name = "semanticseams-cli", editable = "packages/seams-cli" },
     { name = "semanticseams-edit", virtual = "seams_edit" },
+    { name = "semanticseams-runtime", virtual = "seams_runtime" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 

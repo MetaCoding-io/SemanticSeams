@@ -45,6 +45,8 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from .errors import StoreUnavailable
+
 log = logging.getLogger(__name__)
 
 _INSTANCE_COLUMNS = "instance_id, process, correlation_key, status, updated"
@@ -172,11 +174,29 @@ CREATE INDEX IF NOT EXISTS user_tasks_task_ck ON user_tasks(task, correlation_ke
 class SQLiteStore:
     kind = "sqlite"
 
-    def __init__(self, path, timeout: float = 30.0):
+    def __init__(self, path, timeout: float = 30.0, *, read_only: bool = False):
+        """Open (and create) the store at ``path``. With ``read_only`` the file
+        must already hold the runtime's schema: nothing is created, every
+        connection opens with ``mode=ro`` and a write raises sqlite3's error.
+        A missing file, or one without the entities table, raises
+        ``StoreUnavailable``."""
         self.path = Path(path)
         self.location = str(self.path)
         self.timeout = timeout
+        self.read_only = read_only
         self._local = threading.local()  # .con: this thread's open transaction, if any
+        if read_only:
+            if not self.path.is_file():
+                raise StoreUnavailable(self.location, "no SQLite file at this path")
+            try:
+                with closing(self._connect()) as con:
+                    found = con.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'entities'")
+                    has_entities = found.fetchone() is not None
+            except sqlite3.Error as err:
+                raise StoreUnavailable(self.location, f"not a readable SQLite store: {err}") from err
+            if not has_entities:
+                raise StoreUnavailable(self.location, "no entities table: not a seams store")
+            return
         with closing(self._connect()) as con:
             con.execute("PRAGMA journal_mode=WAL")
             con.executescript(_SQLITE_SCHEMA)
@@ -185,7 +205,10 @@ class SQLiteStore:
         return f"SQLiteStore({self.location!r})"
 
     def _connect(self) -> sqlite3.Connection:
-        con = sqlite3.connect(str(self.path), timeout=self.timeout)
+        if self.read_only:
+            con = sqlite3.connect(f"{self.path.resolve().as_uri()}?mode=ro", timeout=self.timeout, uri=True)
+        else:
+            con = sqlite3.connect(str(self.path), timeout=self.timeout)
         con.row_factory = sqlite3.Row
         return con
 

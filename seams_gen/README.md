@@ -339,7 +339,7 @@ branches only choose a layout from graph facts. Everything is sorted by IRI.
 | Signature | Each template variable as `<var>: str`, then `request: Request` when the operation has a `comm:requestMediaType`, then, for a Complete step, `identity: Identity = Depends(runtime.task_policy("<task>"))` (401 without an identity, 403 unless every `seam:governedBy` policy of the task permits it). `Identity` is imported only by a module with a Complete step. |
 | Request body | `application/x-www-form-urlencoded` → `form = await request.form()`; `application/json` → `body = await request.json()`; any other media type raises `GeneratorError(op, comm:requestMediaType)`. |
 | Validate | `seam:acceptsShape S` → `<s> = runtime.validate("<S curie>", form)`, where `<s>` is S's local name lowercased minus `Shape`, plus `_payload` when that name is also a path variable (so the payload never shadows the correlation key). It needs a request body. A handler with a Write or Complete step has no separate validate line: `runtime.write` and `runtime.complete_task` validate. |
-| Start | When the operation is the triggering operation of a process the container executes (`Process.triggering_operations`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. A channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel) gets no route; the runtime starts it when the channel is published on. An executed process with neither a `seam:triggers` event nor a subscribed start is `GeneratorError(process, seam:triggers)`. |
+| Start | When the operation is the triggering operation of a process the container executes (`Process.triggering_operations`: an event `seam:submitsTo` it and `seam:triggers` the process), `await runtime.start_process("<process>", <s>, correlation_key=<label>)`. The `proc:correlationKey` parameter's `rdfs:label` must be a path variable, else `GeneratorError(process, proc:correlationKey)`. A channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel) gets no route; the runtime starts it when the channel is published on. A timer-started process ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md): a `proc:TimerStartEvent` in `Process.timer_events()`) gets no route either; the scheduler of the container that `seam:schedules` it starts it at each due time, and the generator never reads the expression. An executed process with no `seam:triggers` event, no subscribed start and no timer start is `GeneratorError(process, seam:triggers)`. |
 | Write | When no process is triggered by the operation, it has `seam:acceptsShape S`, and an event of an `ifml:Form` that `seam:writes S` (`ifml:hasEvent`) `seam:submitsTo` it (D026), `<s> = runtime.write("<S curie>", form)` in place of the validate line and before the return, so the item partial renders the stored entity. `runtime.write` validates the form itself because it first assigns the entity's `:id`, which the form never sends. Any other untriggered operation gets no write step. |
 | Complete | When an event of an `ifml:Form` that a `proc:UserTask` `seam:completedOn` `seam:submitsTo` the operation (ADR-0009), `await runtime.complete_task("<task>", form, correlation_key=<key>, identity=identity)` in place of Start or Write. `<key>` is the `proc:correlationKey` label of the process whose BPMN model holds the task and must be a path variable, else `GeneratorError(process, proc:correlationKey)`. It needs a request body (error on `comm:requestMediaType`); an operation that also triggers a process, or whose forms complete several tasks, raises on `seam:submitsTo`. The serving-container rule covers the container through `seam:executes`. |
 | Query | A `GET` (or an operation with a Complete step) with `seam:returnsShape S` → `<s>s = runtime.query("<S curie>", <var>=<var> …)`, one keyword per path variable. |
@@ -437,6 +437,7 @@ container.
 | `secrets` | Each `deploy:secretRef` binding adds `<key lower>` to the service and a top-level `<key lower>: {name: <deploy:secretName>, external: true}` (missing `deploy:secretName`: error on the container, naming the key). Each `deploy:secretFile` binding adds `<key lower>: {file: ${<KEY>_FILE:-<path relative to --out>}}`, so a host can point elsewhere. One key bound to two sources in one environment is an error. |
 | `volumes` | For the serving container, read-only model binds first: `./<trig relative to --out>:/model/<trig name>:ro`, then each `seam:renderPayload` as `./<payload relative to --out>:/model/<path relative to the trig dir>:ro` and, when an operation that container `seam:exposes` is `seam:implementedBy` a `comm:PythonHandler` ([ADR-0012](../docs/adr/0012-operation-implementation.md)), the handlers package `./<handlers/ beside the trig, relative to --out>:/model/handlers:ro` (the runtime's default handlers directory), all sorted. Then each named `deploy:volume` as `<volumeName>:<mountPath>`, with a top-level `<volumeName>: {}`. |
 | `healthcheck` | `deploy:healthcheck`: `test: ["CMD-SHELL", "<deploy:probe>"]`, `interval: <deploy:interval>`. The serving container without one gets the runtime's `/healthz` probe on its single `deploy:containerPort` (not one port: error), interval `5s`. Every healthcheck has the fixed `timeout: 5s`, `retries: 12` and `start_period: 5s`. |
+| `# schedules:` | Above a container that `seam:schedules` processes ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)), one comment `# schedules: <process IRI>, ...`, sorted by IRI. The container's own runtime runs their timer starts, so there is no service and no binding for them, and no timer expression is read. |
 | `deploy` | `replicas` from the environment's `deploy:replicas`; the serving container is capped at 1 (backlog A10: process state lives in the process), with a comment naming the declared count. `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node, only in the environment that `arch:contains` that node (no label there: error on the node and `rdfs:label`). |
 | Top level | `secrets:` and `volumes:` after `services:`, sorted, omitted when empty. |
 
@@ -682,6 +683,7 @@ and `seam:executes` the triggered process.
 | a channel a message start event `seam:subscribesTo` | `API-->>C: <channel> starts <process>` (the walk does not enter it) |
 | a user task's policy assignee and `seam:completedOn` form | `<actor>->>UI: <task> on <form>`, then `UI->>API: complete <task> [<output shape>]` |
 | an exclusive gateway branch | `Note over API: <gateway>: <flow>` |
+| a boundary timer on a user task (`proc:TimerCatchEvent`, [ADR-0037](../docs/adr/0037-timers-and-scheduling.md)) | its own path: the task is not completed, `Note over API: <task>: <timer> fires, <task> stays open` (`cancels <task>` when interrupting), then the timer's outgoing flow |
 | `seam:reads` | nothing |
 
 **One diagram per path.** The walk forks at every exclusive gateway with more than one
@@ -689,7 +691,10 @@ outgoing flow, in BPMN document order, so there are no `alt`, `opt` or `par` blo
 single-path event is named `<event>`; otherwise the name joins the chosen flow labels,
 `<event>--<flow>--...`, and the header reads `%% path: manager, approved`. A flow met
 twice on one path ends that path with the gap `loop at <flow>`. A parallel or inclusive
-gateway is a gap and follows only its first flow.
+gateway is a gap and follows only its first flow. A user task with a boundary timer forks
+too: the task's own path first, then one path per timer in flow order, labelled with the
+timer's BPMN id (`submit_expense--manager--overdue_reminder`). The expression is never
+read: the diagram says the timer fires, not when.
 
 **Gaps.** Every arrow the deriver cannot place is a gap, never a silent omission. It is
 rendered in the diagram header as `%% gap: <detail>` (for example
@@ -728,6 +733,7 @@ are the same; after them each row adds, in the order the worker ran it:
 
 | Trace row field | Diagram element |
 |---|---|
+| `timer` (the due time of the timer event that fired, ADR-0037) | `Note over API: <task> timer fires (due <time>)` |
 | `by` (a user task completed by a person) | `actor by_<id> as <id>`, `by_<id>->>UI: <task> on <form>`, `UI->>API: complete <task>` |
 | `decision`, `outputs` | `API->>API: <task> (DMN <decision>) = <output values>` |
 | `invokes` with `in_process` | `API->>API: <task>, <operation> (in process)` |
@@ -878,6 +884,13 @@ branch or loop in any handler, the POST handler's runtime calls being exactly
 `comm:requestMediaType` and no serving container failing through the API and the CLI, and
 the process-less expense model (`tests/processless_model.py`) generating
 `validate`, `write`, `render_fragment` with no `start_process`.
+`tests/test_timer_generators.py` ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)): on a chapter 9
+copy with the overdue reminder and a timer-started digest, no route for the digest and
+the approval routes unchanged, `GeneratorError(process, seam:triggers)` for a process with
+no way to start, the `# schedules:` comment (sorted, traced to the process, no service or
+binding added), the reminder's own as-designed path leaving the task open (or cancelling
+it when interrupting), the fired-timer note as executed, and the same bytes from an
+expression the runtime would refuse.
 `tests/test_problem_json.py`: a chat-app copy whose `:send_message_op` declares three
 error statuses (two sharing 422) generates one `responses` entry per status code with
 the shape-derived schemas, the problem handler and its imports, and fails on a status

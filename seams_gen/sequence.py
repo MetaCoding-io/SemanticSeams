@@ -21,11 +21,18 @@ order taken from the BPMN sequence flows of the process the event triggers
   seam:completedOn form on the container presenting it, then the UI
   completing the task on the API with the form's output shape;
 - a channel a message start event seam:subscribesTo is drawn as the API
-  starting that process on its executing container (the walk stops there).
+  starting that process on its executing container (the walk stops there);
+- a boundary timer on a user task (a proc:TimerCatchEvent of
+  ``Process.timer_events``, ADR-0037) forks the walk: its own path leaves
+  the task before anyone completes it, notes ``<task>: <timer> fires`` and
+  whether the task stays open (non-interrupting) or is cancelled, then
+  follows the timer's outgoing flow. The expression is never read.
 
 There is one diagram per path: the walk forks at each exclusive gateway with
 more than one outgoing flow, in BPMN document order, notes the chosen flow,
-and names the diagram ``<event>--<flow>--...`` (no alt fragments). A flow met
+and names the diagram ``<event>--<flow>--...`` (no alt fragments). A
+boundary timer's path follows the task's own, named with the timer's BPMN
+id in place of a flow. A flow met
 twice on one path ends it with a ``loop at <flow>`` gap; a parallel or
 inclusive gateway is a gap and follows its first flow. Every arrow the
 deriver cannot place (a missing fact) is recorded as a gap and rendered as a
@@ -37,7 +44,8 @@ a JSON file, an instance result or a bare list, or from an instance id in the
 runtime's SQLite store, without importing seams_runtime, D049) on the same
 actor, UI and API lifelines as ``derive``. Each row adds, in the worker's
 order: the ``by`` identity as an actor completing the user task on its form,
-the decision as a self call with its outputs, the invoke (a self call when in
+a fired timer as a note with its due time, the decision as a self call
+with its outputs, the invoke (a self call when in
 process, else the call to the row's container and its delta count), the
 streamed deltas and published event to the channel's consumers, the writes to
 each seam:storedIn container, the fired transition and status as a note, and
@@ -71,7 +79,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from rdflib import URIRef
-from seams import Component, Container, Event, FlowNode, Model, Operation, Page, local_name
+from seams import Component, Container, Event, FlowNode, Model, Operation, Page, TimerEvent, local_name
 from seams.bpmn import SequenceFlow
 
 from . import GeneratorError
@@ -312,8 +320,15 @@ def _derive_path(model: Model, event: Event, path: _Path | None) -> SequenceDiag
     invokers = [n for n in nodes if op is not None and n.invokes is not None and n.invokes.iri == op.iri]
     if not invokers:
         _fragment(b, api, ui, op)
+    timers = _boundary_timers(process)
 
     for node, flow in path.steps:
+        timer = timers.get(node.iri)
+        if timer is not None and timer.attached_to is not None:
+            task = timer.attached_to
+            what = task.name or task.bpmn_id
+            outcome = f"cancels {what}" if timer.interrupting else f"{what} stays open"
+            b.note(api, f"{what}: {node.name or node.bpmn_id} fires, {outcome}", node.iri, task.iri)
         _node(b, api, ui, op, node)
         if node in invokers:
             _fragment(b, api, ui, op)
@@ -326,13 +341,24 @@ def _iris(*elements) -> tuple[URIRef, ...]:
     return tuple(e.iri for e in elements if e is not None)
 
 
+def _boundary_timers(process) -> dict[URIRef, TimerEvent]:
+    """{boundary event IRI: timer} for each timer attached to a user task (ADR-0037)."""
+    return {t.iri: t for t in process.timer_events() if t.attached_to is not None}
+
+
 def _paths(process) -> list[_Path]:
     """Every path from each start event of ``process`` (not a channel start)
     to an end, depth first, forking at each exclusive gateway with more than
-    one outgoing flow in BPMN document order. A flow already on the path ends
-    it with a ``loop at`` gap; a parallel or inclusive fork is a gap and
+    one outgoing flow in BPMN document order, and at each user task with a
+    boundary timer: the task's own path first, then one per timer in flow
+    order, leaving the task before it completes. A flow already on the path
+    ends it with a ``loop at`` gap; a parallel or inclusive fork is a gap and
     follows only its first flow."""
     nodes = process.nodes()
+    attached: dict[str, list[TimerEvent]] = {}
+    for timer in _boundary_timers(process).values():
+        if timer.attached_to is not None:
+            attached.setdefault(timer.attached_to.bpmn_id, []).append(timer)
     by_id = {n.bpmn_id: n for n in nodes}
     channel_starts = {s.iri for s in process.channel_starts}
     starts = [n for n in nodes if n.tag == "startEvent" and n.iri not in channel_starts]
@@ -346,6 +372,11 @@ def _paths(process) -> list[_Path]:
         found.append(path)
 
     def walk(node, steps, labels, flows, gaps) -> None:
+        through(node, steps, labels, flows, gaps)
+        for timer in attached.get(node.bpmn_id, ()):
+            walk(timer.node, steps, (*labels, timer.node.bpmn_id), flows, gaps)
+
+    def through(node, steps, labels, flows, gaps) -> None:
         out = node.outgoing
         if len(out) > 1 and node.tag == "exclusiveGateway":
             for flow in out:
@@ -593,6 +624,10 @@ def _row(b: _Builder, api: URIRef, process, nodes, containers, channels, process
         if node is None:
             b.gap(f"{where}: {iri} is not an element of {local_name(process.iri)}")
     el = () if not iri else (URIRef(iri),)
+
+    due = row.get("timer")
+    if due is not None:
+        b.note(api, f"{task} timer fires (due {_text(str(due))})", *el)
 
     by = row.get("by")
     if by is not None:

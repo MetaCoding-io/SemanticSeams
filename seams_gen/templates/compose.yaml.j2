@@ -7,6 +7,9 @@
 name: [[ c.project ]]
 services:
 [% for s in c.services %]
+[% if s.schedules %]
+  # schedules: [[ s.schedules_text ]]
+[% endif %]
   [[ s.name ]]:
     image: [[ s.image ]]
 [% if s.build %]

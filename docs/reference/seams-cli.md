@@ -916,9 +916,39 @@ breaking operation-removed :notify_manager_op -
 seams diff: 4 breaking, 0 compatible
 ```
 
+### Downstream contexts
+
+When the models declare bounded contexts and the relationships between them
+([ADR-0030](/adr/0030-domains-and-bounded-contexts),
+[ADR-0032](/adr/0032-context-map-relationships)), each change also names the
+downstream contexts it reaches. A change to a subject (a shape or an operation)
+belongs to the model it is `seam:inModel`, or, with no such fact, to the
+`seam:Model` declared in the graph that types it; that model's owner is the
+`arch:BoundedContext` that `seam:owns` it. The change reaches every context that is
+`arch:downstream` of an `arch:ContextRelationship` whose `arch:upstream` is the
+owner, in either model version. A change to a downstream context's own shape
+reaches no context, and a model with no relationship reports none.
+
+After the changes, the text output adds one section per downstream context that a
+breaking change reaches, sorted: a `downstream <context>` line, then those breaking
+changes indented two spaces. Changing `:amount` on expenses chapter 11's
+`:ExpenseShape` from `xsd:decimal` to `xsd:integer`, which the finance context
+reads as a conformist downstream:
+
+```
+$ seams diff examples/expenses/chapter-11 changed/
+breaking datatype-changed :ExpenseShape :amount xsd:decimal -> xsd:integer
+downstream :finance_context
+  breaking datatype-changed :ExpenseShape :amount xsd:decimal -> xsd:integer
+seams diff: 1 breaking, 0 compatible
+```
+
+### JSON
+
 `--json` prints `{"changes": [...], "counts": {"breaking": N, "compatible": M}}`;
-each change has `verdict`, `kind`, `subject` and `detail` with full IRIs, and a
-sorted `scopes` list. The output is deterministic, so it can be committed or
+each change has `verdict`, `kind`, `subject` and `detail` with full IRIs, a
+sorted `scopes` list and a sorted `contexts` list (the downstream context IRIs,
+empty when there are none). The output is deterministic, so it can be committed or
 compared.
 
 ### Exit codes

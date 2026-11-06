@@ -33,7 +33,8 @@ def test_chapter_8_to_9_is_compatible(capsys):
     assert report["counts"] == {"breaking": 0, "compatible": len(report["changes"])}
     assert report["changes"], "chapter 9 adds the notification shapes and operations"
     for change in report["changes"]:
-        assert set(change) == {"verdict", "kind", "subject", "detail", "scopes"}
+        assert set(change) == {"verdict", "kind", "subject", "detail", "scopes", "contexts"}
+        assert change["contexts"] == [], "chapters 8 and 9 declare no contexts"
         assert change["verdict"] == "compatible"
         assert change["kind"] in {"shape-added", "operation-added"}
         assert change["scopes"] == sorted(change["scopes"])

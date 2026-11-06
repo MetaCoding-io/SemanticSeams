@@ -210,7 +210,7 @@ from .context import run_context
 from .context import to_json as context_json
 from .coverage import coverage_report, summary
 from .coverage import to_json as coverage_json
-from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
+from .diff import BREAKING, COMPATIBLE, diff_loaded, downstream, load_model, shorten, to_json
 from .draft_generator import DraftGeneratorError, draft_generator
 from .generate import apply, generate_project
 from .lockfile import locate
@@ -591,6 +591,10 @@ def _diff(args: argparse.Namespace) -> int:
     else:
         for c in changes:
             print(shorten(f"{c.verdict} {c.kind} {c.subject} {c.detail}", new, old))
+        for context, hits in downstream(changes).items():
+            print(shorten(f"downstream {context}", new, old))
+            for c in hits:
+                print("  " + shorten(f"{c.verdict} {c.kind} {c.subject} {c.detail}", new, old))
     breaking, compatible = report["counts"][BREAKING], report["counts"][COMPATIBLE]
     if breaking:
         print(f"seams diff: {breaking} breaking, {compatible} compatible", file=sys.stderr)

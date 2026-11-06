@@ -303,9 +303,18 @@ shape, a changed `sh:datatype` or `sh:class` and a tighter `sh:minCount` or
 `sh:maxCount` are breaking; additions of optional properties, shapes and
 operations, and looser bounds, are compatible.
 
+Each change also names the downstream contexts it reaches (ADR-0032 section 2):
+the subject's models (its `seam:inModel`, else the `seam:Model` its graph declares),
+the `arch:BoundedContext`s that `seam:owns` them, then each `arch:downstream` of an
+`arch:ContextRelationship` whose `arch:upstream` is one of those, read in both
+versions (`Change.contexts`, `_reach`). A model with no relationship gives every
+change none.
+
 Each change prints as `<verdict> <kind> <subject> <detail>`, sorted, with
-CURIEs where a prefix is bound; `--json` prints `to_json`'s changes (with their
-`data`/`contract` scopes) and counts instead. It exits 0 with no breaking
+CURIEs where a prefix is bound. Then, for each downstream context a breaking change
+reaches (sorted), a `downstream <context>` line is followed by those breaking
+changes indented two spaces (`downstream`). `--json` prints `to_json`'s changes
+(with their `data`/`contract` scopes and their `contexts`) and counts instead. It exits 0 with no breaking
 change, 1 with any, after `seams diff: N breaking, M compatible` on stderr, and
 2 when a model cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-diff).

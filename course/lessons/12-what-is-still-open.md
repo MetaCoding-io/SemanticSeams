@@ -29,16 +29,24 @@ decision answers part of it. Five threads matter here.
 
 **Profiles.** [ADR-0018](../../docs/adr/0018-domain-profiles.md) makes a method a package of
 vocabulary and shapes attached by `seam:conformsTo`, which narrows the editor's palette and
-adds health checks without ever refusing a model. The outline planned Löwy's IDesign as the
-first method profile, with its interaction rules as shapes over the architecture, and the
-DDD note proposes domain-driven design as the second. The mechanism is shipped and tested;
-the method profiles themselves are backlog items.
+adds health checks without ever refusing a model. The DDD profile is the first method
+profile to ship ([ADR-0033](../../docs/adr/0033-ddd-profile.md)): its rules are SHACL over
+the model and, at `sh:Warning`, over the stored instance data
+([ADR-0036](../../docs/adr/0036-cross-aggregate-invariants.md)), and `seams check`
+validates an attached profile's shapes. The outline's first candidate, Löwy's IDesign with
+its interaction rules as shapes over the architecture, is still a backlog item.
 
 **Bounded contexts.** The DDD note found the tactical patterns already in the graph without
 their names, and the strategic layer missing. [ADR-0030](../../docs/adr/0030-domains-and-bounded-contexts.md)
 adds `arch:Domain` and `arch:BoundedContext`, each context owning one ontology and the model
-graphs written in its language. Context maps, the DDD profile and a tutorial chapter with a
-second context are milestone M029.
+graphs written in its language. Milestone M029 then shipped the rest of the strategic layer:
+context-map relationships with a gate for untranslated cross-context calls
+([ADR-0032](../../docs/adr/0032-context-map-relationships.md)), the aggregate's transaction
+boundary ([ADR-0035](../../docs/adr/0035-aggregate-transaction-boundary.md)), Context Mapper
+import and export ([ADR-0034](../../docs/adr/0034-context-mapper-interchange.md)), and
+tutorial [chapter 11](../../docs/tutorials/expenses/11-bounded-contexts.md), where payouts
+move into a finance context with its own ontology. Read the chapter: it is the lab this
+lesson would have, and the first place two TriG files make one model.
 
 **SysML v2.** The note's conclusion: export it, take requirements, concerns and
 variability, do not lift KerML into RDF. Items W1 to W5 are proposed and unscheduled.
@@ -52,8 +60,9 @@ glossary generated from the model for coding agents (C6) and hand-written specs 
 against the model's terms (R4).
 
 **The honest list.** Observed behaviour as its own named graph, service-level objectives,
-data classification, timers and scheduled work, more than one replica, imports of existing
-models, a model-level merge. None is a reason the six failures reopen; each is a kind of
+data classification, more than one replica, imports of existing models, a model-level
+merge. Timers and scheduled work have their decision ([ADR-0037](../../docs/adr/0037-timers-and-scheduling.md))
+and are in progress as milestone M030. None is a reason the six failures reopen; each is a kind of
 fact the graph does not yet hold.
 
 ## Read in the repo
@@ -85,7 +94,7 @@ your own. Where they disagree, one of them is wrong, and the repository decides 
 
 ## Further reading
 
-- Juval Löwy, *Righting Software*, 2019, for the IDesign method the first profile encodes.
+- Juval Löwy, *Righting Software*, 2019, for the IDesign method the outline's first profile would encode.
 - Eric Evans, *Domain-Driven Design*, 2003, part IV, strategic design, for bounded contexts
   and context maps.
 - Object Management Group, *SysML v2*, 2025, part 1, section on view definitions.

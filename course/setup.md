@@ -41,7 +41,7 @@ health badge. Lesson 1's lab starts here.
 
 ## Keep a working file
 
-The expense tutorial grows one file, `expenses.trig`, over ten chapters, and the course's
+The expense tutorial grows one file, `expenses.trig`, over eleven chapters, and the course's
 labs follow it. Keep your copy outside `examples/` (for example `work/expenses.trig`) so
 that `git status` stays clean and you can diff your file against the chapter checkpoints in
 [`examples/expenses/`](../examples/expenses/). [How checkpoints

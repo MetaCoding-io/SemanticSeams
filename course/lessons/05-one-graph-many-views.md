@@ -34,7 +34,7 @@ every seam lives in one more graph of its own, so a layer stays pure and the joi
 auditable ([ADR-0001](../../docs/adr/0001-named-graph-partitioning.md)). Membership is a
 fact, `seam:inModel`, not a naming convention: that was the first review's first finding.
 
-The seams themselves are 34 predicates in [`ontology/seam.ttl`](../../ontology/seam.ttl),
+The seams themselves are the predicates of [`ontology/seam.ttl`](../../ontology/seam.ttl), 36 at the time of writing,
 under four design rules: few and generic beats many and precise; every seam predicate must
 earn a query; reuse before minting; and the backbone stays notation-agnostic. Zooming in is
 one query, follow `seam:detailedBy`, read `seam:notation`, mount the renderer

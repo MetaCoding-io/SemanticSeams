@@ -7,7 +7,8 @@ beyond the model they read are ``generator_inputs``), recording them
 and any lenient-mode ``Fault`` in seams.lock (``read_lock``, ``build_lock``,
 ``render_lock``, ``audit``). ``seams check`` (``run_check``) reports every ``Finding`` without writing; ``seams status``
 (``run_status``) gives a ``Status`` per running runtime container; ``seams
-sequence`` (``run_sequence``) writes an event's derived sequence diagrams; ``seams
+sequence`` (``run_sequence``) writes an event's derived sequence diagrams; ``seams storm``
+(``run_storm``) renders a process's derived event-storm timeline; ``seams
 secrets`` (``run_secrets``) gives a ``Row`` per configuration binding per environment. The editable
 install puts the repository root on sys.path, so the virtual members seams_gen
 and seams_runtime import from any working directory.
@@ -32,6 +33,7 @@ from .project import GeneratorTarget, Project, ProjectError, load_project, resol
 from .secrets import Row, run_secrets
 from .sequence import run_sequence
 from .status import Status, run_status
+from .storm import run_storm
 
 __all__ = [
     "LOCK_FILE",
@@ -61,5 +63,6 @@ __all__ = [
     "run_secrets",
     "run_sequence",
     "run_status",
+    "run_storm",
     "write_outputs",
 ]

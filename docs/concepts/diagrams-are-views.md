@@ -99,6 +99,31 @@ element it runs. They are off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set and th
 [seams_runtime/README.md](https://github.com/MetaCoding-io/SemanticSeams/blob/main/seams_runtime/README.md#tracing-opentelemetry)).
 The diagram reads the trace rows, not the spans.
 
+## Derived event storm
+
+An event storm is never authored either, and it adds no vocabulary. `seams storm <process>`
+(or the event that triggers it) reads one process's timeline from facts the
+model already holds, through `seams_gen.storm`. Each step is a trigger or a BPMN flow
+node, in BPMN step order; a node with none of the facts below is not a step.
+
+| Sticky note | Derived from |
+|---|---|
+| Actor | The node's `bpmn:Lane`, and the `odrl:assignee` of each policy that `seam:governedBy` the event, the task or the operation |
+| Command | Each `ifml:Event` that `seam:triggers` the process, with the operation it `seam:submitsTo`; a user task's `seam:completedOn` form and what its events submit to; a message start event that `seam:subscribesTo` a channel |
+| Aggregate | Each shape the node `seam:writes`, with its `sh:targetClass`, `seam:storedIn` and `seam:lifecycle` |
+| Domain event | The transition the node `seam:fires`: its `state:from` and `state:to` states |
+| Decision | The DMN decision the node is `seam:decidedBy` |
+| Channel | Each channel the node `seam:publishesTo` |
+| Process started | Each process whose message start event `seam:subscribesTo` a published channel |
+| Read model | Each IFML page or component that `seam:reads` an aggregate, with the GET operation that `seam:rendersComponent` it |
+
+A fact the view expects and cannot find is a gap, listed under the timeline and printed
+to stderr, never dropped: a trigger or user task with no actor, a user task with no form,
+an aggregate nothing reads, a channel nothing consumes or subscribes to, a process
+nothing starts. Chapter 10's approval process derives to the timeline pinned by
+[`tests/golden/storm/approval_process.md`](https://github.com/MetaCoding-io/SemanticSeams/blob/main/tests/golden/storm/approval_process.md).
+See [the seams CLI](/reference/seams-cli#seams-storm).
+
 ## Why one graph pays
 
 Two things fall out of the single graph that no toolchain of separate modelers offers:

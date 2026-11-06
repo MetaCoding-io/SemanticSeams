@@ -153,7 +153,8 @@ and explains everything else on the page.
   `docker compose -f compose.development.yaml up`, and `--write-example` writes the
   `.env.example` to copy to `.env`; `seams sequence`
   derives an event's sequence diagrams from the model, and
-  `seams sequence :send_message --trace <instance>` draws a recorded run as executed.
+  `seams sequence :send_message --trace <instance>` draws a recorded run as executed;
+  `seams storm approval_process` prints a process's derived event-storm timeline.
 - [Build an expense approval app](/tutorials/expenses/): write a model yourself, one layer
   per chapter, from an empty file to the whole system under `docker compose up`.
 - [Using the viewer](/guide/the-viewer): what each part of the page does, and the URLs

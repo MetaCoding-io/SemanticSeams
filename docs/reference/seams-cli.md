@@ -5,7 +5,8 @@ file, `seams.toml`, kept next to an app's model. `seams generate` runs every
 generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams migrate`
 writes the vocabulary migrations a model needs into its files; `seams sequence`
-derives an event's sequence diagrams; `seams diff` classifies the shape and
+derives an event's sequence diagrams; `seams storm` prints a process's derived
+event-storm timeline; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
 as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
@@ -813,6 +814,50 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 | 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, the event is unknown, the `--trace` instance is not in the store, the trace file is not JSON, or `--db` was given without `--trace`. |
 
 Errors print to stderr as `seams sequence: <message>`.
+
+## seams storm
+
+```sh
+seams storm approval_process --project examples/expenses/chapter-10
+seams storm :submit_expense --project examples/expenses/chapter-10 --out build/storm.md
+```
+
+`seams storm` prints the derived event-storm timeline of one process as
+Markdown (backlog B4, `seams_gen.storm`). NAME is the process, or an IFML event
+that `seam:triggers` one, as a CURIE, local name or full IRI; naming
+`submit_expense` gives the same timeline as naming `approval_process`. The model
+is chosen as for `seams generate`. The timeline lists, per BPMN step in flow
+order, the actors, commands, aggregates, domain events, DMN decisions, published
+channels and started processes, then the read models and the gaps. What each
+entry is derived from is in
+[Diagrams are views](/concepts/diagrams-are-views#derived-event-storm).
+
+With `--out FILE` the timeline is written to FILE instead of stdout, and the
+path is printed. The file is not a generator output, so `seams.lock` does not
+record it.
+
+### Gaps
+
+A fact the view expects and cannot find is a gap. It is listed under `## Gaps`
+in the timeline and printed to stderr. On chapter 10:
+
+```
+$ seams storm approval_process --project examples/expenses/chapter-10 > /dev/null
+seams storm: gap approval_process: ApprovalShape has no read model: no ifml page or component seam:reads it
+seams storm: gap approval_process: NotificationShape has no read model: no ifml page or component seam:reads it
+```
+
+Gaps are an audit of the model, not a failure, so the exit code stays 0.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The timeline was printed or written, with or without gaps. |
+| 1 | A file could not be read or written. |
+| 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or NAME is no process and no event that triggers exactly one. |
+
+Errors print to stderr as `seams storm: <message>`, naming the argument.
 
 ## seams diff
 

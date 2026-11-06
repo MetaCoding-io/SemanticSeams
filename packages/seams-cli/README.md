@@ -266,6 +266,22 @@ runtime's SQLite store, `--db PATH`, defaulting to `SEAMS_DB`, else
 file that is not JSON exits 2; `--db` without `--trace` is a usage error. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-sequence).
 
+## seams storm
+
+```sh
+seams storm approval_process --project examples/expenses/chapter-10
+seams storm :submit_expense --project examples/expenses/chapter-10 --out build/storm.md
+```
+
+It prints the derived event-storm timeline of one process as Markdown (backlog
+B4, `storm.py`, `run_storm`, over `seams_gen.storm`). The name is the process or
+an IFML event that `seam:triggers` one, as a CURIE, local name or full IRI. The
+model is chosen as for `seams generate`. `--out FILE` writes the timeline to
+FILE and prints its path instead; it is not recorded in `seams.lock`. Each gap
+prints to stderr as `seams storm: gap <process>: <detail>` and the exit code
+stays 0. A project error, an unloadable model or an unknown name exits 2. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-storm).
+
 ## seams diff
 
 ```sh

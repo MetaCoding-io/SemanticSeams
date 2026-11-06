@@ -1,4 +1,4 @@
-"""Command line: ``seams generate|check|migrate|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+"""Command line: ``seams generate|check|migrate|status|sequence|storm|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
@@ -62,6 +62,16 @@ the worker's trace rows: RUN is a trace JSON file or an instance id in the
 runtime's SQLite store (``--db PATH``, default SEAMS_DB, else
 ``<project root>/seams.sqlite``). A missing instance exits 2; ``--db``
 without ``--trace`` is a usage error.
+
+``seams storm <name> [--out FILE]`` (M028/S01, backlog B4) prints the derived
+event-storm timeline of a process as Markdown: its actors, commands,
+aggregates, domain events, DMN decisions, published channels and started
+processes per BPMN step, then its read models and gaps. NAME is the process
+or an ifml:Event that seam:triggers one (a CURIE, local name or IRI). With
+``--out`` the timeline goes to FILE, whose path is then printed. Each fact the
+deriver could not place prints to stderr as ``seams storm: gap <name>:
+<detail>``; gaps are an audit, and the exit code stays 0. An unknown name
+exits 2 and writes nothing.
 
 ``seams diff OLD NEW [--json]`` (D052) compares two model versions, each a
 TriG file or a directory, and classifies every SHACL shape and operation
@@ -212,6 +222,7 @@ from .propose import ProposeError, propose
 from .secrets import EXAMPLE, example_environment, render_example, run_secrets
 from .sequence import run_sequence
 from .status import run_status
+from .storm import run_storm
 from .suggest import ChangeFinding, NothingToSuggest, StaleSuggestion, Verdicts, accept, pending, suggest
 
 EXIT_PROJECT_ERROR = 2
@@ -287,6 +298,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--db", type=Path, help="the runtime's SQLite store (default: SEAMS_DB, else <project>/seams.sqlite)"
     )
     sequence.set_defaults(run=_sequence)
+    storm = sub.add_parser(
+        "storm",
+        help="print the derived event-storm timeline of a process as Markdown",
+        description="Derive a process's event-storm timeline from the model's graph facts and BPMN step order.",
+    )
+    storm.add_argument(
+        "name",
+        help="the process, or an IFML event that seam:triggers one: a CURIE (:submit_expense), local name or IRI",
+    )
+    _project_arguments(storm)
+    storm.add_argument("--out", type=Path, metavar="FILE", help="write the timeline to FILE instead of stdout")
+    storm.set_defaults(run=_storm)
     diff = sub.add_parser(
         "diff",
         help="classify shape and operation-contract changes between two models as compatible or breaking",
@@ -544,6 +567,18 @@ def _sequence(args: argparse.Namespace) -> int:
         print(f"seams sequence: gap {name}: {gap}", file=sys.stderr)
     for path in paths:
         print(_display(path.resolve()))
+    return 0
+
+
+def _storm(args: argparse.Namespace) -> int:
+    project = load_project(args.project)
+    text, gaps = run_storm(project, args.model, args.name, args.out)
+    for name, gap in gaps:
+        print(f"seams storm: gap {name}: {gap}", file=sys.stderr)
+    if args.out is None:
+        sys.stdout.write(text)
+    else:
+        print(_display(args.out.resolve()))
     return 0
 
 

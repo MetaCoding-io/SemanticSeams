@@ -1,0 +1,57 @@
+# Coverage: which core operations have no handler and no scenario?
+#
+# The query ADR-0030 section 6 earns for arch:classification. An operation is in
+# a context when its seam:inModel model is one the context seam:owns (ADR-0030
+# section 2), and the context is core when an arch:Domain classified arch:Core
+# arch:contains it. Each row is such a hydra:Operation that is not
+# seam:implementedBy a comm:PythonHandler and that no verify:Scenario reaches:
+# the code the business competes on, either generated or untested. It returns no
+# rows when every core operation is covered, and on a dataset with no domain, so
+# `seams check` can run it as a gate (a gate must return no rows; see
+# ../gates/ungoverned-writes.rq).
+#
+# A scenario reaches an operation the way a person reaches it: through the
+# process it starts (a UI event seam:submitsTo the operation and seam:triggers
+# the scenario's verify:process), or through the user task it completes (the
+# task is seam:completedOn a form whose ifml:hasEvent seam:submitsTo the
+# operation, and the task is a verify:task of one of the scenario's
+# verify:steps).
+#
+# Bind ?context to an arch:BoundedContext to check one context; leave it free
+# for the whole model.
+
+PREFIX arch:   <https://w3id.org/seams/arch#>
+PREFIX comm:   <https://w3id.org/seams/comm#>
+PREFIX hydra:  <http://www.w3.org/ns/hydra/core#>
+PREFIX ifml:   <https://w3id.org/seams/ifml#>
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX seam:   <https://w3id.org/seams/seam#>
+PREFIX verify: <https://w3id.org/seams/verify#>
+
+SELECT DISTINCT ?domain ?context ?operation WHERE {
+  ?domain a arch:Domain ;
+      arch:classification arch:Core ;
+      arch:contains ?context .
+  ?context a arch:BoundedContext ;
+      seam:owns ?model .
+  ?operation a hydra:Operation ;
+      seam:inModel ?model .
+  FILTER NOT EXISTS {
+    ?operation seam:implementedBy ?handler .
+    ?handler a comm:PythonHandler .
+  }
+  FILTER NOT EXISTS {
+    ?starter seam:submitsTo ?operation ;
+        seam:triggers ?process .
+    ?scenario a verify:Scenario ;
+        verify:process ?process .
+  }
+  FILTER NOT EXISTS {
+    ?task seam:completedOn ?form .
+    ?form ifml:hasEvent ?completer .
+    ?completer seam:submitsTo ?operation .
+    ?scenario a verify:Scenario ;
+        verify:step/rdf:rest*/rdf:first/verify:task ?task .
+  }
+}
+ORDER BY ?domain ?context ?operation

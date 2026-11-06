@@ -107,8 +107,9 @@ jobs:
       - run: SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py
       - run: SEAMS_E2E=1 pytest -q tests/test_expense_e2e.py
 
-  # Builds the docs site the way the Pages deploy does. Fails on a dead internal link,
-  # or if a change to ontology/ or docs/queries/ breaks the reference-page generator.
+  # Builds the docs site and the course site the way the Pages deploy does. Fails on a
+  # dead internal link, on a course link to a repository file that does not exist, or if
+  # a change to ontology/ or docs/queries/ breaks the reference-page generator.
   docs:
     runs-on: ubuntu-latest
     steps:
@@ -127,6 +128,10 @@ jobs:
       # uv run puts the venv's absolute bin on PATH, so scripts/generate.py finds rdflib.
       - run: uv run npm run build
         working-directory: docs
+      - run: npm ci
+        working-directory: course
+      - run: npm run build
+        working-directory: course
 
   lint:
     runs-on: ubuntu-latest

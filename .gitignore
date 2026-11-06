@@ -55,6 +55,9 @@ docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 docs/generated/
+course/node_modules/
+course/.vitepress/dist/
+course/.vitepress/cache/
 
 # ── GSD baseline (auto-generated) ──
 coverage/

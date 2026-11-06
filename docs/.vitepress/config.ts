@@ -90,6 +90,7 @@ export default defineConfig({
       { text: "Concepts", link: "/concepts/diagrams-are-views" },
       { text: "Reference", link: "/reference/seam-predicates" },
       { text: "Project", link: "/project-outline" },
+      { text: "Course", link: `${PROJECT_PAGE}course/` },
       { text: "Project page", link: PROJECT_PAGE },
       { text: "MetaCoding", link: "https://metacoding.io" },
     ],

@@ -1,13 +1,13 @@
 # Publishing the site
 
-The project page and this docs site are published together as one GitHub Pages site,
-by the `Deploy Pages` workflow (`.github/workflows/deploy-pages.yml`). This page explains
+The project page, this docs site and the course site are published together as one
+GitHub Pages site, by the `Deploy Pages` workflow (`.github/workflows/deploy-pages.yml`). This page explains
 how that works today and how to move it to a custom domain.
 
 ## How it works today
 
-On every push to `main` that touches `site/`, `docs/`, `ontology/`, `pyproject.toml`,
-`uv.lock` or the workflow itself, the workflow:
+On every push to `main` that touches `site/`, `docs/`, `course/`, `ontology/`,
+`pyproject.toml`, `uv.lock` or the workflow itself, the workflow:
 
 1. Installs uv with `astral-sh/setup-uv` and runs `uv sync --locked --all-packages`, so
    the reference-page generator can read the ontology with rdflib and the question catalog
@@ -17,20 +17,26 @@ On every push to `main` that touches `site/`, `docs/`, `ontology/`, `pyproject.t
    `DOCS_BASE=/SemanticSeams/docs/`. `uv run` puts the workspace's `.venv/bin` on `PATH`
    by absolute path, so the build's `docs/scripts/generate.py` step finds rdflib and seams
    before VitePress runs.
-3. Copies `site/` to the root of one artifact and the built docs to `docs/` inside it.
-4. Deploys that artifact to GitHub Pages.
+3. Runs `npm ci` and `npm run build` in `course/`, with `COURSE_BASE=/SemanticSeams/course/`
+   and `DOCS_SITE` set to the docs address, so the course's links into the docs resolve to
+   the deployed docs pages. The course needs no Python: it has no generated pages.
+4. Copies `site/` to the root of one artifact, the built docs to `docs/` inside it and the
+   built course to `course/`.
+5. Deploys that artifact to GitHub Pages.
 
 | Address | Content |
 |---|---|
 | `https://metacoding-io.github.io/SemanticSeams/` | The project page, from `site/` |
 | `https://metacoding-io.github.io/SemanticSeams/docs/` | This docs site, from `docs/` |
+| `https://metacoding-io.github.io/SemanticSeams/course/` | The course site, from `course/` |
 
 The repository setting this relies on is **Settings → Pages → Source → GitHub Actions**.
 No `CNAME` file is needed: with an Actions deployment, the custom domain lives in the
 repository's Pages settings.
 
-The CI workflow also builds the docs on every pull request, so a broken internal link or
-a change that breaks the generator fails before it can reach `main`.
+The CI workflow also builds the docs and the course on every pull request, so a broken
+internal link, a course link to a repository file that does not exist, or a change that
+breaks the generator fails before it can reach `main`.
 
 ## Moving to a custom domain
 
@@ -84,8 +90,9 @@ Make these edits in one pull request:
 
 | File | Change |
 |---|---|
-| `.github/workflows/deploy-pages.yml` | `DOCS_BASE: /SemanticSeams/docs/` becomes `DOCS_BASE: /docs/` |
+| `.github/workflows/deploy-pages.yml` | `DOCS_BASE: /SemanticSeams/docs/` becomes `DOCS_BASE: /docs/`; `COURSE_BASE` becomes `/course/` and `DOCS_SITE` the new docs address |
 | `docs/.vitepress/config.ts` | The default in `const BASE` becomes `"/docs/"`, and `PROJECT_PAGE` becomes `"https://semanticseams.metacoding.io/"` |
+| `course/.vitepress/config.ts` | The default in `const BASE` becomes `"/course/"`, and `PROJECT_PAGE` likewise |
 | `site/index.html` | The `canonical`, `og:url`, `og:image` and `twitter:image` URLs move to `https://semanticseams.metacoding.io/` |
 | `README.md` | The project-page and docs links move to the new domain |
 

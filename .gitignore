@@ -39,6 +39,7 @@ build/
 venv/
 target/
 vendor/
+!ontology/vendor/
 *.log
 /coverage/
 .cache/

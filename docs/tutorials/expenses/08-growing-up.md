@@ -314,8 +314,8 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.5> ,
+                    <https://w3id.org/seams/proc/1.1> ,
+                    <https://w3id.org/seams/seam/1.6> ,
                     <https://w3id.org/seams/state/1.0> .
 }
 ```
@@ -712,9 +712,11 @@ The rest are in [`docs/generation/sequences/expenses`](../../generation/sequence
 - **The production images are published by hand.** `ghcr.io/metacoding-io/expense-api`
   is pushed by the `Publish images` workflow, which runs only on a `v*` tag or a manual
   run, so the production file works only after that workflow has run once.
-- **No timer starts.** A process can start from a UI event or a channel, but not on a
-  schedule. A nightly payout batch would need one. There are no intermediate message
-  catch events either.
+- **No timers yet.** A process can start from a UI event or a channel, but not on a
+  schedule, and no task waits on a time. A nightly payout batch would need a timer start.
+  [Chapter 9](./09-hand-written-code#remind-the-manager) adds the first timer, a reminder
+  on the manager's approval task ([ADR-0037](/adr/0037-timers-and-scheduling)). There are
+  no intermediate message catch events either.
 
 CI checks every step of this chapter. `tests/test_expense_payout.py` runs both processes
 in process on both payout paths, `tests/test_expense_compose.py` checks that the

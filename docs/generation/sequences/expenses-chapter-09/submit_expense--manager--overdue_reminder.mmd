@@ -1,0 +1,18 @@
+sequenceDiagram
+    %% derived from https://example.org/expenses/submit_expense
+    %% path: manager, overdue_reminder
+    actor employee as Employee
+    participant employee_portal as Employee Portal
+    participant expense_api as Expense API
+    participant expense_db as Expense Store
+    employee->>employee_portal: submit_expense (policy: employee_submit_policy)
+    employee_portal->>expense_api: POST submit_expense_op [ExpenseShape]
+    Note over expense_api: start approval_process
+    expense_api->>expense_db: persist_expense writes ExpenseShape
+    Note over expense_api: t_submit
+    expense_api-->>employee_portal: expense_list fragment
+    expense_api->>expense_api: route_expense (DMN approval_routing)
+    Note over expense_api: Route?: manager
+    expense_api->>expense_db: notify_manager writes NotificationShape
+    expense_api->>expense_api: notify_manager, notify_manager_op [ExpenseShape]
+    Note over expense_api: Approve Expense: Approval overdue fires, Approve Expense stays open

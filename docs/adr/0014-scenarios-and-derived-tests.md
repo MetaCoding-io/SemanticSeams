@@ -1,6 +1,6 @@
 # ADR-0014: Scenarios and Derived Tests — a Model States What It Should Do, a Generator Tests It
 
-**Status:** Accepted, amended 2026-11-05 (M026: operation failures and channel-started runs)
+**Status:** Accepted, amended 2026-11-05 (M026: operation failures and channel-started runs) and 2026-11-06 (M030/S02: timers in a scenario's run)
 
 **Date:** 2026-10-31
 
@@ -362,6 +362,45 @@ instance the run starts through a channel and appends those instances' traces to
 - Chapter 9 gains four scenarios: `:notify_failed_approved`, `:notify_failed_rejected`,
   `:paid_in_batch` and `:paid_now`. `seams coverage` reports no unexercised path, and its
   `seams.toml` sets `coverage = ["paths"]`.
+
+## Amendment: timers in a scenario's run (2026-11-06, M030/S02)
+
+ADR-0037 adds BPMN timers. Chapter 9's overdue-approval reminder is a non-interrupting
+`"PT48H"` boundary timer on Approve Expense that runs to its own `reminder_end`. That
+path could not be run: a scenario has no clock, and the coverage rule above let a walk
+pass a boundary event only through a `verify:failure`, so chapter 9's
+`coverage = ["paths"]` gate would fail.
+
+No term is added. The rule for a run changes instead:
+
+- **A run fires the timers its instance waits on, once its steps are done.**
+  `run_scenario` completes every step, then fires each timer catch the waiting instance
+  is armed with, once and in due order, as if its due time had come. It uses a
+  scheduler whose clock stands at that due time, so the run waits for no wall clock and
+  needs no `SEAMS_CLOCK_OFFSET`. It then waits for the instance to settle again. A
+  scenario that completes the timed task never fires its timer, because completing the
+  task cancels it.
+- **Coverage follows the same rule.** A timer boundary needs no failure. A task the walk
+  leaves through its timer boundary is one no step completes. No step's task may come
+  after a timer boundary on the walk, since the timers fire only after the last step.
+
+```trig
+:manager_reminded a verify:Scenario ;
+    verify:process :approval_process ;
+    verify:actor :employee ;
+    verify:given [ verify:field :amount ; verify:value 200.00 ] , ... ;
+    verify:expectState :s_submitted ;
+    verify:expectEndEvent <https://example.org/expenses/approval_bpmn#reminder_end> .
+```
+
+### Consequences of the timer amendment
+
+- `verify` stays at 1.1. A scenario whose run ends waiting on a timed task now runs
+  that timer's path. No shipped scenario did that before, so no existing test changes.
+- Chapters 9 to 11 gain `:manager_reminded`, with `reminder_end` lifted as
+  `rejected_end` is. Chapter 9's paths gate passes again.
+- A scenario cannot say "the timer has not fired yet". If a model needs that, it is a
+  new term, to be raised as a backlog question.
 
 ## Alternatives Considered
 

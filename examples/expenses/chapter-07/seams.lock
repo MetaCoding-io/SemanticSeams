@@ -1,14 +1,14 @@
 {
   "lockfile_version": 1,
   "model": "expenses.trig",
-  "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+  "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
   "outputs": [
     {
       "generator": "fastapi",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/expense_api.py",
-      "sha256": "a3d30edd09871aeb4e8ff94ebb369395f2f9ed7b6cfd029db804cb51dfa3f738",
+      "sha256": "832d350f7f7550a563f0d46cce8afa2aa92efdd0840189aee7dc5493375c4dbd",
       "sources": [
         "https://example.org/expenses/ApprovalShape",
         "https://example.org/expenses/ExpenseShape",
@@ -41,7 +41,7 @@
     {
       "generator": "fastapi",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/expense_api.py.trace.json",
       "sha256": "ba1ed0f3a00be9ec912b030671706bdba21a875013958cbbe230e235eeeaa5bf",
       "sources": [
@@ -76,9 +76,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/approve_form.html",
-      "sha256": "c59175fcd084cb7f2df58e54158fbcebaf140042af045ffa73e6f1786a4682e3",
+      "sha256": "59cb627c2b997424c2dab43588af26f738c9ae5392a554375cc27e03070f5383",
       "sources": [
         "https://example.org/expenses/ApprovalShape",
         "https://example.org/expenses/ExpenseShape",
@@ -95,7 +95,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/approve_form.html.trace.json",
       "sha256": "ac1d1251b007e687a810a6cccc901a72bf20e9ff23eb205585a142728f7e562e",
       "sources": [
@@ -114,9 +114,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/awaiting_approval.html",
-      "sha256": "ffcdbfcf2834309d7c2438fea591921480325a6bd690bfc5082ddddf6bdf5f8f",
+      "sha256": "dbb91b75663a65d3c3545cd2dd0d9067df0d083ca3d58ea2792bc6473216e3c9",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/awaiting_approval",
@@ -131,7 +131,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/awaiting_approval.html.trace.json",
       "sha256": "77ec6b694097cbf66af9217069badc0c9083ac4bc2ed1ff3202b5add024a6a94",
       "sources": [
@@ -148,9 +148,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expense_details.html",
-      "sha256": "8ec40fdeb078a8d9c385fd8f915db5dce236ef453dfd58d1246bc190dab926e9",
+      "sha256": "c89216d300c14f2ea283edcaf0ae89bfb7c54634e936e7450f31c768f20c64c3",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/approved_expense",
@@ -163,7 +163,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expense_details.html.trace.json",
       "sha256": "ee9f1834f55d62aabe6a31666cd1f1592073ee574e60544b6119e60ff43deca7",
       "sources": [
@@ -178,9 +178,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expense_list.html",
-      "sha256": "1c45a7f993ab03de40b16ca8b2b8fc85e1f0e653d54aa8cf7c8e67fd1f3cddd3",
+      "sha256": "cebe37750fc79a7b8029c363ce54f27f88d339460e8761c39004965f1f3e948f",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/employee_portal",
@@ -192,7 +192,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expense_list.html.trace.json",
       "sha256": "f89c56e499580270dad9f688d623c13b435dce88fdfa34f76ecf4c2dd2bb7f50",
       "sources": [
@@ -206,9 +206,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expense_list_item.html",
-      "sha256": "6b11acdec8525803bf179ab5c33e47165d1325cbe68234a3d76cbe4e25e27d6a",
+      "sha256": "d215aec71dd96eb524293fbc685a4108008a53f44c855ab30ff791a99e8afb32",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/employee_portal",
@@ -220,7 +220,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expense_list_item.html.trace.json",
       "sha256": "c1357a14380886a5436dea0413ba8db9b33e0c431974121f26545819c3983cd8",
       "sources": [
@@ -234,9 +234,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expenses_page.html",
-      "sha256": "646eafb0735f12208b35aeac0777d397a1593773fad219e70a731bfdac2d124e",
+      "sha256": "2a0438a41e0b409506cc9a7051fff5f13e5783ae29e25ecff3fd6ce0f8317ea9",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/amount_input",
@@ -258,7 +258,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/expenses_page.html.trace.json",
       "sha256": "49e1316ae802c6c5868ad56de6d981cdbb06bebc856eda4524c6512aae82a9c8",
       "sources": [
@@ -282,9 +282,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/finance_approve_form.html",
-      "sha256": "bbfd10686fd90b669f2996ad5f04b2d00e750dec6fa8a3bc7da58f337c3ebf9e",
+      "sha256": "d53c50890c53d331f77451eede8c8416c0928332dacf740a9a98f97a0eba4fbd",
       "sources": [
         "https://example.org/expenses/ApprovalShape",
         "https://example.org/expenses/ExpenseShape",
@@ -301,7 +301,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/finance_approve_form.html.trace.json",
       "sha256": "4459cac2c19aa272982fdc319f172c0669b00da4333d48de0ff13361d880d42e",
       "sources": [
@@ -320,9 +320,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/payment_form.html",
-      "sha256": "6f3de479616ac41f5860291148c76f561858b8d4e4034fe8678bb5bb06c12b1b",
+      "sha256": "413998f9bff342f69afb68a00176b05edc25619560ff32944e47684e35a05c22",
       "sources": [
         "https://example.org/expenses/ExpenseShape",
         "https://example.org/expenses/PaymentShape",
@@ -339,7 +339,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:6932da09bb5558af233f71c445b0de13310be88832dc3d1c379dbdf60fb70030",
+      "model_hash": "sha256:88e0fc51968a6bfd7e12e507f7bd9f68836a523adbff73ce815acc7239fe6c86",
       "path": "generated/templates/payment_form.html.trace.json",
       "sha256": "5dbba0e70a1b72b7c4252c9304d572dbd11d7c7be4bf2d55e77113446ecb1cb3",
       "sources": [

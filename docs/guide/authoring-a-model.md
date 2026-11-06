@@ -525,7 +525,9 @@ element: `ResolutionError(<event>, bpmn:timeCycle, "cycle has no start date-time
 So are a cycle on an interrupting catch and a duration on a timer start, whose firing would
 count from when a runtime started. A model with timers needs a SQLite or PostgreSQL store,
 where the runtime claims each firing so that it runs once
-([`seams_runtime` README](../../seams_runtime/README.md#timers-adr-0037)).
+([`seams_runtime` README](../../seams_runtime/README.md#timers-adr-0037)). A scenario
+covers a timer path without waiting: once its steps are done, the run fires the timers
+the instance waits on (see [Scenarios and examples](#scenarios-and-examples)).
 
 ### Scenarios and examples
 
@@ -572,7 +574,7 @@ test. The shapes in `ontology/shapes/seam-shapes.ttl` check every statement (see
 [Validate it](#validate-it)), for example that a decision example gives exactly the
 decision's inputs. Chapter 9 of the expense tutorial,
 [Say what it should do](/tutorials/expenses/09-hand-written-code#say-what-it-should-do),
-adds nine scenarios, five decision examples and a pair of shape examples.
+adds ten scenarios, five decision examples and a pair of shape examples.
 
 The `smoke` generator (backlog A9) uses the same examples against a running app: it
 writes one test per `hydra:Operation`, filling the path and body from the first
@@ -607,7 +609,11 @@ start-to-end BPMN path no scenario runs, every transition nothing `seam:fires` a
 permission with no deny test; the viewer asks the same three under **Questions** on a
 BPMN view, a statechart and a policy. A scenario runs a path when its steps are exactly
 the path's user tasks, in order, up to what it expects. A path through an error
-boundary needs a scenario that fails the operation the boundary catches. A path of a
+boundary needs a scenario that fails the operation the boundary catches. A path through
+a timer boundary needs no failure: once a run's steps are done, every timer its instance
+waits on fires once, so a scenario with no step on the timed task, expecting the end the
+timer path reaches, runs it (chapter 9's `:manager_reminded`). No step may follow the
+timer, since the timers fire after the last step. A path of a
 process started through a channel needs a scenario whose run starts it and that expects
 something on that path. Put `coverage = ["paths"]` and
 the two `docs/queries/coverage/` gates in `seams.toml` to make `seams check` fail on a

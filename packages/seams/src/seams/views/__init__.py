@@ -39,7 +39,7 @@ from .lifecycles import Lifecycle, Lifecycles, State, Transition
 from .ontologies import Ontology, OntologyClass, Superclass
 from .operations import Channel, Operation, PathTemplate, Status
 from .policies import Policy
-from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes
+from .processes import ErrorBoundary, FlowNode, MessageStart, Process, ProcessElement, Processes, TimerEvent
 from .shapes import Field, FlatNode, Shape
 from .verify import DecisionExample, ExpectedOutput, Failure, Given, Scenario, Step
 
@@ -100,6 +100,7 @@ __all__ = [
     "Step",
     "Superclass",
     "System",
+    "TimerEvent",
     "Transition",
     "Views",
     "Volume",

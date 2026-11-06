@@ -15,7 +15,10 @@ fact it checks (principle 7, the P007 thin-handler rule applied to tests).
   completes each step's user task as the step's party, waiting after each
   request until the instance settles. Before the start, each of the
   scenario's ``failures`` is registered with ``Runtime.fail_operation``, so
-  the operation fails whenever the run invokes it. The run takes in every
+  the operation fails whenever the run invokes it. Once the steps are done,
+  each timer the waiting instance is armed with fires once, in due order, as
+  if its due time had come (ADR-0037; a scenario has no clock of its own), and
+  the run waits for the instance to settle again. The run takes in every
   instance it starts through a channel (ADR-0010): each is waited for too.
   It returns a ``Run``: the status (failed if any instance of the run
   failed), the entity's lifecycle state and the BPMN elements reached by
@@ -71,6 +74,7 @@ from .engine import Engine
 from .model import ModelGraph, local_name
 from .policy import DEFAULT_IDENTITY_HEADER, DEFAULT_ROLES_HEADER, DEV_USER_ENV
 from .runtime import DB_ENV, MODEL_ENV, STORE_OVERRIDE_ENV, TEMPLATES_ENV
+from .timers import Scheduler, parse_due
 from .worker import COMPLETE, FAILED, WAITING
 
 SETTLED = (WAITING, COMPLETE, FAILED)
@@ -281,6 +285,36 @@ def _drive(client, runtime, scenario: Scenario, steps: int, timeout: float) -> d
     return row
 
 
+class _At:
+    """A clock stopped at one instant: a timer's due time."""
+
+    def __init__(self, at):
+        self.at = at
+
+    def now(self):
+        return self.at
+
+
+def _fire_timers(client, runtime, scenario: Scenario, row: dict, timeout: float) -> dict:
+    """Fire, once each and in due order, the timer catches the waiting
+    instance ``row`` is armed with, through a ``Scheduler`` whose clock stands
+    at each one's due time; the settled row after the last."""
+    if row["status"] != WAITING or runtime.scheduler is None:
+        return row
+    armed = [t for t in runtime.store.list_timers() if t["kind"] == "catch" and t["instance_id"] == row["instance_id"]]
+    for timer in sorted(armed, key=lambda t: (t["due"], t["event"], t["task_id"])):
+        at = parse_due(timer["due"])
+        scheduler = Scheduler(runtime, runtime.timers, _At(at))
+
+        async def fire(scheduler=scheduler, timer=timer, at=at):
+            if scheduler.claim(timer, at):
+                await scheduler.wake(timer)
+
+        client.portal.call(fire)
+        row = _settle(runtime, scenario, f"the timer {timer['event']} due {timer['due']}", timeout)
+    return row
+
+
 def _settled(runtime, scenario: Scenario, instance_id: str, timeout: float) -> dict:
     """The row of instance ``instance_id`` once it settles; ``ScenarioError`` after ``timeout``."""
     deadline = time.monotonic() + timeout
@@ -299,6 +333,7 @@ def _settled(runtime, scenario: Scenario, instance_id: str, timeout: float) -> d
 def run_scenario(client, runtime, scenario: Scenario, timeout: float = DEFAULT_TIMEOUT) -> Run:
     """Drive ``scenario`` through the app ``serve`` built and return its ``Run``."""
     row = _drive(client, runtime, scenario, len(scenario.steps), timeout)
+    row = _fire_timers(client, runtime, scenario, row, timeout)
     status, error = row["status"], row.get("error")
     reached: list[str] = []
     pending = [row["instance_id"]]

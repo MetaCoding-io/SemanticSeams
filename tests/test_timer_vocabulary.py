@@ -9,9 +9,11 @@ process, and ``Process.timer_events()`` joins each lifted timer to its BPMN XML,
 checking that the two agree.
 
 The shapes run over the ontology plus an inline digest model. The library runs
-over a scratch copy of the chapter 9 checkpoint. The copy adds the overdue-approval
-reminder (a non-interrupting PT48H boundary timer on Approve Expense) and a digest
-process started by a daily timer, which the Expense API executes and schedules.
+over a scratch copy of the chapter 9 checkpoint, which ships the overdue-approval
+reminder (a non-interrupting PT48H boundary timer on Approve Expense, M030/S02 T04).
+The copy adds a digest process started by a daily timer, which the Expense API
+executes and schedules. ``untimed`` strips the reminder again, byte for byte, for the
+tests that compare a timed model with one that has no timers.
 """
 
 import shutil
@@ -143,6 +145,14 @@ def test_a_timer_started_process_two_containers_schedule_is_flagged():
 
 # ── the library: a scratch chapter 9 with timers ─────────────────────────────
 
+# The reminder as chapters 9 to 11 ship it: approval.bpmn holds REMINDER_NOTE plus
+# REMINDER_XML before </bpmn:process> and REMINDER_DI before </bpmndi:BPMNPlane>;
+# expenses.trig holds REMINDER_LIFT after Approve Expense's lift, and REMINDER_SCENARIO.
+REMINDER_NOTE = """
+    <!-- The overdue-approval reminder (ADR-0037): a non-interrupting timer on the
+         manager's approval task. When the task has been open for 48 hours the
+         reminder runs its own path, and the task stays open for the manager. -->
+"""
 REMINDER_XML = """    <bpmn:boundaryEvent id="overdue_reminder" name="Approval overdue" attachedToRef="approve_expense" cancelActivity="false">
       <bpmn:outgoing>flow_to_remind</bpmn:outgoing>
       <bpmn:timerEventDefinition id="overdue_reminder_def">
@@ -154,6 +164,18 @@ REMINDER_XML = """    <bpmn:boundaryEvent id="overdue_reminder" name="Approval o
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_remind" sourceRef="overdue_reminder" targetRef="reminder_end" />
   </bpmn:process>"""
+REMINDER_DI = """      <bpmndi:BPMNShape id="overdue_reminder_di" bpmnElement="overdue_reminder">
+        <dc:Bounds x="742" y="80" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reminder_end_di" bpmnElement="reminder_end">
+        <dc:Bounds x="832" y="40" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_remind_di" bpmnElement="flow_to_remind">
+        <di:waypoint x="760" y="80" />
+        <di:waypoint x="760" y="58" />
+        <di:waypoint x="832" y="58" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>"""
 DURATION = '<bpmn:timeDuration xsi:type="bpmn:tFormalExpression">"PT48H"</bpmn:timeDuration>'
 
 DIGEST_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -190,9 +212,32 @@ DIGEST_XML = """<?xml version="1.0" encoding="UTF-8"?>
 </bpmn:definitions>
 """
 
-REMINDER_LIFT = """    <https://example.org/expenses/approval_bpmn#overdue_reminder> a proc:TimerCatchEvent ;
+REMINDER_LIFT = """    # Lifted because it is a timer (ADR-0037). Its duration and attachedToRef
+    # stay in approval.bpmn; the runtime checks them when it loads, and the
+    # scheduler fires it once, 48 hours after Approve Expense opens.
+    <https://example.org/expenses/approval_bpmn#overdue_reminder> a proc:TimerCatchEvent ;
         rdfs:label "Approval overdue" ;
         seam:inModel :approval_bpmn .
+
+    # Lifted only because :manager_reminded names it as its end event
+    # (ADR-0014); proc has no class for a plain end event, so it has none.
+    <https://example.org/expenses/approval_bpmn#reminder_end> rdfs:label "Reminded" ;
+        seam:inModel :approval_bpmn .
+
+"""
+REMINDER_SCENARIO = """    # Up to 1000 the manager is told, then does not decide: once a run's steps
+    # are done, the timers its instance waits on fire, so the overdue reminder
+    # (ADR-0037) runs to its end while the expense stays submitted and
+    # Approve Expense stays open.
+    :manager_reminded a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:expectState :s_submitted ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#reminder_end> .
+
 """
 DIGEST_GRAPH = """
 <urn:seams:graph:model:digest_bpmn> {
@@ -216,16 +261,23 @@ DIGEST_SEAMS = """    :digest_bpmn seam:notation seam:BPMN ;
         seam:schedules :digest_process .
 """
 APPROVAL_LIFT_ANCHOR = "    <https://example.org/expenses/approval_bpmn#approve_expense> a proc:UserTask ;\n"
+APPROVAL_LIFT = (
+    APPROVAL_LIFT_ANCHOR + '        rdfs:label "Approve Expense" ;\n        seam:inModel :approval_bpmn .\n\n'
+)
 SEAMS_ANCHOR = "\n<urn:seams:graph:seams> {\n"
 
 
+def _shipped(text: str, *parts: str) -> None:
+    for part in parts:
+        assert text.count(part) == 1, part
+
+
 def checkpoint(tmp_path: Path, *, trig_edits=(), bpmn_edits=(), digest_edits=()) -> Path:
-    """A scratch chapter 9 with the reminder and the digest; each edit is (old, new)."""
+    """A scratch chapter 9, which ships the reminder, plus the digest; each edit is (old, new)."""
     app = Path(shutil.copytree(CHAPTER_09, tmp_path / "chapter-09"))
     bpmn = app / "approval.bpmn"
     text = bpmn.read_text(encoding="utf-8")
-    assert text.count("  </bpmn:process>") == 1
-    text = text.replace("  </bpmn:process>", REMINDER_XML)
+    _shipped(text, REMINDER_NOTE + REMINDER_XML, REMINDER_DI)
     for old, new in bpmn_edits:
         assert old in text, old
         text = text.replace(old, new)
@@ -237,12 +289,28 @@ def checkpoint(tmp_path: Path, *, trig_edits=(), bpmn_edits=(), digest_edits=())
     (app / "digest.bpmn").write_text(digest, encoding="utf-8")
     trig = app / "expenses.trig"
     text = trig.read_text(encoding="utf-8")
-    assert text.count(APPROVAL_LIFT_ANCHOR) == 1 and text.count(SEAMS_ANCHOR) == 1
-    text = text.replace(APPROVAL_LIFT_ANCHOR, REMINDER_LIFT + APPROVAL_LIFT_ANCHOR)
+    _shipped(text, APPROVAL_LIFT + REMINDER_LIFT, SEAMS_ANCHOR)
     text = text.replace(SEAMS_ANCHOR, "\n" + DIGEST_GRAPH + DIGEST_SEAMS)
     for old, new in trig_edits:
         assert old in text, old
         text = text.replace(old, new)
+    trig.write_text(text, encoding="utf-8")
+    return trig
+
+
+def untimed(tmp_path: Path) -> Path:
+    """A scratch chapter 9 with the reminder taken out: no timers at all."""
+    app = Path(shutil.copytree(CHAPTER_09, tmp_path / "untimed" / "chapter-09"))
+    bpmn = app / "approval.bpmn"
+    text = bpmn.read_text(encoding="utf-8")
+    _shipped(text, REMINDER_NOTE + REMINDER_XML, REMINDER_DI)
+    text = text.replace(REMINDER_NOTE + REMINDER_XML, "  </bpmn:process>")
+    text = text.replace(REMINDER_DI, "    </bpmndi:BPMNPlane>")
+    bpmn.write_text(text, encoding="utf-8")
+    trig = app / "expenses.trig"
+    text = trig.read_text(encoding="utf-8")
+    _shipped(text, APPROVAL_LIFT + REMINDER_LIFT, REMINDER_SCENARIO)
+    text = text.replace(APPROVAL_LIFT + REMINDER_LIFT, APPROVAL_LIFT).replace(REMINDER_SCENARIO, "")
     trig.write_text(text, encoding="utf-8")
     return trig
 
@@ -325,8 +393,19 @@ def test_the_container_view_lists_what_it_schedules(tmp_path):
 # ── timer_events: the join ──
 
 
-def test_the_checkpoint_as_shipped_has_no_timers():
-    assert len(timers(ModelGraph(CHAPTER_09 / "expenses.trig"), APPROVAL)) == 0
+def test_the_checkpoint_ships_the_reminder_and_nothing_else():
+    assert [str(t.iri) for t in timers(ModelGraph(CHAPTER_09 / "expenses.trig"), APPROVAL)] == [REMINDER]
+
+
+@pytest.mark.parametrize("chapter", ["chapter-09", "chapter-10", "chapter-11"])
+def test_every_checkpoint_from_chapter_9_ships_the_same_reminder(chapter):
+    app = ROOT / "examples" / "expenses" / chapter
+    _shipped((app / "approval.bpmn").read_text(encoding="utf-8"), REMINDER_NOTE + REMINDER_XML, REMINDER_DI)
+    _shipped((app / "expenses.trig").read_text(encoding="utf-8"), APPROVAL_LIFT + REMINDER_LIFT, REMINDER_SCENARIO)
+
+
+def test_the_untimed_copy_has_no_timers(tmp_path):
+    assert len(timers(ModelGraph(untimed(tmp_path)), APPROVAL)) == 0
 
 
 def test_the_reminder_joins_to_its_user_task(tmp_path):

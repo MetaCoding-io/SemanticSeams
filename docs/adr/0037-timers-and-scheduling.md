@@ -1,6 +1,6 @@
 # ADR-0037: Timers and Scheduling — BPMN Timer Events Are Lifted as Index Types, Their ISO 8601 Expressions Stay in the XML, `seam:schedules` Names the Container That Runs a Process's Timer Starts, and the Shared Store Makes Each Firing Run Once
 
-**Status:** Accepted
+**Status:** Accepted; the first open question is resolved (2026-11-06, M030/S02)
 
 **Date:** 2026-11-06
 
@@ -236,6 +236,11 @@ The vocabulary widens, with no migration files (ADR-0021: a minor step only adds
 - **Long durations in an end-to-end run.** A reminder after `"PT48H"` cannot be waited
   for in the compose run. S02 decides between a development clock offset for the
   runtime and a tutorial duration short enough to wait for, without putting a test
-  value in the model.
+  value in the model. *Resolved in M030/S02 (decision D065):* the model keeps `"PT48H"`.
+  The runtime's clock takes a development-only offset from `SEAMS_CLOCK_OFFSET`, which
+  the compose e2e sets in an override file, and the generated compose never writes it.
+  A scenario's run fires the timers its instance waits on once its steps are done
+  ([ADR-0014](./0014-scenarios-and-derived-tests.md), amended 2026-11-06), so the
+  generated tests need no clock at all.
 - **Cancelling a schedule.** Removing a `proc:TimerStartEvent` stops future firings at
   the next load; nothing yet cleans the timer rows of a removed catch event.

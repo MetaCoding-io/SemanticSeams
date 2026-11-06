@@ -31,7 +31,7 @@ from seams_gen.compose import (
 )
 from seams_gen.fastapi import extract_routes, render_routes
 from seams_gen.sequence import derive, executed, render
-from tests.test_timer_vocabulary import APPROVAL, APPROVE, CHAPTER_09, DIGEST, DURATION, REMINDER, checkpoint
+from tests.test_timer_vocabulary import APPROVAL, APPROVE, CHAPTER_09, DIGEST, DURATION, REMINDER, checkpoint, untimed
 
 SCHEDULES = f"  # schedules: {DIGEST}\n  expense_api:\n"
 REMINDER_PATH = "submit_expense--manager--overdue_reminder"
@@ -70,9 +70,11 @@ def test_a_timer_started_process_gets_no_route(timed):
     assert "approval_process" in text  # the triggered process keeps its route
 
 
-def test_the_timer_started_routes_match_the_untimed_checkpoint(timed):
-    untimed = seams.load(CHAPTER_09 / "expenses.trig")
-    assert _hashless(_routes(timed)) == _hashless(_routes(untimed))
+def test_the_timer_started_routes_match_the_untimed_checkpoint(timed, tmp_path):
+    bare = seams.load(untimed(tmp_path))
+    assert _hashless(_routes(timed)) == _hashless(_routes(bare))
+    # the shipped checkpoint's reminder adds no route either
+    assert _hashless(_routes(seams.load(CHAPTER_09 / "expenses.trig"))) == _hashless(_routes(bare))
 
 
 def test_a_process_with_no_trigger_and_no_timer_start_still_raises(tmp_path):
@@ -128,9 +130,9 @@ def test_the_scheduling_service_carries_one_schedules_comment(timed):
 
 
 def test_the_comment_adds_no_service_and_no_binding(timed, tmp_path):
-    untimed = seams.load(CHAPTER_09 / "expenses.trig")
+    bare = seams.load(untimed(tmp_path))
     for name, text in _compose(timed).items():
-        before = yaml.safe_load(_compose(untimed)[name])
+        before = yaml.safe_load(_compose(bare)[name])
         after = yaml.safe_load(text)
         assert sorted(after["services"]) == sorted(before["services"])
         assert after["services"]["expense_api"]["environment"].keys() == (
@@ -204,10 +206,10 @@ def test_an_interrupting_reminder_cancels_the_task(tmp_path):
     assert "Approval overdue fires, cancels Approve Expense" in render(d)
 
 
-def test_the_approval_paths_are_unchanged_by_the_reminder(timed):
-    untimed = {d.name: render(d) for d in derive(seams.load(CHAPTER_09 / "expenses.trig"), ":submit_expense")}
+def test_the_approval_paths_are_unchanged_by_the_reminder(timed, tmp_path):
+    bare = {d.name: render(d) for d in derive(seams.load(untimed(tmp_path)), ":submit_expense")}
     timed_paths = {d.name: render(d) for d in derive(timed, ":submit_expense") if d.name != REMINDER_PATH}
-    assert timed_paths == untimed
+    assert timed_paths == bare
 
 
 def test_a_fired_timer_row_shows_in_the_executed_diagram(timed):

@@ -364,6 +364,18 @@
     <div id="sequence-view"></div>
   {% endif %}
 
+  {% if storm_processes %}
+    {# Derived event storms (backlog B4): per-view UI, since the processes
+       depend on the focus (MEM009). #}
+    <section id="storm-catalog">
+      <h3>Storm</h3>
+      {% for p in storm_processes %}
+        <a class="storm-link" data-process="{{ p.iri }}" href="{{ p.href }}" hx-get="{{ p.href }}" hx-target="#storm-view">{{ p.label }}</a>
+      {% endfor %}
+    </section>
+    <div id="storm-view"></div>
+  {% endif %}
+
   </div>
 
   <aside class="inspector">

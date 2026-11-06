@@ -122,7 +122,8 @@ to stderr, never dropped: a trigger or user task with no actor, a user task with
 an aggregate nothing reads, a channel nothing consumes or subscribes to, a process
 nothing starts. Chapter 10's approval process derives to the timeline pinned by
 [`tests/golden/storm/approval_process.md`](https://github.com/MetaCoding-io/SemanticSeams/blob/main/tests/golden/storm/approval_process.md).
-See [the seams CLI](/reference/seams-cli#seams-storm).
+See [the seams CLI](/reference/seams-cli#seams-storm); the viewer draws the same timeline in its
+[Storm section](/guide/the-viewer#the-parts-of-the-page).
 
 ## Why one graph pays
 

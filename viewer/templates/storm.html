@@ -1,0 +1,31 @@
+{# Derived event storm (backlog B4): one process's timeline from graph facts,
+   each step with its sticky notes, then the read models and the gaps, so
+   missing seams stay visible. Computed in storm_endpoint; text only here. #}
+<div class="storm-results" data-process="{{ process }}">
+  <h3>Storm: {{ label }}</h3>
+  <ol class="storm-timeline">
+    {% for s in steps %}
+    <li data-step="{{ s.index }}" data-iri="{{ s.iri }}"><strong>{{ s.name }}</strong>
+      <ul>
+        {% for e in s.entries %}<li class="storm-entry" data-kind="{{ e.kind }}" data-iri="{{ e.iri }}">{{ e.kind }}: {{ e.text }}</li>
+        {% endfor %}
+      </ul>
+    </li>
+    {% else %}
+    <li>No step of the process has a fact to show.</li>
+    {% endfor %}
+  </ol>
+  <h4>Read models</h4>
+  <ul class="storm-read-models">
+    {% for e in readModels %}<li data-iri="{{ e.iri }}">{{ e.text }}</li>
+    {% else %}<li>None.</li>
+    {% endfor %}
+  </ul>
+  <h4>Gaps</h4>
+  <ul class="storm-gaps">
+    {% for g in gaps %}<li>{{ g }}</li>
+    {% else %}<li>None.</li>
+    {% endfor %}
+  </ul>
+  <p><a class="storm-json" href="{{ json_href }}">JSON</a></p>
+</div>

@@ -32,7 +32,7 @@ from starlette.routing import BaseRoute
 
 import seams_edit
 from seams_edit.patch import term_text
-from seams_gen import GeneratorError
+from seams_gen import GeneratorError, storm
 from seams_gen.sequence import derive, render
 from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, structural, validation, writeback
 from viewer import queries as canned_queries
@@ -563,6 +563,30 @@ def sequence_events(focus: str) -> list[dict]:
     ]
 
 
+def storm_processes(focus: str) -> list[dict]:
+    """Template-only: the processes whose derived event storm (backlog B4)
+    the view links to. The focus itself when it is a process, the process an
+    event seam:triggers, the processes of a focused model (the BPMN view a
+    click on a process or its event lands on, ADR-0005) and those an event
+    of a focused IFML model triggers."""
+    graph = get_graph()
+    processes = {str(p.iri) for p in get_model().processes}
+    found: set[str] = set()
+    if focus in processes:
+        found.add(focus)
+    found.update(str(p) for p in graph.objects(URIRef(focus), SEAM.triggers) if str(p) in processes)
+    model = focused_model(focus)
+    if model is not None:
+        found.update(p for p in processes if focused_model(p) == model)
+        for ev, target in graph.subject_objects(SEAM.triggers):
+            if str(target) in processes and focused_model(str(ev)) == model:
+                found.add(str(target))
+    return [
+        {"iri": p, "label": label(p), "href": f"/storm/{quote(p, safe='')}?format=html"}
+        for p in sorted(found, key=lambda p: (label(p), p))
+    ]
+
+
 def payload_element_map(model_iri: str) -> dict:
     """Maps native element ids inside a payload diagram (BPMN/DMN element @id,
     which mirrors the fragment/path segment of the model member's own IRI) back
@@ -1004,6 +1028,45 @@ def sequence_endpoint(request: Request, event_iri: str):
     return templates.TemplateResponse(request, "sequence.html", ctx)
 
 
+@app.get("/storm/{process_iri:path}")
+def storm_endpoint(request: Request, process_iri: str):
+    """The derived event storm (backlog B4) of one proc:Process, or of the
+    process an ifml:Event seam:triggers: its timeline steps with their entries,
+    read models, gaps and Markdown. JSON by default, the storm.html fragment
+    for htmx or ?format=html (as sequence_endpoint)."""
+    iri = unquote(process_iri)
+    try:
+        derived = storm.derive(get_model(), iri)
+    except GeneratorError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    entries = derived.entries()
+
+    def entry(e: storm.Entry) -> dict:
+        return {"kind": e.kind, "step": e.step, "iri": str(e.iri), "text": e.text}
+
+    result = {
+        "process": str(derived.process),
+        "label": derived.label,
+        "steps": [
+            {
+                "index": s.index,
+                "iri": str(s.iri),
+                "name": s.name,
+                "entries": [entry(e) for e in entries if e.step == s.index],
+            }
+            for s in derived.steps
+        ],
+        "readModels": [entry(e) for e in derived.read_models],
+        "gaps": list(derived.gaps),
+        "markdown": storm.render(derived),
+    }
+    wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
+    if not wants_html:
+        return JSONResponse(result)
+    ctx = {"request": request, **result, "json_href": f"/storm/{quote(iri, safe='')}"}
+    return templates.TemplateResponse(request, "storm.html", ctx)
+
+
 def generation_href(iri: str, output: str = "", line: int = 0) -> str:
     href = f"/generation/{quote(iri, safe='')}"
     if output:
@@ -1180,6 +1243,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "applicable_queries": applicable_queries(focus),
         # Template-only (M013/S03): the /view JSON contract is unchanged.
         "sequence_events": sequence_events(focus),
+        # Template-only (backlog B4): the derived event storms the view links to.
+        "storm_processes": storm_processes(focus),
         # Edit mode (ADR-0017): an Edit control only for an element some shape targets.
         "edit_href": _edit_href(focus) if edit_enabled() and _form_fields(focus) else None,
         "undo_count": len(_undo_stack),

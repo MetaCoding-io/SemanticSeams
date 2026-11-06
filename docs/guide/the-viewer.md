@@ -167,6 +167,15 @@ Details. A link draws one Mermaid diagram per path through the process's exclusi
 gateways, headed by the flows it takes (*single* when there is no choice). Each
 diagram's gaps, the seams the model does not declare yet, are listed under it.
 
+**Storm.** Beside Sequences, links to the
+[derived event storm](/concepts/diagrams-are-views#derived-event-storm) of the
+processes the view is about: a process's own BPMN view, the BPMN view that a click on
+its triggering event lands on, and an IFML model whose events trigger one, e.g. Expense
+Approval from Submit Expense in chapter 10. A process started only through a channel,
+such as Expense Payout, links from its own view. A link draws the timeline the
+`seams storm` command prints: each step with its actor, command, aggregate, domain
+event, decision, channel and started-process notes, then the read models and the gaps.
+
 **Details.** The inspector: the element's IRI, its types, its native element ID and
 payload where it has them, and its outgoing and incoming seam edges with readable
 predicate labels. Edges along a navigational predicate are links. A data shape that
@@ -531,6 +540,7 @@ the diagram comes back drawn and clickable.
 | `/queries` | The canned-query catalog as JSON. |
 | `/queries/{name}/{focus_iri}` | One query's rows for one focus element. |
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
+| `/storm/{process_iri}` | The [derived event storm](/concepts/diagrams-are-views#derived-event-storm) of one process, or of the process an IFML event `seam:triggers`, as JSON: `process`, `label`, `steps` (each with its `index`, `iri`, `name` and `entries`), `readModels`, `gaps` and the `markdown` timeline. Add `format=html` for the fragment. Anything that is neither is a 404 naming it. |
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
 | `/generation/{iri}?output=…&line=…` | The [generation view](#generation-view) of an element: model, template and output panes joined by the trace sidecars, and the fan-out of every generated line citing it. `output` and `line` pick the file and line shown; an unknown one falls back to the first citing line. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |

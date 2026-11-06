@@ -215,3 +215,8 @@ co-owned; a shared kernel is one owner's ontology. The text above is unchanged.*
   using gist's properties (magnitudes, categories) in payloads is O2's and O3's call.
 - **Lifecycle on the class** (B3): once classes exist, `seam:lifecycle` may move from
   shapes to classes. Not decided here.
+
+  *Amended, 2026-11-06 (M028/S04, backlog B3): [ADR-0031](./0031-lifecycle-on-the-class.md)
+  decides this. `seam:lifecycle` names an `owl:Class` (or, kept for compatibility, a
+  `sh:NodeShape`); a shape's lifecycle is derived through `sh:targetClass`; a transition is
+  a domain event that may `seam:publishesTo` a channel. The text above is unchanged.*

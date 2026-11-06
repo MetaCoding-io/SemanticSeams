@@ -57,6 +57,7 @@ const decisions = [
   ["0028", "Copilot suggestions", "0028-copilot-suggestions"],
   ["0029", "LLM-drafted generators", "0029-llm-drafted-generators"],
   ["0030", "Domains and bounded contexts", "0030-domains-and-bounded-contexts"],
+  ["0031", "Lifecycle on the class", "0031-lifecycle-on-the-class"],
 ] as const;
 
 export default defineConfig({

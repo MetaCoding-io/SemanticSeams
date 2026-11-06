@@ -775,6 +775,50 @@ graph between files changes nothing. `seams check` and the viewer's health panel
 element and the predicate for each break (`DomainShape`, `BoundedContextShape`,
 `ModelOwnerShape`, `OwnsTargetShape` in the [shapes reference](/reference/shapes)).
 
+### Context maps
+
+Where two contexts meet, an `arch:ContextRelationship` in the architecture model says
+which way the dependency runs and what the teams agreed about it
+([ADR-0032](/adr/0032-context-map-relationships)). It needs `arch` 1.2:
+
+```trig
+<urn:seams:graph:model:expense_architecture> {
+    :expense_to_finance a arch:ContextRelationship ;
+        arch:upstream :expense_context ;
+        arch:downstream :finance_context ;
+        arch:relationshipType arch:Conformist .
+}
+```
+
+- **Upstream is the side whose change can break the other.** The downstream context
+  reads, writes or subscribes to what the upstream owns. Declare the direction; the gate
+  below checks the accesses against it.
+- **One relationship per pair, with one type**: `arch:CustomerSupplier`,
+  `arch:Conformist`, `arch:AntiCorruptionLayer`, `arch:PublishedLanguage` or
+  `arch:SharedKernel`. Its two ends are different contexts. Two contexts with no
+  relationship have agreed nothing (DDD's separate ways). `ContextRelationshipShape` and
+  `ContextRelationshipTermsShape` name the predicate for each break.
+- **`seams diff` reports per downstream context.** A breaking change to a shape an
+  upstream context owns is listed under every context downstream of it
+  ([seams diff](#checking-a-change-with-seams-diff)).
+- **Cross-context accesses are translated unless the relationship says otherwise.** An
+  element in one context that `seam:reads` or `seam:writes` a shape another context owns
+  is a row of `docs/queries/gates/untranslated-cross-context-calls.rq` unless its context
+  is the conformist downstream of the shape's, the two share a kernel, or the element is
+  a translating operation: a `hydra:Operation` in a model its context owns that accepts
+  or returns the other context's shape and, on its other side, one of its own.
+  Customer-supplier, anti-corruption layer and published language all keep the
+  downstream's own model, so they need that operation. Publishing and subscribing on a
+  channel is not an access. List the gate in `seams.toml` to make `seams check` fail on
+  a row, as chapter 11 does:
+
+```toml
+gates = [
+    "../../../docs/queries/gates/ungoverned-writes.rq",
+    "../../../docs/queries/gates/untranslated-cross-context-calls.rq",
+]
+```
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`

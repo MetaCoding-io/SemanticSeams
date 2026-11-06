@@ -9,8 +9,13 @@
 # as one dataset (ADR-0030 section 3). Every *.trig file here is part of it.
 model = "."
 
-# `seams check` fails if any UI event can write data with no policy governing it.
-gates = ["../../../docs/queries/gates/ungoverned-writes.rq"]
+# `seams check` fails if any UI event can write data with no policy governing
+# it, or if an element reads or writes another context's shape with no
+# translation the context map allows (ADR-0032 section 4).
+gates = [
+    "../../../docs/queries/gates/ungoverned-writes.rq",
+    "../../../docs/queries/gates/untranslated-cross-context-calls.rq",
+]
 
 [[generators]]
 name = "fastapi"

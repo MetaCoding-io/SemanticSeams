@@ -50,7 +50,12 @@ their results against the chat app, checkout and expense chapter-08 models.
 `seams check` runs the ones a project lists under `gates` in its seams.toml and reports
 every row as a problem (see [the CLI reference](../reference/seams-cli.md#seams-check)).
 `gates/ungoverned-writes.rq` lists each UI event that can write a data shape with no policy
-governing it; the chat app and expense chapters 7 and 8 run it. Like `complexity/`, the
+governing it; the chat app and expense chapters 7 to 11 run it.
+`gates/untranslated-cross-context-calls.rq` ([ADR-0032](../adr/0032-context-map-relationships.md)
+section 4) lists each element in one bounded context that `seam:reads` or `seam:writes` a shape
+another context owns, with the two contexts, unless an `arch:ContextRelationship` makes its
+context the conformist downstream of the shape's, the two share a kernel, or the element is a
+translating operation; chapter 11 runs it. A dataset with no contexts returns no rows. Like `complexity/`, the
 gates are kept off the query reference page. `tests/test_gate_queries.py` checks their rows.
 
 `coverage/` holds coverage queries (decision D054): SELECT queries that list the parts of a

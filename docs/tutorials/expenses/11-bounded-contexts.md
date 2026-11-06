@@ -291,6 +291,14 @@ The seam shapes check the relationship. It needs exactly one upstream, one downs
 and one type, and the two ends must be different contexts. Only one relationship may
 join a pair of contexts, in either direction.
 
+The project file adds a second gate, `untranslated-cross-context-calls.rq`. It lists
+every element that reads or writes a shape another context owns, unless the context
+map allows it. A conformist downstream may use the upstream's shapes as they are, so
+the gate has no rows here. Change the type to customer-supplier and `seams check`
+fails, naming each finance element that reads `ExpenseShape`, `PaymentShape` or
+`VendorShape`. Finance would then need an operation that translates the expense shape
+into one of its own.
+
 ## Generate, check and run
 
 ```sh

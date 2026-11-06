@@ -6,7 +6,8 @@ generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams migrate`
 writes the vocabulary migrations a model needs into its files; `seams sequence`
 derives an event's sequence diagrams; `seams storm` prints a process's derived
-event-storm timeline; `seams diff` classifies the shape and
+event-storm timeline; `seams cml` moves the context map to and from Context
+Mapper DSL; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
 as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
@@ -878,6 +879,109 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 | 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or NAME is no process and no event that triggers exactly one. |
 
 Errors print to stderr as `seams storm: <message>`, naming the argument.
+
+## seams cml
+
+```sh
+seams cml export examples/expenses/chapter-11
+seams cml export --project examples/expenses/chapter-11 --out build/context-map.cml
+seams cml import build/context-map.cml examples/expenses/chapter-11
+```
+
+`seams cml` moves the context map between the model and
+[Context Mapper](https://contextmapper.org/) DSL (CML), as
+[ADR-0034](/adr/0034-context-mapper-interchange) maps it (backlog B5). PATH is a
+project or a model, or `--project` and `--model` choose it as for
+`seams generate`.
+
+### Export
+
+`seams cml export [PATH] [--out FILE]` prints one `ContextMap` that `contains`
+every `arch:BoundedContext`, one line per `arch:ContextRelationship`
+([ADR-0032](/adr/0032-context-map-relationships)), then a bodiless
+`BoundedContext` per context. Each name is the IRI's local name. Each type has
+one bracket form, upstream on the left:
+
+| `arch:relationshipType` | CML |
+|---|---|
+| `arch:CustomerSupplier` | `<up> [U,S]->[D,C] <down> : <name>` |
+| `arch:Conformist` | `<up> [U]->[D,CF] <down> : <name>` |
+| `arch:AntiCorruptionLayer` | `<up> [U]->[D,ACL] <down> : <name>` |
+| `arch:PublishedLanguage` | `<up> [U,PL]->[D] <down> : <name>` |
+| `arch:SharedKernel` | `<up> [SK]<->[SK] <down> : <name>` |
+
+Contexts and relationships are sorted by IRI, so the same model gives the same
+bytes. Chapter 11 exports as:
+
+```text
+ContextMap {
+  contains expense_context, finance_context
+  expense_context [U]->[D,CF] finance_context : expense_to_finance
+}
+
+BoundedContext expense_context
+
+BoundedContext finance_context
+```
+
+With `--out FILE` the CML is written to FILE instead of stdout, and the path is
+printed. The file is not a generator output, so `seams.lock` does not record it.
+A relationship that is not fully stated, or whose type has no CML form, exits 2
+and writes nothing.
+
+### Import
+
+`seams cml import FILE [PATH]` reads FILE's `ContextMap` relationships and adds
+each one the model can hold as an `arch:ContextRelationship` with its upstream,
+downstream and type, through the model's one write path
+([ADR-0017](/adr/0017-write-path-and-editor)). The downstream role decides the
+type first: `ACL`, then `CF`, then `S`/`C`, then `PL` (with or without `OHS`),
+then `SK`. Each context name must be the local name of an `arch:BoundedContext`
+in the model. The new IRI is the CML name, or `<upstream>_to_<downstream>` when
+the line has none, in the upstream context's namespace. For each relationship
+written it prints `added <relationship>`, then each written file:
+
+```text
+added expense_to_finance
+examples/expenses/chapter-11/expenses.trig
+```
+
+Import only adds facts and never removes one. A relationship the model already
+holds, with the same direction and type, is skipped silently, so importing
+chapter 11's own export writes nothing and running it twice is safe.
+
+### Flags
+
+A construct with no mapping is flagged on stderr and skipped. It is never
+refused, and the exit code stays 0:
+
+```
+seams cml import: flag expense_context [U,OHS]->[D] finance_context: an open host service alone has no arch:RelationshipType (ADR-0032 folds it into PL)
+seams cml import: flag expense_context [P]<->[P] billing: a partnership has no arch:RelationshipType (ADR-0032)
+seams cml import: flag BoundedContext billing: billing matches no arch:BoundedContext in the model
+seams cml import: flag BoundedContext billing attributes: BoundedContext attributes are not read (ADR-0034 section 1)
+```
+
+Flagged are an open host service alone or a relationship with no roles, a
+partnership, a role the type does not use, a context name the model does not
+have or that names more than one context, a pair the model already relates in
+another direction or with another type, and every other CML construct
+(aggregates, entities, services, teams, use cases). The graph has its own facts
+for those, read from BPMN, DMN and SHACL.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The CML was printed or written, or the import finished, with or without flags. |
+| 1 | FILE cannot be parsed (the message names the line), or a file could not be read or written. Nothing is written. |
+| 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or a relationship cannot be exported. |
+
+A parse error prints as `seams cml import: <FILE>: line <n>: <message>`:
+
+```
+seams cml import: map.cml: line 3: expected the context on the right of the relationship, found '}'
+```
 
 ## seams diff
 

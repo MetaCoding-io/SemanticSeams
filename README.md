@@ -122,6 +122,9 @@ the docs embed the golden diagrams, rendered with Mermaid.
 `seams sequence <event> --trace RUN` draws the as-executed counterpart from a recorded
 run's trace rows (a trace JSON file or an instance id in the runtime's SQLite store), on
 the same lifelines, with a `%% gap:` line for every row the model cannot place.
+`seams cml export` prints the context map (bounded contexts and their relationships) as
+Context Mapper DSL, and `seams cml import FILE` adds a CML map's relationships to the model,
+flagging on stderr what does not map.
 `seams diff OLD NEW` classifies each shape and operation-contract change between two
 model versions as compatible or breaking, and exits 1 when any change is breaking.
 `seams plan OLD NEW` turns those changes and the elements each layer adds and removes into

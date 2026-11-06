@@ -325,6 +325,33 @@ element that reads `ExpenseShape` or `VendorShape`. Finance would then need an
 operation that translates the expense shape into one of its own. This chapter checks
 the rule through the DDD profile, next, rather than listing the gate.
 
+## Export to Context Mapper
+
+Teams that draw context maps in [Context Mapper](https://contextmapper.org/) can read
+this one. `seams cml export` prints the contexts and the relationship as Context Mapper
+DSL ([ADR-0034](../../adr/0034-context-mapper-interchange.md)):
+
+```sh
+seams cml export --project examples/expenses/chapter-11 --out build/context-map.cml
+```
+
+```text
+ContextMap {
+  contains expense_context, finance_context
+  expense_context [U]->[D,CF] finance_context : expense_to_finance
+}
+
+BoundedContext expense_context
+
+BoundedContext finance_context
+```
+
+`seams cml import build/context-map.cml examples/expenses/chapter-11` goes the other
+way. It adds each relationship the model does not hold yet, so importing this export
+writes nothing. A construct it cannot map, such as a partnership or an aggregate, is
+printed to stderr as a flag and skipped. The [CLI reference](../../reference/seams-cli.md#seams-cml)
+lists the mapping and the flags.
+
 ## The DDD profile
 
 The model now has the facts a domain-driven design needs: bounded contexts that own

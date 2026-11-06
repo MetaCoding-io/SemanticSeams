@@ -16,6 +16,9 @@ one, so its graph edges (``invokes``, ``completed_on``, ...) pass through.
 ``Process.error_boundaries()`` joins each lifted proc:ErrorBoundaryEvent to
 its BPMN boundary event, the task it is attached to and the error that task's
 operation declares (ADR-0013), checking that the graph and the XML agree.
+``Process.timer_events()`` does the same for each lifted proc:TimerStartEvent and
+proc:TimerCatchEvent and its timerEventDefinition (ADR-0037). It hands the
+expression on as written; parsing it is the runtime's.
 """
 
 from __future__ import annotations
@@ -50,7 +53,12 @@ ELEMENT_TYPES = (
     PROC.MessageCatchEvent,
     PROC.MessageThrowEvent,
     PROC.ErrorBoundaryEvent,
+    PROC.TimerStartEvent,
+    PROC.TimerCatchEvent,
 )
+
+#: The proc: classes a timer event is lifted as (ADR-0037).
+TIMER_TYPES = (PROC.TimerStartEvent, PROC.TimerCatchEvent)
 
 
 def bpmn_process_ids(views: Views, path: Path) -> tuple[str, ...]:
@@ -107,6 +115,13 @@ class Process(Element):
         from .architecture import Container
 
         return self._many(Container, self._subjects(SEAM.executes), SEAM.executes)
+
+    @property
+    def scheduled_by(self) -> Many[Container]:
+        """The containers that seam:schedules it (a timer-started process has one, ADR-0037)."""
+        from .architecture import Container
+
+        return self._many(Container, self._subjects(SEAM.schedules), SEAM.schedules)
 
     @property
     def triggered_by(self) -> Many[Event]:
@@ -294,6 +309,86 @@ class Process(Element):
                 )
         return Many(found, self.iri, SEAM.catches, views.model.curie)
 
+    def timer_events(self) -> Many[TimerEvent]:
+        """Each timer event of ``bpmn_path`` in scope for ADR-0037, joined to its
+        lifted proc:TimerStartEvent or proc:TimerCatchEvent, in flow order. Built once.
+
+        In scope: a ``startEvent`` outside an event sub-process (a
+        proc:TimerStartEvent), an ``intermediateCatchEvent``, and a
+        ``boundaryEvent`` attached to a task the graph types proc:UserTask (both
+        proc:TimerCatchEvent). Any other timer is left unlifted.
+
+        The graph and the XML must agree, else ``ResolutionError(<event>,
+        bpmn:timerEventDefinition, <what disagrees>)``: an in-scope timer that is
+        not lifted, or lifted as the wrong type; a timer out of scope that is
+        lifted; an event with other event definitions besides its timer, or with
+        several timer definitions; a definition that holds no ``timeDate``,
+        ``timeDuration`` or ``timeCycle``, or more than one; and a lifted timer
+        type with no such timer event in the XML."""
+        return self.views.view(f"process-timer-events:{self.iri}", self._timer_events)
+
+    def _timer_events(self) -> Many[TimerEvent]:
+        views = self.views
+        nodes = self.nodes()
+        definition = "bpmn:timerEventDefinition"
+        found: list[TimerEvent] = []
+        for fn in nodes:
+            node = fn.node
+            if not node.is_timer:
+                continue
+            task = None
+            if node.attached_to is not None:
+                task = next(n for n in nodes if n.node.process_id == node.process_id and n.bpmn_id == node.attached_to)
+            expected = _timer_type(node, task)
+            lifted = () if fn.element is None else tuple(t for t in fn.element.types if t in TIMER_TYPES)
+            where = f"a {node.tag}" + ("" if task is None else f" attached to {task.iri}")
+            if expected is None:
+                if lifted:
+                    raise ResolutionError(
+                        fn.iri,
+                        definition,
+                        f"{where} is not a timer ADR-0037 lifts (a process start event, an intermediate catch "
+                        f"event, or a boundary on a proc:UserTask), but the graph types it {_curies(lifted)}",
+                    )
+                continue
+            if lifted != (expected,):
+                said = f"types it {_curies(lifted)}" if lifted else "does not lift it"
+                raise ResolutionError(
+                    fn.iri,
+                    definition,
+                    f"{where} with a timerEventDefinition is a {_curie(expected)}, but the graph {said}",
+                )
+            if len(node.event_definitions) != 1:
+                raise ResolutionError(
+                    fn.iri,
+                    definition,
+                    f"a timer event has exactly one event definition, found {list(node.event_definitions)}",
+                )
+            expressions = node.timers[0].expressions
+            if len(expressions) != 1:
+                raise ResolutionError(
+                    fn.iri,
+                    definition,
+                    "a timerEventDefinition holds exactly one timeDate, timeDuration or timeCycle, "
+                    f"found {[e.element for e in expressions]}",
+                )
+            found.append(
+                TimerEvent(
+                    fn.iri, fn, expected, task, node.cancel_activity, expressions[0].element, expressions[0].body
+                )
+            )
+        timer_iris = {e.iri for e in found}
+        for el in self.elements():
+            lifted = tuple(t for t in el.types if t in TIMER_TYPES)
+            if lifted and el.iri not in timer_iris:
+                raise ResolutionError(
+                    el.iri,
+                    definition,
+                    f"the graph types it {_curies(lifted)}, but no event with a timerEventDefinition "
+                    f"has id {el.bpmn_id!r} in {self.bpmn_path.name}",
+                )
+        return Many(found, self.iri, SEAM.detailedBy, views.model.curie)
+
     @property
     def channel_starts(self) -> Many[MessageStart]:
         """Each proc:MessageCatchEvent of its BPMN model that seam:subscribesTo a
@@ -322,6 +417,55 @@ class MessageStart:
     iri: URIRef
     event: ProcessElement
     channel: Channel
+
+
+def _timer_type(node: BpmnNode, task: FlowNode | None) -> URIRef | None:
+    """The proc: type ADR-0037 lifts a timer event as, or None when it is out of scope."""
+    if node.tag == "startEvent":
+        return None if node.in_event_subprocess else PROC.TimerStartEvent
+    if node.tag == "intermediateCatchEvent":
+        return PROC.TimerCatchEvent
+    if node.tag == "boundaryEvent" and task is not None and task.element is not None:
+        return PROC.TimerCatchEvent if PROC.UserTask in task.element.types else None
+    return None
+
+
+def _curie(iri: URIRef) -> str:
+    return f"proc:{local_name(iri)}"
+
+
+def _curies(iris: tuple[URIRef, ...]) -> str:
+    return " and ".join(_curie(i) for i in iris)
+
+
+@dataclass(frozen=True)
+class TimerEvent:
+    """A lifted timer event (ADR-0037); ``iri`` is the event's.
+
+    ``node`` is its flow node and ``kind`` its type, proc:TimerStartEvent or
+    proc:TimerCatchEvent. ``attached_to`` is the user task a boundary timer is
+    attached to (None otherwise) and ``interrupting`` its ``cancelActivity``
+    (True for a start or intermediate event). ``expression`` is the local name
+    of its one expression element (``timeDate``, ``timeDuration`` or
+    ``timeCycle``) and ``body`` that element's text as written, not parsed.
+    """
+
+    iri: URIRef
+    node: FlowNode
+    kind: URIRef
+    attached_to: FlowNode | None
+    interrupting: bool
+    expression: str
+    body: str
+
+    @property
+    def is_start(self) -> bool:
+        return self.kind == PROC.TimerStartEvent
+
+    @property
+    def expression_predicate(self) -> str:
+        """``bpmn:<expression>``: the predicate a refusal of the expression names."""
+        return f"bpmn:{self.expression}"
 
 
 @dataclass(frozen=True)

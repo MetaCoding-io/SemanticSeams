@@ -15,6 +15,13 @@ catch-all). Each process lists the file's ``bpmn:error``s (``errors``), which
 sit outside the processes, so an ``errorRef`` resolves with
 ``BpmnProcess.error``.
 
+An event's node carries one ``TimerDefinition`` per ``timerEventDefinition``
+(``timers``): the ``timeDate``, ``timeDuration`` and ``timeCycle`` children it
+holds, with their stripped text, read as written and never parsed here. A
+boundary event's node also carries ``cancel_activity`` (its ``cancelActivity``,
+true when absent), and a node inside a sub-process with ``triggeredByEvent="true"``
+has ``in_event_subprocess`` set.
+
 A sequence flow, lane or ``attachedToRef`` that names a node the process does
 not have raises ``ResolutionError`` naming the flow, lane or boundary and the
 BPMN attribute that failed.
@@ -63,13 +70,37 @@ class BpmnError:
     code: str | None
 
 
+#: The expression elements a ``timerEventDefinition`` may hold.
+TIMER_EXPRESSIONS = ("timeDate", "timeDuration", "timeCycle")
+
+
+@dataclass(frozen=True)
+class TimerExpression:
+    """One expression of a ``timerEventDefinition``: ``element`` is its local name
+    (``timeDate``, ``timeDuration`` or ``timeCycle``), ``body`` its stripped text."""
+
+    element: str
+    body: str
+
+
+@dataclass(frozen=True)
+class TimerDefinition:
+    """A ``timerEventDefinition`` and its expressions, in document order (a
+    well-formed one has exactly one)."""
+
+    expressions: tuple[TimerExpression, ...]
+
+
 @dataclass(frozen=True)
 class BpmnNode:
     """A flow node with its sequence flows in and out (in document order).
 
     ``attached_to`` is a boundary event's ``attachedToRef`` (else None) and
     ``error_ref`` the ``errorRef`` of its ``errorEventDefinition`` (None when it
-    has none, or for a catch-all one).
+    has none, or for a catch-all one). ``timers`` holds one ``TimerDefinition``
+    per ``timerEventDefinition``; ``cancel_activity`` is a boundary event's
+    ``cancelActivity`` (True when absent or not a boundary) and
+    ``in_event_subprocess`` is True inside a ``triggeredByEvent`` sub-process.
     """
 
     id: str
@@ -82,6 +113,9 @@ class BpmnNode:
     outgoing: tuple[SequenceFlow, ...]
     attached_to: str | None = None
     error_ref: str | None = None
+    timers: tuple[TimerDefinition, ...] = ()
+    cancel_activity: bool = True
+    in_event_subprocess: bool = False
 
     @property
     def is_task(self) -> bool:
@@ -104,6 +138,11 @@ class BpmnNode:
     def is_error_boundary(self) -> bool:
         """A ``bpmn:boundaryEvent`` with an ``errorEventDefinition``."""
         return self.tag == "boundaryEvent" and "errorEventDefinition" in self.event_definitions
+
+    @property
+    def is_timer(self) -> bool:
+        """An event with a ``timerEventDefinition``."""
+        return "timerEventDefinition" in self.event_definitions
 
 
 @dataclass(frozen=True)
@@ -134,8 +173,11 @@ def _is_flow_node(name: str) -> bool:
     return name.endswith(("Task", "Event", "Gateway")) or name in ("task", "callActivity", "subProcess")
 
 
-def _walk(container: Any, nodes: list[Any], flows: list[Any], lanes: list[Any]) -> None:
-    """Collect the flow nodes, sequence flows and lanes of a process or sub-process, in document order."""
+def _walk(
+    container: Any, nodes: list[Any], flows: list[Any], lanes: list[Any], in_event: set[Any] | None = None
+) -> None:
+    """Collect the flow nodes, sequence flows and lanes of a process or sub-process,
+    in document order; ``in_event`` collects the nodes inside an event sub-process."""
     for child in container:
         name = localname(child.tag)
         if name is None:
@@ -147,7 +189,11 @@ def _walk(container: Any, nodes: list[Any], flows: list[Any], lanes: list[Any]) 
         elif _is_flow_node(name):
             nodes.append(child)
             if name == "subProcess":
-                _walk(child, nodes, flows, lanes)
+                inner: list[Any] = []
+                _walk(child, inner, flows, lanes, in_event)
+                nodes.extend(inner)
+                if in_event is not None and child.get("triggeredByEvent") == "true":
+                    in_event.update(inner)
 
 
 def _lanes(lane_set: Any, out: list[Any]) -> None:
@@ -244,12 +290,27 @@ def _error_ref(el: Any) -> str | None:
     return None if ref is None else str(ref)
 
 
+def _timers(el: Any) -> tuple[TimerDefinition, ...]:
+    return tuple(
+        TimerDefinition(
+            tuple(
+                TimerExpression(str(localname(e.tag)), (e.text or "").strip())
+                for e in d
+                if localname(e.tag) in TIMER_EXPRESSIONS
+            )
+        )
+        for d in el
+        if localname(d.tag) == "timerEventDefinition"
+    )
+
+
 def _process(el: Any, path: Path, errors: tuple[BpmnError, ...]) -> BpmnProcess:
     process_id = str(el.get("id") or "")
     node_els: list[Any] = []
     flow_els: list[Any] = []
     lane_els: list[Any] = []
-    _walk(el, node_els, flow_els, lane_els)
+    in_event: set[Any] = set()
+    _walk(el, node_els, flow_els, lane_els, in_event)
     ids = [str(n.get("id") or "") for n in node_els]
     known = set(ids)
     flows = [_flow(f, path, known) for f in flow_els]
@@ -272,6 +333,9 @@ def _process(el: Any, path: Path, errors: tuple[BpmnError, ...]) -> BpmnProcess:
             outgoing=tuple(f for f in flows if f.source == node_id),
             attached_to=_attached_to(n, path, known),
             error_ref=_error_ref(n),
+            timers=_timers(n),
+            cancel_activity=n.get("cancelActivity", "true") != "false",
+            in_event_subprocess=n in in_event,
         )
         for node_id, n in zip(ids, node_els, strict=True)
     ]

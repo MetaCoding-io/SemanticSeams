@@ -608,6 +608,20 @@ class ModelGraph(Model):
             )
         return Container(containers[0].iri, containers[0].label, True)
 
+    def scheduling_container(self, process: object) -> Container:
+        """The single container that seam:schedules the process: it runs the
+        process's timer start events (ADR-0037). None, or more than one, raises
+        ``ResolutionError(process, seam:schedules, <sorted container IRIs>)``."""
+        from .views.processes import Process
+
+        iri = self.curie(process)
+        containers = self.views.intern(Process, iri).scheduled_by
+        if len(containers) != 1:
+            raise ResolutionError(
+                iri, SEAM.schedules, f"expected one scheduling container, found {[str(c) for c in containers.iris()]}"
+            )
+        return Container(containers[0].iri, containers[0].label, True)
+
     def triggering_operation(self, process: object) -> URIRef:
         """The operation that the event which seam:triggers the process
         seam:submitsTo."""

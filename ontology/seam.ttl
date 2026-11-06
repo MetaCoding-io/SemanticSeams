@@ -6,8 +6,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/seam/1.5> ;
-    owl:versionInfo "1.5" ;
+    owl:versionIRI <https://w3id.org/seams/seam/1.6> ;
+    owl:versionInfo "1.6" ;
     rdfs:label "SemanticSeams Bridging Ontology" ;
     rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
 decision, state, data, communication, authorization, and planning models into one
@@ -120,6 +120,17 @@ seam:executes a rdf:Property ;
     seam:reveal seam:Nest ;
     rdfs:label "executes" ;
     rdfs:comment "arch:Container -> proc:Process it runs. Completes impact analysis: 'what breaks if node X dies' must reach the process layer, and the generic graph-literate worker needs to know where a task's process lives." .
+
+seam:schedules a rdf:Property ;
+    seam:reveal seam:Nest ;
+    rdfs:label "schedules" ;
+    rdfs:comment """arch:Container -> proc:Process whose timer start events it runs
+(ADR-0037). The container also seam:executes the process, since it starts each
+instance in process. Exactly one per process whose BPMN model holds a
+proc:TimerStartEvent; listed, never derived from seam:executes, because a process may be
+executed by more than one container and the one that keeps time is a decision. Earns
+the query "which schedules stop if node X dies" (seam:schedules/seam:deployedTo).
+(Constraints in shapes/seam-shapes.ttl.)""" .
 
 seam:owns a rdf:Property ;
     seam:reveal seam:Layer ;

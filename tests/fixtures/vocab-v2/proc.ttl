@@ -5,8 +5,8 @@
 @prefix dec:   <https://w3id.org/seams/dec#> .
 
 <https://w3id.org/seams/proc> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/proc/1.0> ;
-    owl:versionInfo "1.0" ;
+    owl:versionIRI <https://w3id.org/seams/proc/1.1> ;
+    owl:versionInfo "1.1" ;
     rdfs:label "SemanticSeams Process/Decision Index Vocabulary" ;
     rdfs:comment """NOT a BPMN ontology, on purpose. BPMN 2.0 XML remains the language
 and the render payload (seam:renderPayload); bpmn-js renders it natively, and full
@@ -67,6 +67,23 @@ Lifting rule: such a boundary is lifted only when it catches one of the invoked
 operation's errors; the attachment (attachedToRef) and the code (the errorCode of the
 bpmn:error its errorRef names) stay in the XML, and the runtime checks at load that
 they agree with the graph. A boundary with no errorRef is not lifted.""" .
+
+proc:TimerStartEvent a rdfs:Class ;
+    rdfs:comment """Mirrors bpmn:startEvent of a bpmn:process with one timerEventDefinition: a
+timer-started process (ADR-0037). The process has no route; the arch:Container that
+seam:schedules the process starts an instance at each due time the expression defines.
+Lifting rule: the expression (bpmn:timeDate or bpmn:timeCycle) stays in the XML as a
+quoted ISO 8601 literal, and the runtime checks at load that the graph and the XML
+agree. The start event of an event subprocess is not lifted.""" .
+
+proc:TimerCatchEvent a rdfs:Class ;
+    rdfs:comment """Mirrors bpmn:intermediateCatchEvent with one timerEventDefinition, or a
+bpmn:boundaryEvent with one, interrupting or not, attached to a proc:UserTask (ADR-0037):
+the instance waits, or the task's timer fires while it is still open (an overdue
+reminder). Lifting rule: the expression (bpmn:timeDate, bpmn:timeDuration or
+bpmn:timeCycle) and the attachment (attachedToRef) stay in the XML, and the runtime checks
+at load that they agree with the graph. A timer boundary on any other task is not lifted:
+a service-call timeout is an error (ADR-0013).""" .
 
 #################################################################
 # DMN index types

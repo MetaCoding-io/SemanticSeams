@@ -467,6 +467,56 @@ builds one, and the
 [`seams_runtime` README](../../seams_runtime/README.md#error-boundaries) lists the
 checks.
 
+### Timers
+
+A BPMN timer is a `timerEventDefinition` holding one `timeDate`, `timeDuration` or
+`timeCycle` ([ADR-0037](/adr/0037-timers-and-scheduling)). Lift the event like any other
+element, typed by where it sits:
+
+| BPMN element | Lift it as |
+|---|---|
+| the `startEvent` of a process | `proc:TimerStartEvent`: the process starts on a schedule |
+| an `intermediateCatchEvent` | `proc:TimerCatchEvent`: the instance waits |
+| a `boundaryEvent` on a user task, interrupting or not | `proc:TimerCatchEvent`: it fires while the task is open |
+
+A timer boundary on any other task, and the start event of an event subprocess, are not
+lifted: a service call that takes too long is an error, not a timer. The expression stays
+in the BPMN XML, written as one quoted ISO 8601 literal (`"PT48H"`,
+`"2026-12-01T09:00:00Z"`, `"R/2026-11-09T08:00:00Z/P1D"`). Date-times carry `Z` or an
+offset, and a cycle names its start.
+
+```xml
+<bpmn:boundaryEvent id="overdue_reminder" attachedToRef="approve_expense" cancelActivity="false">
+  <bpmn:timerEventDefinition>
+    <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">"PT48H"</bpmn:timeDuration>
+  </bpmn:timerEventDefinition>
+</bpmn:boundaryEvent>
+```
+
+```turtle
+<https://example.org/expenses/approval_bpmn#overdue_reminder> a proc:TimerCatchEvent ;
+    rdfs:label "Approval overdue" ;
+    seam:inModel :approval_bpmn .
+```
+
+A timer-started process has no route and no triggering event. In the seams graph, the
+container that runs its firings `seam:schedules` it, and that container also
+`seam:executes` it:
+
+```turtle
+:expense_api seam:executes :digest_process ;
+    seam:schedules :digest_process .
+```
+
+The shapes check the seam: `seamsh:SchedulesShape` (a container schedules only a process
+it executes whose model holds a timer start) and `seamsh:TimerStartedProcessShape`
+(exactly one container schedules each timer-started process). The graph and the XML
+must agree. An in-scope timer left unlifted, a timer lifted with the wrong type or out of
+scope, an event with a second event definition, and a definition with no expression or
+with two are refused with `ResolutionError(<event>, bpmn:timerEventDefinition, ...)`.
+`Process.timer_events()` in the seams library raises it, and `ModelGraph.scheduling_container`
+names the container.
+
 ### Scenarios and examples
 
 A model can also say what the app should do with a given input, in the `verify:`
@@ -858,12 +908,14 @@ gates = [
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.5>`). `arch` 1.1 added domains and bounded contexts and
+(`<https://w3id.org/seams/seam/1.6>`). `arch` 1.1 added domains and bounded contexts and
 `seam` 1.3 added `seam:owns` (ADR-0030); `seam` 1.4 lets `seam:lifecycle` name an
 `owl:Class` and a `state:Transition` `seam:publishesTo` a channel (ADR-0031); `arch` 1.2
 added context-map relationships (`arch:ContextRelationship`, ADR-0032); `seam` 1.5 adds
-`seam:aggregateMember`, the shapes an aggregate commits together (ADR-0035). All are
-compatible widenings, so a model that declares an older `arch` or `seam` loads unchanged. A model says which versions it is written for in
+`seam:aggregateMember`, the shapes an aggregate commits together (ADR-0035); `seam` 1.6
+adds `seam:schedules` and `proc` 1.1 adds `proc:TimerStartEvent` and `proc:TimerCatchEvent`
+(ADR-0037). All are compatible widenings, so a model that declares an older `arch`,
+`proc` or `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -874,7 +926,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.2> ,
-                    <https://w3id.org/seams/seam/1.5> .
+                    <https://w3id.org/seams/seam/1.6> .
 }
 ```
 
@@ -948,7 +1000,7 @@ versions:
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.5> .
+                    <https://w3id.org/seams/seam/1.6> .
 }
 ```
 

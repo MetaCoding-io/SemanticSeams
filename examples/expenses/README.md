@@ -76,13 +76,16 @@ examples/expenses/
                              NotificationShape and :notify_manager_op, seam:implementedBy the
                              comm:PythonHandler "notify.notify_manager" (ADR-0012), its error
                              :notify_failed with NotifyProblemShape, and the lifted
-                             notify_failed_boundary that seam:catches it (ADR-0013); and the
+                             notify_failed_boundary that seam:catches it (ADR-0013); the
+                             overdue_reminder lifted as a proc:TimerCatchEvent (ADR-0037) and
+                             the :manager_reminded scenario that runs its path; and the
                              :expense_ontology graph (seam:Ontology, ADR-0022): Expense, Payment,
                              Approval, ExpenseState and ApprovalOutcome, each a subclass of a gist
                              class, importing the vendored gistCore 14.0.0
   chapter-09/approval.bpmn   chapter 8's process with notify_manager between the manager route and
-                             approve_expense, and an error boundary on it that escalates to
-                             finance_approve_expense
+                             approve_expense, an error boundary on it that escalates to
+                             finance_approve_expense, and a non-interrupting PT48H timer
+                             boundary on approve_expense that ends at "Reminded"
   chapter-09/handlers/       owned code, never regenerated: notify.py, written once by
                              python -m seams_gen.stubs and then edited by hand
   chapter-09/generated/      chapter 8's route module and templates (notify_manager_op is not routed)
@@ -268,8 +271,13 @@ submits, the manager approves through the generated form route, finance pays,
 and the test polls `/payouts` until the payout process has batched the
 payment and the expense is paid. The manager path also runs chapter 9's
 notify handler, and the test waits for its `NotificationShape` row in
-`expense_db`. An invalid submit is a 422 and a submit with
-no identity a 401. On failure it prints `docker compose logs`; teardown always
+`expense_db`. The overdue-approval reminder keeps its real PT48H duration:
+once an expense waits on the manager, the test recreates `expense_api` with
+`SEAMS_CLOCK_OFFSET=PT49H` through a compose override file it writes (decision
+D065; the generated compose never writes it), then waits until the reminder's
+`timers` row is gone, the instance has reached `reminder_end`, the API has
+logged `timer fire`, and Approve Expense is still open for the manager. An
+invalid submit is a 422 and a submit with no identity a 401. On failure it prints `docker compose logs`; teardown always
 runs `down -v`.
 
 ## Chapter 9: hand-written code
@@ -303,6 +311,19 @@ failing the instance. `tests/test_expenses_error_path.py` checks the load-time
 join and its faults, the routed trace rows and spans, the problem body,
 finance's approval after the escalation, and the boundary's seam badge in the
 viewer.
+
+The manager's approval task carries a timer (ADR-0037): `overdue_reminder`, a
+non-interrupting boundary event whose `timeDuration` is `"PT48H"`, lifted as a
+`proc:TimerCatchEvent`. When an instance reaches Approve Expense, the worker
+writes the reminder's due time to the store's `timers` table with the
+checkpoint. The API's scheduler fires it once, even with replicas, runs its path
+to the `Reminded` end and leaves the task open. The `:manager_reminded` scenario
+runs that path, since a scenario's run fires the timers its instance waits on
+once its steps are done. The as-designed sequence
+`docs/generation/sequences/expenses-chapter-09/submit_expense--manager--overdue_reminder.mmd`
+shows it. `tests/test_timer_runtime.py`, `tests/test_timer_generators.py` and
+`tests/test_timer_scenarios.py` check it in process, and chapters 10 and 11
+carry the same reminder.
 
 The checkpoint also says what its data is (ADR-0022). The `:expense_ontology`
 model graph is an `owl:Ontology` with one version IRI

@@ -132,7 +132,8 @@ def test_the_term_is_in_seam_1_5_and_is_a_layer_seam() -> None:
     assert (SEAM.aggregateMember, RDF.type, RDF.Property) in vocabulary
     assert vocabulary.value(SEAM.aggregateMember, SEAM.reveal) == SEAM.Layer
     assert str(vocabulary.value(SEAM.aggregateMember, RDFS.label)) == "aggregate member"
-    assert seams.shipped_versions(ONTOLOGY)["seam"] == (1, 5)
+    # 1.5 added it; 1.6 (ADR-0037 seam:schedules) is a compatible widening that keeps it.
+    assert seams.shipped_versions(ONTOLOGY)["seam"] == (1, 6)
 
 
 # ── The seam shapes ──

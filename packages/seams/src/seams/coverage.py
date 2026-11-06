@@ -31,9 +31,12 @@ on the walk up to the last of those expectations, in order (a run cannot pass
 a user task without a step completing it), and the walk agrees with its
 verify:failures: it invokes every operation the scenario fails (a failure
 the walk never meets says it is not this run), a task whose operation the scenario fails leaves through
-the error boundary that catches the failure's status, and a walk passes a
+the error boundary that catches the failure's status, and a walk passes an error
 boundary event only from a task whose operation the scenario fails with the
-status the boundary catches. The scenario then exercises the walk's own-process
+status the boundary catches. A timer boundary (ADR-0037) needs no failure: a
+run lets the timers its instance waits on fire once its steps are done, so the
+task a walk leaves through its timer boundary is one no step completes, and no
+step's task may come after that boundary. The scenario then exercises the walk's own-process
 path, and the started process's path too when an expectation lies on it:
 a started path no expectation reaches is not credited, since nothing the run
 checks tells its branches apart.
@@ -142,6 +145,8 @@ def _failures_agree(scenario: Scenario, walk: tuple[FlowNode, ...]) -> bool:
     if not set(failing) <= invoked:
         return False
     for i, n in enumerate(walk):
+        if n.tag == "boundaryEvent" and n.node.is_timer:
+            continue  # ADR-0037: the timer fires once the steps are done; no failure takes it
         if n.tag == "boundaryEvent":
             task = walk[i - 1] if i > 0 else None
             caught = n.catches
@@ -181,6 +186,13 @@ def _expectation_index(scenario: Scenario, path: tuple[FlowNode, ...]) -> int | 
     return cut
 
 
+def _timed_out(walk: tuple[FlowNode, ...], i: int) -> bool:
+    """True when the walk leaves its ``i``th node through a timer boundary of that node: the
+    timer fires while the task is open, so no step completes it (ADR-0037)."""
+    after = walk[i + 1] if i + 1 < len(walk) else None
+    return after is not None and after.node.is_timer and after.node.attached_to == walk[i].bpmn_id
+
+
 def _walk_cut(scenario: Scenario, walk: tuple[FlowNode, ...]) -> int | None:
     """The index of the walk's last expected node when ``scenario`` exercises ``walk``, else None."""
     if not _failures_agree(scenario, walk):
@@ -188,8 +200,15 @@ def _walk_cut(scenario: Scenario, walk: tuple[FlowNode, ...]) -> int | None:
     cut = _expectation_index(scenario, walk)
     if cut is None:
         return None
-    user_tasks = tuple(n.iri for n in walk[: cut + 1] if n.tag == "userTask")
-    return cut if user_tasks == tuple(step.task.iri for step in scenario.steps) else None
+    upto = walk[: cut + 1]
+    user_tasks = tuple(n.iri for i, n in enumerate(upto) if n.tag == "userTask" and not _timed_out(walk, i))
+    if user_tasks != tuple(step.task.iri for step in scenario.steps):
+        return None
+    # The timers fire after the last step, so no stepped task follows a timer boundary.
+    fired = [i for i, n in enumerate(upto) if n.tag == "boundaryEvent" and n.node.is_timer]
+    if fired and any(n.tag == "userTask" and not _timed_out(walk, i) for i, n in enumerate(upto) if i > fired[0]):
+        return None
+    return cut
 
 
 def exercises(scenario: Scenario, process: Process, path: tuple[FlowNode, ...]) -> bool:

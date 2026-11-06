@@ -33,7 +33,7 @@ CHAT = "https://example.org/chat/"
 ADMIN = {SEAM.inModel, SEAM.notation, SEAM.renderPayload}
 MODES = {SEAM.Open, SEAM.Nest, SEAM.Layer}
 DEFAULTS = {
-    "nest": {"presents", "executes"},
+    "nest": {"presents", "executes", "schedules"},
     "open": {"detailedBy", "triggers", "completedOn", "decidedBy", "lifecycle"},
 }
 
@@ -163,6 +163,7 @@ def test_navigational_predicates():
         SEAM.presents,
         SEAM.decidedBy,
         SEAM.executes,
+        SEAM.schedules,
         SEAM.lifecycle,
     }
 

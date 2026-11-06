@@ -174,6 +174,7 @@ from .views import (
     Step,
     Superclass,
     System,
+    TimerEvent,
     Transition,
     Volume,
 )
@@ -289,6 +290,7 @@ __all__ = [
     "System",
     "TableInput",
     "TableOutput",
+    "TimerEvent",
     "Transition",
     "UndeniedPermission",
     "VENDOR_DIR",

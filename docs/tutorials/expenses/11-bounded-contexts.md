@@ -92,15 +92,15 @@ context owns runs that context. Here both contexts run in the same portal and AP
 the checkpoint keeps one deployment.
 
 The new terms need the vocabulary versions that declare them. In the manifest graph,
-import `arch` 1.2 and `seam` 1.5:
+import `arch` 1.2 and `seam` 1.6:
 
 ```trig
         owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.5> ,
+                    <https://w3id.org/seams/proc/1.1> ,
+                    <https://w3id.org/seams/seam/1.6> ,
 ```
 
 ## What each context owns

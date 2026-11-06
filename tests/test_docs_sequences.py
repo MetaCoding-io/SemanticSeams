@@ -17,6 +17,9 @@ PAGES = {
         "generation/sequences/chat-app/send_message.executed.mmd",
     ],
     "tutorial.md": ["generation/sequences/chat-app/send_message.mmd"],
+    "tutorials/expenses/09-hand-written-code.md": [
+        "generation/sequences/expenses-chapter-09/submit_expense--manager--overdue_reminder.mmd",
+    ],
     "tutorials/expenses/08-growing-up.md": [
         "generation/sequences/expenses/submit_expense--auto.mmd",
         "generation/sequences/expenses/submit_expense--manager--approved.mmd",

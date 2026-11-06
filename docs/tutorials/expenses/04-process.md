@@ -29,8 +29,8 @@ Import its version in the manifest graph too:
         owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.5> .
+                    <https://w3id.org/seams/proc/1.1> ,
+                    <https://w3id.org/seams/seam/1.6> .
 }
 ```
 

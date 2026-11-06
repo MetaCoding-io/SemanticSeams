@@ -43,10 +43,12 @@ EXPENSES_CHAPTER_7_TRIG = ROOT / "examples" / "expenses" / "chapter-07" / "expen
 
 RESERVED_PREDICATES = {SEAM.conformsTo, SEAM.realizes}
 # Predicates declared ahead of their first example: seam:owns (ADR-0030) and
-# seam:aggregateMember (ADR-0035), first used by expense chapter 11.
+# seam:aggregateMember (ADR-0035), first used by expense chapter 11, and seam:schedules
+# (ADR-0037), which no example uses yet: the chapter 9 reminder is a timer catch event,
+# which needs no seam, and no example has a timer-started process.
 # test_pending_predicates_are_not_yet_exercised fails once a fixture uses one, as the
 # reminder to drop it from this set.
-PENDING_PREDICATES: set = {SEAM.owns, SEAM.aggregateMember}
+PENDING_PREDICATES: set = {SEAM.owns, SEAM.aggregateMember, SEAM.schedules}
 EXPENSES_CHAPTER_9_TRIG = ROOT / "examples" / "expenses" / "chapter-09" / "expenses.trig"
 # The profile terms of ADR-0018 are stated in a profile package, never in a model.
 PROFILE_TTL = ROOT / "tests" / "fixtures" / "profiles" / "expense" / "profile.ttl"

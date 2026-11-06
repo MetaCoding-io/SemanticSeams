@@ -589,10 +589,15 @@ exercises (D054). It covers three things:
   - a node on the walk `seam:fires` a transition into its
     `verify:expectState`;
   - its steps are exactly the user tasks on the walk, in order, up to the
-    last of those expectations;
+    last of those expectations, leaving out a task the walk leaves through its
+    timer boundary (the timer fires while the task is open, so no step
+    completes it);
   - the walk invokes every operation a `verify:failure` names, leaves each
-    such task through the boundary that catches the failure's status, and
-    passes a boundary only that way.
+    such task through the error boundary that catches the failure's status,
+    and passes an error boundary only that way;
+  - no step's task comes after a timer boundary on the walk. A timer boundary
+    needs no failure: a scenario's run lets the timers its instance waits on
+    fire once its steps are done (ADR-0037).
 
   The scenario then exercises its own process's path. It also exercises the
   started process's path when one of its expectations lies on it.

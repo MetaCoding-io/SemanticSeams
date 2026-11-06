@@ -51,6 +51,7 @@ from tests.test_timer_vocabulary import (
     REMINDER,
     TICK,
     checkpoint,
+    untimed,
 )
 
 SETTLE = "https://example.org/expenses/digest_bpmn#settle"
@@ -209,7 +210,7 @@ def test_the_runtime_resolves_every_timer_at_load(tmp_path, clock):
 
 
 def test_a_model_without_timers_gets_no_scheduler(tmp_path):
-    rt = Runtime.load(CHAPTER_09 / "expenses.trig", store=SQLiteStore(tmp_path / "seams.sqlite"))
+    rt = Runtime.load(untimed(tmp_path), store=SQLiteStore(tmp_path / "seams.sqlite"))
     assert rt.timers == {} and rt.scheduler is None and rt.start_scheduler() is None
 
 
@@ -293,7 +294,8 @@ def test_seams_check_reports_the_same_refusal(tmp_path):
 
 def test_seams_check_finds_nothing_in_a_sound_model(tmp_path):
     assert check_timers(model(tmp_path)) == []
-    assert check_timers(CHAPTER_09 / "expenses.trig") == []
+    assert check_timers(CHAPTER_09 / "expenses.trig") == []  # ships the reminder
+    assert check_timers(untimed(tmp_path)) == []
 
 
 # ── section 4: due times ─────────────────────────────────────────────────────

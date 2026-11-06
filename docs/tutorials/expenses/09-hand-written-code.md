@@ -507,12 +507,12 @@ Import its version in the manifest graph too:
 
     # One owl:imports per vocabulary the model uses (ADR-0021).
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
+        owl:imports <https://w3id.org/seams/arch/1.1> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> ,
+                    <https://w3id.org/seams/seam/1.3> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.1> .
 }
@@ -878,10 +878,10 @@ The screen parameter and the scenario that name the property move to `:paidOn` w
 
 Options come in lifecycle order, from the initial state, and the value a form sends is
 still the member's label. Older tools would misread this notation, so the model now
-imports the seam vocabulary at 1.2; the manifest above already shows it:
+imports the seam vocabulary at 1.2 or later (1.3 today); the manifest above already shows it:
 
 ```turtle
-                    <https://w3id.org/seams/seam/1.2> ,
+                    <https://w3id.org/seams/seam/1.3> ,
 ```
 
 Run `seams generate --project examples/expenses/chapter-09` again. Every generated form,

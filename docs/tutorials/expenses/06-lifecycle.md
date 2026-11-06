@@ -29,11 +29,11 @@ Import its version in the manifest graph too:
 
     # One owl:imports per vocabulary the model uses (ADR-0021).
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
+        owl:imports <https://w3id.org/seams/arch/1.1> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> ,
+                    <https://w3id.org/seams/seam/1.3> ,
                     <https://w3id.org/seams/state/1.0> .
 }
 ```

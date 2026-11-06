@@ -77,8 +77,10 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   same load options, plus the one-of-each resolvers the runtime and the generators share, such as
   `landmark_page()`, `task_iri(bpmn_id)`, `triggering_operation(process)`,
   `is_channel_started(process)`, `decision_binding(task)`,
-  `implementing_container(operation)`, `lifecycle_for(shape)`, `policy(policy)`
-  and `shape_graph()`. `published_channel(element)` is the one `comm:Channel`
+  `implementing_container(operation)`, `scheduling_container(process)` (the one
+  container that `seam:schedules` the process, ADR-0037; none or several raise
+  `ResolutionError(process, seam:schedules, <sorted container IRIs>)`),
+  `lifecycle_for(shape)`, `policy(policy)` and `shape_graph()`. `published_channel(element)` is the one `comm:Channel`
   the element `seam:publishesTo` (`None` when it declares none, more than one
   raises), and `published_channels(process)` lists the distinct channels any
   element of the process's BPMN model publishes to, sorted by IRI; the runtime
@@ -264,7 +266,7 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     and `contexts()`.
   - `System.containers` (the `arch:Container`s it `arch:contains`).
   - `Container` has `technology`, `exposes` and `consumes` (a
-    `Many[Operation | Channel]`), `executes`, `deployed_to`, `depends_on`
+    `Many[Operation | Channel]`), `executes`, `schedules`, `deployed_to`, `depends_on`
     (C4 `arch:dependsOn`) and `systems`. `service_bindings` is a read-only
     mapping from `deploy:key` to `deploy:serviceOf`, sorted by key.
     `store_kinds` lists its `deploy:storeKind` IRIs (sorted), `stored_shapes`
@@ -425,16 +427,17 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   - `Process` has `bpmn_model` (the model it is `seam:detailedBy`),
     `bpmn_models` (all of them, by IRI),
     `bpmn_path`, `bpmn_process_ids` (read from the BPMN XML),
-    `executed_by`, `triggered_by`, `triggering_operations` (the operations
+    `executed_by`, `scheduled_by` (the containers that `seam:schedules` it),
+    `triggered_by`, `triggering_operations` (the operations
     its triggering events `seam:submitsTo`), `invoked_operations` (what it
     or an element of its BPMN model `seam:invokes`), `correlation_key`,
     `correlation_parameter`, `correlation_parameters`, `channel_starts`
     (each `MessageStart`: a message start event and the `Channel` it
-    `seam:subscribesTo`), `elements()`, `element_iri(bpmn_id)` and
-    `error_boundaries()`.
+    `seam:subscribesTo`), `elements()`, `element_iri(bpmn_id)`,
+    `error_boundaries()` and `timer_events()`.
   - A `ProcessElement` is a task or event whose IRI is
     `<bpmn_model>#<bpmn id>`. It has `bpmn_id`, `kind` (`UserTask`,
-    `ServiceTask`, `ErrorBoundaryEvent`, ...), `types` (its `proc:` classes), `process`, `invokes`, `reads`, `writes`, `fires`,
+    `ServiceTask`, `ErrorBoundaryEvent`, `TimerStartEvent`, `TimerCatchEvent`, ...), `types` (its `proc:` classes), `process`, `invokes`, `reads`, `writes`, `fires`,
     `decided_by`, `completed_on` (a `Component`), `publishes_to`,
     `subscribes_to` and `catches` (the `Status` a `proc:ErrorBoundaryEvent`
     `seam:catches`, ADR-0013).
@@ -450,6 +453,21 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     lifted with no matching boundary in the XML; `bpmn:errorEventDefinition`
     for a catch-all; `bpmn:errorRef` / `bpmn:errorCode` for a ref that names
     no `bpmn:error` or one without a code.
+  - `timer_events()` joins each lifted `proc:TimerStartEvent` and
+    `proc:TimerCatchEvent` to the XML (ADR-0037): one `TimerEvent` (`iri`,
+    `node`, `kind`, `attached_to`, the user task's `FlowNode` for a boundary,
+    `interrupting`, its `cancelActivity`, `expression`, the local name of its
+    `timeDate`, `timeDuration` or `timeCycle`, and `body`, that element's text
+    as written; `is_start` and `expression_predicate`) per in-scope timer, in
+    flow order. In scope are a process `startEvent` (not one inside an event
+    sub-process), an `intermediateCatchEvent` and a `boundaryEvent` on a
+    `proc:UserTask`. Where the graph and the XML disagree it raises
+    `ResolutionError(<event>, bpmn:timerEventDefinition, ...)`: an in-scope
+    timer not lifted or lifted with the wrong type, a lifted timer out of
+    scope or with no timer event in the XML, a second event definition, and a
+    definition with no expression or more than one. It never parses the
+    expression; the runtime does (`bpmn.TimerDefinition` and
+    `TimerExpression` carry it as written).
   - `model.processes.for_bpmn_process(pid)` lists the processes whose BPMN
     file declares `bpmn:process` `pid`. `model.processes.element(bpmn_id)`
     lists the elements with that id across every BPMN model. Call

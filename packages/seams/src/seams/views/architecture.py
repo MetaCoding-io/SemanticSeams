@@ -282,6 +282,13 @@ class Container(Element):
         return self._many(Process, self._objects(SEAM.executes), SEAM.executes)
 
     @property
+    def schedules(self) -> Many[Process]:
+        """The processes whose timer start events it runs (seam:schedules, ADR-0037)."""
+        from .processes import Process
+
+        return self._many(Process, self._objects(SEAM.schedules), SEAM.schedules)
+
+    @property
     def deployed_to(self) -> Many[DeploymentNode]:
         return self._many(DeploymentNode, self._objects(SEAM.deployedTo), SEAM.deployedTo)
 

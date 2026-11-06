@@ -62,6 +62,8 @@ course/.vitepress/cache/
 
 # ── GSD baseline (auto-generated) ──
 coverage/
+!docs/queries/coverage/
+!packages/seams/src/seams/queries/coverage/
 
 # seams propose and seams suggest caches and pending suggestions (D059, D061)
 .seams/

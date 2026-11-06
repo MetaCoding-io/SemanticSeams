@@ -92,6 +92,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:consumes ,
         seam:deployedTo ,
         seam:executes ,
+        seam:schedules ,
         seam:owns ,
         seam:storedIn ,
         seam:triggers ,
@@ -855,6 +856,65 @@ seamsh:ErrorBoundaryEventShape a sh:NodeShape ;
         sh:message "A lifted error boundary event seam:catches the operation error it routes (ADR-0013)." ] .
 
 #################################################################
+# Timers and scheduling (ADR-0037)
+#################################################################
+
+# Whether a lifted timer agrees with its BPMN XML (start event or catch, its one
+# timerEventDefinition and its expression) is in the XML, not in the graph: the
+# runtime and the drift lint check it. The shapes check the seam.
+seamsh:SchedulesShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:schedules ;
+    sh:class arch:Container ;
+    sh:property [ sh:path seam:schedules ; sh:class proc:Process ;
+        sh:message "seam:schedules points at a proc:Process." ] ;
+    sh:sparql [
+        sh:message "A container that seam:schedules a process also seam:executes it: it starts each timer-started instance in process (ADR-0037)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:schedules ?value .
+                FILTER NOT EXISTS { $this seam:executes ?value }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A container seam:schedules only a process whose BPMN model holds a proc:TimerStartEvent (ADR-0037)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?value WHERE {
+                $this seam:schedules ?value .
+                FILTER NOT EXISTS {
+                    ?value seam:detailedBy ?model .
+                    ?timer a proc:TimerStartEvent .
+                    FILTER (STRSTARTS(STR(?timer), CONCAT(STR(?model), "#")))
+                }
+            }""" ;
+    ] .
+
+seamsh:TimerStartedProcessShape a sh:NodeShape ;
+    sh:targetClass proc:Process ;
+    sh:sparql [
+        sh:message "A process whose BPMN model holds a proc:TimerStartEvent is seam:schedules-d by exactly one container; it has none (ADR-0037)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this WHERE {
+                $this seam:detailedBy ?model .
+                ?timer a proc:TimerStartEvent .
+                FILTER (STRSTARTS(STR(?timer), CONCAT(STR(?model), "#")))
+                FILTER NOT EXISTS { ?container seam:schedules $this }
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "A process whose BPMN model holds a proc:TimerStartEvent is seam:schedules-d by exactly one container; it has more than one (ADR-0037)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?value WHERE {
+                ?value seam:schedules $this .
+                ?other seam:schedules $this .
+                FILTER (?value != ?other)
+            }""" ;
+    ] .
+
+#################################################################
 # Deployment facts the generators read
 #################################################################
 
@@ -1290,7 +1350,7 @@ seamsh:ExecutedProcessShape a sh:NodeShape ;
     sh:property [ sh:path seam:detailedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class seam:Model ;
         sh:message "A process a container seam:executes is seam:detailedBy exactly one BPMN seam:Model." ] ;
     sh:sparql [
-        sh:message "A process a container seam:executes starts one way: the events that seam:triggers it seam:submitsTo exactly one operation, or a proc:MessageCatchEvent of its BPMN model seam:subscribesTo a comm:Channel (ADR-0010)." ;
+        sh:message "A process a container seam:executes starts one way: the events that seam:triggers it seam:submitsTo exactly one operation, a proc:MessageCatchEvent of its BPMN model seam:subscribesTo a comm:Channel (ADR-0010), or its BPMN model holds a proc:TimerStartEvent (ADR-0037)." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this WHERE {
@@ -1303,6 +1363,11 @@ seamsh:ExecutedProcessShape a sh:NodeShape ;
                     ?start a proc:MessageCatchEvent ; seam:subscribesTo ?channel .
                     ?channel a comm:Channel .
                     FILTER (STRSTARTS(STR(?start), CONCAT(STR(?model), "#")))
+                }
+                FILTER NOT EXISTS {
+                    $this seam:detailedBy ?timerModel .
+                    ?timer a proc:TimerStartEvent .
+                    FILTER (STRSTARTS(STR(?timer), CONCAT(STR(?timerModel), "#")))
                 }
             }""" ;
     ] .

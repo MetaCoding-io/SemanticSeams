@@ -38,7 +38,7 @@ The rest group by the layers they join. A few examples:
 
 | Join | Predicates |
 |---|---|
-| Architecture to everything | `presents` (container to its interface), `executes` (container to the process it runs), `exposes` and `consumes` (operations and channels), `deployedTo` |
+| Architecture to everything | `presents` (container to its interface), `executes` (container to the process it runs), `schedules` (container to the timer-started process whose firings it runs, [ADR-0037](/adr/0037-timers-and-scheduling)), `exposes` and `consumes` (operations and channels), `deployedTo` |
 | Interface to process | `triggers` (event to process), `completedOn` (user task to the form a person completes it on, [ADR-0009](/adr/0009-human-tasks)), `visibleWhen` (view component to lifecycle state) |
 | Process to decisions, communication and data | `decidedBy`, `invokes`, `publishesTo` (a message throw event's completion event, or a service task that streams its invoked operation's deltas onto a channel), `subscribesTo` (a message start event that subscribes to a channel starts its process on each publish, [ADR-0010](/adr/0010-channel-started-processes); on a `comm:SemPKMWebhook` channel SemPKM is the publisher, [ADR-0027](/adr/0027-sempkm-webhook-channel)), `catches` (an error boundary event to the operation error it routes, [ADR-0013](/adr/0013-error-shapes-and-boundaries)), `reads`, `writes` |
 | Data to architecture | `storedIn` (shape to the store container that persists its instances, [ADR-0011](/adr/0011-storage-resolution)) |
@@ -65,6 +65,17 @@ agree when it loads. In the expense tutorial's
 [chapter 9](/tutorials/expenses/09-hand-written-code#when-the-notification-fails), a
 notification that cannot be sent takes the expense to finance.
 
+`schedules` is how time crosses layers ([ADR-0037](/adr/0037-timers-and-scheduling)). A
+BPMN timer start event is lifted as a `proc:TimerStartEvent`, and the container that
+runs its firings `schedules` the process. That container also `executes` the process,
+and each timer-started process has exactly one. The fact is listed, not derived from
+`executes`, because a process may run in several containers and the one that keeps time
+is a decision. With `deployedTo` it answers "which schedules stop if this node goes
+away". A timer inside an instance, an intermediate catch event or a boundary on a user
+task, is lifted as a `proc:TimerCatchEvent` and needs no seam: every container that
+executes the process can wake it. The expression (`timeDate`, `timeDuration` or
+`timeCycle`) stays in the BPMN XML, as an error boundary's code does.
+
 ## How each seam is revealed
 
 Every seam predicate, apart from the administrative `inModel`, `notation` and
@@ -73,7 +84,7 @@ in the ontology. The mode tells the viewer what to do with the edge's target:
 
 - **Open** replaces the view with the target's model: `detailedBy`, `triggers`,
   `completedOn`, `decidedBy` and `lifecycle`.
-- **Nest** draws the target inside its source: `presents` and `executes`. This is what
+- **Nest** draws the target inside its source: `presents`, `executes` and `schedules`. This is what
   the C4 view's L4 level shows.
 - **Layer** overlays the target on the current view. This applies to every other seam.
   In the per-element view these edges are inspector rows; [layer mode](/guide/the-viewer#layer-mode)

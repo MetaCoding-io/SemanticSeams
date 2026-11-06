@@ -242,6 +242,13 @@ seam:ShapeGraph`). `finance.trig` now needs the `sh:` and `xsd:` prefixes:
         # options are an sh:in of the state IRIs, sent as their labels.
         sh:property [ sh:path :status ; sh:name "status" ; sh:maxCount 1 ; sh:order 2 ;
                       sh:in ( :s_recorded :s_scheduled :s_batched :s_sent ) ] ;
+        # Set by the runtime, never entered: the expense this payment pays
+        # (ADR-0036 section 3). Its sh:name is the label of the payout
+        # process's proc:correlationKey, so the runtime fills it from the
+        # instance's key, and the DDD profile's paid-once rule joins
+        # payments on it.
+        sh:property [ sh:path :paysExpense ; sh:name "expense" ; sh:datatype xsd:string ;
+                      sh:maxCount 1 ; sh:order 3 ] ;
         seam:inModel :finance_data .
 }
 ```

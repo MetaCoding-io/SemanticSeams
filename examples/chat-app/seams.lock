@@ -78,11 +78,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:09271e713f0cdedcf5ff9fe2a2f7c84a7d07164da8900d9ff2d1c275223d2974",
       "path": "generated/chat_api.Dockerfile",
-<<<<<<< HEAD
       "sha256": "8ed74429001dcbcdf3e9df9c6229f9a80e5bbb250ef89b865a7b79565857ee2c",
-=======
-      "sha256": "b7e2e739e3101fba4fb4a7b85752ea0e7747dd53507e1f1dbd10b05d1e782007",
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       "sources": [
         "https://example.org/chat/chat_api"
       ]
@@ -92,11 +88,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:09271e713f0cdedcf5ff9fe2a2f7c84a7d07164da8900d9ff2d1c275223d2974",
       "path": "generated/chat_api.Dockerfile.trace.json",
-<<<<<<< HEAD
       "sha256": "ab4f0b103a28752e7e8fe29beddba234933159ed458513eeb15d873d2929f3c3",
-=======
-      "sha256": "072eafc99543cf07c4adcc9f627858e4c513d569b1dcb1a1528a49ca64d71221",
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       "sources": [
         "https://example.org/chat/chat_api"
       ]

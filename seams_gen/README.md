@@ -765,6 +765,30 @@ d.name, d.gaps   # 'send_message.executed', ()
 from the captured run `tests/fixtures/traces/chat_send_message.json`; a live run with a
 mocked LLM renders the same lines (`tests/test_sequence_executed.py`).
 
+## Event-storm view
+
+```python
+from seams import load
+from seams_gen.storm import derive, render
+storm = derive(load("examples/expenses/chapter-10/expenses.trig"), "approval_process")
+print(render(storm))   # the timeline as Markdown; storm.gaps lists what is missing
+```
+
+`seams_gen.storm` (backlog B4) derives one process's event-storm timeline from graph
+facts alone, read through the `seams` views. Like `seams_gen.sequence` it is not a
+`GENERATORS` entry; `seams storm <process|event>` runs it from a project file
+([seams CLI](../docs/reference/seams-cli.md#seams-storm)) and the viewer serves it at
+`GET /storm/{process_iri}`. `find_process` accepts the process's IRI, CURIE or local
+name, or an `ifml:Event` that `seam:triggers` it; an unknown name is a `GeneratorError`.
+Each step is a trigger (an event that `seam:triggers` the process, or a message start
+event's subscribed channel) or a BPMN flow node in step order, with its actors, command,
+aggregates (`seam:writes`), domain event (`seam:fires`), decision (`seam:decidedBy`),
+published channels and started processes; the read models are the pages and components
+that `seam:reads` an aggregate. Entries are sorted by IRI. A fact the view expects and
+cannot find (no actor, no form, an unread aggregate, an unconsumed channel, a process
+nothing starts) is a gap, never dropped. The golden is
+`tests/golden/storm/approval_process.md`.
+
 ## Handler stubs
 
 ```

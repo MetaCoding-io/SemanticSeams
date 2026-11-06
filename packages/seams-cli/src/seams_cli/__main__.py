@@ -32,12 +32,17 @@ changes neither the outputs nor the exit code.
 SHACL shapes, runs the project's gate queries and compares the outputs
 generate would write with the disk and seams.lock. Each finding prints to
 stdout as ``<kind> <detail>``; with any finding that is not advisory
-(``review``, ``shacl-warning`` and ``vocabulary-migrated`` are,
-ADVISORY_KINDS), ``seams check: N problem(s)`` counting only those goes to
+(``review``, ``shacl-warning``, ``profile-warning`` and ``vocabulary-migrated``
+are, ADVISORY_KINDS), ``seams check: N problem(s)`` counting only those goes to
 stderr and the exit code is 1. With advisory findings only,
 ``seams check: N warning(s)`` goes to stderr and the exit code is 0. A model that cannot be loaded, a bad
 gate or a malformed seams.lock exits 2. With ``coverage = ["paths"]`` in the
 project file, each BPMN path no scenario runs is a ``coverage`` finding too.
+A model attached to a domain profile (``seam:conformsTo``, ADR-0033) is also
+validated against the profile's shapes: ``profile <IRI> <n> result(s)`` prints
+first, then each sh:Violation result as a ``profile`` finding (a problem) and
+each other result as a ``profile-warning``; a profile that cannot be resolved
+is a ``profile`` finding naming the ResolutionError's subject and predicate.
 A seams.lock that records faults is a ``flagged`` finding, a problem; check
 runs the generators leniently, so a generator fault is never an exit 2 here.
 
@@ -204,7 +209,7 @@ import seams
 from seams_edit import PatchError
 from seams_gen import GeneratorError
 
-from .check import ADVISORY_KINDS, FILE_KINDS, run_check
+from .check import ADVISORY_KINDS, FILE_KINDS, check_project
 from .context import render as render_context
 from .context import run_context
 from .context import to_json as context_json
@@ -499,7 +504,11 @@ def _generate(args: argparse.Namespace) -> int:
 
 def _check(args: argparse.Namespace) -> int:
     project = load_project(args.project)
-    findings = run_check(project, resolve_model(project, args.model))
+    report = check_project(project, resolve_model(project, args.model))
+    findings = report.findings
+    if report.profile is not None:
+        iri, results = report.profile
+        print(f"profile {iri} {results} result(s)")
     for finding in findings:
         detail = _display(Path(finding.detail)) if finding.kind in FILE_KINDS else finding.detail
         print(f"{finding.kind} {detail}")

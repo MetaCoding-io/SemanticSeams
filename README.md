@@ -98,7 +98,10 @@ runs the project's gate queries, checks decisions statically and fails on any st
 missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied
 into `sh:in`, shapes without a target class, undeclared paths) print as `review` warnings
 and do not fail it, and so do `sh:Warning` shape results (a deprecated vocabulary term) and
-a `vocabulary-migrated` line per migration step. CI runs it for every example through the composite action in
+a `vocabulary-migrated` line per migration step. A model attached to a domain profile
+with `seam:conformsTo` is also validated against the profile's shapes: check names the
+profile and fails on its `sh:Violation` results
+([ADR-0033](docs/adr/0033-ddd-profile.md)). CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
 Each vocabulary carries an `owl:versionIRI` (`MAJOR.MINOR`, all at 1.0 today), and a model
 `owl:imports` the versions it is written for in its manifest graph, as every example does

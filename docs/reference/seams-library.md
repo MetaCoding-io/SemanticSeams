@@ -660,6 +660,31 @@ it never refuses it, and the checks do not raise.
 The chat app has eleven: its `MessageShape` status list, `sh:class
 :MessageShape`, both shapes and all seven paths. Backlog O1 and O2 remove them.
 
+## Domain profiles
+
+`seams.profiles` resolves the domain profile a model attaches to with
+`seam:conformsTo` ([ADR-0018](/adr/0018-domain-profiles),
+[ADR-0033](/adr/0033-ddd-profile) section 5). `resolve_profile(ds, model_dir)`
+finds the `profiles/*/profile.ttl` in `model_dir` (the directory of the loaded TriG
+file, `seams.model_dir(path)`) that declares the IRI a `seam:Profile`. It returns None
+when the model states no `seam:conformsTo`, and then reads no file. Otherwise it
+returns a `Profile`:
+
+- `iri`: the profile IRI;
+- `classes` and `labels`: the `seam:offersClass` classes, sorted, and their
+  `skos:prefLabel`, else `rdfs:label`;
+- `generators`: the `seam:usesGenerator` names, sorted;
+- `shapes`: one graph parsed from the `seam:profileShapes` files;
+- `graph`: the parsed `profile.ttl`;
+- `pills`: each pill shape (a `sh:NodeShape` in `shapes` with `sh:severity sh:Info`
+  and a label, ADR-0033 section 4) mapped to its label.
+
+The resolver reads and parses; it does not validate. [`seams check`](./seams-cli#seams-check)
+and the viewer run pyshacl with `shapes`. A model naming two profiles, a profile no
+`profile.ttl` declares or two declare, and a profile or shapes file that is missing or
+does not parse raise `ResolutionError` naming `seam:conformsTo` or
+`seam:profileShapes`, with paths relative to `model_dir`.
+
 ## Context assembly
 
 `seams.context` gathers the model facts that the code of a service task depends on

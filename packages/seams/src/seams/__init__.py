@@ -50,6 +50,10 @@ lists the ``DatasetOntology``s and ``Model.imports`` the ``VendoredOntology``s
 resolved, and ``Model.import_statuses`` the ``ImportStatus`` of each import. ``model.ontologies`` lists the ontology
 models, their ``OntologyClass``es and each class's ``Superclass``es.
 
+``seams.profiles`` resolves the domain profile a model attaches to with
+``seam:conformsTo`` (ADR-0018, ADR-0033): ``resolve_profile(ds, model_dir)``
+returns a ``Profile`` (offered classes, generators, labels, shapes, pill shapes).
+
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
 """
@@ -114,6 +118,7 @@ from .ontologies import (
     vendored_graph,
     vendored_ontologies,
 )
+from .profiles import Profile, resolve_profile
 from .review_check import ReviewFinding, review_findings
 from .sparql import PREFIXES, load_question, question_names
 from .views import (
@@ -259,6 +264,7 @@ __all__ = [
     "ProcessFacts",
     "ProcessPath",
     "Processes",
+    "Profile",
     "RELATIONAL_STORE_KINDS",
     "ResolutionError",
     "ReviewFinding",
@@ -313,6 +319,7 @@ __all__ = [
     "policies_without_deny",
     "process_paths",
     "question_names",
+    "resolve_profile",
     "review_findings",
     "shipped_versions",
     "table_findings",

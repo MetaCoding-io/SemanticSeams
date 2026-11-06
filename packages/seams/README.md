@@ -203,6 +203,19 @@ declares (subject the path, fact `sh:path`; path expressions are skipped). The
 checks are in `seams.review_check`, one function each. A review finding flags
 the model; it never refuses it, and the function does not raise.
 
+`seams.resolve_profile(ds, model_dir)` resolves the domain profile a model attaches
+to with `seam:conformsTo` ([ADR-0018](../../docs/adr/0018-domain-profiles.md),
+[ADR-0033](../../docs/adr/0033-ddd-profile.md) section 5): the `profiles/*/profile.ttl`
+in `model_dir` that declares the IRI a `seam:Profile`. It returns None when the model
+states no `seam:conformsTo` (and reads no file), else a `Profile` with `iri`, `classes`
+(`seam:offersClass`), `generators` (`seam:usesGenerator`), `labels`, `shapes` (one graph
+parsed from the `seam:profileShapes` files), `graph` and `pills`, each pill shape (a
+labelled `sh:NodeShape` of severity `sh:Info`) mapped to its `skos:prefLabel`, else
+`rdfs:label`. It reads and parses with rdflib and does not validate: `seams check` and the
+viewer run pyshacl with `shapes`. Two profiles, a profile no file declares, two files
+declaring it, or an unparsable or missing file raise `ResolutionError` naming
+`seam:conformsTo` or `seam:profileShapes`, with paths relative to `model_dir`.
+
 `ModelGraph.operation_implementation(op)` reads what serves an operation
 (ADR-0012) from `seam:implementedBy`, returning an `Implementation` (`iri`,
 `kind`, `handler`) or None when the operation declares none. `kind` is one

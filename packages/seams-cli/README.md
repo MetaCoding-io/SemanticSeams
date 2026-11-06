@@ -137,16 +137,23 @@ the fact and a message), `ontology-superclass` (an ontology class, `rdfs:subClas
 and a superclass declared neither in the ontology nor in a resolved import,
 ADR-0022) and, with `coverage = ["paths"]`,
 `coverage` (the process IRI and the node IRIs of an unexercised path),
+`profile` and `profile-warning` (when the model attaches a domain profile with
+`seam:conformsTo`, ADR-0033: a `sh:Violation` result of the profile's shapes, or an
+unresolvable profile naming `seam:conformsTo` or `seam:profileShapes`; a
+`sh:Warning` or non-pill `sh:Info` result; the profile is first named on stdout as
+`profile <IRI> <n> result(s)`),
 `draft-stale` (a `seams propose` draft in `seams.lock` whose task's context hash
 changed; the task IRI and module path) and `draft-hand-edited` (the draft file's
 sha256 differs from the record, or the file is `missing`), followed by
 `seams check: N problem(s)` on stderr. `review` findings are warnings
-(`ADVISORY_KINDS`), and so are `ontology-superclass`, `shacl-warning` (a `sh:Warning` shape result: a
+(`ADVISORY_KINDS`), and so are `ontology-superclass`, `profile-warning`, `shacl-warning` (a `sh:Warning` shape result: a
 deprecated vocabulary term is used, ADR-0021) and `vocabulary-migrated` (one per
 migration step `seams.load` applied: the vocabulary, the model's version and the
 tool's): they print but are not counted, and when they are the only findings
 stderr says `seams check: N warning(s)` and the exit code is 0.
-`run_check(project, model, ontology_dir)` takes the vocabulary tree to load,
+`run_check(project, model, ontology_dir)` returns the sorted findings, and
+`check_project` the same as a `CheckReport` with the profile's IRI and result count;
+both take the vocabulary tree to load,
 validate and migrate against (default the repository's `ontology/`).
 It exits 0 with no problems, 1 with any,
 and 2 for the errors of `seams generate` except a generator fault, which the

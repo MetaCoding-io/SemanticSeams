@@ -250,8 +250,10 @@ def test_gate_rows_are_findings(app, capsys):
     assert _kinds(lines) == {"gate"}
 
 
-def test_review_vocabulary_and_ontology_warnings_are_the_advisory_kinds():
-    assert ADVISORY_KINDS == frozenset({"ontology-superclass", "review", "shacl-warning", "vocabulary-migrated"})
+def test_review_vocabulary_ontology_and_profile_warnings_are_the_advisory_kinds():
+    assert ADVISORY_KINDS == frozenset(
+        {"ontology-superclass", "profile-warning", "review", "shacl-warning", "vocabulary-migrated"}
+    )
 
 
 def test_run_check_returns_sorted_findings(app):

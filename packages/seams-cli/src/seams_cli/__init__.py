@@ -5,7 +5,7 @@ picks the model (``resolve_model``) and rewrites every output its generators
 name (``generate_project``, giving ``Generated``, then ``apply``; the files
 beyond the model they read are ``generator_inputs``), recording them
 and any lenient-mode ``Fault`` in seams.lock (``read_lock``, ``build_lock``,
-``render_lock``, ``audit``). ``seams check`` (``run_check``) reports every ``Finding`` without writing; ``seams status``
+``render_lock``, ``audit``). ``seams check`` (``run_check``, or ``check_project`` for a ``CheckReport`` with the attached profile) reports every ``Finding`` without writing; ``seams status``
 (``run_status``) gives a ``Status`` per running runtime container; ``seams
 sequence`` (``run_sequence``) writes an event's derived sequence diagrams; ``seams storm``
 (``run_storm``) renders a process's derived event-storm timeline; ``seams
@@ -14,7 +14,7 @@ install puts the repository root on sys.path, so the virtual members seams_gen
 and seams_runtime import from any working directory.
 """
 
-from .check import Finding, run_check
+from .check import CheckReport, Finding, check_project, run_check
 from .generate import Generated, apply, generate_project, generator_inputs, write_outputs
 from .lockfile import (
     LOCK_FILE,
@@ -38,6 +38,7 @@ from .storm import run_storm
 __all__ = [
     "LOCK_FILE",
     "Audit",
+    "CheckReport",
     "Fault",
     "Finding",
     "Generated",
@@ -50,6 +51,7 @@ __all__ = [
     "apply",
     "audit",
     "build_lock",
+    "check_project",
     "read_lock",
     "render_lock",
     "GeneratorTarget",

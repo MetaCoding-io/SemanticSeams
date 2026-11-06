@@ -252,7 +252,7 @@ seams check examples/expenses/chapter-08/expenses.trig   # the same project, by 
 seams check --project path/to/seams.toml --model other.trig
 ```
 
-The options are those of `seams generate`. The command runs five checks,
+The options are those of `seams generate`. The command runs the checks below,
 reports every finding and writes nothing, so it is safe in CI and in a
 pre-commit hook (D044):
 
@@ -301,7 +301,21 @@ pre-commit hook (D044):
    unknown IRI, or another gist version than the vendored one) is a
    `ResolutionError(<ontology>, owl:imports, …)` on load, so the model cannot be
    loaded and the check exits 2.
-7. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+7. **Profile**, only when the model attaches a domain profile with
+   `seam:conformsTo` ([ADR-0033](/adr/0033-ddd-profile) section 1). The profile is
+   resolved from the model directory as the viewer resolves it
+   (`seams.resolve_profile`), and the same union graph is validated against the
+   profile's shapes alone, inference off (the seam shapes are the shapes check's).
+   A first stdout line, `profile <IRI> <n> result(s)`, names the profile and the
+   number of results reported below it; it is not a finding. Each `sh:Violation`
+   result is a `profile` finding (focus node, path and message), each `sh:Warning`
+   or `sh:Info` result a `profile-warning`. Results of pill shapes (a labelled
+   `sh:Info` shape) are not reported. A profile that cannot be resolved is one
+   `profile` finding: the `ResolutionError`'s subject, predicate
+   (`seam:conformsTo` or `seam:profileShapes`) and detail. A model with no
+   `seam:conformsTo` reads no profile file and prints nothing for this check.
+   `seams generate` ignores profiles.
+8. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
    start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
    the process IRI, then the path's flow node IRIs (see
    [seams coverage](#seams-coverage)). The other two coverage reports are gate
@@ -321,13 +335,15 @@ pre-commit hook (D044):
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
 | `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
 | `ontology-superclass` | A warning, not a problem: an ontology class's superclass is declared neither in the ontology nor in a resolved import, a likely typo. |
+| `profile` | The model breaks a `sh:Violation` shape of its attached profile, or the profile cannot be resolved. |
+| `profile-warning` | A warning, not a problem: a `sh:Warning` or `sh:Info` result of the attached profile's shapes. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
 | `draft-stale` | A `seams propose` draft recorded in `seams.lock` whose task's context hash has changed (or whose task no longer resolves): review it again. The detail is the task IRI and the module path. |
 | `draft-hand-edited` | A recorded draft whose file's sha256 differs from the record, or whose file is missing (detail ends `missing`). |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
 the working directory when they lie below it. A closing count of the problems,
-every kind but the advisory `review`, `ontology-superclass`, `shacl-warning` and `vocabulary-migrated`,
+every kind but the advisory `review`, `ontology-superclass`, `shacl-warning`, `profile-warning` and `vocabulary-migrated`,
 goes to stderr:
 
 ```
@@ -351,13 +367,14 @@ unchanged. When the only findings are these advisory kinds,
 
 `seams generate` fixes every output finding except `flagged`, which needs the
 model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
-`review`, `ontology-superclass` or `coverage` finding is fixed in the model.
+`review`, `ontology-superclass`, `profile`, `profile-warning` or `coverage` finding is
+fixed in the model (or, for an unresolvable profile, in its `profiles/` package).
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | No findings, or only `review`, `ontology-superclass`, `shacl-warning` and `vocabulary-migrated` warnings. |
+| 0 | No findings, or only `review`, `ontology-superclass`, `shacl-warning`, `profile-warning` and `vocabulary-migrated` warnings. |
 | 1 | At least one finding of another kind, or a file could not be read. |
 | 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a `seams.generators` entry point cannot be registered. A generator fault is never exit 2 here: the outputs check runs leniently. |
 

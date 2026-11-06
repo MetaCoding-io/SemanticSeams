@@ -1212,6 +1212,15 @@ The first three restate the `ungoverned-writes.rq` and
 `untranslated-cross-context-calls.rq` gates and the `unfired-transitions.rq` coverage
 query. Drop those gates from `seams.toml` when you attach the profile, so each fact is
 reported once. The profile's labelled `sh:Info` shapes give the viewer its type pills
-(Aggregate, Command, Domain event); `seams check` does not report them. Chapter 11's
+(Aggregate, Command, Domain event); `seams check` does not report them.
+
+A profile shape with `sh:severity sh:Warning` and a `sh:sparql` constraint is an
+instance-data rule ([ADR-0036](/adr/0036-cross-aggregate-invariants)): it is written
+against the model's own properties, so it finds nothing in the model and `seams check`
+passes it. The runtime runs it on the stored entities instead, through
+`Runtime.data_health()` and the viewer's [data-health view](/guide/the-viewer#data-health),
+and reports what breaks it without refusing the write. Chapter 11's paid-once rule is
+one; the [tutorial](/tutorials/expenses/11-bounded-contexts#paid-once) shows an expense
+paid twice. Chapter 11's
 [tutorial page](/tutorials/expenses/11-bounded-contexts#the-ddd-profile) walks through
 it.

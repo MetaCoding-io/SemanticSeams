@@ -209,6 +209,7 @@ def test_the_undeclared_superclass_is_a_warning_and_the_model_still_conforms(tmp
             "label": "gistCore14.0.0",
             "resolved": True,
             "vendored": GIST_14_0,
+            "dataset": None,
             "error": None,
         }
     ]

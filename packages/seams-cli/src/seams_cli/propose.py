@@ -136,7 +136,7 @@ def build_prompt(project: Project, model: Path | None, task: str) -> Prompt:
     tests = extract_acceptance(graph)
     acceptance = next(m for m in tests.modules if m.path == module.path)
     acceptance_text = render_acceptance(tests)[acceptance.file]
-    handler_path = _relative(trig.parent / DEFAULT_HANDLERS / module.path, project.root)
+    handler_path = _relative(seams.model_dir(trig) / DEFAULT_HANDLERS / module.path, project.root)
     acceptance_path = _acceptance_path(project, acceptance.file)
 
     items = "\n\n".join(f"{i.kind} {i.ref} {i.hash}\n{quote(i.kind, i.content)}" for i in manifest.items)
@@ -265,7 +265,7 @@ def _run_acceptance(project: Project, prompt: Prompt, draft: str) -> tuple[bool,
 
 
 def _handlers_target(project: Project, model: Path | None, prompt: Prompt) -> Path:
-    handlers = (resolve_model(project, model).parent / DEFAULT_HANDLERS).resolve()
+    handlers = seams.model_dir(resolve_model(project, model)) / DEFAULT_HANDLERS
     target = (project.root / prompt.handler_path).resolve()
     if not target.is_relative_to(handlers) or target == handlers:
         raise ProjectError(f"{prompt.handler_path}: not inside the handlers directory {handlers}")

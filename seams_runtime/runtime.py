@@ -329,7 +329,7 @@ class Runtime:
             trig_path = override
         else:
             log.info("model path %s from argument (%s unset)", trig_path, MODEL_ENV)
-        if not Path(trig_path).is_file():
+        if not Path(trig_path).exists():
             source = f" (from {MODEL_ENV})" if override else ""
             raise FileNotFoundError(f"model file {trig_path} not found{source}")
         model = ModelGraph(trig_path)

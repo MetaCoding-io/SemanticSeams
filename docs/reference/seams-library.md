@@ -58,13 +58,15 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   - `migrations`: the vocabulary migration steps applied on load, sorted.
   - `ontology_dir`: the ontology directory the checks used, or None when there is none.
   - `imports`: the vendored ontologies the model's ontology imports, sorted by
-    version IRI; `import_statuses`: the `ImportStatus` of each import, read even
+    version IRI; `dataset_imports`: the ontology models of the same Dataset they
+    import (`DatasetOntology`), sorted by version IRI; `import_statuses`: the `ImportStatus` of each import, read even
     with `check_imports=False`.
   - `payloads()`: `(relative posix path, absolute path)` for every
     `seam:renderPayload`, sorted by relative path. A missing payload raises
     `ResolutionError`.
-- `seams.model_hash(path)` and `seams.payload_path(payload_iri, base_dir)` are
-  module-level helpers.
+- `seams.model_hash(path)`, `seams.payload_path(payload_iri, base_dir)` and
+  `seams.model_dir(path)` (the directory payloads and `handlers/` resolve against: a
+  directory model itself, else the TriG file's parent) are module-level helpers.
 - Errors: `SeamsError` (base; `http_status`, `to_dict()`) and
   `ResolutionError(subject, predicate, detail="")`, also a `LookupError`,
   raised when a graph hop is missing.
@@ -152,7 +154,9 @@ Migration happens in memory only: no file is written and `model.hash` is unchang
 
 A `seam:Ontology` model is also an `owl:Ontology`
 ([ADR-0022](/adr/0022-ontology-notation)); its `owl:imports` name the version IRIs of
-the ontologies it builds on. `seams.load` resolves them offline against the files in
+the ontologies it builds on. `seams.load` resolves them offline, first against the
+other ontology models of the same Dataset by `owl:versionIRI`
+([ADR-0030](/adr/0030-domains-and-bounded-contexts) section 4), then against the files in
 `<ontology_dir>/vendor/` (`VENDOR_DIR`), never over the network, and never merges
 their triples into `model.ds`, so `model.hash`, SHACL and the generators see only the
 model.
@@ -166,13 +170,19 @@ model.imports  # (VendoredOntology(ontology=…/gistCore, version=…/gistCore14
   per `vendor/*.ttl`, read from the file's own `owl:Ontology` and `owl:versionIRI`,
   sorted by version IRI. A file without exactly one of each raises `ResolutionError`.
 - `vendored_graph(vendored)`: the file's triples as a read-only graph.
+- `dataset_ontologies(ds)`: a `DatasetOntology(ontology, version)` per `seam:Ontology`
+  model of `ds` with one `owl:versionIRI`, sorted by version IRI;
+  `dataset_imports(statuses)` the ones a set of import statuses resolves to.
 - `import_statuses(ds, ontology_dir)`: an `ImportStatus(ontology, imported, vendored,
-  detail)` per import of each `seam:Ontology` model, sorted by (ontology, import);
+  detail, dataset)` per import of each `seam:Ontology` model, sorted by (ontology, import);
   `resolved` and `error` (the `ResolutionError`, or None) derive from it.
-- `check_imports(ds, ontology_dir)`: the check `load` runs. A vendored version IRI
-  resolves; the first fault raises `ResolutionError(<ontology>, owl:imports, detail)`:
+- `check_imports(ds, ontology_dir)`: the check `load` runs, returning the vendored
+  ontologies. The version IRI of another ontology model of `ds`, or of a vendored file,
+  resolves; an ontology never resolves its own. The first fault raises `ResolutionError(<ontology>, owl:imports, detail)`:
   a mismatch, also for the bare ontology IRI
-  (`"imports gistCore14.1.0; the vendored version is gistCore14.0.0"`), a SemanticSeams
+  (`"imports gistCore14.1.0; the vendored version is gistCore14.0.0"`, or for a dataset
+  ontology `"imports <…/finance_ontology/2.0>; the dataset's finance_ontology is version
+  <…/finance_ontology/1.0>"`), a SemanticSeams
   vocabulary version, which belongs in the manifest graph (ADR-0021), or anything else
   (`"imports <iri>, which no file in ontology/vendor/ declares"`).
   `check_imports=False` skips it.

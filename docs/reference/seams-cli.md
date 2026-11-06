@@ -47,7 +47,7 @@ out = "generated/templates"
 
 | Key | Type | Meaning |
 |---|---|---|
-| `model` | string, optional | The TriG file to generate from. |
+| `model` | string, optional | The TriG file to generate from, or a directory whose `*.trig` files load together as one model (`"."` for the project's own directory); payloads and `handlers/` resolve against the directory. |
 | `[[generators]]` | array of tables | One entry per generator to run, in any order. |
 | `[[generators]].name` | string | A generator registered in the `seams.generators` entry-point group: a built-in or one from an installed distribution (see [Generators](#generators)). |
 | `[[generators]].out` | string | The directory the generator writes into. |

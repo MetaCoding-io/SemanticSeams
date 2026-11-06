@@ -137,18 +137,24 @@ def ontology_graph_data(model_iri: str, focus: str | None = None) -> tuple[list[
 
 def ontology_health(model: seams.Model) -> list[dict]:
     """One entry per owl:imports of every seam:Ontology model, sorted by
-    (ontology, import): the vendored version it resolves to, or the
+    (ontology, import): the dataset ontology or vendored version it resolves
+    to, or the
     ResolutionError facts (subject, predicate, detail) when it does not."""
     out = []
     for status in model.import_statuses:
         error = status.error
+        label = seams.local_name(status.imported)
+        if status.dataset is not None:
+            # A dataset ontology's version IRI ends in MAJOR.MINOR: name the ontology too.
+            label = f"{seams.local_name(status.dataset.ontology)} {label}"
         out.append(
             {
                 "ontology": str(status.ontology),
                 "imported": str(status.imported),
-                "label": seams.local_name(status.imported),
+                "label": label,
                 "resolved": status.resolved,
                 "vendored": str(status.vendored.version) if status.vendored is not None else None,
+                "dataset": str(status.dataset.ontology) if status.dataset is not None else None,
                 "error": (
                     None
                     if error is None

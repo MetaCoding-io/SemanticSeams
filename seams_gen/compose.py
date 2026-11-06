@@ -41,7 +41,8 @@ The serving container (``seams_gen.fastapi.serving_containers``: it
 ``seam:executes`` a process or exposes an operation a UI event submits to,
 D026) also gets the TriG and every ``seam:renderPayload`` bind-mounted
 read-only under /model, with SEAMS_MODEL/SEAMS_MODEL_HASH pointing the
-runtime at them (D018). When an operation that container exposes is
+runtime at them (D018). A directory model mounts each of its TriG files under
+/model by name, and SEAMS_MODEL names /model itself. When an operation that container exposes is
 ``seam:implementedBy`` a ``comm:PythonHandler`` (ADR-0012), the handlers
 package beside the TriG is bind-mounted read-only at /model/handlers too,
 where the runtime's default looks for it. It gets the runtime's /healthz
@@ -200,8 +201,8 @@ def _posix_relpath(path: Path, base_dir: Path) -> str:
 
 
 def _model_path(model: Model, path: str, base_dir: Path) -> str:
-    """A path the model states relative to its file's directory, relative to ``base_dir``."""
-    rel = _posix_relpath(model.path.parent / path, base_dir)
+    """A path the model states relative to its directory (``Model.base_dir``), relative to ``base_dir``."""
+    rel = _posix_relpath(model.base_dir / path, base_dir)
     return "." if rel == "./." else rel
 
 
@@ -338,17 +339,18 @@ def runtime_containers(model: Model) -> tuple[str, ...]:
 
 
 def _model_mounts(model: Model, base_dir, executing) -> tuple[str, ...]:
-    """The TriG then every seam:renderPayload and, when a comm:PythonHandler
-    needs it, the handlers package, bind-mounted read-only."""
+    """The TriG files then every seam:renderPayload and, when a
+    comm:PythonHandler needs it, the handlers package, bind-mounted read-only.
+    A directory model mounts each of its TriG files under /model by name."""
     base_dir = Path(base_dir)
-    trig = f"{_posix_relpath(model.path, base_dir)}:{MODEL_MOUNT}/{model.path.name}:ro"
+    trigs = [f"{_posix_relpath(path, base_dir)}:{MODEL_MOUNT}/{path.name}:ro" for path in model.files]
     with view_errors():
         payloads = model.payloads()
     binds = [f"{_posix_relpath(path, base_dir)}:{MODEL_MOUNT}/{rel}:ro" for rel, path in payloads]
     if _runs_handlers(model, executing):
-        handlers = model.path.parent / DEFAULT_HANDLERS
+        handlers = model.base_dir / DEFAULT_HANDLERS
         binds.append(f"{_posix_relpath(handlers, base_dir)}:{MODEL_MOUNT}/{DEFAULT_HANDLERS}:ro")
-    return tuple(_scalar(m) for m in [trig, *sorted(binds)])
+    return tuple(_scalar(m) for m in [*trigs, *sorted(binds)])
 
 
 def _runs_handlers(model: Model, executing) -> bool:
@@ -404,7 +406,7 @@ def _service(
     environment, own_secrets = [], []
     if serving:
         environment += [
-            ("SEAMS_MODEL", _scalar(f"{MODEL_MOUNT}/{model.path.name}")),
+            ("SEAMS_MODEL", _scalar(MODEL_MOUNT if model.is_directory else f"{MODEL_MOUNT}/{model.path.name}")),
             ("SEAMS_MODEL_HASH", json.dumps(model.hash)),
         ]
     for key, entry in _bindings(ctx, c, deployment.bindings, secrets):

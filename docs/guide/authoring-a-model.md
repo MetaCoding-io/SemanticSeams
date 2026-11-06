@@ -600,6 +600,18 @@ is also the `owl:Ontology`, with `seam:notation seam:Ontology` in the seams grap
   `cannot resolve <https://example.org/expenses/expense_ontology>: missing owl:imports
   (imports gistCore14.1.0; the vendored version is gistCore14.0.0)`. Vocabulary
   versions are not imported here; they belong in the [manifest graph](#vocabulary-versions).
+- **Import another context's ontology from the same dataset.** When a model is split into
+  bounded contexts ([ADR-0030](/adr/0030-domains-and-bounded-contexts)), each context
+  owns one ontology, and a context that uses another's classes imports that ontology by
+  its `owl:versionIRI`. An import resolves first to a `seam:Ontology` model in the same
+  dataset with that version IRI, then to `ontology/vendor/`. An import of a version the
+  dataset does not hold is refused the same way:
+  `cannot resolve <https://example.org/expenses/expense_ontology>: missing owl:imports
+  (imports <https://example.org/expenses/finance_ontology/2.0>; the dataset's
+  finance_ontology is version <https://example.org/expenses/finance_ontology/1.0>)`.
+  The imported classes are the owner's: the class view draws them as read-only cards,
+  and your shapes may target them with `sh:targetClass`. Keep each context in its own
+  TriG file in one directory and load the directory (`model = "."` in `seams.toml`).
 - **The imported ontology stays out of the model.** gist is read to check the import and
   to label superclasses; it is not added to the model's graphs, so the model hash,
   generation and the runtime are the same as without it. A superclass declared neither
@@ -608,7 +620,8 @@ is also the `owl:Ontology`, with `seam:notation seam:Ontology` in the seams grap
 
 The viewer draws an ontology model as a class view: a card per class with its
 definition, an edge to each superclass, and gist's classes as read-only cards. The
-health panel lists each import and whether it resolved
+health panel lists each import and whether it resolved, to a vendored file or to an
+ontology in the dataset
 ([the viewer](/guide/the-viewer)). Chapter 9 of the expense tutorial declares its
 ontology this way, and its shapes target the classes, as the next section shows.
 
@@ -1063,7 +1076,8 @@ SEAMS_MODEL=path/to/model.trig python3 -m uvicorn viewer.app:app --port 8000
 ```
 
 `SEAMS_MODEL` may also name a directory: its TriG files load together as one model, and
-payload paths resolve against the directory.
+payload paths and the `handlers/` package resolve against the directory. In `seams.toml`
+the same directory is `model = "."`.
 
 The root view is your model's C4 `seam:Model`. If the file has none, or more than one,
 set `SEAMS_VIEWER_ROOT` to the IRI the viewer should open at. See

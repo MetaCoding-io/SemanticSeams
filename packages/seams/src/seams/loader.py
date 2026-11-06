@@ -18,8 +18,9 @@ from rdflib.term import Node
 
 from .errors import ResolutionError
 from .namespaces import SEAM, local_name
-from .ontologies import ImportStatus, VendoredOntology
+from .ontologies import DatasetOntology, ImportStatus, VendoredOntology
 from .ontologies import check_imports as _check_imports
+from .ontologies import dataset_imports as _dataset_imports
 from .ontologies import import_statuses as _import_statuses
 from .vocabularies import MigrationStep
 from .vocabularies import check_versions as _check_versions
@@ -51,6 +52,14 @@ MODEL_ENV = "SEAMS_MODEL"
 #: The repository's ontology/ (vocabularies, shapes, migrations) when ``seams``
 #: runs from the workspace (D060). An installed copy has none next to it.
 DEFAULT_ONTOLOGY_DIR = Path(__file__).resolve().parents[4] / "ontology"
+
+
+def model_dir(path: str | os.PathLike[str]) -> Path:
+    """The resolved directory a model at ``path`` resolves its payloads and
+    handlers against: ``path`` itself when it is a directory of TriG files,
+    else the TriG file's parent (``Model.base_dir`` without loading)."""
+    resolved = Path(path).resolve()
+    return resolved if resolved.is_dir() else resolved.parent
 
 
 def payload_path(payload_iri: object, base_dir: str | os.PathLike[str]) -> Path:
@@ -86,8 +95,10 @@ class Model:
     workspace). ``check_versions=False`` keeps the model as written.
 
     The ``owl:imports`` of every ``seam:Ontology`` model are resolved against
-    ``ontology_dir/vendor`` (ADR-0022, ``seams.ontologies``): ``imports`` lists
-    the vendored ontologies they name, sorted by version IRI, and the first
+    the other ontology models of the Dataset by ``owl:versionIRI`` (ADR-0030
+    section 4), then ``ontology_dir/vendor`` (ADR-0022, ``seams.ontologies``):
+    ``dataset_imports`` lists the Dataset's ontologies they name and
+    ``imports`` the vendored ones, each sorted by version IRI, and the first
     import that does not resolve raises ``ResolutionError(<ontology>,
     owl:imports)``. ``check_imports=False`` loads without the check, and
     ``import_statuses`` reports each import's status instead. ``ontology_dir``
@@ -125,11 +136,13 @@ class Model:
             raise FileNotFoundError(f"no ontology directory {vocabularies}")
         self.migrations: tuple[MigrationStep, ...] = ()
         self.imports: tuple[VendoredOntology, ...] = ()
+        self.dataset_imports: tuple[DatasetOntology, ...] = ()
         if self.ontology_dir is not None:
             if check_versions:
                 self.migrations = _check_versions(dataset, self.ontology_dir)
             if check_imports:
                 self.imports = _check_imports(dataset, self.ontology_dir)
+                self.dataset_imports = _dataset_imports(_import_statuses(dataset, self.ontology_dir))
         self.ds: Dataset = dataset
         # Per-instance cache (never a module-level id()-keyed dict; see MEM010).
         self._hash: str | None = None

@@ -24,6 +24,8 @@
   {% for i in model_conformance.ontologyImports %}
   {% if i.error %}
   <span class="health-import-error" role="alert" data-import="{{ i.imported }}" data-subject="{{ i.error.subject }}" data-predicate="{{ i.error.predicate }}">&#10007; Import not resolved: <code>{{ i.error.subject }}</code> <code>{{ i.error.predicate }}</code>: {{ i.error.detail }}</span>
+  {% elif i.dataset %}
+  <span class="health-import" data-import="{{ i.imported }}" data-dataset="{{ i.dataset }}">Import: {{ i.label }} (in the dataset)</span>
   {% else %}
   <span class="health-import" data-import="{{ i.imported }}" data-vendored="{{ i.vendored }}">Import: {{ i.label }} (vendored)</span>
   {% endif %}

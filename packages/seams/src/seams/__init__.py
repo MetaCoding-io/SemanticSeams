@@ -43,10 +43,11 @@ migrated in memory with the SPARQL Update steps under ``ontology/migrations``,
 and ``Model.migrations`` lists the ``MigrationStep``s applied.
 
 ``seams.ontologies`` resolves the ``owl:imports`` of ``seam:Ontology``
-models (ADR-0022) that ``load`` checks: an import names the version IRI of a
-file vendored under ``ontology/vendor``, resolved offline; ``Model.imports``
-lists the ``VendoredOntology``s resolved and ``Model.import_statuses`` the
-``ImportStatus`` of each import. ``model.ontologies`` lists the ontology
+models (ADR-0022) that ``load`` checks: an import names the version IRI of
+another ontology model in the same Dataset (ADR-0030 section 4) or of a file
+vendored under ``ontology/vendor``, resolved offline; ``Model.dataset_imports``
+lists the ``DatasetOntology``s and ``Model.imports`` the ``VendoredOntology``s
+resolved, and ``Model.import_statuses`` the ``ImportStatus`` of each import. ``model.ontologies`` lists the ontology
 models, their ``OntologyClass``es and each class's ``Superclass``es.
 
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
@@ -99,13 +100,16 @@ from .graph import (
     dmn_decision_ids,
     dmn_input_types,
 )
-from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_hash, payload_path
+from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_dir, model_hash, payload_path
 from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, VERIFY, local_name
 from .ontologies import (
     VENDOR_DIR,
+    DatasetOntology,
     ImportStatus,
     VendoredOntology,
     check_imports,
+    dataset_imports,
+    dataset_ontologies,
     import_statuses,
     vendored_graph,
     vendored_ontologies,
@@ -194,6 +198,7 @@ __all__ = [
     "DEC",
     "DEFAULT_ONTOLOGY_DIR",
     "DEPLOY",
+    "DatasetOntology",
     "Decision",
     "DecisionBinding",
     "DecisionExample",
@@ -290,6 +295,8 @@ __all__ = [
     "condition_findings",
     "context_for",
     "core_operations_untested",
+    "dataset_imports",
+    "dataset_ontologies",
     "decision_findings",
     "decision_table",
     "declared_versions",
@@ -299,6 +306,7 @@ __all__ = [
     "load",
     "load_question",
     "local_name",
+    "model_dir",
     "model_hash",
     "parse_dmn",
     "payload_path",

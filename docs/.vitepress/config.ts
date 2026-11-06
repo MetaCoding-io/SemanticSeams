@@ -60,6 +60,7 @@ const decisions = [
   ["0031", "Lifecycle on the class", "0031-lifecycle-on-the-class"],
   ["0032", "Context-map relationships", "0032-context-map-relationships"],
   ["0033", "The DDD profile", "0033-ddd-profile"],
+  ["0034", "Context Mapper interchange", "0034-context-mapper-interchange"],
 ] as const;
 
 export default defineConfig({

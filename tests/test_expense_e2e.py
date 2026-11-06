@@ -14,7 +14,12 @@ for the manager, the manager approves through the generated form route, finance 
 channel-started payout process (ADR-0010) runs on its own until the finance
 console's /payouts page shows the payment in its final state and the expense
 paid. The smoke generator's tests (generated/smoke, M015/S05) then call every
-operation on its declared path against the same stack. On any failure the
+operation on its declared path against the same stack. The overdue-approval
+reminder (ADR-0037) keeps its real PT48H duration: once an expense waits on the
+manager, the test recreates expense_api with SEAMS_CLOCK_OFFSET set through a
+compose override file it writes (decision D065; the generated compose never
+writes it), then sees the scheduler fire the reminder while Approve Expense
+stays open for the manager. On any failure the
 module prints ``docker compose logs``; teardown
 always runs ``docker compose down -v`` and checks no container is left.
 """
@@ -49,6 +54,12 @@ EXPENSE_DB = "https://example.org/expenses/expense_db"
 # (chapter 8 shows the same command; tests/test_expense_tutorial_doc.py checks)
 PSQL = ("exec", "-T", "expense_db", "psql", "-U", "postgres", "-d", "expenses", "-tAc")
 
+REMINDER = "https://example.org/expenses/approval_bpmn#overdue_reminder"
+REMINDED = "https://example.org/expenses/approval_bpmn#reminder_end"
+APPROVE = "https://example.org/expenses/approval_bpmn#approve_expense"
+# Past the reminder's PT48H, so a catch armed before the restart is due after it (D065).
+CLOCK_OFFSET = "PT49H"
+
 EXPENSE = {"description": "Train to Leeds", "date": "2026-10-01"}
 PAYMENT = {"reference": "PAY-0042", "paid_on": "2026-10-05"}
 
@@ -64,9 +75,9 @@ BOB = person("bob", "manager")
 CAROL = person("carol", "finance")
 
 
-def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
+def _compose(*args, timeout=120, check=True, files=FILES) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["docker", "compose", "-p", PROJECT, *FILES, *args],
+        ["docker", "compose", "-p", PROJECT, *files, *args],
         cwd=ROOT,
         timeout=timeout,
         check=check,
@@ -253,3 +264,55 @@ def test_generated_smoke_tests_pass_against_the_stack(stack):
     output = f"{run.stdout}\n{run.stderr}"
     assert run.returncode == 0, f"pytest {SMOKE.relative_to(ROOT)} exited {run.returncode}:\n{output}"
     assert " passed" in run.stdout, f"no smoke test ran:\n{output}"
+
+
+def _armed_sql(key: str) -> str:
+    """The reminder rows armed for the instance under ``key`` (an e2e-<hex> key)."""
+    return (
+        "SELECT t.due FROM timers t JOIN workflow_state w ON w.instance_id = t.instance_id "
+        f"WHERE t.kind = 'catch' AND t.event = '{REMINDER}' AND w.correlation_key = '{key}'"
+    )
+
+
+def _until_rows(sql: str, want, what: str) -> list[str]:
+    deadline = time.monotonic() + POLL_TIMEOUT
+    out = None
+    while time.monotonic() < deadline:
+        out = _psql(sql)
+        rows = out.stdout.split() if out.returncode == 0 else None
+        if rows is not None and want(rows):
+            return rows
+        time.sleep(0.5)
+    pytest.fail(
+        f"{what}: {out}\n--- expense_api logs ---\n{_compose('logs', '--no-color', 'expense_api', check=False).stdout}"
+    )
+
+
+def test_the_overdue_reminder_fires_and_the_task_stays_open(stack, tmp_path):
+    key = f"e2e-{uuid.uuid4().hex[:8]}"
+    r = stack.post(f"/expenses/{key}", data={**EXPENSE, "amount": "250.00"}, headers=ALICE)
+    assert r.status_code == 200, r.text
+    # Approve Expense opens with its non-interrupting PT48H timer armed in the store.
+    (due,) = _until_rows(_armed_sql(key), lambda rows: len(rows) == 1, "the reminder was never armed")
+
+    # Recreate expense_api with its clock 49 hours ahead; the stack's other services stay up.
+    override = tmp_path / "compose.clock.yaml"
+    override.write_text(
+        yaml.safe_dump({"services": {"expense_api": {"environment": {"SEAMS_CLOCK_OFFSET": CLOCK_OFFSET}}}}),
+        encoding="utf-8",
+    )
+    _compose("up", "-d", "--wait", "--no-deps", "expense_api", timeout=UP_TIMEOUT, files=[*FILES, "-f", str(override)])
+
+    # The scheduler fires the reminder once: the row is gone and the run reached its end.
+    _until_rows(_armed_sql(key), lambda rows: rows == [], "the reminder never fired")
+    reached = f"SELECT count(*) FROM workflow_state WHERE correlation_key = '{key}' AND state LIKE '%{REMINDED}%'"
+    _until_rows(reached, lambda rows: rows == ["1"], "the reminder path never reached its end")
+    logs = _compose("logs", "--no-color", "expense_api", check=False).stdout
+    assert "the runtime's clock runs ahead of the system clock (development only)" in logs, logs
+    assert f"timer fire {REMINDER} due {due} instance " in logs, logs
+
+    # Non-interrupting: Approve Expense is still open, and the manager can still decide.
+    open_task = f"SELECT task FROM user_tasks WHERE correlation_key = '{key}'"
+    assert _until_rows(open_task, lambda rows: rows == [APPROVE], "Approve Expense did not stay open") == [APPROVE]
+    r = _post_when_open(stack, f"/expenses/{key}/approval", {"decision": "approved"}, BOB)
+    assert r.status_code == 200, r.text

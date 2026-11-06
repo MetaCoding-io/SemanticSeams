@@ -10,13 +10,19 @@
 # `python -m seams_gen.stubs` wrote that file once; from then on it is owned
 # code, and `seams generate` never touches it.
 #
-# The model also says what the app should do (ADR-0014): nine verify:Scenario
+# The model also says what the app should do (ADR-0014): ten verify:Scenario
 # runs of the approval process (auto, manager and finance routes, the
-# manager's and finance's rejections, both outcomes after the manager's
-# notification fails, and a payment the payout process batches or sends), a
+# manager's and finance's rejections, the manager's overdue reminder,
+# both outcomes after the manager's notification fails, and a payment the payout process batches or sends), a
 # verify:DecisionExample for every rule of approval.dmn and payout.dmn, and a
 # valid and an invalid example of :ExpenseShape. They live at the end of the
 # seams graph, and the tests generator turns each one into a test.
+#
+# The manager's approval task also carries a timer (ADR-0037): the
+# non-interrupting boundary event overdue_reminder, lifted as a
+# proc:TimerCatchEvent, fires once when the task has been open for 48
+# hours (approval.bpmn holds the "PT48H"). It runs its own short path to a
+# "Reminded" end and leaves the task open, so the manager can still decide.
 #
 # The operation also declares how it fails (ADR-0013): one hydra:Status,
 # :notify_failed, with the error code "notify-failed" and a problem+json
@@ -518,6 +524,18 @@
 
     <https://example.org/expenses/approval_bpmn#approve_expense> a proc:UserTask ;
         rdfs:label "Approve Expense" ;
+        seam:inModel :approval_bpmn .
+
+    # Lifted because it is a timer (ADR-0037). Its duration and attachedToRef
+    # stay in approval.bpmn; the runtime checks them when it loads, and the
+    # scheduler fires it once, 48 hours after Approve Expense opens.
+    <https://example.org/expenses/approval_bpmn#overdue_reminder> a proc:TimerCatchEvent ;
+        rdfs:label "Approval overdue" ;
+        seam:inModel :approval_bpmn .
+
+    # Lifted only because :manager_reminded names it as its end event
+    # (ADR-0014); proc has no class for a plain end event, so it has none.
+    <https://example.org/expenses/approval_bpmn#reminder_end> rdfs:label "Reminded" ;
         seam:inModel :approval_bpmn .
 
     <https://example.org/expenses/approval_bpmn#finance_approve_expense> a proc:UserTask ;
@@ -1082,6 +1100,19 @@
                         verify:given [ verify:field :decision ; verify:value "approved" ] ] ) ;
         verify:expectState :s_approved .
 
+    # Up to 1000 the manager is told, then does not decide: once a run's steps
+    # are done, the timers its instance waits on fire, so the overdue reminder
+    # (ADR-0037) runs to its end while the expense stays submitted and
+    # Approve Expense stays open.
+    :manager_reminded a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:expectState :s_submitted ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#reminder_end> .
+
     # Above 1000 finance approves, then pays: the run ends on the paid end
     # event, which publishes on :payouts.
     :finance_approved a verify:Scenario ;
@@ -1239,8 +1270,8 @@
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.5> ,
+                    <https://w3id.org/seams/proc/1.1> ,
+                    <https://w3id.org/seams/seam/1.6> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.1> .
 }

@@ -491,6 +491,80 @@ error path: the 160-character limit, the boundary resolved at load and the load 
 for a mismatched code, the routed trace rows and spans, the problem body, finance's
 approval after the escalation, and the boundary's badge in the viewer.
 
+## Remind the manager
+
+An expense can wait on Bob for days. BPMN can say "if this task is still open after two
+days, do something" with a timer boundary event: a catch event on the edge of the task,
+like the error boundary, whose definition holds a time instead of an error
+([ADR-0037](/adr/0037-timers-and-scheduling)). Attach one to `approve_expense`, and give
+it a short path of its own:
+
+```xml
+<bpmn:boundaryEvent id="overdue_reminder" name="Approval overdue" attachedToRef="approve_expense" cancelActivity="false">
+  <bpmn:outgoing>flow_to_remind</bpmn:outgoing>
+  <bpmn:timerEventDefinition id="overdue_reminder_def">
+    <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">"PT48H"</bpmn:timeDuration>
+  </bpmn:timerEventDefinition>
+</bpmn:boundaryEvent>
+<bpmn:endEvent id="reminder_end" name="Reminded">
+  <bpmn:incoming>flow_to_remind</bpmn:incoming>
+</bpmn:endEvent>
+<bpmn:sequenceFlow id="flow_to_remind" sourceRef="overdue_reminder" targetRef="reminder_end" />
+```
+
+`cancelActivity="false"` makes it non-interrupting: when it fires, the instance runs the
+reminder path and Approve Expense stays open, so Bob can still decide. The duration is one
+quoted ISO 8601 literal, `"PT48H"`, which the runtime can read without running the
+process. A variable, a cron string, a date-time without an offset or a cycle without a
+start date is refused when the runtime loads, naming the event and the expression's
+element, and `seams check` reports the same as a `timer` finding.
+
+The graph says what the element is, and the XML says when it fires. Lift it into the
+process graph as a `proc:TimerCatchEvent`, the class `proc` 1.1 adds, which is why the
+manifest graph above imports `proc/1.1`:
+
+```trig
+    <https://example.org/expenses/approval_bpmn#overdue_reminder> a proc:TimerCatchEvent ;
+        rdfs:label "Approval overdue" ;
+        seam:inModel :approval_bpmn .
+```
+
+When the runtime loads, it checks that the two agree: a boundary attached to a user task,
+with exactly one timer definition holding exactly one expression. It also checks that
+the store keeps a timer table, which SQLite and PostgreSQL do. When an instance reaches
+Approve Expense, the worker writes the reminder's due time (48 hours from then, in UTC)
+to the `timers` table in the same transaction as the checkpoint. Every second the API's
+scheduler leases the rows that are due, fires each one in the instance, and deletes the
+row while it still holds the lease. Two replicas sharing the store fire a reminder once.
+Each firing logs `timer fire <event> due <due> instance <id>` and runs in the
+`seams.timer.claim` and `seams.timer.fire` spans.
+
+The new path shows in `seams sequence :submit_expense` like any other. The note says the
+task stays open:
+
+<<< @/generation/sequences/expenses-chapter-09/submit_expense--manager--overdue_reminder.mmd{mermaid}
+
+Nobody waits 48 hours to see it. The runtime's clock can run ahead of the system clock
+by an ISO 8601 duration in `SEAMS_CLOCK_OFFSET`, a development setting the generated
+compose never writes. With the stack up and an expense waiting on Bob, recreate the API
+with the clock 49 hours ahead, through an override file of your own:
+
+```yaml
+services:
+  expense_api:
+    environment:
+      SEAMS_CLOCK_OFFSET: PT49H
+```
+
+```sh
+docker compose -f examples/expenses/chapter-09/compose.development.yaml -f compose.clock.yaml up -d --wait --no-deps expense_api
+```
+
+Within a second of starting, the API logs the reminder's `timer fire` line, the expense's
+`timers` row is gone, and Bob's approval task is still in `user_tasks`.
+`tests/test_expense_e2e.py` does exactly this against the stack. `tests/test_timer_runtime.py`
+runs the same reminder in process on a stepped clock, with two runtimes sharing one store.
+
 ## Say what it should do
 
 The model now says what the app *is*. It can also say what the app should *do*
@@ -511,8 +585,8 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.5> ,
+                    <https://w3id.org/seams/proc/1.1> ,
+                    <https://w3id.org/seams/seam/1.6> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.1> .
 }
@@ -595,7 +669,7 @@ decision:
 A scenario may only expect an end event that the model lifts into the process graph, so
 `rejected_end` is lifted with a label and `seam:inModel`, as `approved_end` already is.
 
-Four paths are still left. The command lists each by IRI and exits 1. In the viewer,
+Five paths are still left. The command lists each by IRI and exits 1. In the viewer,
 open the Expense Approval process and ask **Which paths does no scenario run?** under
 Questions to see the same paths for that process. Two are the escalations through the
 notify-failed boundary event. A scenario makes Notify Manager's operation fail with a
@@ -642,6 +716,31 @@ takes in that process too, so it can expect the state a payout leaves the paymen
 `:paid_in_batch` pays 200.00 after the manager approves and expects `:s_batched`. Both
 terms came with the 1.1 version of the `verify` vocabulary, so the manifest graph now
 imports `verify/1.1` ([ADR-0014](/adr/0014-scenarios-and-derived-tests), as amended).
+
+The fifth is the reminder's. A scenario needs no new term for it, because a run lets
+the timers its instance waits on fire once its steps are done, as if their due times had
+come. A run with no step on Approve Expense therefore takes the reminder path. It expects
+the reminder's end, which is lifted with a label, as `rejected_end` is:
+
+```trig
+    :manager_reminded a verify:Scenario ;
+        verify:process :approval_process ;
+        verify:actor :employee ;
+        verify:given [ verify:field :description ; verify:value "Train to Leeds" ] ,
+                     [ verify:field :amount ; verify:value 200.00 ] ,
+                     [ verify:field :date ; verify:value "2026-10-01"^^xsd:date ] ;
+        verify:expectState :s_submitted ;
+        verify:expectEndEvent <https://example.org/expenses/approval_bpmn#reminder_end> .
+```
+
+```trig
+    <https://example.org/expenses/approval_bpmn#reminder_end> rdfs:label "Reminded" ;
+        seam:inModel :approval_bpmn .
+```
+
+The expense is still `submitted` after the reminder, and its approval task is still
+open. A scenario that completes Approve Expense never fires the reminder, since
+completing the task cancels its timer.
 Now `seams coverage` lists nothing and exits 0, so chapter 9's `seams.toml` turns the
 paths gate on, and `seams check` fails if a later change leaves a path unrun (see
 [seams coverage](/reference/seams-cli#seams-coverage)):
@@ -881,7 +980,7 @@ still the member's label. Older tools would misread this notation, so the model 
 imports the seam vocabulary at 1.2 or later (1.5 today); the manifest above already shows it:
 
 ```turtle
-                    <https://w3id.org/seams/seam/1.5> ,
+                    <https://w3id.org/seams/seam/1.6> ,
 ```
 
 Run `seams generate --project examples/expenses/chapter-09` again. Every generated form,

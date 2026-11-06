@@ -115,6 +115,20 @@
     <bpmn:sequenceFlow id="flow_to_pay" sourceRef="record_approval" targetRef="pay_expense" />
     <bpmn:sequenceFlow id="flow_to_approved_end" sourceRef="pay_expense" targetRef="approved_end" />
     <bpmn:sequenceFlow id="flow_to_rejected_end" sourceRef="record_rejection" targetRef="rejected_end" />
+
+    <!-- The overdue-approval reminder (ADR-0037): a non-interrupting timer on the
+         manager's approval task. When the task has been open for 48 hours the
+         reminder runs its own path, and the task stays open for the manager. -->
+    <bpmn:boundaryEvent id="overdue_reminder" name="Approval overdue" attachedToRef="approve_expense" cancelActivity="false">
+      <bpmn:outgoing>flow_to_remind</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="overdue_reminder_def">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">"PT48H"</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="reminder_end" name="Reminded">
+      <bpmn:incoming>flow_to_remind</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_remind" sourceRef="overdue_reminder" targetRef="reminder_end" />
   </bpmn:process>
 
   <bpmndi:BPMNDiagram id="diagram">
@@ -225,6 +239,17 @@
       <bpmndi:BPMNEdge id="flow_to_rejected_end_di" bpmnElement="flow_to_rejected_end">
         <di:waypoint x="1080" y="138" />
         <di:waypoint x="1132" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="overdue_reminder_di" bpmnElement="overdue_reminder">
+        <dc:Bounds x="742" y="80" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reminder_end_di" bpmnElement="reminder_end">
+        <dc:Bounds x="832" y="40" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_remind_di" bpmnElement="flow_to_remind">
+        <di:waypoint x="760" y="80" />
+        <di:waypoint x="760" y="58" />
+        <di:waypoint x="832" y="58" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

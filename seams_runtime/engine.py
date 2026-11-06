@@ -33,11 +33,20 @@ boundary, so ``throw_error`` throws an ``ErrorEventDefinition`` with the code
 from the STARTED task, which readies the boundary that catches that code and
 leaves the task STARTED; running the boundary (``is_error_boundary``,
 ``caught_code``) cancels the task.
+
+Timers (ADR-0037): Spiff fires a timer only when it is refreshed after its
+due time by the host's clock, so the runtime's injected clock decides instead.
+``set_due`` writes the due time into the WAITING task's ``event_value``,
+``fire`` marks the task fired and refreshes it (a non-cycle timer, or a timer
+start, goes READY), and ``fire_cycle`` lets a cycle boundary spawn its path
+once while it keeps waiting. ``start_timer`` readies a timer start event in
+a new workflow. Only the task the scheduler claimed is refreshed.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -52,6 +61,7 @@ from SpiffWorkflow.bpmn.serializer.default.task_spec import BpmnTaskSpecConverte
 from SpiffWorkflow.bpmn.specs.defaults import BoundaryEvent, ServiceTask
 from SpiffWorkflow.bpmn.specs.event_definitions import ErrorEventDefinition
 from SpiffWorkflow.bpmn.specs.event_definitions.message import MessageEventDefinition
+from SpiffWorkflow.bpmn.specs.event_definitions.timer import CycleTimerEventDefinition, TimerEventDefinition
 from SpiffWorkflow.bpmn.specs.mixins import BpmnSpecMixin
 from SpiffWorkflow.bpmn.util.event import BpmnEvent
 from SpiffWorkflow.bpmn.workflow import BpmnWorkflow
@@ -450,3 +460,76 @@ class Engine:
                 f"throwing {code!r} from {task.task_spec.bpmn_id!r} readied {len(ready)} such boundary task(s)",
             )
         return ready[0]
+
+    # ── timers (ADR-0037) ──
+
+    @staticmethod
+    def is_timer(task) -> bool:
+        return isinstance(getattr(task.task_spec, "event_definition", None), TimerEventDefinition)
+
+    @classmethod
+    def waiting_timers(cls, wf: BpmnWorkflow) -> list:
+        """The WAITING tasks of BPMN timer events, in Spiff's task order."""
+        return [t for t in wf.get_tasks(state=TaskState.WAITING) if cls.is_timer(t) and t.task_spec.bpmn_id is not None]
+
+    @classmethod
+    def waiting_timer(cls, wf: BpmnWorkflow, task_id: str):
+        """The WAITING timer task with Spiff id ``task_id``, else None."""
+        return next((t for t in cls.waiting_timers(wf) if str(t.id) == task_id), None)
+
+    @staticmethod
+    def set_due(task, due) -> None:
+        """Record the due time (a UTC datetime) as the task's Spiff ``event_value``."""
+        if isinstance(task.task_spec.event_definition, CycleTimerEventDefinition):
+            value = dict(task._get_internal_data("event_value") or {"cycles": -1, "duration": 0.0})
+            value["next"] = due.isoformat()
+            task._set_internal_data(event_value=value)
+        else:
+            task._set_internal_data(event_value=due.isoformat())
+
+    @staticmethod
+    def fire(task) -> None:
+        """Mark a WAITING timer task fired and refresh it: it goes READY."""
+        task._set_internal_data(event_fired=True)
+        task.task_spec._update(task)
+
+    @classmethod
+    def fire_cycle(cls, task, following) -> None:
+        """Let a WAITING cycle boundary spawn its outgoing path once; it keeps
+        waiting, due next at ``following`` (None once the cycle is spent: it
+        never spawns again). Spiff spawns when ``next`` is past by the host's
+        clock, so the claimed firing is presented as long past first."""
+        value = dict(task._get_internal_data("event_value") or {"duration": 0.0})
+        value.update(next=datetime.min.replace(tzinfo=UTC).isoformat(), cycles=-1)
+        task._set_internal_data(event_value=value)
+        task.task_spec._update(task)
+        cls.set_due(task, following if following is not None else datetime.max.replace(tzinfo=UTC))
+
+    @classmethod
+    def start_timer(cls, wf: BpmnWorkflow, start_event: URIRef):
+        """Run Spiff's internal start and fire the timer start event
+        ``start_event`` (``<BPMN model>#<bpmn id>``), leaving it READY for the
+        worker. Returns its task; ``ResolutionError`` when it does not wait on a timer."""
+        start_id = str(start_event).rsplit("#", 1)[-1]
+        for t in [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.bpmn_id is None]:
+            t.run()
+        waiting = [t for t in cls.waiting_timers(wf) if t.task_spec.bpmn_id == start_id]
+        if len(waiting) != 1:
+            raise ResolutionError(
+                start_event,
+                "bpmn:timerEventDefinition",
+                f"a new workflow has {len(waiting)} WAITING timer start task(s) with id {start_id!r}",
+            )
+        task = waiting[0]
+        if isinstance(task.task_spec.event_definition, CycleTimerEventDefinition):
+            # Spiff's cycle start spawns a path per cycle and predicts none; each
+            # firing is its own instance here, so it gets a plain start's outputs.
+            task._sync_children(task.task_spec.outputs, TaskState.FUTURE)
+        cls.fire(task)
+        if task.state != TaskState.READY:
+            raise ResolutionError(
+                start_event,
+                "bpmn:timerEventDefinition",
+                f"timer start event is {TaskState.get_name(task.state)} after it fired",
+            )
+        return task

@@ -517,6 +517,16 @@ with two are refused with `ResolutionError(<event>, bpmn:timerEventDefinition, .
 `Process.timer_events()` in the seams library raises it, and `ModelGraph.scheduling_container`
 names the container.
 
+The runtime then checks each expression when it loads, and `seams check` reports the same
+refusals as `timer` findings. A variable or other Python expression, an unquoted value, a
+cron string, a date-time with no offset, a zero or negative duration, a cycle with no start
+(`R/P1D`) and the `<start>/<end>` interval forms are all refused, naming the expression
+element: `ResolutionError(<event>, bpmn:timeCycle, "cycle has no start date-time: 'R/P1D'")`.
+So are a cycle on an interrupting catch and a duration on a timer start, whose firing would
+count from when a runtime started. A model with timers needs a SQLite or PostgreSQL store,
+where the runtime claims each firing so that it runs once
+([`seams_runtime` README](../../seams_runtime/README.md#timers-adr-0037)).
+
 ### Scenarios and examples
 
 A model can also say what the app should do with a given input, in the `verify:`

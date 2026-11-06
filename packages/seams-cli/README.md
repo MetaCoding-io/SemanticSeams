@@ -132,7 +132,8 @@ memory, leniently, to compare the outputs with the disk and `seams.lock`. Each f
 `<kind> <detail>`, with kind one of `shacl`, `gate`, `missing`, `stale`,
 `hand-edited`, `orphan`, `lock-out-of-date`, `flagged` (the lock records
 faults from `seams generate --lenient`; the lock path and `N fault(s)`), `decision` (the decision or
-sequence flow IRI, the fact and a message), `review` (the shape or path IRI,
+sequence flow IRI, the fact and a message), `timer` (a timer the runtime would
+refuse on load, ADR-0037: the event or process IRI, the fact and a message), `review` (the shape or path IRI,
 the fact and a message), `ontology-superclass` (an ontology class, `rdfs:subClassOf`
 and a superclass declared neither in the ontology nor in a resolved import,
 ADR-0022) and, with `coverage = ["paths"]`,

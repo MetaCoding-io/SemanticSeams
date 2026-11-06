@@ -77,6 +77,20 @@ naming the aggregate and seam:aggregateMember). ``write_aggregate`` validates
 one payload per member shape and writes them all in one
 ``store.transaction()``, or nothing (``AggregateRolledBack``).
 
+Timers (ADR-0037): every lifted proc:TimerStartEvent and proc:TimerCatchEvent
+is joined to its BPMN XML and its expression checked when the runtime is
+built, before any store is opened (``seams_runtime.timers.resolve_timers``,
+``ResolutionError`` naming the event and the expression element). A timer
+start's process needs one seam:schedules container, and the runtime's store
+must be relational (SQLite or PostgreSQL), else ``ResolutionError(<container>,
+seam:schedules)``; timer catches need one too (``ResolutionError(<process>,
+seam:executes)``). A model with timers gets a ``Scheduler`` (``scheduler``),
+whose loop ``start_scheduler`` starts on the running event loop (the host does
+so at startup) and ``stop_scheduler`` stops. ``clock=`` injects its clock
+(tests step it); otherwise ``clock_from_env`` gives the system clock plus any
+``SEAMS_CLOCK_OFFSET``. A firing starts an instance with
+``new_timer_instance``, its correlation key the due time.
+
 Data health (ADR-0036): ``data_health`` resolves the attached profile
 (``seams.resolve_profile``) and runs its instance-data rules, the sh:Warning
 shapes with a sh:sparql constraint, on the stored entities lifted to RDF
@@ -118,6 +132,7 @@ from .policy import Identity, PolicyHook, authenticator_from_env
 from .sempkm import SemPKMStore
 from .store import PostgresStore, SplitStore, SQLiteStore, Store
 from .telemetry import Telemetry, tracer_from_env
+from .timers import Clock, Scheduler, Timer, clock_from_env, resolve_timers
 from .webhooks import WebhookReceiver
 from .worker import RUNNING, Instance, Worker, commit_aggregate, new_state
 
@@ -260,6 +275,29 @@ def resolve_boundaries(model: ModelGraph) -> dict:
     return resolved
 
 
+def check_timer_store(model: ModelGraph, timers: dict, store) -> None:
+    """ADR-0037 section 4: timer claims live in a relational store. A
+    scheduling container whose runtime's store keeps no timer table raises
+    ``ResolutionError(<container>, seam:schedules)``; a process with timer
+    catches, ``ResolutionError(<process>, seam:executes)``."""
+    if not timers or (store.kind in ("sqlite", "postgresql") and callable(getattr(store, "claim_firing", None))):
+        return
+    where = f"the runtime's store {store.location} ({store.kind}) keeps no timer claims"
+    for timer in sorted(timers.values(), key=lambda t: (not t.is_start, str(t.event))):  # the starts first
+        if timer.is_start:
+            container = model.scheduling_container(timer.process)
+            raise ResolutionError(
+                container.iri,
+                SEAM.schedules,
+                f"schedules {timer.process}, but {where}; a timer firing is claimed in a SQLite or PostgreSQL store",
+            )
+        raise ResolutionError(
+            timer.process,
+            SEAM.executes,
+            f"its timer {timer.event} waits in the store, but {where}; use a SQLite or PostgreSQL store",
+        )
+
+
 def resolve_aggregates(model: ModelGraph) -> None:
     """ADR-0035 section 5: every aggregate's members can commit in one store
     transaction. More than one member with one seam:storedIn a deploy:SemPKM
@@ -311,6 +349,8 @@ class Runtime:
         implementations: dict | None = None,
         boundaries: dict | None = None,
         webhooks: list | None = None,
+        timers: dict | None = None,
+        clock: Clock | None = None,
     ):
         self.model = model
         self.store = store
@@ -330,6 +370,9 @@ class Runtime:
         )
         # ADR-0013: lifted error boundaries, checked against the BPMN XML
         self.boundaries = boundaries if boundaries is not None else resolve_boundaries(model)
+        # ADR-0037: lifted timers, checked against the BPMN XML and section 2
+        self.timers = timers if timers is not None else resolve_timers(model)
+        self.clock = clock if clock is not None else clock_from_env()
         # OpenTelemetry spans (D049): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set
         self.telemetry = telemetry if telemetry is not None else tracer_from_env()
         self.worker = Worker(
@@ -343,6 +386,8 @@ class Runtime:
             implementations=self.implementations,
             http=self.http,
             boundaries=self.boundaries,
+            timers=self.timers,
+            clock=self.clock,
         )
         self.worker.on_published = self._on_published
         self.instances: dict[str, Instance] = {}
@@ -353,6 +398,8 @@ class Runtime:
         self.fragments = FragmentRenderer(model, self.templates_dir)
         # ADR-0027: SemPKM webhook channels, resolved before any request is served
         self.webhooks = WebhookReceiver(self, webhooks)
+        # ADR-0037: the scheduler loop; start_scheduler runs it
+        self.scheduler = Scheduler(self, self.timers, self.clock) if self.timers else None
 
     @classmethod
     def load(
@@ -373,6 +420,7 @@ class Runtime:
         http_transport=None,
         http_base_url: str | None = None,
         sempkm_transport=None,
+        clock: Clock | None = None,
     ) -> Runtime:
         override = os.environ.get(MODEL_ENV)
         if override:
@@ -397,6 +445,7 @@ class Runtime:
         boundaries = resolve_boundaries(model)  # ADR-0013, also before the store
         webhooks = model.webhook_channels()  # ADR-0027, also before the store
         resolve_aggregates(model)  # ADR-0035, also before the store, whatever store is used
+        timers = resolve_timers(model)  # ADR-0037, also before the store
         declared = STORE_KINDS[plan.kind]
         override = False
         forced = bool(os.environ.get(STORE_OVERRIDE_ENV)) and store is None
@@ -444,6 +493,7 @@ class Runtime:
                 plan.sempkm.key,
                 plan.sempkm.token_key,
             )
+        check_timer_store(model, timers, store)  # ADR-0037: claims need a relational store
         runtime = cls(
             model,
             store,
@@ -458,6 +508,8 @@ class Runtime:
             implementations=implementations,
             boundaries=boundaries,
             webhooks=webhooks,
+            timers=timers,
+            clock=clock,
         )
         log.info(
             "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",
@@ -652,6 +704,31 @@ class Runtime:
             correlation_key,
         )
         return self._launch(instance)
+
+    def new_timer_instance(self, timer: Timer, due: str, instance_id: str) -> Instance:
+        """A checkpointed instance of ``timer``'s process, its timer start
+        fired for the firing at ``due`` (ADR-0037), which is also its
+        correlation key. The scheduler calls this inside the transaction that
+        inserts the firing row, and launches the instance once it commits."""
+        wf = self.engine.new_workflow(timer.process)
+        task = self.engine.start_timer(wf, timer.event)
+        state = new_state(timer.process, due)
+        state["start"] = {"timer": str(timer.event), "due": due}
+        state["fired"] = {str(task.id): due}
+        wf.data["seams"] = state
+        instance = Instance(instance_id, due, timer.process, wf)
+        self.worker._checkpoint(instance, RUNNING)
+        log.info("started %s instance %s from timer %s due %s", timer.process, instance.id, timer.event, due)
+        return instance
+
+    def start_scheduler(self):
+        """Start the scheduler loop on the running event loop (ADR-0037);
+        None when the model has no timers. Starting it twice runs one loop."""
+        return None if self.scheduler is None else self.scheduler.start()
+
+    async def stop_scheduler(self) -> None:
+        if self.scheduler is not None:
+            await self.scheduler.stop()
 
     def _on_published(self, publisher: Instance, channel) -> list[dict]:
         """Worker rule 6a: start every process subscribed to ``channel``. A

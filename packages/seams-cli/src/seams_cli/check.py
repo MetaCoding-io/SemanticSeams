@@ -33,6 +33,14 @@ is reported and nothing is written.
   nothing upstream sets, or overlapping rules and an uncovered input of a
   UNIQUE decision table (backlog X13). The detail is the subject IRI (the decision or the
   sequence flow), the fact (the property or the variable) and the message.
+- ``timer``: one finding per process whose timers ``Runtime.load`` would
+  refuse (ADR-0037, ``seams_runtime.timers.timer_findings``): a lifted timer
+  the BPMN XML disagrees with, an expression that is not one quoted ISO 8601
+  literal of an accepted form (section 2), a cycle on a catch that interrupts,
+  or a timer start whose process has no single seam:schedules container. The
+  detail is the event (or process) IRI, the fact (``bpmn:timeCycle`` and the
+  like) and the message, so a bad expression is found before deployment. The
+  model loads with the shipped vocabularies, as the runtime and generation load it.
 - ``review``: one finding per fault ``seams.review_findings`` reports
   (backlog R1, M017/S04): lifecycle state labels copied into sh:in, sh:class
   pointing at a sh:NodeShape, a shape without sh:targetClass, or a sh:path
@@ -252,6 +260,14 @@ def check_decisions(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Find
     ]
 
 
+def check_timers(model: Path) -> list[Finding]:
+    """One finding per process whose timers the runtime would refuse: the subject IRI, the fact, then the message.
+    The model loads as ``Runtime.load`` loads it, with the shipped vocabularies, as generation does."""
+    from seams_runtime.timers import timer_findings  # the runtime's own check, so both refuse the same models
+
+    return [Finding("timer", f"{e.subject} {e.predicate} {e.detail}") for e in timer_findings(seams.ModelGraph(model))]
+
+
 def check_review(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
     """One advisory finding per model review fault: the subject IRI, the fact, then the message."""
     return [
@@ -314,6 +330,7 @@ def check_project(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_D
         findings += profiled.findings
     findings += check_migrations(model, ontology_dir) + check_outputs(project, model)
     findings += check_decisions(model, ontology_dir) + check_review(model, ontology_dir)
+    findings += check_timers(model)
     findings += check_ontology(model, ontology_dir)
     findings += check_coverage(project, model, ontology_dir) + check_drafts(project, model, ontology_dir)
     summary = None if profiled is None or profiled.iri is None else (profiled.iri, len(profiled.findings))
@@ -340,6 +357,7 @@ __all__ = [
     "check_profile",
     "check_project",
     "check_review",
+    "check_timers",
     "check_shapes",
     "load_model",
     "model_graph",

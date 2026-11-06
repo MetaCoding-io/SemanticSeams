@@ -695,7 +695,11 @@ def _navigation(event):
 
 
 def _list_link(model: Model, c) -> Link:
-    event = only(c.events())
+    events = c.events()
+    if len(events) != 1:
+        found = ", ".join(str(i) for i in events.iris()) or "none"
+        raise GeneratorError(c.iri, IFML.hasEvent, f"an ifml:List has exactly one event, found {found}")
+    event = events[0]
     navigation = _navigation(event)
     flow = _flow(model, navigation)
     target = navigation.target

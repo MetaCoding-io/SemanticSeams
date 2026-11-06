@@ -2,7 +2,9 @@
 
 Each broken fixture is a copy of an example's model and payloads with one
 mutation (a DMN typeRef, a sh:datatype or a BPMN conditionExpression), and the
-test asserts the exact findings. Every example model yields none.
+test asserts the exact findings. Every example model yields none. The UNIQUE
+table checks (backlog X13, M027/S04) switch an example table's hitPolicy from
+FIRST to UNIQUE, then edit its input entries.
 """
 
 import shutil
@@ -11,7 +13,7 @@ from pathlib import Path
 import pytest
 import seams
 from seams import DecisionFinding, decision_findings
-from seams.decisions_check import condition_findings, condition_names, type_ref_findings
+from seams.decisions_check import condition_findings, condition_names, table_findings, type_ref_findings
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = sorted((ROOT / "examples").rglob("*.trig"))
@@ -195,6 +197,131 @@ def test_condition_names_skip_builtins_constants_and_bound_names() -> None:
         condition_names("route ==")
 
 
+# ── UNIQUE tables: overlap and gaps ──
+
+UNIQUE = ('hitPolicy="FIRST"', 'hitPolicy="UNIQUE"')
+APPROVAL = "UNIQUE table 'approval_routing' in approval.dmn"
+ROUTING = "UNIQUE table 'routing_decision' in routing.dmn"
+
+
+def _unique(src: Path, tmp_path: Path, trig: str, dmn: str, *edits: tuple[str, str]) -> seams.Model:
+    """``src`` copied with ``dmn``'s first table made UNIQUE and each edit applied in turn."""
+    model = _copy(src, tmp_path, trig, {dmn: UNIQUE})
+    target = tmp_path / dmn
+    text = target.read_text()
+    for old, new in edits:
+        assert old in text, f"{old!r} not in {dmn}"
+        text = text.replace(old, new, 1)
+    target.write_text(text)
+    return seams.load(model.path)
+
+
+def _finding(message: str, subject: str = f"{EX}approval_routing") -> DecisionFinding:
+    return DecisionFinding(subject, "dmn:rule", message)
+
+
+def test_overlapping_rules_of_a_unique_table_are_findings(tmp_path: Path) -> None:
+    """Chapter 9's FIRST table relies on rule order: as UNIQUE every pair overlaps."""
+    model = _unique(CH09_DIR, tmp_path, "expenses.trig", "approval.dmn")
+    assert decision_findings(model) == [
+        _finding(f"rules 'rule_auto' and 'rule_finance' of {APPROVAL} both match amount = 99"),
+        _finding(f"rules 'rule_auto' and 'rule_manager' of {APPROVAL} both match amount = 99"),
+        _finding(f"rules 'rule_manager' and 'rule_finance' of {APPROVAL} both match amount = 99"),
+    ]
+
+
+def test_uncovered_input_of_a_unique_table_is_a_finding(tmp_path: Path) -> None:
+    model = _unique(
+        CH09_DIR,
+        tmp_path,
+        "expenses.trig",
+        "approval.dmn",
+        (
+            '<inputEntry id="rule_manager_amount"><text>&lt;= 1000',
+            '<inputEntry id="rule_manager_amount"><text>]100..1000]',
+        ),
+        ('<inputEntry id="rule_finance_amount"><text>-', '<inputEntry id="rule_finance_amount"><text>&gt; 2000'),
+    )
+    assert table_findings(model) == [_finding(f"no rule of {APPROVAL} matches amount = 1500")]
+
+
+def test_boundary_point_left_open_is_a_gap(tmp_path: Path) -> None:
+    model = _unique(
+        CH09_DIR,
+        tmp_path,
+        "expenses.trig",
+        "approval.dmn",
+        ('<inputEntry id="rule_auto_amount"><text>&lt;= 100', '<inputEntry id="rule_auto_amount"><text>&lt; 100'),
+        (
+            '<inputEntry id="rule_manager_amount"><text>&lt;= 1000',
+            '<inputEntry id="rule_manager_amount"><text>(100..1000]',
+        ),
+        ('<inputEntry id="rule_finance_amount"><text>-', '<inputEntry id="rule_finance_amount"><text>&gt; 1000'),
+    )
+    assert table_findings(model) == [_finding(f"no rule of {APPROVAL} matches amount = 100")]
+
+
+def test_disjoint_complete_unique_table_has_no_finding(tmp_path: Path) -> None:
+    model = _unique(
+        CH09_DIR,
+        tmp_path,
+        "expenses.trig",
+        "approval.dmn",
+        (
+            '<inputEntry id="rule_auto_amount"><text>&lt;= 100',
+            '<inputEntry id="rule_auto_amount"><text>&lt;= 100, = 100',
+        ),
+        (
+            '<inputEntry id="rule_manager_amount"><text>&lt;= 1000',
+            '<inputEntry id="rule_manager_amount"><text>]100..1000[',
+        ),
+        ('<inputEntry id="rule_finance_amount"><text>-', '<inputEntry id="rule_finance_amount"><text>&gt;= 1000'),
+    )
+    assert decision_findings(model) == []
+
+
+@pytest.mark.parametrize("entry", ["amount &gt; 1000", "not(1000)", "", '&gt; 1000, "big"'])
+def test_entry_outside_the_subset_skips_the_table(tmp_path: Path, entry: str) -> None:
+    """FEEL the check does not read, an empty entry, or numbers mixed with strings: no guess."""
+    model = _unique(
+        CH09_DIR,
+        tmp_path,
+        "expenses.trig",
+        "approval.dmn",
+        ('<inputEntry id="rule_finance_amount"><text>-', f'<inputEntry id="rule_finance_amount"><text>{entry}'),
+    )
+    assert table_findings(model) == []
+
+
+def test_unique_table_over_strings_and_numbers(tmp_path: Path) -> None:
+    """The chat app's two-input table: the default rule overlaps the long one,
+    and once it lists only "user" every other role is uncovered."""
+    model = _unique(CHAT_DIR, tmp_path, "chat-app.trig", "routing.dmn")
+    overlap = (
+        f"rules 'rule_long' and 'rule_default' of {ROUTING} both match message_role = \"user\", message_length = 4001"
+    )
+    assert table_findings(model) == [_finding(overlap, f"{CHAT}routing_decision")]
+    model = _unique(
+        CHAT_DIR,
+        tmp_path,
+        "chat-app.trig",
+        "routing.dmn",
+        ('<inputEntry id="rule_default_role"><text>-', '<inputEntry id="rule_default_role"><text>"user"'),
+    )
+    gap = f'no rule of {ROUTING} matches message_role not "user", message_length = 3999'
+    assert table_findings(model) == [
+        _finding(gap, f"{CHAT}routing_decision"),
+        _finding(overlap, f"{CHAT}routing_decision"),
+    ]
+
+
+def test_first_tables_are_not_checked(tmp_path: Path) -> None:
+    model = ch09(tmp_path)
+    assert sorted(d.table.hit_policy for d in model.decisions) == ["FIRST", "FIRST"]
+    assert table_findings(model) == []
+
+
 def test_findings_are_exported_from_seams() -> None:
     assert seams.decision_findings is decision_findings
+    assert seams.table_findings is table_findings
     assert seams.DecisionFinding is DecisionFinding

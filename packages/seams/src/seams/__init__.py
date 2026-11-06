@@ -21,8 +21,9 @@ and ``policies_without_deny``.
 
 ``seams.decisions_check`` finds decision faults the runtime would hit
 (backlog K2): ``decision_findings`` lists DMN typeRefs that disagree with
-their input's sh:datatype and gateway conditions that read a variable no
-upstream decision or user task sets.
+their input's sh:datatype, gateway conditions that read a variable no
+upstream decision or user task sets, and overlapping rules and uncovered
+inputs of UNIQUE decision tables (backlog X13, ``table_findings``).
 
 ``seams.review_check`` runs the model review checks (backlog R1):
 ``review_findings`` lists sh:in lists that copy a lifecycle's state labels,
@@ -61,7 +62,13 @@ from .coverage import (
     unexercised_paths,
     unfired_transitions,
 )
-from .decisions_check import DecisionFinding, condition_findings, decision_findings, type_ref_findings
+from .decisions_check import (
+    DecisionFinding,
+    condition_findings,
+    decision_findings,
+    table_findings,
+    type_ref_findings,
+)
 from .dmn import DecisionTable, Rule, TableInput, TableOutput, decision_table, parse_dmn
 from .errors import ResolutionError, SeamsError
 from .graph import (
@@ -294,6 +301,7 @@ __all__ = [
     "question_names",
     "review_findings",
     "shipped_versions",
+    "table_findings",
     "type_ref_findings",
     "unexercised_paths",
     "unfired_transitions",

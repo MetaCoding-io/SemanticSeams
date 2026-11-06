@@ -52,8 +52,9 @@ it: a `seam:` predicate other than `seam:inModel` found in a model graph fails C
    intended source and target.
 7. **Pages are complete enough to generate.** Every component of a page (an
    `ifml:ViewContainer` with an `ifml:path`) has exactly one `ifml:order`, and every
-   `ifml:List` names the shape it shows with `seam:reads`. The generators need both, and
-   the shapes flag a missing one in `seams check` and the viewer's SHACL health panel.
+   `ifml:List` names the shape it shows with `seam:reads` and has exactly one
+   `ifml:hasEvent`, the event its rows raise. The generators need all three, and the
+   shapes flag a missing one in `seams check` and the viewer's SHACL health panel.
 8. **Decisions agree with their data.** A DMN input's `typeRef` matches the
    `sh:datatype` of the shape property its `dec:fromPath` names (`number` for the
    numeric XSD types, `string`, `boolean`, `date`), and every variable a BPMN gateway

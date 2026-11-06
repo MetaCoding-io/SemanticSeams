@@ -29,8 +29,9 @@ is reported and nothing is written.
   flagged lock.
 - ``decision``: one finding per fault ``seams.decision_findings`` reports
   (backlog K2, M017/S02): a DMN input whose typeRef disagrees with the
-  sh:datatype of its dec:fromPath, or a gateway condition reading a variable
-  nothing upstream sets. The detail is the subject IRI (the decision or the
+  sh:datatype of its dec:fromPath, a gateway condition reading a variable
+  nothing upstream sets, or overlapping rules and an uncovered input of a
+  UNIQUE decision table (backlog X13). The detail is the subject IRI (the decision or the
   sequence flow), the fact (the property or the variable) and the message.
 - ``review``: one finding per fault ``seams.review_findings`` reports
   (backlog R1, M017/S04): lifecycle state labels copied into sh:in, sh:class

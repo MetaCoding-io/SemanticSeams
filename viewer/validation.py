@@ -20,7 +20,12 @@ the generator runs one until backlog A10. The model review checks of backlog
 R1 (seams.review_findings()) add one warning each: lifecycle labels copied
 into sh:in, sh:class pointing at a shape, shapes without sh:targetClass and
 undeclared sh:path IRIs. They flag the model for review and never change
-``conforms``, not even when the check itself fails.
+``conforms``, not even when the check itself fails. The static decision checks
+of backlog K2 and X13 (seams.decision_findings()) are warnings the same way:
+DMN typeRefs against sh:datatype, gateway conditions reading unset variables,
+and overlapping rules and uncovered inputs of UNIQUE decision tables. They read
+the BPMN and DMN payloads, whose seam:renderPayload IRIs parsing the TriG has
+already made file: IRIs; a decision whose payload is missing is skipped.
 
 Both build a seams.ModelGraph over the Dataset with the ontology import check
 off: an owl:imports that does not resolve is the health panel's own fact
@@ -187,17 +192,46 @@ def _review_findings(ds: rdflib.Dataset) -> list[dict]:
     ]
 
 
+def _decision_findings(ds: rdflib.Dataset) -> list[dict]:
+    """seams.decision_findings() over the same Dataset, one Warning each with
+    the subject as focusNode and the fact as path. A failure of the check itself is one Warning too, so
+    decision findings never change ``conforms``."""
+    try:
+        findings = seams.decision_findings(seams.ModelGraph(ROOT / "viewer.trig", dataset=ds, check_imports=False))
+    except Exception as err:
+        return [
+            {
+                "focusNode": None,
+                "path": None,
+                "message": f"decision check failed: {err}",
+                "severity": "Warning",
+                "sourceShape": None,
+            }
+        ]
+    return [
+        {
+            "focusNode": f.subject,
+            "path": f.fact,
+            "message": f.message,
+            "severity": "Warning",
+            "sourceShape": None,
+        }
+        for f in findings
+    ]
+
+
 def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) -> dict:
     """Validate the dataset (plus ontology closure) against seam-shapes.ttl,
-    then run the storage health and model review checks. With a ``profile``, its
-    shapes join the seam shapes and out-of-profile classes are warnings.
+    then run the storage health, decision and model review checks. With a
+    ``profile``, its shapes join the seam shapes and out-of-profile classes are
+    warnings.
 
     Returns {"conforms": bool, "violationCount": int, "violations": list[dict],
     "warnings": list[dict], "notes": list[dict]}. Each entry carries focusNode,
     path, message, severity, and sourceShape (focusNode, path and sourceShape
     may be None). Store violations join ``violations`` and make the model not
-    conform; warnings (SHACL sh:Warning results, then store, replica, review and
-    out-of-profile findings, in that order) and notes do not change ``conforms``.
+    conform; warnings (SHACL sh:Warning results, then store, replica, decision,
+    review and out-of-profile findings, in that order) and notes do not change ``conforms``.
     """
     key = (id(ds), None if profile is None else id(profile))
     if key in _cache:
@@ -228,7 +262,12 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
 
     store = _store_findings(ds)
     violations += [f for f in store if f["severity"] == "Violation"]
-    warnings = shape_warnings + [f for f in store if f["severity"] == "Warning"] + _review_findings(ds)
+    warnings = (
+        shape_warnings
+        + [f for f in store if f["severity"] == "Warning"]
+        + _decision_findings(ds)
+        + _review_findings(ds)
+    )
     if profile is not None:
         warnings += _out_of_profile(ds, union, profile)
     notes = [f for f in store if f["severity"] == "Info"]

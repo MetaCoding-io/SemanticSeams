@@ -391,6 +391,26 @@ def test_a_condition_reading_an_unset_variable_is_a_decision_finding(tmp_path, c
     assert " routing " in decision[0]
 
 
+def test_overlapping_rules_of_a_unique_table_are_decision_findings(tmp_path, capsys):
+    """Backlog X13 (seams.table_findings): chapter 9's FIRST approval table as UNIQUE."""
+    app = _chapter_9(tmp_path)
+    dmn = app / "approval.dmn"
+    text = dmn.read_text(encoding="utf-8")
+    assert 'hitPolicy="FIRST"' in text
+    dmn.write_text(text.replace('hitPolicy="FIRST"', 'hitPolicy="UNIQUE"', 1), encoding="utf-8")
+    code, lines, _err = _check(app, capsys)
+    assert code == 1
+    table = "of UNIQUE table 'approval_routing' in approval.dmn both match amount = 99"
+    assert [line for line in lines if line.startswith("decision ")] == [
+        f"decision https://example.org/expenses/approval_routing dmn:rule rules {pair} {table}"
+        for pair in (
+            "'rule_auto' and 'rule_finance'",
+            "'rule_auto' and 'rule_manager'",
+            "'rule_manager' and 'rule_finance'",
+        )
+    ]
+
+
 def test_coverage_unset_adds_no_findings(tmp_path, capsys):
     app = _chapter_9(tmp_path)
     _unset_coverage(app)

@@ -158,6 +158,7 @@ The stub the generator wrote for handlers/notify.py, as DATA.
 # model-hash: sha256:<model-hash>
 # context-hash: sha256:<context-hash>
 
+from decimal import Decimal
 from typing import NotRequired, TypedDict
 
 
@@ -165,7 +166,7 @@ class ExpenseShape(TypedDict):
     """:ExpenseShape (sh:NodeShape): one key per sh:property."""
 
     description: str
-    amount: float
+    amount: Decimal
     date: str
     status: NotRequired[str]
     id: NotRequired[str]

@@ -122,7 +122,7 @@ It writes nothing (D044, `check.py`). It validates the model, unioned with
 `ontology/*.ttl`, against `ontology/shapes/seam-shapes.ttl`; runs each gate
 query over the same graph; checks each decision statically (a DMN `typeRef`
 against its input's `sh:datatype`, gateway conditions against the variables set
-upstream); reviews the model (`seams.review_findings`: lifecycle state labels
+upstream, overlapping rules and uncovered inputs of a `UNIQUE` table); reviews the model (`seams.review_findings`: lifecycle state labels
 copied into `sh:in`, `sh:class` pointing at a shape, a shape without
 `sh:targetClass`, a `sh:path` nothing declares); and runs every generator in
 memory, leniently, to compare the outputs with the disk and `seams.lock`. Each finding prints to stdout as

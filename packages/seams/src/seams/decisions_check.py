@@ -1,6 +1,6 @@
 """Static checks for decisions (backlog K2): faults the runtime would hit.
 
-``decision_findings(model)`` asks two questions and returns one
+``decision_findings(model)`` asks three questions and returns one
 ``DecisionFinding`` (subject IRI, fact, message) per fault, sorted:
 
 - **typeRef against sh:datatype.** For each dec:Decision with a
@@ -29,8 +29,28 @@
   is the sequence flow's IRI (``<bpmn model>#<flow id>``), the fact the
   variable name, or the expression itself when it does not parse.
 
-Neither question needs vocabulary beyond what the engine already reads
-(principle 4), and both read the BPMN and DMN in their native XML
+- **UNIQUE tables are complete and disjoint** (backlog X13). Spiff stops at
+  the first rule of a UNIQUE table that matches and gives no output when none
+  does, so overlapping rules and uncovered inputs only show at run time. For
+  each decision table whose hitPolicy is UNIQUE (the DMN default), every
+  inputEntry is read as a set of values: ``-`` (any), a number comparison
+  (``< 5``, ``<= 5``, ``> 5``, ``>= 5``, ``= 5`` or ``5``), a range
+  (``[a..b]``, ``(a..b)``, ``]a..b[`` and mixed brackets), a quoted string,
+  or a comma list of these, all numbers or all strings. A table with any
+  other entry (FEEL beyond this subset, an empty entry, numbers and strings
+  in one input) is skipped rather than guessed at. Each input's values are
+  cut into cells at the boundary numbers its entries name (each boundary, the
+  span between two, below the lowest and above the highest), or into its
+  listed strings plus any other string; every entry holds or misses a whole
+  cell. Two rules overlap when, on every input, some cell matches both: one
+  finding per pair, naming both rule ids and an input they both match. A gap
+  is a combination of cells no rule matches: one finding per table, naming
+  the first such input in cell order. The subject is the decision, the fact
+  ``dmn:rule``. A decision that cannot be read gives no finding here; the
+  typeRef check reports it.
+
+None of the questions needs vocabulary beyond what the engine already reads
+(principle 4), and all read the BPMN and DMN in their native XML
 (principle 3). A decision or process whose payload file is missing is
 skipped: there is no XML to check, and the missing payload is a fault of its
 own that loading the payload reports. Any other ``ResolutionError`` met
@@ -45,13 +65,17 @@ from __future__ import annotations
 
 import ast
 import builtins
-from collections.abc import Iterable
+import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
+from fractions import Fraction
 from typing import TYPE_CHECKING
 
 from rdflib import XSD, URIRef
 
 from .bpmn import BpmnNode
+from .dmn import DecisionTable, Rule
 from .errors import ResolutionError
 from .namespaces import DEC, SEAM, local_name
 from .views import Decision, FlowNode, Process, Shape
@@ -276,9 +300,197 @@ def condition_findings(model: Model) -> list[DecisionFinding]:
     return sorted(found)
 
 
+# ── UNIQUE tables: overlap and gaps ──
+
+_NUMBER = r"-?\d+(?:\.\d+)?"
+_COMPARISON = re.compile(rf"(<=|>=|<|>|=)?\s*({_NUMBER})")
+_RANGE = re.compile(rf"([\[(\]])\s*({_NUMBER})\s*\.\.\s*({_NUMBER})\s*([\])\[])")
+_STRING = re.compile(r'"([^"\\]*)"')
+
+
+@dataclass(frozen=True)
+class _Range:
+    """Numbers between ``lo`` and ``hi`` (None: unbounded), each end closed or open."""
+
+    lo: Fraction | None
+    lo_closed: bool
+    hi: Fraction | None
+    hi_closed: bool
+
+    def holds(self, value: Fraction) -> bool:
+        if self.lo is not None and (value < self.lo or (value == self.lo and not self.lo_closed)):
+            return False
+        return not (self.hi is not None and (value > self.hi or (value == self.hi and not self.hi_closed)))
+
+
+#: An inputEntry read as a set: None is ``-`` (any value), a tuple of ranges a
+#: set of numbers, a frozenset the strings it lists.
+_Entry = tuple[_Range, ...] | frozenset[str] | None
+
+#: One cell of an input's values: a representative (a number, a listed string,
+#: or None for any other value) and how a finding writes it.
+_Cell = tuple[Fraction | str | None, str]
+
+
+def _split(text: str) -> list[str]:
+    """``text`` split at the commas outside quotes, each part stripped."""
+    parts: list[str] = []
+    current: list[str] = []
+    quoted = False
+    for char in text:
+        if char == '"':
+            quoted = not quoted
+        if char == "," and not quoted:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current).strip())
+    return parts
+
+
+def _number_atom(atom: str) -> _Range | None:
+    if match := _COMPARISON.fullmatch(atom):
+        op, value = match.group(1) or "=", Fraction(Decimal(match.group(2)))
+        if op == "=":
+            return _Range(value, True, value, True)
+        if op.startswith("<"):
+            return _Range(None, False, value, op == "<=")
+        return _Range(value, op == ">=", None, False)
+    if match := _RANGE.fullmatch(atom):
+        lo, hi = Fraction(Decimal(match.group(2))), Fraction(Decimal(match.group(3)))
+        return _Range(lo, match.group(1) == "[", hi, match.group(4) == "]")
+    return None
+
+
+def _entry(text: str) -> _Entry:
+    """The entry's set; ValueError when it is outside the subset the check reads."""
+    if text == "-":
+        return None
+    atoms = _split(text)
+    strings = [m.group(1) for a in atoms if (m := _STRING.fullmatch(a))]
+    if len(strings) == len(atoms):
+        return frozenset(strings)
+    ranges = [r for a in atoms if (r := _number_atom(a)) is not None]
+    if len(ranges) == len(atoms):
+        return tuple(ranges)
+    raise ValueError(f"inputEntry {text!r} is outside the subset the check reads")
+
+
+def _matches(entry: _Entry, value: Fraction | str | None) -> bool:
+    if entry is None:
+        return True
+    if isinstance(entry, frozenset):
+        return isinstance(value, str) and value in entry
+    return isinstance(value, Fraction) and any(r.holds(value) for r in entry)
+
+
+def _number_text(value: Fraction) -> str:
+    if value.denominator == 1:
+        return str(value.numerator)
+    return str(Decimal(value.numerator) / Decimal(value.denominator))
+
+
+def _cells(entries: Sequence[_Entry]) -> list[_Cell] | None:
+    """An input's cells in value order, or None when its entries mix numbers and strings."""
+    numbers = [e for e in entries if isinstance(e, tuple)]
+    strings = [e for e in entries if isinstance(e, frozenset)]
+    if numbers and strings:
+        return None
+    if strings:
+        listed = sorted({s for e in strings for s in e})
+        others = ", ".join(f'"{s}"' for s in listed)
+        cells: list[_Cell] = [(s, f'= "{s}"') for s in listed]
+        return [*cells, (None, f"not {others}")]
+    if not numbers:
+        return [(None, "= anything")]
+    points = sorted({p for e in numbers for r in e for p in (r.lo, r.hi) if p is not None})
+    values = [points[0] - 1]
+    for low, high in zip(points, points[1:], strict=False):
+        values += [low, (low + high) / 2]
+    values += [points[-1], points[-1] + 1]
+    return [(v, f"= {_number_text(v)}") for v in values]
+
+
+def _witness(names: Sequence[str], cells: Sequence[_Cell]) -> str:
+    return ", ".join(f"{name} {text}" for name, (_value, text) in zip(names, cells, strict=True))
+
+
+def _gap(rules: Sequence[tuple[Rule, tuple[_Entry, ...]]], cells: Sequence[list[_Cell]]) -> list[_Cell] | None:
+    """The first combination of cells, in cell order, that no rule matches."""
+    chosen: list[_Cell] = []
+
+    def search(depth: int, alive: list[int]) -> bool:
+        if not alive:
+            chosen.extend(cells[i][0] for i in range(depth, len(cells)))
+            return True
+        if depth == len(cells):
+            return False
+        for cell in cells[depth]:
+            chosen.append(cell)
+            if search(depth + 1, [r for r in alive if _matches(rules[r][1][depth], cell[0])]):
+                return True
+            chosen.pop()
+        return False
+
+    return chosen if search(0, list(range(len(rules)))) else None
+
+
+def _unique_table_findings(subject: str, table: DecisionTable, dmn: str) -> list[DecisionFinding]:
+    try:
+        parsed = [(rule, tuple(_entry(text) for text in rule.inputs)) for rule in table.rules]
+    except ValueError:
+        return []
+    cells: list[list[_Cell]] = []
+    for i in range(len(table.inputs)):
+        input_cells = _cells([entries[i] for _rule, entries in parsed])
+        if input_cells is None:
+            return []
+        cells.append(input_cells)
+    names = [i.expression or i.label or i.id for i in table.inputs]
+    where = f"UNIQUE table {table.decision_id!r} in {dmn}"
+    found: list[DecisionFinding] = []
+    for a, (rule_a, entries_a) in enumerate(parsed):
+        for rule_b, entries_b in parsed[a + 1 :]:
+            shared: list[_Cell] = []
+            for i, input_cells in enumerate(cells):
+                both = [c for c in input_cells if _matches(entries_a[i], c[0]) and _matches(entries_b[i], c[0])]
+                if not both:
+                    break
+                shared.append(both[0])
+            else:
+                found.append(
+                    DecisionFinding(
+                        subject,
+                        "dmn:rule",
+                        f"rules {rule_a.id!r} and {rule_b.id!r} of {where} both match {_witness(names, shared)}",
+                    )
+                )
+    gap = _gap(parsed, cells)
+    if gap is not None:
+        found.append(DecisionFinding(subject, "dmn:rule", f"no rule of {where} matches {_witness(names, gap)}"))
+    return found
+
+
+def table_findings(model: Model) -> list[DecisionFinding]:
+    """Every overlapping rule pair and one uncovered input of each UNIQUE decision table."""
+    found: list[DecisionFinding] = []
+    for decision in model.decisions:
+        if model.ds.value(decision.iri, DEC.payloadElement) is None:
+            continue
+        try:
+            table = decision.table
+            dmn = decision.dmn_path.name
+        except ResolutionError:
+            continue
+        if table.hit_policy == "UNIQUE":
+            found.extend(_unique_table_findings(str(decision.iri), table, dmn))
+    return sorted(found)
+
+
 def decision_findings(model: Model) -> list[DecisionFinding]:
-    """Both checks' findings, sorted by subject, fact and message."""
-    return sorted(type_ref_findings(model) + condition_findings(model))
+    """The three checks' findings, sorted by subject, fact and message."""
+    return sorted(type_ref_findings(model) + condition_findings(model) + table_findings(model))
 
 
 __all__ = [
@@ -287,5 +499,6 @@ __all__ = [
     "condition_findings",
     "condition_names",
     "decision_findings",
+    "table_findings",
     "type_ref_findings",
 ]

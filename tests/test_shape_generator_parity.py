@@ -400,6 +400,18 @@ CASES = [
         "ifml:List must read",
     ),
     Case(
+        "list-without-event",
+        Site("htmx", "_list_link", "IFML.hasEvent"),
+        CHAT_TRIG,
+        lambda ds: _remove(_chat_ifml(ds), CHAT.conversation_list, IFML.hasEvent),
+        "htmx",
+        CHAT.conversation_list,
+        IFML.hasEvent,
+        CHAT.conversation_list,
+        IFML.hasEvent,
+        "an ifml:List has exactly one event",
+    ),
+    Case(
         "details-without-reads",
         Site("htmx", "_component", "SEAM.reads", "Details"),
         CHAT_TRIG,

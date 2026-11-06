@@ -167,7 +167,12 @@ K2) and returns a sorted list of `DecisionFinding` (`subject`, `fact`,
 `message`): `type_ref_findings` flags a DMN input whose `typeRef` does not
 accept the `sh:datatype` of its `dec:fromPath`, and `condition_findings` flags
 a BPMN condition that reads a variable no upstream business-rule or user task
-sets. `seams check` reports them as `decision` findings.
+sets, and `table_findings` (backlog X13) flags each pair of overlapping rules of
+a `UNIQUE` decision table and its first uncovered input, naming the rules or the
+input (fact `dmn:rule`). It reads input entries that are `-`, number
+comparisons, ranges, quoted strings or comma lists of these; a table with any
+other entry is skipped, not guessed at. `seams check` reports them as
+`decision` findings.
 
 `seams.review_findings(model)` runs the model review checks (backlog R1) and
 returns a sorted list of `ReviewFinding` (`subject`, `fact`, `message`). It

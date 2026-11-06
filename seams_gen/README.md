@@ -250,7 +250,7 @@ free property's datatype, so a shape in either notation renders the same bytes
 | `ifml:Details` | `<section aria-label="rdfs:label"><ol id="<component>_items">`, looping with the singular shape name (`{% for message in messages %}`); `<li class>` is the shape's `rdfs:label` lowercased. Each `ifml:hasParameter` becomes a `data-<name>` attribute. |
 | Field elements | The read shape's datatype `sh:property`s by `sh:order`: `dash:editor dash:TextAreaEditor` → `<p>`; `sh:datatype xsd:dateTime` → `<time datetime>`; anything else (including fields with options) → `<span class="<field name>">`. Object-valued (`sh:class`) properties are not rendered. |
 | Swap → target | The `ifml:NavigationFlow` from the event: `ifml:swap ifml:Replace` → `hx-swap="outerHTML"`, `hx-target="#<target>"`; `ifml:Append` → `beforeend`, `#<target>_items`; `ifml:Prepend` → `afterbegin`, `#<target>_items` (the rule on `ifml:swap` in `ontology/ifml.ttl`). |
-| List link | The `GET` operation that `seam:rendersComponent` the flow target gives `hx-get`: its `comm:path` `hydra:template`, each `{variable}` filled as `{{ item.<hydra:property local name> }}`. `hx-trigger` is the event's `ifml:trigger`. |
+| List link | The List's one `ifml:hasEvent` (none or several: `GeneratorError(<list>, ifml:hasEvent)`, which `seamsh:ListEventShape` reports first). The `GET` operation that `seam:rendersComponent` the flow target gives `hx-get`: its `comm:path` `hydra:template`, each `{variable}` filled as `{{ item.<hydra:property local name> }}`. `hx-trigger` is the event's `ifml:trigger`. |
 | `hx-vals` | Each `ifml:ParameterBinding` of an `ifml:DataFlow` from the List to the flow target: `"<targetParameter label>": "{{ item.<mapped property> }}"`. The parameter must be a path variable of the read operation. |
 | SSE placement | A `comm:Channel` with `comm:transport comm:SSE` that the presenting container `seam:consumes` adds the htmx sse extension script to `<head>`, and a `<div hx-ext="sse">` inside the component whose `seam:reads` equals the channel's `seam:acceptsShape`: `sse-connect` from its `comm:path`, `sse-swap` from `comm:eventName`, `hx-swap="beforeend"` (the channel rule), and a comment naming the delta publisher: of the elements that `seam:publishesTo` the channel, the one that `seam:invokes` an operation, else the sole publisher (exactly one is required). |
 | `seam:visibleWhen` guard | `{% if <shape>_state == "<state rdfs:label>" %}` around the component, or `{% if <shape>_state in ("<label>", ...) %}` with the labels sorted when `seam:visibleWhen` has several states. `<shape>` is the read shape's local name lowercased minus `Shape` (the rule on `seam:visibleWhen` in `ontology/seam.ttl`). Every state must be a `state:hasState` of the shape's `seam:lifecycle`. This is the only conditional a generated page contains. |
@@ -643,7 +643,7 @@ to 86. `most-reached.rq` ends in `LIMIT 5`, but SPARQL orders ties arbitrarily, 
 ```python
 from seams_gen.complexity import load_model, measure
 r = measure(load_model("examples/checkout.trig"))
-r.multi_model_notations, r.max_reach, r.edges, r.failures   # 1, 4, 37, [...]
+r.multi_model_notations, r.max_reach, r.edges, r.failures   # 1, 4, 42, [...]
 ```
 
 ## Sequence diagrams

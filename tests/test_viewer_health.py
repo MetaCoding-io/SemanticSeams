@@ -3,9 +3,11 @@
 Exercises viewer.validation.get_model_conformance() against the real loaded
 chat-app model (conforming) and a deliberately broken in-memory Dataset
 (non-conforming), plus the per-dataset cache behavior, the storage health
-findings and the model review warnings (backlog R1).
+findings, the static decision warnings (backlog K2, X13) and the model review
+warnings (backlog R1).
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -271,6 +273,54 @@ def test_review_findings_never_change_conforms():
         ("https://example.org/review/name", SH_PATH),
     ]
     assert result["warnings"] == _review_warnings(ds)
+
+
+def _unique_chapter_09(tmp_path: Path) -> rdflib.Dataset:
+    """Chapter 9 copied to tmp_path with approval.dmn's FIRST table made UNIQUE."""
+    src = ROOT / "examples/expenses/chapter-09"
+    for path in [src / "expenses.trig", *src.glob("*.bpmn"), *src.glob("*.dmn")]:
+        shutil.copy(path, tmp_path / path.name)
+    dmn = tmp_path / "approval.dmn"
+    dmn.write_text(dmn.read_text().replace('hitPolicy="FIRST"', 'hitPolicy="UNIQUE"', 1))
+    return _dataset(files=(tmp_path / "expenses.trig",))
+
+
+def test_overlapping_unique_table_rules_are_warnings(tmp_path):
+    """seams.decision_findings reads the copied DMN: each overlapping rule pair
+    of a UNIQUE table is one Warning on the decision, just before the review
+    findings, and the model still conforms."""
+    ds = _unique_chapter_09(tmp_path)
+    result = validation.get_model_conformance(ds)
+    assert result["conforms"] is True
+    table = "of UNIQUE table 'approval_routing' in approval.dmn both match amount = 99"
+    decision = [w for w in result["warnings"] if w["path"] == "dmn:rule"]
+    assert decision == [
+        {
+            "focusNode": "https://example.org/expenses/approval_routing",
+            "path": "dmn:rule",
+            "message": f"rules {a!r} and {b!r} {table}",
+            "severity": "Warning",
+            "sourceShape": None,
+        }
+        for a, b in [("rule_auto", "rule_finance"), ("rule_auto", "rule_manager"), ("rule_manager", "rule_finance")]
+    ]
+    assert result["warnings"][-len(_review_warnings(ds)) - len(decision) :][: len(decision)] == decision
+
+
+def test_failing_decision_check_is_one_warning(monkeypatch):
+    def boom(model):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(validation.seams, "decision_findings", boom)
+    result = validation.get_model_conformance(viewer_app.get_graph())
+    assert result["conforms"] is True
+    assert {
+        "focusNode": None,
+        "path": None,
+        "message": "decision check failed: boom",
+        "severity": "Warning",
+        "sourceShape": None,
+    } in result["warnings"]
 
 
 def test_failing_review_check_is_one_warning(monkeypatch):

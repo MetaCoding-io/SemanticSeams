@@ -1,0 +1,116 @@
+{
+  "generator": "htmx",
+  "lines": [
+    {
+      "line": 1,
+      "templates": [
+        "htmx_fragment.html.j2:6"
+      ],
+      "terms": [
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "line": 2,
+      "templates": [
+        "htmx_fragment.html.j2:7"
+      ],
+      "terms": [
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "line": 3,
+      "templates": [
+        "htmx_fragment.html.j2:8"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 4,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:4"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 5,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 6,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 7,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 8,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 9,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    },
+    {
+      "line": 10,
+      "templates": [
+        "htmx_fragment.html.j2:10",
+        "htmx_item.html.j2:14"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/expense_list"
+      ]
+    }
+  ],
+  "output": "expense_list_item.html",
+  "trace_version": 1
+}

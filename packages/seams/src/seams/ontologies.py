@@ -1,14 +1,19 @@
 """Ontology imports: the ADR-0022 offline resolution of ``owl:imports``.
 
 A ``seam:Ontology`` model is also an ``owl:Ontology``, and its ``owl:imports``
-name the version IRIs of the ontologies it builds on (gist). Nothing is fetched:
-the imports resolve against the files in ``<ontology_dir>/vendor/*.ttl``, each
-indexed by the ``owl:Ontology`` IRI and the ``owl:versionIRI`` in its own header.
-Per import, in sorted (ontology, import) order:
+name the version IRIs of the ontologies it builds on (gist, or another
+context's ontology). Nothing is fetched: the imports resolve first against the
+other ``seam:Ontology`` models in the same Dataset, each indexed by its
+``owl:versionIRI`` (ADR-0030 section 4), then against the files in
+``<ontology_dir>/vendor/*.ttl``, each indexed by the ``owl:Ontology`` IRI and
+the ``owl:versionIRI`` in its own header. Per import, in sorted (ontology,
+import) order:
 
+- the version IRI of another ontology model in the Dataset **resolves** to that
+  model;
 - the version IRI of a vendored file **resolves** to that file;
-- the bare ontology IRI of a vendored file, or an IRI that starts with it, is a
-  **version mismatch**;
+- the bare IRI of an ontology model in the Dataset or of a vendored file, or an
+  IRI that starts with it, is a **version mismatch**;
 - a SemanticSeams vocabulary version is **misplaced** (those belong in the
   manifest graph, ADR-0021);
 - anything else is **unresolved**.
@@ -45,24 +50,34 @@ class VendoredOntology(NamedTuple):
     path: Path
 
 
+class DatasetOntology(NamedTuple):
+    """A ``seam:Ontology`` model of the Dataset another one may import: its
+    model IRI (also its ``owl:Ontology`` IRI) and its ``owl:versionIRI``."""
+
+    ontology: URIRef
+    version: URIRef
+
+
 class ImportStatus(NamedTuple):
-    """One ``owl:imports`` of a ``seam:Ontology`` model. ``vendored`` is the
-    file it resolves to (None when it does not), ``detail`` the fault ("" when
-    it resolves)."""
+    """One ``owl:imports`` of a ``seam:Ontology`` model. ``dataset`` is the
+    ontology model of the same Dataset it resolves to, ``vendored`` the file it
+    resolves to (both None when it does not resolve), ``detail`` the fault (""
+    when it resolves)."""
 
     ontology: URIRef
     imported: URIRef
     vendored: VendoredOntology | None
     detail: str
+    dataset: DatasetOntology | None = None
 
     @property
     def resolved(self) -> bool:
-        return self.vendored is not None
+        return self.vendored is not None or self.dataset is not None
 
     @property
     def error(self) -> ResolutionError | None:
         """``ResolutionError(ontology, owl:imports, detail)``, or None when it resolves."""
-        return None if self.vendored is not None else ResolutionError(self.ontology, OWL.imports, self.detail)
+        return None if self.resolved else ResolutionError(self.ontology, OWL.imports, self.detail)
 
 
 def vendored_ontologies(ontology_dir: str | Path) -> tuple[VendoredOntology, ...]:
@@ -116,8 +131,33 @@ def ontology_models(ds: Dataset) -> list[URIRef]:
     return sorted({m for m in ds.subjects(SEAM.notation, SEAM.Ontology) if isinstance(m, URIRef)}, key=str)
 
 
-def _status(ontology: URIRef, imported: URIRef, vendored: tuple[VendoredOntology, ...]) -> ImportStatus:
+def dataset_ontologies(ds: Dataset) -> tuple[DatasetOntology, ...]:
+    """Each ``seam:Ontology`` model in ``ds`` with exactly one ``owl:versionIRI``,
+    sorted by version IRI (the shapes require exactly one; ADR-0022)."""
+    found: list[DatasetOntology] = []
+    for model in ontology_models(ds):
+        versions = sorted({v for v in ds.objects(model, OWL.versionIRI) if isinstance(v, URIRef)}, key=str)
+        if len(versions) == 1:
+            found.append(DatasetOntology(model, versions[0]))
+    return tuple(sorted(found, key=lambda d: str(d.version)))
+
+
+def _status(
+    ontology: URIRef,
+    imported: URIRef,
+    local: tuple[DatasetOntology, ...],
+    vendored: tuple[VendoredOntology, ...],
+) -> ImportStatus:
     text = str(imported)
+    for d in local:
+        if imported == d.version and d.ontology != ontology:
+            return ImportStatus(ontology, imported, None, "", d)
+    # An ontology model of the Dataset the import starts with (the longest): a version it does not hold.
+    family = sorted((d for d in local if text.startswith(str(d.ontology))), key=lambda d: -len(str(d.ontology)))
+    if family and family[0].ontology != ontology:
+        held = family[0]
+        detail = f"imports <{text}>; the dataset's {local_name(held.ontology)} is version <{held.version}>"
+        return ImportStatus(ontology, imported, None, detail)
     for v in vendored:
         if imported == v.version:
             return ImportStatus(ontology, imported, v, "")
@@ -137,23 +177,34 @@ def _status(ontology: URIRef, imported: URIRef, vendored: tuple[VendoredOntology
 def import_statuses(ds: Dataset, ontology_dir: str | Path | None) -> tuple[ImportStatus, ...]:
     """The status of every ``owl:imports`` of every ``seam:Ontology`` model in
     ``ds``, sorted by (ontology, import). Without ``ontology_dir`` nothing is
-    vendored, so every import is unresolved."""
+    vendored, so only an import of another ontology model in ``ds`` resolves."""
     vendored = vendored_ontologies(ontology_dir) if ontology_dir is not None else ()
+    local = dataset_ontologies(ds)
     out: list[ImportStatus] = []
     for ontology in ontology_models(ds):
         imports = sorted({i for i in ds.objects(ontology, OWL.imports) if isinstance(i, URIRef)}, key=str)
-        out.extend(_status(ontology, imported, vendored) for imported in imports)
+        out.extend(_status(ontology, imported, local, vendored) for imported in imports)
     return tuple(out)
 
 
 def check_imports(ds: Dataset, ontology_dir: str | Path) -> tuple[VendoredOntology, ...]:
-    """Resolve every ontology import in ``ds`` against ``ontology_dir/vendor``.
-    Returns the vendored ontologies imported, sorted by version IRI; the first
+    """Resolve every ontology import in ``ds`` against the other ontology models
+    in ``ds``, then ``ontology_dir/vendor``. Returns the vendored ontologies
+    imported, sorted by version IRI (see ``dataset_imports`` for the ones the
+    Dataset holds); the first
     fault, in (ontology, import) order, raises ``ResolutionError(<ontology>,
     owl:imports, detail)``."""
     resolved: dict[URIRef, VendoredOntology] = {}
     for status in import_statuses(ds, ontology_dir):
-        if status.vendored is None:
+        if not status.resolved:
             raise ResolutionError(status.ontology, OWL.imports, status.detail)
-        resolved[status.vendored.version] = status.vendored
+        if status.vendored is not None:
+            resolved[status.vendored.version] = status.vendored
     return tuple(resolved[k] for k in sorted(resolved, key=str))
+
+
+def dataset_imports(statuses: tuple[ImportStatus, ...]) -> tuple[DatasetOntology, ...]:
+    """The ontology models of the Dataset that ``statuses`` resolve to, once
+    each, sorted by version IRI."""
+    found = {s.dataset.version: s.dataset for s in statuses if s.dataset is not None}
+    return tuple(found[k] for k in sorted(found, key=str))

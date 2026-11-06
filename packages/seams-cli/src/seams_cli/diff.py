@@ -21,6 +21,13 @@ response.
   matched by IRI. Added is compatible; removed, or a changed target, breaking.
 - A shape change is also in the ``contract`` scope when an operation in either
   model accepts or returns that shape.
+- Between two loaded models each change names the downstream contexts it reaches
+  (ADR-0032 section 2): the subject's models (its ``seam:inModel``, else the
+  ``seam:Model`` declared in each graph that types it), the arch:BoundedContexts that
+  ``seam:owns`` them, then every ``arch:downstream`` of a relationship whose
+  ``arch:upstream`` is one of them, in OLD and in NEW together. A model with no
+  relationship gives every change no contexts. ``downstream`` groups the breaking
+  changes by those contexts for the per-context section of the text output.
 
 The verdicts and the ``Change`` record live in ``seams_cli.classification``, which the
 vocabulary gate shares (ADR-0021 section 7); they are importable from here as well.
@@ -33,7 +40,7 @@ the text output of ``seams diff``.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import NamedTuple
 
@@ -46,6 +53,7 @@ from .project import ProjectError
 
 SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 SEAM = rdflib.Namespace("https://w3id.org/seams/seam#")
+ARCH = rdflib.Namespace("https://w3id.org/seams/arch#")
 OWL_SAME_AS = rdflib.OWL.sameAs
 
 DATA = "data"
@@ -190,8 +198,47 @@ def diff_models(old: Path, new: Path) -> list[Change]:
 
 
 def diff_loaded(old: seams.Model, new: seams.Model) -> list[Change]:
-    """``diff_models`` over two models already loaded with ``load_model``; fields read as their wire values."""
-    return diff_graphs(_union(old), _union(new), _fields(old), _fields(new))
+    """``diff_models`` over two models already loaded with ``load_model``; fields read as their wire values,
+    and each change carries the downstream contexts it reaches in either model."""
+    changes = diff_graphs(_union(old), _union(new), _fields(old), _fields(new))
+    old_reach, new_reach = _reach(old), _reach(new)
+    return [c._replace(contexts=tuple(sorted(old_reach(c.subject) | new_reach(c.subject)))) for c in changes]
+
+
+def _reach(model: seams.Model) -> Callable[[str], frozenset[str]]:
+    """The downstream contexts a change to a subject reaches in ``model`` (ADR-0032 section 2)."""
+    ds = model.ds
+    contexts = set(ds.subjects(rdflib.RDF.type, ARCH.BoundedContext))
+    owners: dict[Node, set[Node]] = {}
+    for context, owned in ds.subject_objects(SEAM.owns):
+        if context in contexts:
+            owners.setdefault(owned, set()).add(context)
+    downstream: dict[Node, set[str]] = {}
+    for relationship in ds.subjects(rdflib.RDF.type, ARCH.ContextRelationship):
+        for up in ds.objects(relationship, ARCH.upstream):
+            downstream.setdefault(up, set()).update(str(d) for d in ds.objects(relationship, ARCH.downstream))
+
+    def reach(subject: str) -> frozenset[str]:
+        if not downstream:
+            return frozenset()
+        node = rdflib.URIRef(subject)
+        models = set(ds.objects(node, SEAM.inModel))
+        if not models:
+            graphs = {g for _s, _p, _o, g in ds.quads((node, rdflib.RDF.type, None, None))}
+            models = {m for g in graphs for m, _p, _o, _g in ds.quads((None, rdflib.RDF.type, SEAM.Model, g))}
+        return frozenset(d for m in models for c in owners.get(m, ()) for d in downstream.get(c, ()))
+
+    return reach
+
+
+def downstream(changes: Iterable[Change]) -> dict[str, list[Change]]:
+    """The breaking changes by each downstream context they reach, contexts and changes sorted."""
+    grouped: dict[str, list[Change]] = {}
+    for change in sort_changes(list(changes)):
+        if change.verdict == BREAKING:
+            for context in change.contexts:
+                grouped.setdefault(context, []).append(change)
+    return {context: grouped[context] for context in sorted(grouped)}
 
 
 def diff_graphs(
@@ -284,7 +331,14 @@ def to_json(changes: Iterable[Change]) -> dict:
     ordered = sort_changes(list(changes))
     return {
         "changes": [
-            {"verdict": c.verdict, "kind": c.kind, "subject": c.subject, "detail": c.detail, "scopes": list(c.scopes)}
+            {
+                "verdict": c.verdict,
+                "kind": c.kind,
+                "subject": c.subject,
+                "detail": c.detail,
+                "scopes": list(c.scopes),
+                "contexts": list(c.contexts),
+            }
             for c in ordered
         ],
         "counts": {

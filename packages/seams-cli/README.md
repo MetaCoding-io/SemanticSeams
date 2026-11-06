@@ -137,16 +137,23 @@ the fact and a message), `ontology-superclass` (an ontology class, `rdfs:subClas
 and a superclass declared neither in the ontology nor in a resolved import,
 ADR-0022) and, with `coverage = ["paths"]`,
 `coverage` (the process IRI and the node IRIs of an unexercised path),
+`profile` and `profile-warning` (when the model attaches a domain profile with
+`seam:conformsTo`, ADR-0033: a `sh:Violation` result of the profile's shapes, or an
+unresolvable profile naming `seam:conformsTo` or `seam:profileShapes`; a
+`sh:Warning` or non-pill `sh:Info` result; the profile is first named on stdout as
+`profile <IRI> <n> result(s)`),
 `draft-stale` (a `seams propose` draft in `seams.lock` whose task's context hash
 changed; the task IRI and module path) and `draft-hand-edited` (the draft file's
 sha256 differs from the record, or the file is `missing`), followed by
 `seams check: N problem(s)` on stderr. `review` findings are warnings
-(`ADVISORY_KINDS`), and so are `ontology-superclass`, `shacl-warning` (a `sh:Warning` shape result: a
+(`ADVISORY_KINDS`), and so are `ontology-superclass`, `profile-warning`, `shacl-warning` (a `sh:Warning` shape result: a
 deprecated vocabulary term is used, ADR-0021) and `vocabulary-migrated` (one per
 migration step `seams.load` applied: the vocabulary, the model's version and the
 tool's): they print but are not counted, and when they are the only findings
 stderr says `seams check: N warning(s)` and the exit code is 0.
-`run_check(project, model, ontology_dir)` takes the vocabulary tree to load,
+`run_check(project, model, ontology_dir)` returns the sorted findings, and
+`check_project` the same as a `CheckReport` with the profile's IRI and result count;
+both take the vocabulary tree to load,
 validate and migrate against (default the repository's `ontology/`).
 It exits 0 with no problems, 1 with any,
 and 2 for the errors of `seams generate` except a generator fault, which the
@@ -303,9 +310,18 @@ shape, a changed `sh:datatype` or `sh:class` and a tighter `sh:minCount` or
 `sh:maxCount` are breaking; additions of optional properties, shapes and
 operations, and looser bounds, are compatible.
 
+Each change also names the downstream contexts it reaches (ADR-0032 section 2):
+the subject's models (its `seam:inModel`, else the `seam:Model` its graph declares),
+the `arch:BoundedContext`s that `seam:owns` them, then each `arch:downstream` of an
+`arch:ContextRelationship` whose `arch:upstream` is one of those, read in both
+versions (`Change.contexts`, `_reach`). A model with no relationship gives every
+change none.
+
 Each change prints as `<verdict> <kind> <subject> <detail>`, sorted, with
-CURIEs where a prefix is bound; `--json` prints `to_json`'s changes (with their
-`data`/`contract` scopes) and counts instead. It exits 0 with no breaking
+CURIEs where a prefix is bound. Then, for each downstream context a breaking change
+reaches (sorted), a `downstream <context>` line is followed by those breaking
+changes indented two spaces (`downstream`). `--json` prints `to_json`'s changes
+(with their `data`/`contract` scopes and their `contexts`) and counts instead. It exits 0 with no breaking
 change, 1 with any, after `seams diff: N breaking, M compatible` on stderr, and
 2 when a model cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-diff).
@@ -381,6 +397,29 @@ never read. It exits 0 on success, 1 when the task is unknown, is not a
 `proc:ServiceTask` or a fact it needs is missing (`seams context: <message>` on
 stderr), and 2 on a project error or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-context).
+
+## seams cml
+
+```sh
+seams cml export examples/expenses/chapter-11
+seams cml export --project examples/expenses/chapter-11 --out build/context-map.cml
+seams cml import build/context-map.cml examples/expenses/chapter-11
+```
+
+It moves the context map between the model and Context Mapper DSL (CML), as
+[ADR-0034](../../docs/adr/0034-context-mapper-interchange.md) maps it (backlog
+B5, `cml.py`). PATH is a project or a model, or `--project` and `--model`
+choose it as for `seams generate`. `export` prints one `ContextMap` holding
+every `arch:BoundedContext` and one line per `arch:ContextRelationship`, sorted
+by IRI; `--out FILE` writes it to FILE instead, which `seams.lock` does not
+record. `import FILE` adds each CML relationship the model can hold through
+seams_edit, never removes a fact, and skips one the model already holds, so a
+re-imported export writes nothing. A construct with no mapping is flagged on
+stderr and skipped, and the exit code stays 0. It exits 1 when FILE cannot be
+parsed (the message names the line) or a file cannot be read or written, and 2
+on a project error, a model that cannot be loaded or a relationship that cannot
+be exported. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-cml).
 
 ## seams propose
 

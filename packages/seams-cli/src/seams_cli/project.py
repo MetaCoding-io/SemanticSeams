@@ -19,6 +19,8 @@ and the app's environments::
     [environments.dev]
     endpoints = { expense_api = "http://localhost:8080" }
 
+``model`` is a TriG file or a directory whose ``*.trig`` files load as one
+model (``model = "."`` for the project's own directory, ADR-0030 section 3).
 Relative paths resolve against the directory of the project file, so the
 command gives the same result from any working directory. ``gates`` lists
 SPARQL SELECT queries that ``seams check`` runs over the model; each must

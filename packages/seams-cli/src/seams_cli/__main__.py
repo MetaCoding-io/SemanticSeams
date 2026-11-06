@@ -1,5 +1,5 @@
 """Command line: ``seams generate|check|migrate|status|sequence|storm|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
-``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
+``seams generate|check|migrate|status|secrets|cml export PATH``, ``seams cml import FILE [PATH]`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
 ``seams draft-generator NAME --reference FILE [--provider CMD] [--llm-model NAME] [--out DIR] [--force]``,
@@ -32,12 +32,17 @@ changes neither the outputs nor the exit code.
 SHACL shapes, runs the project's gate queries and compares the outputs
 generate would write with the disk and seams.lock. Each finding prints to
 stdout as ``<kind> <detail>``; with any finding that is not advisory
-(``review``, ``shacl-warning`` and ``vocabulary-migrated`` are,
-ADVISORY_KINDS), ``seams check: N problem(s)`` counting only those goes to
+(``review``, ``shacl-warning``, ``profile-warning`` and ``vocabulary-migrated``
+are, ADVISORY_KINDS), ``seams check: N problem(s)`` counting only those goes to
 stderr and the exit code is 1. With advisory findings only,
 ``seams check: N warning(s)`` goes to stderr and the exit code is 0. A model that cannot be loaded, a bad
 gate or a malformed seams.lock exits 2. With ``coverage = ["paths"]`` in the
 project file, each BPMN path no scenario runs is a ``coverage`` finding too.
+A model attached to a domain profile (``seam:conformsTo``, ADR-0033) is also
+validated against the profile's shapes: ``profile <IRI> <n> result(s)`` prints
+first, then each sh:Violation result as a ``profile`` finding (a problem) and
+each other result as a ``profile-warning``; a profile that cannot be resolved
+is a ``profile`` finding naming the ResolutionError's subject and predicate.
 A seams.lock that records faults is a ``flagged`` finding, a problem; check
 runs the generators leniently, so a generator fault is never an exit 2 here.
 
@@ -72,6 +77,27 @@ or an ifml:Event that seam:triggers one (a CURIE, local name or IRI). With
 deriver could not place prints to stderr as ``seams storm: gap <name>:
 <detail>``; gaps are an audit, and the exit code stays 0. An unknown name
 exits 2 and writes nothing.
+
+``seams cml export [PATH] [--out FILE]`` (M029/S03, backlog B5, ADR-0034)
+prints the context map as Context Mapper DSL: a ``ContextMap`` that
+``contains`` every arch:BoundedContext, one relationship line per
+arch:ContextRelationship in its type's bracket form, named by the IRI's local
+name, then a bodiless ``BoundedContext`` per context, all sorted by IRI. With
+``--out`` the CML goes to FILE, whose path is then printed. A relationship that
+is not fully stated, or whose type has no CML form, exits 2 and writes nothing.
+
+``seams cml import FILE [PATH]`` (ADR-0034 sections 3 to 5) adds the
+relationships of FILE's ContextMaps that the model can hold, as the four
+ADR-0032 facts each, through the seams_edit text writer, and prints
+``added <relationship>`` for each, then each written file's path. The IRI is
+the CML name, or ``<upstream>_to_<downstream>``, in the upstream context's
+namespace. It only adds facts, so importing a map the model already holds
+writes nothing. Each construct it cannot map (an OHS-only or role-less
+relationship, a partnership, an unused role, an unknown or shared context
+name, a pair the model relates otherwise, aggregates and other CML content)
+prints ``seams cml import: flag <construct>: <reason>`` to stderr and is
+skipped; the exit code stays 0. A file it cannot parse prints the line,
+exits 1 and writes nothing.
 
 ``seams diff OLD NEW [--json]`` (D052) compares two model versions, each a
 TriG file or a directory, and classifies every SHACL shape and operation
@@ -204,13 +230,16 @@ import seams
 from seams_edit import PatchError
 from seams_gen import GeneratorError
 
-from .check import ADVISORY_KINDS, FILE_KINDS, run_check
+from .check import ADVISORY_KINDS, FILE_KINDS, check_project
+from .cml import CmlError
+from .cml import run_export as run_cml_export
+from .cml import run_import as run_cml_import
 from .context import render as render_context
 from .context import run_context
 from .context import to_json as context_json
 from .coverage import coverage_report, summary
 from .coverage import to_json as coverage_json
-from .diff import BREAKING, COMPATIBLE, diff_loaded, load_model, shorten, to_json
+from .diff import BREAKING, COMPATIBLE, diff_loaded, downstream, load_model, shorten, to_json
 from .draft_generator import DraftGeneratorError, draft_generator
 from .generate import apply, generate_project
 from .lockfile import locate
@@ -310,6 +339,28 @@ def build_parser() -> argparse.ArgumentParser:
     _project_arguments(storm)
     storm.add_argument("--out", type=Path, metavar="FILE", help="write the timeline to FILE instead of stdout")
     storm.set_defaults(run=_storm)
+    cml = sub.add_parser(
+        "cml",
+        help="export the context map as Context Mapper DSL (CML)",
+        description="Move the context map between the model and Context Mapper (ADR-0034).",
+    )
+    cml_sub = cml.add_subparsers(dest="cml_command", required=True, metavar="command")
+    cml_export = cml_sub.add_parser(
+        "export",
+        help="print the model's bounded contexts and context relationships as CML",
+        description="Write the arch:BoundedContexts and arch:ContextRelationships as one CML ContextMap.",
+    )
+    _project_arguments(cml_export, path=True)
+    cml_export.add_argument("--out", type=Path, metavar="FILE", help="write the CML to FILE instead of stdout")
+    cml_export.set_defaults(run=_cml_export)
+    cml_import = cml_sub.add_parser(
+        "import",
+        help="add the context relationships of a CML file to the model, flagging what does not map",
+        description="Add the CML ContextMap relationships the model can hold as arch:ContextRelationships.",
+    )
+    cml_import.add_argument("file", type=Path, metavar="FILE", help="the CML file to read")
+    _project_arguments(cml_import, path=True)
+    cml_import.set_defaults(run=_cml_import)
     diff = sub.add_parser(
         "diff",
         help="classify shape and operation-contract changes between two models as compatible or breaking",
@@ -499,7 +550,11 @@ def _generate(args: argparse.Namespace) -> int:
 
 def _check(args: argparse.Namespace) -> int:
     project = load_project(args.project)
-    findings = run_check(project, resolve_model(project, args.model))
+    report = check_project(project, resolve_model(project, args.model))
+    findings = report.findings
+    if report.profile is not None:
+        iri, results = report.profile
+        print(f"profile {iri} {results} result(s)")
     for finding in findings:
         detail = _display(Path(finding.detail)) if finding.kind in FILE_KINDS else finding.detail
         print(f"{finding.kind} {detail}")
@@ -582,6 +637,30 @@ def _storm(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cml_export(args: argparse.Namespace) -> int:
+    text = run_cml_export(load_project(args.project), args.model, args.out)
+    if args.out is None:
+        sys.stdout.write(text)
+    else:
+        print(_display(args.out.resolve()))
+    return 0
+
+
+def _cml_import(args: argparse.Namespace) -> int:
+    try:
+        result = run_cml_import(load_project(args.project), args.model, args.file)
+    except CmlError as err:
+        print(f"seams cml import: {_display(args.file.resolve())}: {err}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    for construct, reason in result.flags:
+        print(f"seams cml import: flag {construct}: {reason}", file=sys.stderr)
+    for iri in result.added:
+        print(f"added {seams.local_name(iri)}")
+    for path in result.files:
+        print(_display(path))
+    return 0
+
+
 def _diff(args: argparse.Namespace) -> int:
     old, new = load_model(args.old), load_model(args.new)
     changes = diff_loaded(old, new)
@@ -591,6 +670,10 @@ def _diff(args: argparse.Namespace) -> int:
     else:
         for c in changes:
             print(shorten(f"{c.verdict} {c.kind} {c.subject} {c.detail}", new, old))
+        for context, hits in downstream(changes).items():
+            print(shorten(f"downstream {context}", new, old))
+            for c in hits:
+                print("  " + shorten(f"{c.verdict} {c.kind} {c.subject} {c.detail}", new, old))
     breaking, compatible = report["counts"][BREAKING], report["counts"][COMPATIBLE]
     if breaking:
         print(f"seams diff: {breaking} breaking, {compatible} compatible", file=sys.stderr)

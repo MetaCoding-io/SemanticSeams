@@ -36,6 +36,7 @@ from pathlib import Path
 from types import ModuleType
 
 import httpx
+from seams import model_dir
 
 from .errors import ResolutionError, RuntimeModelError
 from .model import COMM
@@ -48,13 +49,14 @@ DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 
 def handlers_dir(model_path, override=None) -> Path:
-    """``override``, else ``SEAMS_HANDLERS``, else ``handlers/`` beside the model file."""
+    """``override``, else ``SEAMS_HANDLERS``, else ``handlers/`` in the model's
+    directory (beside the TriG file, or inside a directory model)."""
     if override is not None:
         return Path(override)
     env = os.environ.get(HANDLERS_ENV)
     if env:
         return Path(env)
-    return Path(model_path).resolve().parent / DEFAULT_HANDLERS
+    return model_dir(model_path) / DEFAULT_HANDLERS
 
 
 class HandlersPackage:

@@ -79,7 +79,7 @@ from pathlib import Path
 
 from rdflib import RDF, XSD, URIRef
 from rdflib.namespace import SH
-from seams import COMM, PROC, SEAM, ModelGraph, context_for, local_name
+from seams import COMM, PROC, SEAM, ModelGraph, context_for, local_name, model_dir
 
 from . import GeneratorError
 from ._views import view_errors
@@ -521,9 +521,9 @@ def write_stubs(plan: StubPlan) -> list[Path]:
 
 
 def generate_stubs(trig, handlers=None) -> StubPlan:
-    """The plan for the model ``trig`` and the handlers directory (default ``handlers/`` beside it)."""
+    """The plan for the model ``trig`` and the handlers directory (default ``handlers/`` in the model's directory)."""
     model = ModelGraph.load(trig)
-    directory = Path(handlers) if handlers is not None else Path(trig).resolve().parent / DEFAULT_HANDLERS
+    directory = Path(handlers) if handlers is not None else model_dir(trig) / DEFAULT_HANDLERS
     return plan_stubs(extract_stubs(model), directory)
 
 

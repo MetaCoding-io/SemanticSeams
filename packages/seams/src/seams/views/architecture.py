@@ -1,13 +1,16 @@
-"""``model.architecture``: systems, containers, deployment nodes and environments (C4)."""
+"""``model.architecture``: domains, bounded contexts, systems, containers,
+deployment nodes and environments (C4, ADR-0030)."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from rdflib import RDF, URIRef
+from rdflib import RDF, RDFS, Graph, URIRef
 from rdflib.term import Node
 
 from ..errors import ResolutionError
@@ -15,9 +18,114 @@ from ..namespaces import ARCH, COMM, DEPLOY, SEAM
 from ._base import Element, Many, Views, element_type, int_value, sorted_many
 
 if TYPE_CHECKING:
+    from .ontologies import Ontology
     from .operations import Channel, Operation
     from .processes import Process
     from .shapes import Shape
+
+
+@cache
+def _vocabulary_labels(path: str, _mtime: int, _size: int) -> Mapping[URIRef, str]:
+    # (mtime, size) are part of the key so an edited vocabulary is read again.
+    graph = Graph()
+    graph.parse(path, format="turtle")
+    found = {s: str(o) for s, o in graph.subject_objects(RDFS.label) if isinstance(s, URIRef)}
+    return MappingProxyType(dict(sorted(found.items())))
+
+
+@element_type(ARCH.Domain)
+@dataclass(frozen=True, eq=False)
+class Domain(Element):
+    """An arch:Domain: a business area that arch:contains systems and bounded
+    contexts, with one arch:classification (ADR-0030 section 1)."""
+
+    @property
+    def classification(self) -> URIRef:
+        """Its arch:classification (arch:Core, arch:Supporting or arch:Generic);
+        none, several or a literal raise ``ResolutionError(domain, arch:classification)``."""
+        value = self._one_value(ARCH.classification)
+        if not isinstance(value, URIRef):
+            raise ResolutionError(self.iri, ARCH.classification, f"expected an IRI, found {value!r}")
+        return value
+
+    @property
+    def classification_label(self) -> str:
+        """The rdfs:label of its classification: the model's own label when it
+        states one, else the shipped arch vocabulary's ("core"), else the local name."""
+        value = self.classification
+        if self.views.ds.value(value, RDFS.label) is None:
+            directory = self.views.model.ontology_dir
+            vocabulary = None if directory is None else Path(directory) / "arch.ttl"
+            if vocabulary is not None and vocabulary.is_file():
+                stat = vocabulary.stat()
+                label = _vocabulary_labels(str(vocabulary), stat.st_mtime_ns, stat.st_size).get(value)
+                if label is not None:
+                    return label
+        return self.views.model.label(value)
+
+    @property
+    def systems(self) -> Many[System]:
+        """The arch:Systems it arch:contains, by IRI."""
+        ds = self.views.ds
+        iris = [s for s in self._objects(ARCH.contains) if (s, RDF.type, ARCH.System) in ds]
+        return self._many(System, iris, ARCH.contains)
+
+    @property
+    def contexts(self) -> Many[BoundedContext]:
+        """The arch:BoundedContexts it arch:contains, by IRI."""
+        ds = self.views.ds
+        iris = [c for c in self._objects(ARCH.contains) if (c, RDF.type, ARCH.BoundedContext) in ds]
+        return self._many(BoundedContext, iris, ARCH.contains)
+
+
+@element_type(ARCH.BoundedContext)
+@dataclass(frozen=True, eq=False)
+class BoundedContext(Element):
+    """An arch:BoundedContext: the models it seam:owns, one of them its
+    ontology (ADR-0030 section 2)."""
+
+    @property
+    def domain(self) -> Domain:
+        """The arch:Domain that arch:contains it; none or several raise
+        ``ResolutionError(context, arch:contains)``."""
+        ds = self.views.ds
+        iris = [d for d in self._subjects(ARCH.contains) if (d, RDF.type, ARCH.Domain) in ds]
+        return self._many(Domain, iris, ARCH.contains).only()
+
+    @property
+    def models(self) -> Many[Element]:
+        """The seam:Models it seam:owns, by IRI."""
+        return self._many(Element, self._objects(SEAM.owns), SEAM.owns)
+
+    @property
+    def ontology(self) -> Ontology:
+        """The one owned model whose seam:notation is seam:Ontology (its
+        language); none or several raise ``ResolutionError(context, seam:owns)``."""
+        from .ontologies import Ontology
+
+        ds = self.views.ds
+        iris = [m for m in self._objects(SEAM.owns) if (m, SEAM.notation, SEAM.Ontology) in ds]
+        if len(iris) != 1:
+            found = "none" if not iris else ", ".join(map(str, iris))
+            detail = f"expected exactly one owned model with seam:notation seam:Ontology, found {found}"
+            raise ResolutionError(self.iri, SEAM.owns, detail)
+        return self.views.intern(Ontology, iris[0])
+
+    @property
+    def containers(self) -> Many[Container]:
+        """The arch:Containers that run it, derived (ADR-0030 section 2): each
+        one that seam:presents an owned model or seam:executes a process in
+        one, by IRI."""
+        ds = self.views.ds
+        owned = set(self._objects(SEAM.owns))
+        iris: set[URIRef] = set()
+        for predicate in (SEAM.presents, SEAM.executes):
+            for container, target in ds.subject_objects(predicate):
+                if not isinstance(container, URIRef) or (container, RDF.type, ARCH.Container) not in ds:
+                    continue
+                if target in owned or any(m in owned for m in ds.objects(target, SEAM.inModel)):
+                    iris.add(container)
+        return self._many(Container, iris, SEAM.owns)
 
 
 @element_type(ARCH.System)
@@ -488,6 +596,14 @@ class Architecture:
 
     def __init__(self, views: Views) -> None:
         self._views = views
+
+    def domains(self) -> Many[Domain]:
+        """Every arch:Domain, by IRI (ADR-0030)."""
+        return self._views.all(Domain, ARCH.Domain)
+
+    def contexts(self) -> Many[BoundedContext]:
+        """Every arch:BoundedContext, by IRI (ADR-0030)."""
+        return self._views.all(BoundedContext, ARCH.BoundedContext)
 
     def systems(self) -> Many[System]:
         return self._views.all(System, ARCH.System)

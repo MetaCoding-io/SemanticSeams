@@ -417,12 +417,13 @@ def test_gap_15_channel_transport(chat_model):
     assert streamed == {(bpmn.invoke_llm, CHAT.stream_events)}
 
 
-PUBLISHES_TO_MSG = "Only a proc:MessageThrowEvent or a proc:ServiceTask seam:publishesTo a channel (D046)."
+PUBLISHES_TO_MSG = "Only a proc:MessageThrowEvent, a proc:ServiceTask or a state:Transition seam:publishesTo a channel (D046, ADR-0031)."
 PUB_PREFIXES = """
 @prefix :      <https://example.org/bad/> .
 @prefix comm:  <https://w3id.org/seams/comm#> .
 @prefix proc:  <https://w3id.org/seams/proc#> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix state: <https://w3id.org/seams/state#> .
 :ch a comm:Channel .
 """
 
@@ -432,14 +433,16 @@ PUB_PREFIXES = """
     [
         (":t a proc:ServiceTask ; seam:publishesTo :ch .", set()),
         (":e a proc:MessageThrowEvent ; seam:publishesTo :ch .", set()),
+        (":t_schedule a state:Transition ; seam:publishesTo :ch .", set()),
         (":t a proc:UserTask ; seam:publishesTo :ch .", {PUBLISHES_TO_MSG}),
         (":t seam:publishesTo :ch .", {PUBLISHES_TO_MSG}),
     ],
-    ids=["service-task", "throw-event", "user-task", "untyped-element"],
+    ids=["service-task", "throw-event", "transition", "user-task", "untyped-element"],
 )
 def test_publishes_to_subject_is_throw_event_or_service_task(facts, messages):
     """D046: seam:publishesTo's subject is a message throw event or a service
-    task (the delta publisher); anything else fails conformance."""
+    task (the delta publisher), or (ADR-0031) a state:Transition, the domain event
+    it is; anything else fails conformance."""
     data = rdflib.Graph()
     for path in ONTOLOGY_FILES:
         data.parse(path, format="turtle")

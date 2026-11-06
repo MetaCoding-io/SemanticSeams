@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 import pytest
 import seams
+from example_models import example_models
 from fastapi.testclient import TestClient
 from rdflib import URIRef
 
@@ -26,11 +27,10 @@ from viewer import app as viewer_app  # noqa: E402
 from viewer import validation  # noqa: E402
 
 CHAPTER = ROOT / "examples" / "expenses" / "chapter-09"
-TRIGS = sorted(p for p in (ROOT / "examples").rglob("*.trig") if "generated" not in p.parts)
 # examples/checkout.trig is the authoring guide's TriG sample: it names payload
 # files that were never committed, so it is checked on its own below.
 SAMPLE = ROOT / "examples" / "checkout.trig"
-EXAMPLE_MODELS = [p for p in TRIGS if p != SAMPLE]
+EXAMPLE_MODELS = [p for p in example_models() if p != SAMPLE]
 
 
 @pytest.fixture(autouse=True)
@@ -78,9 +78,9 @@ def _health(path: Path) -> list[dict]:
     return validation.get_lifted_iri_health(model.ds, model.base_dir)
 
 
-@pytest.mark.parametrize("trig", EXAMPLE_MODELS, ids=lambda p: str(p.relative_to(ROOT)))
-def test_committed_examples_have_no_dangling_lifted_iris(trig):
-    assert _health(trig) == []
+@pytest.mark.parametrize("model", EXAMPLE_MODELS, ids=lambda p: str(p.relative_to(ROOT)))
+def test_committed_examples_have_no_dangling_lifted_iris(model):
+    assert _health(model) == []
 
 
 def test_sample_without_payload_files_reports_each_payload():

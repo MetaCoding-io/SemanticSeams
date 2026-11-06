@@ -23,7 +23,7 @@ canvas or `?level=` in the URL (default L2). Each level adds to the one before:
 
 | Level | Shows |
 |---|---|
-| L1 System context | Systems, people and environments, with container edges rolled up to them |
+| L1 System context | Systems, people and environments, with container edges rolled up to them; domains as frames around the systems and bounded contexts they `arch:contains`, labelled with their classification, and a `runs` edge from each context to each system whose containers present or execute its models ([ADR-0030](../adr/0030-domains-and-bounded-contexts.md)) |
 | L2 Containers | Containers nested in their system, deployment nodes in their environment, `depends on` and `deployed to` edges |
 | L3 Components and operations | The operations each container `seam:exposes`, nested in it, and `consumes` edges |
 | L4 Seams | The targets of nest-mode seams nested in their source: the IFML model a container `seam:presents` and the process it `seam:executes`, each holding its model's top-level members in that layer's colour |
@@ -31,6 +31,10 @@ canvas or `?level=` in the URL (default L2). Each level adds to the one before:
 L4 is the nest reveal mode applied to the whole diagram: every seam predicate whose
 `seam:reveal` is nest draws its target inside its source instead of as a separate view.
 The nested models' own edges are not drawn. Clicking a nested model still opens it.
+
+A model that declares no `arch:Domain` draws L1 as systems, people and environments
+only. Domains and contexts, once declared, stay visible at every level, since levels
+are cumulative.
 
 ### Interface
 
@@ -267,6 +271,32 @@ notation, such as the expense app's final checkpoint
 `Accept: application/json`, for the same data as JSON: `layers` (per layer its `id`,
 `label`, `models`, `nodes` and within-layer `edges`), `seams` (each with `source`,
 `target`, `predicate`, `reveal`, `sourceLayer` and `targetLayer`) and `warnings`.
+
+## Data health
+
+`/data-health` (the **Data health** link in the page header) checks a running app's
+data, not the model. It reads the SQLite store named by `SEAMS_VIEWER_STORE`, opened
+read-only, so the viewer creates and writes nothing, and runs the attached domain
+profile's instance-data rules on it: the profile's `sh:Warning` shapes with a
+`sh:sparql` constraint ([ADR-0036](/adr/0036-cross-aggregate-invariants)). The stored
+entities are lifted to RDF through their shape contracts and checked by
+`seams_runtime.data_health`, the function `Runtime.data_health` calls, so the viewer
+lists the same findings the runtime logs, sorted, one row per warning with its rule,
+focus and message.
+
+```sh
+SEAMS_MODEL=examples/expenses/chapter-11 SEAMS_VIEWER_STORE=/tmp/seams.sqlite \
+  uv run uvicorn viewer.app:app --port 8000
+```
+
+In chapter 11 an expense paid twice shows as one warning of the DDD profile's
+paid-once rule, naming the expense; both payments stay stored. The view is computed on
+every request, since the store changes under the viewer, and **Refresh** swaps it in
+place. Without `SEAMS_VIEWER_STORE` the view says no store is configured; a model with
+no profile has no rules to check. A store file that is missing or is not a seams
+store, a profile that does not resolve, or a stored entity its shape contract refuses
+is shown as an error naming it, not a page failure. Add `format=json` for `state`,
+`store`, `profile`, `error`, `count` and `findings` as JSON.
 
 ## How a click is resolved
 
@@ -518,7 +548,24 @@ things:
   the health badge, and a property they give a path to gets a field in the element's form.
 - **The preview runs only the profile's generators.** Only the project's generators named
   by `seam:usesGenerator` run. A listed name the project's `seams.toml` does not configure
-  is shown as not configured. `seams generate` and `seams check` ignore profiles.
+  is shown as not configured. `seams generate` ignores profiles; `seams check` validates
+  the profile's shapes ([ADR-0033](/adr/0033-ddd-profile)).
+
+A part the profile leaves out restricts nothing (ADR-0033 section 3): a profile with no
+`seam:offersClass` shows no palette and flags no class, and one with no
+`seam:usesGenerator` previews every configured generator. Expense chapter 11's DDD
+profile is such a profile, a shapes library and nothing else. Its rules' violations
+show in health like any other shape's, with the rule's message and the focus node.
+
+**Type pills.** A profile's labelled `sh:Info` shapes are type pills, not rules
+([ADR-0033](/adr/0033-ddd-profile) section 4), so their results are not shown in health.
+Instead, an element's heading shows a pill with the shape's label (`skos:prefLabel`, else
+`rdfs:label`) when the element is one of the shape's targets and conforms to it. The
+viewer works them out from the same SHACL run as health, adds no `rdf:type` to the model,
+and lists them by label then shape IRI. In chapter 11 `ExpenseShape` and the `Expense`
+class show *Aggregate*, the operations a UI event submits to show *Command*, and the
+lifecycle transitions and `vendor_changes` channel show *Domain event*: the words are the
+DDD profile's, not the viewer's. A model with no profile shows no pills.
 
 The health panel names the attached profile with its class and generator counts, and the
 server log records one line when the model loads, naming the profile IRI and the same
@@ -542,6 +589,7 @@ the diagram comes back drawn and clickable.
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
 | `/storm/{process_iri}` | The [derived event storm](/concepts/diagrams-are-views#derived-event-storm) of one process, or of the process an IFML event `seam:triggers`, as JSON: `process`, `label`, `steps` (each with its `index`, `iri`, `name` and `entries`), `readModels`, `gaps` and the `markdown` timeline. Add `format=html` for the fragment. Anything that is neither is a 404 naming it. |
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |
+| `/data-health` | The [data-health view](#data-health): the attached profile's instance-data warnings on the store at `SEAMS_VIEWER_STORE`, read-only. An htmx request gets the fragment alone. Add `format=json` for the findings as JSON. |
 | `/generation/{iri}?output=…&line=…` | The [generation view](#generation-view) of an element: model, template and output panes joined by the trace sidecars, and the fan-out of every generated line citing it. `output` and `line` pick the file and line shown; an unknown one falls back to the first citing line. |
 | `/payload/{iri}` | The native BPMN or DMN XML behind a model, with its media type. |
 | `/edit/{iri}` | [Edit mode](#edit-mode) only: `GET` returns the element's form; `POST` saves one field and returns the form with the refreshed health panel and live preview. |

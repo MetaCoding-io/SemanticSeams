@@ -65,10 +65,10 @@ gateway's built-in stub). CI runs the same stack end to end.
 
 [`docs/tutorials/expenses/`](docs/tutorials/expenses/index.md) is the slower track: build
 an expense approval app yourself, one layer per chapter, from an empty TriG file to the
-whole system under `docker compose up`. All ten chapters (architecture, data, screens,
+whole system under `docker compose up`. All eleven chapters (architecture, data, screens,
 process, rules, lifecycle, permissions, growing up with an asynchronous payout, a
-hand-written service task with an error path it catches, and the expenses moved into a
-SemPKM store) are written; CI checks each chapter's checkpoint model in `examples/expenses/` and runs
+hand-written service task with an error path it catches, the expenses moved into a
+SemPKM store, and payouts split into a second bounded context) are written; CI checks each chapter's checkpoint model in `examples/expenses/` and runs
 chapter 9 under docker compose.
 
 ## Generators
@@ -100,7 +100,10 @@ runs the project's gate queries, checks decisions statically and fails on any st
 missing, hand-edited or orphaned output and on a `flagged` lock (one with `faults`); model review findings (lifecycle labels copied
 into `sh:in`, shapes without a target class, undeclared paths) print as `review` warnings
 and do not fail it, and so do `sh:Warning` shape results (a deprecated vocabulary term) and
-a `vocabulary-migrated` line per migration step. CI runs it for every example through the composite action in
+a `vocabulary-migrated` line per migration step. A model attached to a domain profile
+with `seam:conformsTo` is also validated against the profile's shapes: check names the
+profile and fails on its `sh:Violation` results
+([ADR-0033](docs/adr/0033-ddd-profile.md)). CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
 Each vocabulary carries an `owl:versionIRI` (`MAJOR.MINOR`, all at 1.0 today), and a model
 `owl:imports` the versions it is written for in its manifest graph, as every example does
@@ -121,6 +124,9 @@ the docs embed the golden diagrams, rendered with Mermaid.
 `seams sequence <event> --trace RUN` draws the as-executed counterpart from a recorded
 run's trace rows (a trace JSON file or an instance id in the runtime's SQLite store), on
 the same lifelines, with a `%% gap:` line for every row the model cannot place.
+`seams cml export` prints the context map (bounded contexts and their relationships) as
+Context Mapper DSL, and `seams cml import FILE` adds a CML map's relationships to the model,
+flagging on stderr what does not map.
 `seams diff OLD NEW` classifies each shape and operation-contract change between two
 model versions as compatible or breaking, and exits 1 when any change is breaking.
 `seams plan OLD NEW` turns those changes and the elements each layer adds and removes into

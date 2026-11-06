@@ -58,13 +58,15 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   - `migrations`: the vocabulary migration steps applied on load, sorted.
   - `ontology_dir`: the ontology directory the checks used, or None when there is none.
   - `imports`: the vendored ontologies the model's ontology imports, sorted by
-    version IRI; `import_statuses`: the `ImportStatus` of each import, read even
+    version IRI; `dataset_imports`: the ontology models of the same Dataset they
+    import (`DatasetOntology`), sorted by version IRI; `import_statuses`: the `ImportStatus` of each import, read even
     with `check_imports=False`.
   - `payloads()`: `(relative posix path, absolute path)` for every
     `seam:renderPayload`, sorted by relative path. A missing payload raises
     `ResolutionError`.
-- `seams.model_hash(path)` and `seams.payload_path(payload_iri, base_dir)` are
-  module-level helpers.
+- `seams.model_hash(path)`, `seams.payload_path(payload_iri, base_dir)` and
+  `seams.model_dir(path)` (the directory payloads and `handlers/` resolve against: a
+  directory model itself, else the TriG file's parent) are module-level helpers.
 - Errors: `SeamsError` (base; `http_status`, `to_dict()`) and
   `ResolutionError(subject, predicate, detail="")`, also a `LookupError`,
   raised when a graph hop is missing.
@@ -152,7 +154,9 @@ Migration happens in memory only: no file is written and `model.hash` is unchang
 
 A `seam:Ontology` model is also an `owl:Ontology`
 ([ADR-0022](/adr/0022-ontology-notation)); its `owl:imports` name the version IRIs of
-the ontologies it builds on. `seams.load` resolves them offline against the files in
+the ontologies it builds on. `seams.load` resolves them offline, first against the
+other ontology models of the same Dataset by `owl:versionIRI`
+([ADR-0030](/adr/0030-domains-and-bounded-contexts) section 4), then against the files in
 `<ontology_dir>/vendor/` (`VENDOR_DIR`), never over the network, and never merges
 their triples into `model.ds`, so `model.hash`, SHACL and the generators see only the
 model.
@@ -166,13 +170,19 @@ model.imports  # (VendoredOntology(ontology=…/gistCore, version=…/gistCore14
   per `vendor/*.ttl`, read from the file's own `owl:Ontology` and `owl:versionIRI`,
   sorted by version IRI. A file without exactly one of each raises `ResolutionError`.
 - `vendored_graph(vendored)`: the file's triples as a read-only graph.
+- `dataset_ontologies(ds)`: a `DatasetOntology(ontology, version)` per `seam:Ontology`
+  model of `ds` with one `owl:versionIRI`, sorted by version IRI;
+  `dataset_imports(statuses)` the ones a set of import statuses resolves to.
 - `import_statuses(ds, ontology_dir)`: an `ImportStatus(ontology, imported, vendored,
-  detail)` per import of each `seam:Ontology` model, sorted by (ontology, import);
+  detail, dataset)` per import of each `seam:Ontology` model, sorted by (ontology, import);
   `resolved` and `error` (the `ResolutionError`, or None) derive from it.
-- `check_imports(ds, ontology_dir)`: the check `load` runs. A vendored version IRI
-  resolves; the first fault raises `ResolutionError(<ontology>, owl:imports, detail)`:
+- `check_imports(ds, ontology_dir)`: the check `load` runs, returning the vendored
+  ontologies. The version IRI of another ontology model of `ds`, or of a vendored file,
+  resolves; an ontology never resolves its own. The first fault raises `ResolutionError(<ontology>, owl:imports, detail)`:
   a mismatch, also for the bare ontology IRI
-  (`"imports gistCore14.1.0; the vendored version is gistCore14.0.0"`), a SemanticSeams
+  (`"imports gistCore14.1.0; the vendored version is gistCore14.0.0"`, or for a dataset
+  ontology `"imports <…/finance_ontology/2.0>; the dataset's finance_ontology is version
+  <…/finance_ontology/1.0>"`), a SemanticSeams
   vocabulary version, which belongs in the manifest graph (ADR-0021), or anything else
   (`"imports <iri>, which no file in ontology/vendor/ declares"`).
   `check_imports=False` skips it.
@@ -232,11 +242,26 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   both a `Many` with extra lookups. `model.operations`, `model.channels`,
   `model.shapes`, `model.decisions`, `model.policies`, `model.scenarios` and
   `model.decision_examples` are plain `Many`s.
-- **`model.architecture`** has `systems()`, `containers()`,
+- **`model.architecture`** has `domains()`, `contexts()`, `systems()`, `containers()`,
   `deployment_nodes()`, `environments()` and `serving_containers()` (each
   container that `seam:executes` a process or `seam:exposes` an operation an
   `ifml:Event` `seam:submitsTo`: the ones that serve routes and hold process
   state).
+  - `Domain` ([ADR-0030](/adr/0030-domains-and-bounded-contexts)) has
+    `classification` (the `arch:Core`, `arch:Supporting` or `arch:Generic`
+    IRI; none, several or a literal raise
+    `ResolutionError(domain, arch:classification)`), `classification_label`
+    (its `rdfs:label`: the model's own when it states one, else the shipped
+    arch vocabulary's, such as `"core"`), and `systems` and `contexts` (the
+    `arch:System`s and `arch:BoundedContext`s it `arch:contains`).
+  - `BoundedContext` has `domain` (the one `arch:Domain` that
+    `arch:contains` it, else `ResolutionError(context, arch:contains)`),
+    `models` (the `seam:Model`s it `seam:owns`), `ontology` (the one owned
+    model whose notation is `seam:Ontology`, an `Ontology`, else
+    `ResolutionError(context, seam:owns)`) and `containers`, derived: each
+    `arch:Container` that `seam:presents` an owned model or `seam:executes` a
+    process in one. A model that declares no context has empty `domains()`
+    and `contexts()`.
   - `System.containers` (the `arch:Container`s it `arch:contains`).
   - `Container` has `technology`, `exposes` and `consumes` (a
     `Many[Operation | Channel]`), `executes`, `deployed_to`, `depends_on`
@@ -313,6 +338,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `ResolutionError`.
   - `lifecycle`, `read_by`, `written_by` and `stored_in` (the store
     containers it is `seam:storedIn`).
+  - `aggregate`: the `Aggregate` it is a `seam:aggregateMember` of, or None;
+    a shape two aggregates list raises `ResolutionError(shape,
+    seam:aggregateMember, detail)` naming both.
   - `valid_examples` and `invalid_examples`: the IRIs of the nodes it
     `verify:validExample` or `verify:invalidExample`
     ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
@@ -328,6 +356,12 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   - `Transition` has `from_state`, `to_state` (`State` objects),
     `from_states`, `trigger`, `lifecycle`, `lifecycles` (every machine that
     `state:hasTransition` it) and `fired_by`.
+- **`model.aggregates`**: one `Aggregate` per subject of `seam:aggregateMember`
+  ([ADR-0035](/adr/0035-aggregate-transaction-boundary)), by IRI: the `owl:Class` or
+  `sh:NodeShape` that names the shapes it commits in one store transaction. An aggregate
+  with no members declares no boundary and is not listed.
+  - `Aggregate` has `members` (its listed `Shape`s, by IRI, never derived from
+    `sh:targetClass`) and `lifecycle` (the `Lifecycle` it names, or None).
 - **`model.scenarios`** and **`model.decision_examples`**: what the model says it should
   do ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
   - `Scenario` has `process` (a `Process`), `actor` (the party IRI), `givens`,
@@ -549,6 +583,13 @@ exercises (D054). It covers three things:
 - `seams.policies_without_deny(model, policy=None)` runs
   `coverage/policies-without-deny` and returns `UndeniedPermission`
   records (`policy`, `target`, `assignee`).
+- `seams.core_operations_untested(model, context=None)` runs
+  `coverage/core-operations-untested` (ADR-0030 section 6) and returns a
+  `Many[Operation]`, by (domain, context, operation): each `hydra:Operation`
+  whose `seam:inModel` model a context in an `arch:Core` domain `seam:owns`,
+  that is not `seam:implementedBy` a `comm:PythonHandler` and that no scenario
+  reaches through the process it starts or the user task it completes. A
+  dataset with no domain has no rows.
 
 On chapter 9 the nine scenarios run every path: both outcomes of each route,
 the two notify-failed escalations (`:notify_failed_approved` and
@@ -591,7 +632,13 @@ are sorted.
 
   In each finding the subject is the flow IRI (`<bpmn model>#<flow id>`).
   The fact is the variable, or the expression itself if it does not parse.
-- `seams.decision_findings(model)` returns the findings of both checks.
+- `seams.table_findings(model)` checks `UNIQUE` decision tables (backlog X13): one
+  finding per pair of overlapping rules and one for the table's first uncovered
+  input, naming the rules or the input. The subject is the decision and the fact
+  `dmn:rule`. It reads input entries that are `-`, number comparisons, ranges,
+  quoted strings or comma lists of these; a table with any other entry is skipped,
+  not guessed at.
+- `seams.decision_findings(model)` returns the findings of all three checks.
 
 A decision or process whose payload file is missing is skipped. Any other
 `ResolutionError` met while reading one becomes a finding. Every example
@@ -621,6 +668,31 @@ it never refuses it, and the checks do not raise.
 
 The chat app has eleven: its `MessageShape` status list, `sh:class
 :MessageShape`, both shapes and all seven paths. Backlog O1 and O2 remove them.
+
+## Domain profiles
+
+`seams.profiles` resolves the domain profile a model attaches to with
+`seam:conformsTo` ([ADR-0018](/adr/0018-domain-profiles),
+[ADR-0033](/adr/0033-ddd-profile) section 5). `resolve_profile(ds, model_dir)`
+finds the `profiles/*/profile.ttl` in `model_dir` (the directory of the loaded TriG
+file, `seams.model_dir(path)`) that declares the IRI a `seam:Profile`. It returns None
+when the model states no `seam:conformsTo`, and then reads no file. Otherwise it
+returns a `Profile`:
+
+- `iri`: the profile IRI;
+- `classes` and `labels`: the `seam:offersClass` classes, sorted, and their
+  `skos:prefLabel`, else `rdfs:label`;
+- `generators`: the `seam:usesGenerator` names, sorted;
+- `shapes`: one graph parsed from the `seam:profileShapes` files;
+- `graph`: the parsed `profile.ttl`;
+- `pills`: each pill shape (a `sh:NodeShape` in `shapes` with `sh:severity sh:Info`
+  and a label, ADR-0033 section 4) mapped to its label.
+
+The resolver reads and parses; it does not validate. [`seams check`](./seams-cli#seams-check)
+and the viewer run pyshacl with `shapes`. A model naming two profiles, a profile no
+`profile.ttl` declares or two declare, and a profile or shapes file that is missing or
+does not parse raise `ResolutionError` naming `seam:conformsTo` or
+`seam:profileShapes`, with paths relative to `model_dir`.
 
 ## Context assembly
 

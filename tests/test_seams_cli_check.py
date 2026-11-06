@@ -101,10 +101,18 @@ def _hashes(root: Path) -> dict[Path, str]:
     return {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob("*")) if p.is_file()}
 
 
+def _profile_lines(app: Path) -> list[str]:
+    """The ``profile <IRI> 0 result(s)`` line of a project whose model attaches a
+    profile (ADR-0033 section 1), else nothing: an example's profile holds."""
+    model = load_project(app).model
+    profile = seams.resolve_profile(seams.load(model).ds, seams.model_dir(model))
+    return [] if profile is None else [f"profile {profile.iri} 0 result(s)"]
+
+
 @pytest.mark.parametrize("rel", PROJECTS, ids=str)
 def test_every_example_passes_in_place(rel, capsys):
     code, lines, err = _check(ROOT / rel, capsys)
-    assert (code, lines, err) == (0, [], _warnings(ROOT / rel))
+    assert (code, lines, err) == (0, _profile_lines(ROOT / rel), _warnings(ROOT / rel))
 
 
 EX = "https://example.org/expenses/"
@@ -250,8 +258,10 @@ def test_gate_rows_are_findings(app, capsys):
     assert _kinds(lines) == {"gate"}
 
 
-def test_review_vocabulary_and_ontology_warnings_are_the_advisory_kinds():
-    assert ADVISORY_KINDS == frozenset({"ontology-superclass", "review", "shacl-warning", "vocabulary-migrated"})
+def test_review_vocabulary_ontology_and_profile_warnings_are_the_advisory_kinds():
+    assert ADVISORY_KINDS == frozenset(
+        {"ontology-superclass", "profile-warning", "review", "shacl-warning", "vocabulary-migrated"}
+    )
 
 
 def test_run_check_returns_sorted_findings(app):

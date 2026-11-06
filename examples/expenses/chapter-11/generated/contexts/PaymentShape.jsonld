@@ -1,0 +1,28 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "Payment": "https://example.org/expenses/Payment",
+    "expense": {
+      "@id": "https://example.org/expenses/paysExpense",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
+    "paid_on": {
+      "@id": "https://example.org/expenses/paidOn",
+      "@type": "http://www.w3.org/2001/XMLSchema#date"
+    },
+    "reference": {
+      "@id": "https://example.org/expenses/reference",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
+    "status": {
+      "@context": {
+        "batched": "https://example.org/expenses/s_batched",
+        "recorded": "https://example.org/expenses/s_recorded",
+        "scheduled": "https://example.org/expenses/s_scheduled",
+        "sent": "https://example.org/expenses/s_sent"
+      },
+      "@id": "https://example.org/expenses/status",
+      "@type": "@vocab"
+    }
+  }
+}

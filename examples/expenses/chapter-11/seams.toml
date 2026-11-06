@@ -1,0 +1,80 @@
+# Semantic Seams project file for expense tutorial chapter 11.
+# It names the model, the generators with their output directories, and
+# the environments the model declares.
+# `seams generate` (run here, or with --project) rewrites every output below.
+# Paths are relative to this file. Reference: docs/reference/seams-cli.md.
+
+# The model is this directory: expenses.trig (the architecture and the
+# expense context) and finance.trig (the finance context), loaded together
+# as one dataset (ADR-0030 section 3). Every *.trig file here is part of it.
+model = "."
+
+# No gates: the model attaches the DDD profile (profiles/ddd/, ADR-0033), and
+# `seams check` validates its rules, which restate the ungoverned-writes and
+# untranslated-cross-context-calls gates (and the unfired-transitions
+# coverage query). Listing those gates here as well would report each fact
+# twice. The profile also checks that a shape is written only from the
+# context that owns it, and that an aggregate has one lifecycle, one store and
+# one correlation key, and its seam:aggregateMember shapes one store between
+# them (ADR-0035).
+
+[[generators]]
+name = "fastapi"
+out = "generated"
+
+[[generators]]
+name = "htmx"
+out = "generated/templates"
+
+# The runtime image's Dockerfile, beside the route module: its paths are literal
+# and relative to the serving container's development deploy:build context.
+[[generators]]
+name = "dockerfile"
+out = "generated"
+
+# One compose.<environment>.yaml per arch:Environment beside this file
+# (ADR-0015).
+[[generators]]
+name = "compose"
+out = "."
+
+# pytest files from the scenarios and examples at the end of the seams graph
+# (ADR-0014). Each test is named after the model fact it checks.
+[[generators]]
+name = "tests"
+out = "generated/tests"
+
+# One pytest per hydra:Operation that calls it on its declared path and checks
+# the answer against seam:returnsShape. The tests skip unless
+# SEAMS_SMOKE_BASE_URL names a running stack (tests/test_expense_e2e.py).
+[[generators]]
+name = "smoke"
+out = "generated/smoke"
+
+# Per handlers module, a pytest file that checks the hand-written body against
+# the model: the stub's types, its result per shape example, the lifecycle
+# guard of the transition it fires and the decision routing (backlog C2).
+[[generators]]
+name = "acceptance"
+out = "generated/acceptance"
+
+# One JSON-LD context per shape with a sh:targetClass (ADR-0024): the published
+# copy of the context the route module serves at /contexts/<shape>.jsonld.
+[[generators]]
+name = "jsonld"
+out = "generated/contexts"
+
+# Chapter 10's mentalmodel generator is not listed: a SemPKM Mental Model
+# (ADR-0026) is written for one seam:Ontology model, and this dataset has
+# two, :expense_ontology and :finance_ontology.
+
+# The model's arch:Environment :production; compose.production.yaml deploys it.
+[environments.production]
+
+# The model's arch:Environment :development: the local stack that
+# `docker compose -f examples/expenses/chapter-11/compose.development.yaml up`
+# runs. The Caddy UI container (employee_portal) on port 8080 proxies /healthz
+# to the runtime, so `seams status --env development` reads the running model
+# hash there.
+[environments.development]
+endpoints = { expense_api = "http://localhost:8080" }

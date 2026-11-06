@@ -52,6 +52,9 @@ ROOT_ENV = "SEAMS_VIEWER_ROOT"
 # ADR-0017: edit mode is off unless SEAMS_EDIT=1 when the viewer starts (or when
 # configure() runs); without it no route that writes is mounted.
 EDIT_ENV = "SEAMS_EDIT"
+# ADR-0036: the data-health view reads the SQLite store at SEAMS_VIEWER_STORE,
+# read-only; without it the view says no store is configured.
+STORE_ENV = "SEAMS_VIEWER_STORE"
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "examples" / "chat-app" / "chat-app.trig"
 
 
@@ -233,6 +236,12 @@ def profile_health() -> dict | None:
 def get_graph() -> Dataset:
     """The loaded model's merged Dataset (default_union)."""
     return get_model().ds
+
+
+def profile_pills(iri: str) -> list[dict]:
+    """The attached profile's type pills on the element (ADR-0033 section 4), each
+    {"label", "shape"}, sorted by label then shape IRI; empty with no profile."""
+    return validation.get_profile_pills(get_graph(), get_profile()).get(iri, [])
 
 
 def model_health(ds: Dataset) -> dict:
@@ -648,6 +657,19 @@ def edges_for_predicates(members: set[str], preds: list[tuple]) -> list[dict]:
     return edges
 
 
+def domain_classifications() -> dict[str, str]:
+    """arch:Domain IRI -> the label of its arch:classification ("core"), drawn
+    on the domain's frame (ADR-0030 section 5). A domain with none or several
+    is left out: DomainShape reports it in the health panel."""
+    found: dict[str, str] = {}
+    for domain in get_model().architecture.domains():
+        try:
+            found[str(domain.iri)] = domain.classification_label
+        except seams.ResolutionError:
+            continue
+    return found
+
+
 def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict], list[dict]]:
     """Compound C4 graph at one zoom level (ADR-0008, viewer/levels.py).
 
@@ -683,6 +705,11 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         for n in nodes:
             if n["id"] in nested_layers and n["layer"] == "other":
                 n["layer"] = nested_layers[n["id"]]
+    classifications = domain_classifications()
+    for n in nodes:
+        if n["id"] in classifications:
+            n["classification"] = classifications[n["id"]]
+            n["typeLabel"] = f"{n['typeLabel']} · {n['classification']}"
     nodes.sort(key=lambda n: (n["parent"] or "", n["id"]))
 
     if spec.rollup:
@@ -941,6 +968,30 @@ def layers_endpoint(request: Request):
         "layer_warnings": data["warnings"],
         "reveal_modes": [(mode, title) for mode, title, _hint in RELATION_GROUPS],
     }
+    return templates.TemplateResponse(request, "page.html", ctx)
+
+
+def store_path_from_env() -> Path | None:
+    """SEAMS_VIEWER_STORE when set and non-empty, else None (no store configured)."""
+    value = os.environ.get(STORE_ENV)
+    return Path(value).resolve() if value else None
+
+
+@app.get("/data-health")
+def data_health_endpoint(request: Request):
+    """The data-health view (ADR-0036): the attached profile's instance-data
+    warnings on the store at SEAMS_VIEWER_STORE, computed by
+    validation.get_data_health on every request. JSON on request, the
+    data-health.html fragment for htmx, otherwise that fragment in the page shell."""
+    get_model()
+    health = validation.get_data_health(MODEL_PATH, get_graph(), _profile, _profile_error, store_path_from_env())
+    logger.info("viewer data health %s: %s, %d warning(s)", health["store"], health["state"], health["count"])
+    if wants_json(request):
+        return JSONResponse(health)
+    ctx = {"request": request, "label": "Data health", "data_health": health, "store_env": STORE_ENV}
+    if request.headers.get("hx-request") == "true":
+        return templates.TemplateResponse(request, "data-health.html", ctx)
+    ctx = {**ctx, "model_conformance": model_health(get_graph()), "content_template": "data-health.html"}
     return templates.TemplateResponse(request, "page.html", ctx)
 
 
@@ -1208,6 +1259,8 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
         "notation": notation,
         "render_kind": render_kind,
         "types_str": ", ".join(view["types"]) or "—",
+        # Template-only (ADR-0033 section 4): the profile's derived type pills.
+        "pills": profile_pills(focus),
         "native_element_id": view["nativeElementId"],
         "render_payload": view["renderPayload"],
         "warnings": view["warnings"],
@@ -1328,9 +1381,10 @@ templates.env.globals["edit_enabled"] = edit_enabled
 
 def edit_palette() -> dict | None:
     """The classes the editor offers (ADR-0018): the attached profile's, with its
-    labels, computed in viewer/editing.py. None without a profile or edit mode."""
+    labels, computed in viewer/editing.py. None without a profile or edit mode, and
+    for a profile that offers no classes, which restricts nothing (ADR-0033 section 3)."""
     profile = get_profile() if edit_enabled() else None
-    if profile is None:
+    if profile is None or not profile.classes:
         return None
     health = profile_health() or {}
     return {"profile": health.get("label"), "iri": str(profile.iri), "classes": editing.palette(profile)}
@@ -1507,10 +1561,13 @@ def _roll_back(records: list[seams_edit.EditRecord]) -> str:
 def preview_context() -> dict:
     """The live preview of the loaded model (viewer/preview.py), logged with its
     project, output count, fault count and duration. An attached profile limits it
-    to the profile's generators (ADR-0018)."""
+    to the profile's generators (ADR-0018); one that lists none limits nothing
+    (ADR-0033 section 3)."""
     start = time.perf_counter()
     profile = get_profile()
-    facts = preview.preview(MODEL_PATH, MODEL_DIR, profile.generators if profile is not None else None)
+    facts = preview.preview(
+        MODEL_PATH, MODEL_DIR, profile.generators if profile is not None and profile.generators else None
+    )
     logger.info(
         "preview %s: %d output(s), %d fault(s) in %.2fs%s",
         facts["project"] or MODEL_DIR,

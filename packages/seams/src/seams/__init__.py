@@ -16,8 +16,8 @@ prefixes bound, and ``model.question(name, **bindings)`` runs a bundled
 canned question (``question_names()``).
 
 ``seams.coverage`` answers what no scenario or test exercises (D054):
-``unexercised_paths`` (BPMN paths no scenario runs), ``unfired_transitions``
-and ``policies_without_deny``.
+``unexercised_paths`` (BPMN paths no scenario runs), ``unfired_transitions``,
+``policies_without_deny`` and ``core_operations_untested`` (ADR-0030).
 
 ``seams.decisions_check`` finds decision faults the runtime would hit
 (backlog K2): ``decision_findings`` lists DMN typeRefs that disagree with
@@ -43,11 +43,16 @@ migrated in memory with the SPARQL Update steps under ``ontology/migrations``,
 and ``Model.migrations`` lists the ``MigrationStep``s applied.
 
 ``seams.ontologies`` resolves the ``owl:imports`` of ``seam:Ontology``
-models (ADR-0022) that ``load`` checks: an import names the version IRI of a
-file vendored under ``ontology/vendor``, resolved offline; ``Model.imports``
-lists the ``VendoredOntology``s resolved and ``Model.import_statuses`` the
-``ImportStatus`` of each import. ``model.ontologies`` lists the ontology
+models (ADR-0022) that ``load`` checks: an import names the version IRI of
+another ontology model in the same Dataset (ADR-0030 section 4) or of a file
+vendored under ``ontology/vendor``, resolved offline; ``Model.dataset_imports``
+lists the ``DatasetOntology``s and ``Model.imports`` the ``VendoredOntology``s
+resolved, and ``Model.import_statuses`` the ``ImportStatus`` of each import. ``model.ontologies`` lists the ontology
 models, their ``OntologyClass``es and each class's ``Superclass``es.
+
+``seams.profiles`` resolves the domain profile a model attaches to with
+``seam:conformsTo`` (ADR-0018, ADR-0033): ``resolve_profile(ds, model_dir)``
+returns a ``Profile`` (offered classes, generators, labels, shapes, pill shapes).
 
 ``seams.dmn`` reads DMN decision tables with lxml (``parse_dmn``,
 ``decision_table``); ``Decision.table`` joins one to its graph binding.
@@ -57,6 +62,7 @@ from .context import ContextItem, Manifest, context_for
 from .coverage import (
     ProcessPath,
     UndeniedPermission,
+    core_operations_untested,
     policies_without_deny,
     process_paths,
     unexercised_paths,
@@ -98,23 +104,29 @@ from .graph import (
     dmn_decision_ids,
     dmn_input_types,
 )
-from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_hash, payload_path
+from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_dir, model_hash, payload_path
 from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, VERIFY, local_name
 from .ontologies import (
     VENDOR_DIR,
+    DatasetOntology,
     ImportStatus,
     VendoredOntology,
     check_imports,
+    dataset_imports,
+    dataset_ontologies,
     import_statuses,
     vendored_graph,
     vendored_ontologies,
 )
+from .profiles import Profile, resolve_profile
 from .review_check import ReviewFinding, review_findings
 from .sparql import PREFIXES, load_question, question_names
 from .views import (
+    Aggregate,
     Architecture,
     Artifact,
     Binding,
+    BoundedContext,
     Build,
     Channel,
     Component,
@@ -123,6 +135,7 @@ from .views import (
     DecisionExample,
     Deployment,
     DeploymentNode,
+    Domain,
     Element,
     Environment,
     ErrorBoundary,
@@ -175,9 +188,11 @@ from .vocabularies import (
 
 __all__ = [
     "ARCH",
+    "Aggregate",
     "Architecture",
     "Artifact",
     "Binding",
+    "BoundedContext",
     "Build",
     "COMM",
     "Channel",
@@ -190,6 +205,7 @@ __all__ = [
     "DEC",
     "DEFAULT_ONTOLOGY_DIR",
     "DEPLOY",
+    "DatasetOntology",
     "Decision",
     "DecisionBinding",
     "DecisionExample",
@@ -197,6 +213,7 @@ __all__ = [
     "DecisionTable",
     "Deployment",
     "DeploymentNode",
+    "Domain",
     "Element",
     "Environment",
     "ErrorBoundary",
@@ -249,6 +266,7 @@ __all__ = [
     "ProcessFacts",
     "ProcessPath",
     "Processes",
+    "Profile",
     "RELATIONAL_STORE_KINDS",
     "ResolutionError",
     "ReviewFinding",
@@ -284,6 +302,9 @@ __all__ = [
     "check_versions",
     "condition_findings",
     "context_for",
+    "core_operations_untested",
+    "dataset_imports",
+    "dataset_ontologies",
     "decision_findings",
     "decision_table",
     "declared_versions",
@@ -293,12 +314,14 @@ __all__ = [
     "load",
     "load_question",
     "local_name",
+    "model_dir",
     "model_hash",
     "parse_dmn",
     "payload_path",
     "policies_without_deny",
     "process_paths",
     "question_names",
+    "resolve_profile",
     "review_findings",
     "shipped_versions",
     "table_findings",

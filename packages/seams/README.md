@@ -21,6 +21,21 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
 the views (`model.architecture`, `interfaces`, `processes`, `decisions`,
 `shapes`, `operations`, `channels`, `lifecycles`, `policies`, and the ADR-0014
 `scenarios` and `decision_examples`) read every model of a layer at once.
+`model.architecture.domains()` and `contexts()` read the ADR-0030 domains and
+bounded contexts (`Domain`, `BoundedContext`: classification, owned models, the
+one ontology, and the containers that run a context).
+`Shape.lifecycle` is the shape's effective lifecycle (ADR-0031): the machine it
+names with `seam:lifecycle`, else the one its `sh:targetClass` names; a shape
+that reaches two raises `ResolutionError(shape, seam:lifecycle, ...)` listing
+both. `Lifecycle.shapes` is the shapes that name it plus the `sh:NodeShape`s
+whose `sh:targetClass` names it, by IRI. `ModelGraph.has_lifecycle`,
+`lifecycle_for` and `lifecycle_shape` read through these views.
+`model.aggregates` is every aggregate that names `seam:aggregateMember` shapes
+(ADR-0035), by IRI: an `Aggregate` is the class or shape, its `members` the listed
+shapes by IRI (never derived from `sh:targetClass`) and its `lifecycle` the machine it
+names. `Shape.aggregate` is the one aggregate a shape is a member of, or None; a shape
+two aggregates list raises `ResolutionError(shape, seam:aggregateMember, ...)` naming
+both.
 `model.sparql` and `model.question` run read-only SPARQL.
 
 ## Vocabulary versions
@@ -58,23 +73,31 @@ dir)` runs the check on a Dataset directly.
 A `seam:Ontology` model is also an `owl:Ontology` (ADR-0022), and its
 `owl:imports` name the version IRIs of the ontologies it builds on, such as
 `<https://w3id.org/semanticarts/ontology/gistCore14.0.0>`. `seams.load` resolves
-them offline (`ontologies.py`) against the files in `<ontology_dir>/vendor/`
+them offline (`ontologies.py`), first against the other `seam:Ontology` models of the
+same Dataset by their `owl:versionIRI` (ADR-0030 section 4,
+`seams.dataset_ontologies(ds)`), then against the files in `<ontology_dir>/vendor/`
 (`ontology/vendor/`, see its README), each indexed by the `owl:Ontology` IRI and
 `owl:versionIRI` in its own header (`seams.vendored_ontologies(dir)`). Imports are
 checked in sorted order and the first fault raises `ResolutionError(<ontology>,
 owl:imports, detail)`:
 
+- another ontology model's version IRI resolves; `model.dataset_imports` lists the
+  `DatasetOntology`s (`ontology`, `version`) resolved, sorted by version IRI. An
+  ontology never resolves its own version;
 - a vendored file's version IRI resolves; `model.imports` lists the
   `VendoredOntology`s (`ontology`, `version`, `path`) resolved;
-- the bare ontology IRI, or another version of it, is a mismatch: `"imports
-  gistCore14.1.0; the vendored version is gistCore14.0.0"`;
+- the bare IRI of a dataset ontology, or another version of it, is a mismatch:
+  `"imports <…/finance_ontology/2.0>; the dataset's finance_ontology is version
+  <…/finance_ontology/1.0>"`;
+- the bare ontology IRI of a vendored file, or another version of it, is a mismatch:
+  `"imports gistCore14.1.0; the vendored version is gistCore14.0.0"`;
 - a SemanticSeams vocabulary version belongs in the manifest graph instead;
 - anything else is unresolved: `"imports <iri>, which no file in ontology/vendor/
   declares"`.
 
 `check_imports=False` loads without the check; `model.import_statuses` then
 reports each import as an `ImportStatus` (`ontology`, `imported`, `vendored`,
-`detail`, `resolved`, `error`) without raising. Imported triples are never merged
+`detail`, `dataset`, `resolved`, `error`) without raising. Imported triples are never merged
 into `model.ds`, so the hash, SHACL and the generators see only the model.
 
 `model.ontologies` lists the ontology models (`Ontology`: `version_iri`, `imports`,
@@ -177,14 +200,27 @@ other entry is skipped, not guessed at. `seams check` reports them as
 `seams.review_findings(model)` runs the model review checks (backlog R1) and
 returns a sorted list of `ReviewFinding` (`subject`, `fact`, `message`). It
 flags four things: a `sh:in` list that copies the `rdfs:label`s of the shape's
-`seam:lifecycle` states (subject the shape, fact the `sh:path`, the message
-names the state IRIs to use), a `sh:class` that points at a `sh:NodeShape`, a
+lifecycle states, its own `seam:lifecycle` or its class's (subject the shape,
+fact the `sh:path`, the message names the state IRIs to use), a `sh:class` that points at a `sh:NodeShape`, a
 `sh:NodeShape` with no `sh:targetClass` that is not itself a class (fact
 `sh:targetClass`), and a `sh:path` IRI that no `rdf:Property`,
 `owl:ObjectProperty`, `owl:DatatypeProperty` or `owl:AnnotationProperty`
 declares (subject the path, fact `sh:path`; path expressions are skipped). The
 checks are in `seams.review_check`, one function each. A review finding flags
 the model; it never refuses it, and the function does not raise.
+
+`seams.resolve_profile(ds, model_dir)` resolves the domain profile a model attaches
+to with `seam:conformsTo` ([ADR-0018](../../docs/adr/0018-domain-profiles.md),
+[ADR-0033](../../docs/adr/0033-ddd-profile.md) section 5): the `profiles/*/profile.ttl`
+in `model_dir` that declares the IRI a `seam:Profile`. It returns None when the model
+states no `seam:conformsTo` (and reads no file), else a `Profile` with `iri`, `classes`
+(`seam:offersClass`), `generators` (`seam:usesGenerator`), `labels`, `shapes` (one graph
+parsed from the `seam:profileShapes` files), `graph` and `pills`, each pill shape (a
+labelled `sh:NodeShape` of severity `sh:Info`) mapped to its `skos:prefLabel`, else
+`rdfs:label`. It reads and parses with rdflib and does not validate: `seams check` and the
+viewer run pyshacl with `shapes`. Two profiles, a profile no file declares, two files
+declaring it, or an unparsable or missing file raise `ResolutionError` naming
+`seam:conformsTo` or `seam:profileShapes`, with paths relative to `model_dir`.
 
 `ModelGraph.operation_implementation(op)` reads what serves an operation
 (ADR-0012) from `seam:implementedBy`, returning an `Implementation` (`iri`,
@@ -198,8 +234,12 @@ predicate. The operation view's `implemented_by` lists the nodes.
 
 `seams.coverage` lists what nothing exercises (D054): `unexercised_paths`
 (BPMN start-to-end paths no `verify:Scenario` runs, joined in Python because
-sequence flows live only in the XML), `unfired_transitions` and
-`policies_without_deny` (the `coverage/` canned questions).
+sequence flows live only in the XML), `unfired_transitions`,
+`policies_without_deny` and `core_operations_untested` (the `coverage/` canned
+questions). `core_operations_untested(model, context=None)` (ADR-0030 section 6)
+lists the operations of a context in an `arch:Core` domain that no
+`comm:PythonHandler` implements and no `verify:Scenario` reaches, through the
+process it starts or the user task it completes.
 
 ## Context assembly
 

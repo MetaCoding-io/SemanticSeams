@@ -92,6 +92,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:consumes ,
         seam:deployedTo ,
         seam:executes ,
+        seam:owns ,
         seam:storedIn ,
         seam:triggers ,
         seam:completedOn ,
@@ -105,6 +106,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:reads ,
         seam:writes ,
         seam:lifecycle ,
+        seam:aggregateMember ,
         seam:fires ,
         seam:acceptsShape ,
         seam:returnsShape ,
@@ -160,6 +162,97 @@ seamsh:ExecutesShape a sh:NodeShape ;
     sh:class arch:Container ;
     sh:property [ sh:path seam:executes ; sh:class proc:Process ;
         sh:message "seam:executes points at a proc:Process." ] .
+
+#################################################################
+# Domains and bounded contexts (ADR-0030)
+#################################################################
+
+seamsh:DomainShape a sh:NodeShape ;
+    sh:targetClass arch:Domain ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An arch:Domain has exactly one rdfs:label." ] ;
+    sh:property [ sh:path arch:classification ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( arch:Core arch:Supporting arch:Generic ) ;
+        sh:message "An arch:Domain has exactly one arch:classification: arch:Core, arch:Supporting or arch:Generic." ] .
+
+seamsh:BoundedContextShape a sh:NodeShape ;
+    sh:targetClass arch:BoundedContext ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An arch:BoundedContext has exactly one rdfs:label." ] ;
+    sh:property [ sh:path [ sh:inversePath arch:contains ] ;
+        sh:qualifiedValueShape [ sh:class arch:Domain ] ;
+        sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "An arch:BoundedContext is arch:contains'ed by exactly one arch:Domain." ] ;
+    sh:property [ sh:path seam:owns ;
+        sh:qualifiedValueShape [ sh:path seam:notation ; sh:hasValue seam:Ontology ] ;
+        sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "An arch:BoundedContext seam:owns exactly one model whose seam:notation is seam:Ontology." ] .
+
+# A dataset with no context is one implicit context, so the second check only runs
+# once any arch:BoundedContext is declared. The architecture model (seam:C4)
+# declares the contexts and is never owned.
+seamsh:ModelOwnerShape a sh:NodeShape ;
+    sh:targetClass seam:Model ;
+    sh:property [ sh:path [ sh:inversePath seam:owns ] ; sh:maxCount 1 ;
+        sh:message "A seam:Model is seam:owns'ed by at most one arch:BoundedContext." ] ;
+    sh:sparql [
+        sh:message "Once the dataset declares an arch:BoundedContext, every seam:Model whose notation is not seam:C4 is seam:owns'ed by exactly one." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path WHERE {
+                FILTER EXISTS { ?context a arch:BoundedContext }
+                FILTER NOT EXISTS { $this seam:notation seam:C4 }
+                FILTER NOT EXISTS { ?owner seam:owns $this }
+                BIND (seam:owns AS ?path)
+            }""" ;
+    ] .
+
+seamsh:OwnsTargetShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:owns ;
+    sh:class seam:Model ;
+    sh:message "seam:owns points at a seam:Model." .
+
+#################################################################
+# Context-map relationships (ADR-0032)
+#################################################################
+
+seamsh:ContextRelationshipShape a sh:NodeShape ;
+    sh:targetClass arch:ContextRelationship ;
+    sh:property [ sh:path arch:upstream ; sh:minCount 1 ; sh:maxCount 1 ; sh:class arch:BoundedContext ;
+        sh:message "An arch:ContextRelationship has exactly one arch:upstream, an arch:BoundedContext." ] ;
+    sh:property [ sh:path arch:downstream ; sh:minCount 1 ; sh:maxCount 1 ; sh:class arch:BoundedContext ;
+        sh:message "An arch:ContextRelationship has exactly one arch:downstream, an arch:BoundedContext." ] ;
+    sh:property [ sh:path arch:relationshipType ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( arch:CustomerSupplier arch:Conformist arch:AntiCorruptionLayer arch:PublishedLanguage arch:SharedKernel ) ;
+        sh:message "An arch:ContextRelationship has exactly one arch:relationshipType: arch:CustomerSupplier, arch:Conformist, arch:AntiCorruptionLayer, arch:PublishedLanguage or arch:SharedKernel." ] ;
+    sh:sparql [
+        sh:message "An arch:ContextRelationship's arch:upstream and arch:downstream are two different contexts." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path WHERE {
+                $this arch:upstream ?context ; arch:downstream ?context .
+                BIND (arch:downstream AS ?path)
+            }""" ;
+    ] ;
+    # One relationship per pair, in either direction: two facts about one pair
+    # would give the gate and seams diff two answers.
+    sh:sparql [
+        sh:message "Two contexts have at most one arch:ContextRelationship between them, in either direction." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                $this arch:upstream ?a ; arch:downstream ?b .
+                ?other a arch:ContextRelationship ; arch:upstream ?c ; arch:downstream ?d .
+                FILTER (?other != $this && ?a != ?b)
+                FILTER ((?a = ?c && ?b = ?d) || (?a = ?d && ?b = ?c))
+                BIND (arch:upstream AS ?path)
+            }""" ;
+    ] .
+
+seamsh:ContextRelationshipTermsShape a sh:NodeShape ;
+    sh:targetSubjectsOf arch:upstream , arch:downstream , arch:relationshipType ;
+    sh:class arch:ContextRelationship ;
+    sh:message "Only an arch:ContextRelationship has an arch:upstream, arch:downstream or arch:relationshipType." .
 
 #################################################################
 # UI <-> process
@@ -300,12 +393,12 @@ seamsh:VisibleWhenGuardShape a sh:NodeShape ;
     sh:property [ sh:path seam:reads ; sh:minCount 1 ;
         sh:message "A component with seam:visibleWhen seam:reads the shape whose lifecycle state guards it." ] ;
     sh:sparql [
-        sh:message "Each seam:visibleWhen state is a state:hasState of the seam:lifecycle of the shape the component seam:reads." ;
+        sh:message "Each seam:visibleWhen state is a state:hasState of the seam:lifecycle of the shape the component seam:reads, its own or that of its sh:targetClass." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this seam:visibleWhen ?value ; seam:reads ?shape .
-                FILTER NOT EXISTS { ?shape seam:lifecycle ?machine . ?machine state:hasState ?value }
+                FILTER NOT EXISTS { ?shape seam:lifecycle|sh:targetClass/seam:lifecycle ?machine . ?machine state:hasState ?value }
             }""" ;
     ] .
 
@@ -457,10 +550,10 @@ seamsh:InvokesShape a sh:NodeShape ;
 
 seamsh:PublishesToShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:publishesTo ;
-    sh:or ( [ sh:class proc:MessageThrowEvent ] [ sh:class proc:ServiceTask ] ) ;
+    sh:or ( [ sh:class proc:MessageThrowEvent ] [ sh:class proc:ServiceTask ] [ sh:class state:Transition ] ) ;
     sh:property [ sh:path seam:publishesTo ; sh:class comm:Channel ;
         sh:message "seam:publishesTo points at a comm:Channel." ] ;
-    sh:message "Only a proc:MessageThrowEvent or a proc:ServiceTask seam:publishesTo a channel (D046)." .
+    sh:message "Only a proc:MessageThrowEvent, a proc:ServiceTask or a state:Transition seam:publishesTo a channel (D046, ADR-0031)." .
 
 seamsh:SubscribesToShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:subscribesTo ;
@@ -484,10 +577,50 @@ seamsh:WritesShape a sh:NodeShape ;
 
 seamsh:LifecycleShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:lifecycle ;
-    sh:class sh:NodeShape ;
+    sh:or ( [ sh:class owl:Class ] [ sh:class sh:NodeShape ] ) ;
     sh:property [ sh:path seam:lifecycle ; sh:class state:StateMachine ;
         sh:message "seam:lifecycle points at a state:StateMachine." ] ;
-    sh:message "Only a sh:NodeShape carries a seam:lifecycle." .
+    sh:message "Only an owl:Class or a sh:NodeShape carries a seam:lifecycle (ADR-0031)." .
+
+seamsh:EffectiveLifecycleShape a sh:NodeShape ;
+    rdfs:comment """A shape's effective lifecycle is its own seam:lifecycle, else that of its
+sh:targetClass (ADR-0031 section 2). One result per pair of machines it reaches, with the
+later IRI as the value; the same machine reached twice is one lifecycle.""" ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "A sh:NodeShape has at most one effective seam:lifecycle, its own or that of its sh:targetClass; it reaches {?other} and {?value}." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value ?other WHERE {
+                $this seam:lifecycle|sh:targetClass/seam:lifecycle ?value , ?other .
+                FILTER (STR(?other) < STR(?value))
+                BIND (seam:lifecycle AS ?path)
+            }""" ;
+    ] .
+
+seamsh:AggregateMemberShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:aggregateMember ;
+    sh:property [ sh:path seam:lifecycle ; sh:minCount 1 ;
+        sh:message "Only an aggregate, an owl:Class or sh:NodeShape with a seam:lifecycle, has a seam:aggregateMember (ADR-0035)." ] ;
+    sh:property [ sh:path seam:aggregateMember ; sh:class sh:NodeShape ;
+        sh:message "seam:aggregateMember points at a sh:NodeShape." ] .
+
+seamsh:OneAggregateShape a sh:NodeShape ;
+    rdfs:comment """A shape is the seam:aggregateMember of at most one aggregate (ADR-0035
+section 1). One result per pair of aggregates, with the later IRI as the value. A
+sh:sparql constraint focused on the shape, so the result has no blank-node path.""" ;
+    sh:targetObjectsOf seam:aggregateMember ;
+    sh:sparql [
+        sh:message "A sh:NodeShape is the seam:aggregateMember of at most one aggregate; it is a member of {?other} and {?value}." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value ?other WHERE {
+                ?value seam:aggregateMember $this .
+                ?other seam:aggregateMember $this .
+                FILTER (STR(?other) < STR(?value))
+                BIND (seam:aggregateMember AS ?path)
+            }""" ;
+    ] .
 
 seamsh:FiresShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:fires ;
@@ -1422,12 +1555,12 @@ seamsh:ScenarioShape a sh:NodeShape ;
             }""" ;
     ] ;
     sh:sparql [
-        sh:message "verify:expectState is a state of a lifecycle some shape seam:lifecycle names, so the test knows whose state to read." ;
+        sh:message "verify:expectState is a state of a lifecycle some shape seam:lifecycle names, directly or through its sh:targetClass, so the test knows whose state to read." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this verify:expectState ?value .
-                FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle ?machine }
+                FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle|sh:targetClass/seam:lifecycle ?machine }
             }""" ;
     ] ;
     sh:sparql [

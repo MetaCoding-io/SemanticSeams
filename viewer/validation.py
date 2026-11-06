@@ -44,8 +44,18 @@ element whose class is neither offered by the profile nor a subclass of an
 offered class is one Warning naming the element, rdf:type and the class: flagged,
 never refused, so it does not change ``conforms``.
 
+The same pyshacl run derives the profile's type pills (ADR-0033 section 4,
+get_profile_pills()): each focus node of a pill shape's standard targets that the
+run reports no result of the shape for gets the shape's label. The pills' names
+come from the profile's shapes file; this module holds none.
+
 Results are cached per Dataset and profile identity: the model is loaded once per
 process, so each dataset is validated at most once per profile.
+
+The data-health view (ADR-0036, get_data_health()) is the one check here that
+reads instance data: the attached profile's sh:Warning sh:sparql rules run, through
+seams_runtime's public ``data_health``, on the entities of a SQLite store opened
+read-only. The store changes under the viewer, so this result is never cached.
 """
 
 from __future__ import annotations
@@ -58,6 +68,7 @@ import seams
 from lxml import etree
 from rdflib import RDF, RDFS, Namespace, URIRef
 
+from seams_runtime import ContractViolation, SQLiteStore, StoreError, data_health
 from viewer.profiles import Profile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,11 +85,13 @@ LIFTED_NOTATIONS = (SEAM.BPMN, SEAM.DMN)
 # caches; the viewer holds one Dataset per process. Python recycles id() values,
 # so both are cleared together (MEM010).
 _cache: dict[tuple[int, int | None], dict] = {}
+_pill_cache: dict[tuple[int, int | None], dict[str, list[dict]]] = {}
 _lifted_cache: dict[int, list[dict]] = {}
 
 
 def _clear_cache() -> None:
     _cache.clear()
+    _pill_cache.clear()
     _lifted_cache.clear()
 
 
@@ -114,6 +127,9 @@ def _out_of_profile(ds: rdflib.Dataset, union: rdflib.Graph, profile: Profile) -
     directly or through rdfs:subClassOf over the ontology, the model and the profile
     (``union``), sorted by element then class."""
     offered = set(profile.classes)
+    if not offered:
+        # A profile that offers no classes restricts nothing (ADR-0033 section 3).
+        return []
     found = sorted(
         {
             (s, cls)
@@ -132,6 +148,39 @@ def _out_of_profile(ds: rdflib.Dataset, union: rdflib.Graph, profile: Profile) -
         }
         for s, cls in found
     ]
+
+
+def _targets(shapes: rdflib.Graph, shape: URIRef, data: rdflib.Graph) -> set[URIRef]:
+    """The IRI focus nodes of ``shape``'s standard targets over ``data`` (sh:targetNode,
+    sh:targetClass with rdfs:subClassOf, sh:targetSubjectsOf, sh:targetObjectsOf)."""
+    nodes: set = set(shapes.objects(shape, SH.targetNode))
+    for cls in shapes.objects(shape, SH.targetClass):
+        for sub in data.transitive_subjects(RDFS.subClassOf, cls):
+            nodes.update(data.subjects(RDF.type, sub))
+    for predicate in shapes.objects(shape, SH.targetSubjectsOf):
+        nodes.update(data.subjects(predicate, None))
+    for predicate in shapes.objects(shape, SH.targetObjectsOf):
+        nodes.update(data.objects(None, predicate))
+    return {n for n in nodes if isinstance(n, URIRef)}
+
+
+def _pills(data: rdflib.Graph, results: rdflib.Graph, profile: Profile) -> dict[str, list[dict]]:
+    """Focus IRI -> its pills, each {"label", "shape"}, sorted by label then shape IRI
+    and one per label (ADR-0033 section 4). A focus node conforms to a pill shape when
+    ``results`` has no result whose source is the shape or one of its sh:property shapes."""
+    failed: dict[URIRef, set] = {}
+    for shape in profile.pills:
+        sources = {shape, *profile.shapes.objects(shape, SH.property)}
+        failed[shape] = {
+            results.value(r, SH.focusNode)
+            for r in results.subjects(RDF.type, SH.ValidationResult)
+            if results.value(r, SH.sourceShape) in sources
+        }
+    found: dict[str, dict[str, str]] = {}
+    for shape, label in sorted(profile.pills.items(), key=lambda item: (item[1], str(item[0]))):
+        for node in _targets(profile.shapes, shape, data) - failed[shape]:
+            found.setdefault(str(node), {}).setdefault(label, str(shape))
+    return {node: [{"label": label, "shape": shape} for label, shape in pills.items()] for node, pills in found.items()}
 
 
 def _finding(finding: seams.StoreFinding) -> dict:
@@ -244,12 +293,16 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
 
     violations: list[dict] = []
     shape_warnings: list[dict] = []
+    # A pill shape's results are its non-conforming targets, not findings (ADR-0033 section 4).
+    pills = frozenset() if profile is None else profile.pill_sources()
     for result in results_graph.subjects(rdflib.RDF.type, SH.ValidationResult):
+        source_shape = results_graph.value(result, SH.sourceShape)
+        if source_shape in pills:
+            continue
         focus = results_graph.value(result, SH.focusNode)
         path = results_graph.value(result, SH.resultPath)
         message = results_graph.value(result, SH.resultMessage)
         severity = results_graph.value(result, SH.resultSeverity)
-        source_shape = results_graph.value(result, SH.sourceShape)
         (shape_warnings if severity == SH.Warning else violations).append(
             {
                 "focusNode": str(focus) if focus is not None else None,
@@ -270,6 +323,7 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
     )
     if profile is not None:
         warnings += _out_of_profile(ds, union, profile)
+    _pill_cache[key] = {} if profile is None else _pills(union, results_graph, profile)
     notes = [f for f in store if f["severity"] == "Info"]
 
     summary = {
@@ -281,6 +335,15 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
     }
     _cache[key] = summary
     return summary
+
+
+def get_profile_pills(ds: rdflib.Dataset, profile: Profile | None) -> dict[str, list[dict]]:
+    """Focus IRI -> the profile's type pills on it (ADR-0033 section 4), from the run
+    get_model_conformance() caches; empty with no profile or no pill shapes."""
+    if profile is None or not profile.pills:
+        return {}
+    get_model_conformance(ds, profile)
+    return _pill_cache[(id(ds), id(profile))]
 
 
 def _payload_ids(path: Path) -> set[str]:
@@ -339,3 +402,49 @@ def get_lifted_iri_health(ds: rdflib.Dataset, base_dir: Path) -> list[dict]:
 
     _lifted_cache[key] = findings
     return findings
+
+
+def _data_health_state(state: str, store: Path | None, profile: Profile | None, error: str | None = None) -> dict:
+    return {
+        "state": state,
+        "store": None if store is None else str(store),
+        "profile": None if profile is None else str(profile.iri),
+        "error": error,
+        "findings": [],
+        "count": 0,
+    }
+
+
+def get_data_health(
+    model_path: Path,
+    ds: rdflib.Dataset,
+    profile: Profile | None,
+    profile_error: dict | None,
+    store_path: Path | None,
+) -> dict:
+    """The data-health view's facts (ADR-0036): the attached profile's
+    instance-data rules run on the SQLite store at ``store_path``, opened
+    read-only, so nothing is created or written.
+
+    Returns {"state", "store", "profile", "error", "findings", "count"}.
+    ``state`` is "no-store" without ``store_path``, "no-profile" when the model
+    attaches none, "error" when the profile did not resolve, the store cannot be
+    opened or a stored entity fails its shape contract (``error`` says which),
+    else "ok". Each finding is {"shape", "focus", "message", "severity"}, in
+    seams_runtime's sorted order.
+    """
+    if store_path is None:
+        return _data_health_state("no-store", None, profile)
+    if profile_error is not None:
+        detail = f"{profile_error['subject']} {profile_error['predicate']}: {profile_error['detail']}"
+        return _data_health_state("error", store_path, None, f"profile not resolved: {detail}")
+    if profile is None:
+        return _data_health_state("no-profile", store_path, None)
+    try:
+        store = SQLiteStore(store_path, read_only=True)
+        model = seams.ModelGraph(model_path, dataset=ds, check_imports=False)
+        findings = data_health(model, store, profile.shapes)
+    except (StoreError, ContractViolation) as err:
+        return _data_health_state("error", store_path, profile, str(err))
+    rows = [{"shape": f.shape, "focus": f.focus, "message": f.message, "severity": f.severity} for f in findings]
+    return {**_data_health_state("ok", store_path, profile), "findings": rows, "count": len(rows)}

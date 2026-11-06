@@ -11,6 +11,8 @@ dependencies = [
     "semanticseams-edit",
     # edit mode re-runs the project's generators, in memory, after each save (I3)
     "semanticseams-cli",
+    # the data-health view runs the runtime's instance-data rules (ADR-0036)
+    "semanticseams-runtime",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     # backs fastapi.templating.Jinja2Templates
@@ -26,3 +28,4 @@ package = false
 semanticseams = { workspace = true }
 semanticseams-edit = { workspace = true }
 semanticseams-cli = { workspace = true }
+semanticseams-runtime = { workspace = true }

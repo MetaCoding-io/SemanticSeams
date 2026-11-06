@@ -28,7 +28,8 @@ tests/test_expense_lifecycle.py.
 Chapter 7 adds role policies and the pay_expense task. The generic tests
 above still pass on it ("employee" and "manager" name the parties), except
 that the employee no longer sees the manager's task and approving leaves the
-instance waiting until finance pays. Those two tests branch on has_roles; the
+instance waiting until finance pays; from chapter 11 the payment task is the
+payout process's (pays_in_payout). Those two tests branch on has_roles; the
 roles themselves are covered in tests/test_expense_roles.py.
 """
 
@@ -37,12 +38,14 @@ from urllib.parse import quote
 
 import pytest
 from expense_app import (
+    PAYOUT_PROCESS,
     PROCESS_CHAPTERS,
     assert_generated_current,
     chapter_dir,
     commands,
     copy_checkpoint,
     has_roles,
+    pays_in_payout,
     serve,
     serve_directory,
     status,
@@ -203,9 +206,16 @@ def test_approving_finishes_the_instance(app, chapter):
     if has_roles(chapter):
         # from chapter 7 the approved expense waits for finance to pay it
         until(lambda: [row["bpmn_id"] for row in runtime.store.list_user_tasks()] == ["pay_expense"])
-        assert status(runtime, "e1") == "waiting"
+        if pays_in_payout(chapter):
+            # from chapter 11 the payout instance holds the payment task
+            until(lambda: status(runtime, "e1") == "complete")
+            assert status(runtime, "e1", PAYOUT_PROCESS) == "waiting"
+        else:
+            assert status(runtime, "e1") == "waiting"
         r = c.post("/expenses/e1/payment", data=PAYMENT, headers=FINANCE)
         assert r.status_code == 200, r.text
+        if pays_in_payout(chapter):
+            until(lambda: status(runtime, "e1", PAYOUT_PROCESS) == "complete")
     until(lambda: status(runtime, "e1") == "complete")
 
     [approval] = runtime.query(":ApprovalShape", expense="e1")

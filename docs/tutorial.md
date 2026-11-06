@@ -35,7 +35,7 @@ The model is in `examples/chat-app/`:
   the deployment (`deploy:`) facts. The seams join them: the compose form's `:send_message`
   event `seam:triggers` the send-message process, which is `seam:governedBy` a policy.
   The last graph, the manifest graph `<urn:seams:graph:manifest>`, `owl:imports` the
-  version of each vocabulary the model is written for (`arch/1.0`, `seam/1.2` and so on);
+  version of each vocabulary the model is written for (`arch/1.2`, `seam/1.5` and so on);
   every tool checks those versions when it loads the model
   ([Authoring a model](/guide/authoring-a-model#vocabulary-versions)).
   The chat app has no ontology model; the expense tutorial's chapter 9 adds one, a

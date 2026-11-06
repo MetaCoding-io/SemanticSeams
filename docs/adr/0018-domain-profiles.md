@@ -4,6 +4,10 @@
 
 **Date:** 2026-11-02
 
+**Amended by:** [ADR-0033](./0033-ddd-profile.md): `seams check` now resolves the
+attached profile and fails on its shapes' `sh:Violation` results (`seams generate` still
+ignores profiles), and `resolve_profile` moved to the `seams` library.
+
 **Source:** milestone M019/S06; backlog I5; research note
 [Projection and editing](../research/2026-10-30-domain-ide-and-generator-kit.md)
 section 4, layer 4; builds on [ADR-0016](./0016-generator-protocol.md) and
@@ -100,6 +104,8 @@ comes from the profile graph.
   project's `seams.toml` does not configure is not an error; the preview panel shows it
   as not configured. `seams generate` and `seams check` ignore profiles: a profile
   narrows what the editor previews, not what the project builds.
+  *(Amended by ADR-0033: `seams check` validates the model with the profile's shapes and
+  fails on a `sh:Violation`; `seams generate` still ignores profiles.)*
 
 The viewer resolves the profile when it loads the model and again on every reload after
 a save, and writes one log line naming the profile IRI, its class count and its

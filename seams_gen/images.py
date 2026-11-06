@@ -120,7 +120,7 @@ def list_images(project, cwd=None) -> list[Image]:
     with view_errors():
         deployment = container.for_environment(env)
     artifact = required(deployment.artifact, d.container, DEPLOY.artifact, f"in the {PRODUCTION} environment")
-    context = (model.path.parent / d.context).resolve()
+    context = (model.base_dir / d.context).resolve()
     tags = (f"{artifact.reference}:{artifact.version}", f"{artifact.reference}:sha-{short_hash(d.model_hash)}")
     images = []
     for out in outs:
@@ -160,7 +160,7 @@ def _built_images(model: Model, production, serving, cwd: Path) -> list[Image]:
         artifact = required(artifact, str(c.iri), DEPLOY.artifact, f"in the {PRODUCTION} environment")
         # a build without deploy:dockerfile names the fact instead of failing on Path / None
         name = required(build.dockerfile, str(c.iri), DEPLOY.dockerfile, "in the development environment")
-        context = (model.path.parent / build.context).resolve()
+        context = (model.base_dir / build.context).resolve()
         dockerfile = context / name
         if not dockerfile.is_file():
             raise ProjectError(f"{model.path}: {dockerfile}, the deploy:dockerfile of {c.iri}, is missing")

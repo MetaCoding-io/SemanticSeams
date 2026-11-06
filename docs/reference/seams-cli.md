@@ -6,7 +6,8 @@ generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams migrate`
 writes the vocabulary migrations a model needs into its files; `seams sequence`
 derives an event's sequence diagrams; `seams storm` prints a process's derived
-event-storm timeline; `seams diff` classifies the shape and
+event-storm timeline; `seams cml` moves the context map to and from Context
+Mapper DSL; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
 as a Markdown change plan; `seams coverage` lists the BPMN paths, transitions
@@ -47,7 +48,7 @@ out = "generated/templates"
 
 | Key | Type | Meaning |
 |---|---|---|
-| `model` | string, optional | The TriG file to generate from. |
+| `model` | string, optional | The TriG file to generate from, or a directory whose `*.trig` files load together as one model (`"."` for the project's own directory); payloads and `handlers/` resolve against the directory. |
 | `[[generators]]` | array of tables | One entry per generator to run, in any order. |
 | `[[generators]].name` | string | A generator registered in the `seams.generators` entry-point group: a built-in or one from an installed distribution (see [Generators](#generators)). |
 | `[[generators]].out` | string | The directory the generator writes into. |
@@ -252,7 +253,7 @@ seams check examples/expenses/chapter-08/expenses.trig   # the same project, by 
 seams check --project path/to/seams.toml --model other.trig
 ```
 
-The options are those of `seams generate`. The command runs five checks,
+The options are those of `seams generate`. The command runs the checks below,
 reports every finding and writes nothing, so it is safe in CI and in a
 pre-commit hook (D044):
 
@@ -263,11 +264,14 @@ pre-commit hook (D044):
 2. **Gates.** Each file the project lists under `gates` is a SPARQL SELECT
    query that runs over the same union graph. Every row it returns is a `gate`
    finding: the gate path, relative to the project, then the row's values.
-   This repository's gate, `docs/queries/gates/ungoverned-writes.rq`, lists
-   each UI event that can write a data shape with no policy governing it: a
-   write open to any authenticated identity. The chat app and expense chapters
-   7 and 8 reach it with a path that climbs out of the project into `docs/`;
-   a project outside this repository keeps its gates next to its `seams.toml`,
+   This repository's gates are in `docs/queries/gates/`.
+   `ungoverned-writes.rq` lists each UI event that can write a data shape with
+   no policy governing it: a write open to any authenticated identity.
+   `untranslated-cross-context-calls.rq` (ADR-0032) lists each element that
+   reads or writes another bounded context's shape with no translation the
+   context map allows: the element, the shape, the element's context and the
+   shape's. The chat app and expense chapters 7 to 11 run the first, chapter 11
+   both, with a path that climbs out of the project into `docs/`; a project outside this repository keeps its gates next to its `seams.toml`,
    for example `gates = ["gates/ungoverned-writes.rq"]`.
 3. **Outputs.** Every generator runs in memory, leniently, and the result is
    compared with the disk and with `seams.lock`. A lock that records faults is a
@@ -298,7 +302,21 @@ pre-commit hook (D044):
    unknown IRI, or another gist version than the vendored one) is a
    `ResolutionError(<ontology>, owl:imports, …)` on load, so the model cannot be
    loaded and the check exits 2.
-7. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+7. **Profile**, only when the model attaches a domain profile with
+   `seam:conformsTo` ([ADR-0033](/adr/0033-ddd-profile) section 1). The profile is
+   resolved from the model directory as the viewer resolves it
+   (`seams.resolve_profile`), and the same union graph is validated against the
+   profile's shapes alone, inference off (the seam shapes are the shapes check's).
+   A first stdout line, `profile <IRI> <n> result(s)`, names the profile and the
+   number of results reported below it; it is not a finding. Each `sh:Violation`
+   result is a `profile` finding (focus node, path and message), each `sh:Warning`
+   or `sh:Info` result a `profile-warning`. Results of pill shapes (a labelled
+   `sh:Info` shape) are not reported. A profile that cannot be resolved is one
+   `profile` finding: the `ResolutionError`'s subject, predicate
+   (`seam:conformsTo` or `seam:profileShapes`) and detail. A model with no
+   `seam:conformsTo` reads no profile file and prints nothing for this check.
+   `seams generate` ignores profiles.
+8. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
    start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
    the process IRI, then the path's flow node IRIs (see
    [seams coverage](#seams-coverage)). The other two coverage reports are gate
@@ -318,13 +336,15 @@ pre-commit hook (D044):
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
 | `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
 | `ontology-superclass` | A warning, not a problem: an ontology class's superclass is declared neither in the ontology nor in a resolved import, a likely typo. |
+| `profile` | The model breaks a `sh:Violation` shape of its attached profile, or the profile cannot be resolved. |
+| `profile-warning` | A warning, not a problem: a `sh:Warning` or `sh:Info` result of the attached profile's shapes. |
 | `coverage` | With `coverage = ["paths"]`: a BPMN path no scenario runs. |
 | `draft-stale` | A `seams propose` draft recorded in `seams.lock` whose task's context hash has changed (or whose task no longer resolves): review it again. The detail is the task IRI and the module path. |
 | `draft-hand-edited` | A recorded draft whose file's sha256 differs from the record, or whose file is missing (detail ends `missing`). |
 
 Findings print to stdout as `<kind> <detail>`, sorted, with paths relative to
 the working directory when they lie below it. A closing count of the problems,
-every kind but the advisory `review`, `ontology-superclass`, `shacl-warning` and `vocabulary-migrated`,
+every kind but the advisory `review`, `ontology-superclass`, `shacl-warning`, `profile-warning` and `vocabulary-migrated`,
 goes to stderr:
 
 ```
@@ -348,13 +368,14 @@ unchanged. When the only findings are these advisory kinds,
 
 `seams generate` fixes every output finding except `flagged`, which needs the
 model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
-`review`, `ontology-superclass` or `coverage` finding is fixed in the model.
+`review`, `ontology-superclass`, `profile`, `profile-warning` or `coverage` finding is
+fixed in the model (or, for an unresolvable profile, in its `profiles/` package).
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | No findings, or only `review`, `ontology-superclass`, `shacl-warning` and `vocabulary-migrated` warnings. |
+| 0 | No findings, or only `review`, `ontology-superclass`, `shacl-warning`, `profile-warning` and `vocabulary-migrated` warnings. |
 | 1 | At least one finding of another kind, or a file could not be read. |
 | 2 | The project file is missing or malformed (including a `coverage` entry other than `"paths"`), a gate is missing, unparsable or not a SELECT query, `seams.lock` is malformed, no model was given, the model cannot be loaded, or a `seams.generators` entry point cannot be registered. A generator fault is never exit 2 here: the outputs check runs leniently. |
 
@@ -859,6 +880,109 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 
 Errors print to stderr as `seams storm: <message>`, naming the argument.
 
+## seams cml
+
+```sh
+seams cml export examples/expenses/chapter-11
+seams cml export --project examples/expenses/chapter-11 --out build/context-map.cml
+seams cml import build/context-map.cml examples/expenses/chapter-11
+```
+
+`seams cml` moves the context map between the model and
+[Context Mapper](https://contextmapper.org/) DSL (CML), as
+[ADR-0034](/adr/0034-context-mapper-interchange) maps it (backlog B5). PATH is a
+project or a model, or `--project` and `--model` choose it as for
+`seams generate`.
+
+### Export
+
+`seams cml export [PATH] [--out FILE]` prints one `ContextMap` that `contains`
+every `arch:BoundedContext`, one line per `arch:ContextRelationship`
+([ADR-0032](/adr/0032-context-map-relationships)), then a bodiless
+`BoundedContext` per context. Each name is the IRI's local name. Each type has
+one bracket form, upstream on the left:
+
+| `arch:relationshipType` | CML |
+|---|---|
+| `arch:CustomerSupplier` | `<up> [U,S]->[D,C] <down> : <name>` |
+| `arch:Conformist` | `<up> [U]->[D,CF] <down> : <name>` |
+| `arch:AntiCorruptionLayer` | `<up> [U]->[D,ACL] <down> : <name>` |
+| `arch:PublishedLanguage` | `<up> [U,PL]->[D] <down> : <name>` |
+| `arch:SharedKernel` | `<up> [SK]<->[SK] <down> : <name>` |
+
+Contexts and relationships are sorted by IRI, so the same model gives the same
+bytes. Chapter 11 exports as:
+
+```text
+ContextMap {
+  contains expense_context, finance_context
+  expense_context [U]->[D,CF] finance_context : expense_to_finance
+}
+
+BoundedContext expense_context
+
+BoundedContext finance_context
+```
+
+With `--out FILE` the CML is written to FILE instead of stdout, and the path is
+printed. The file is not a generator output, so `seams.lock` does not record it.
+A relationship that is not fully stated, or whose type has no CML form, exits 2
+and writes nothing.
+
+### Import
+
+`seams cml import FILE [PATH]` reads FILE's `ContextMap` relationships and adds
+each one the model can hold as an `arch:ContextRelationship` with its upstream,
+downstream and type, through the model's one write path
+([ADR-0017](/adr/0017-write-path-and-editor)). The downstream role decides the
+type first: `ACL`, then `CF`, then `S`/`C`, then `PL` (with or without `OHS`),
+then `SK`. Each context name must be the local name of an `arch:BoundedContext`
+in the model. The new IRI is the CML name, or `<upstream>_to_<downstream>` when
+the line has none, in the upstream context's namespace. For each relationship
+written it prints `added <relationship>`, then each written file:
+
+```text
+added expense_to_finance
+examples/expenses/chapter-11/expenses.trig
+```
+
+Import only adds facts and never removes one. A relationship the model already
+holds, with the same direction and type, is skipped silently, so importing
+chapter 11's own export writes nothing and running it twice is safe.
+
+### Flags
+
+A construct with no mapping is flagged on stderr and skipped. It is never
+refused, and the exit code stays 0:
+
+```
+seams cml import: flag expense_context [U,OHS]->[D] finance_context: an open host service alone has no arch:RelationshipType (ADR-0032 folds it into PL)
+seams cml import: flag expense_context [P]<->[P] billing: a partnership has no arch:RelationshipType (ADR-0032)
+seams cml import: flag BoundedContext billing: billing matches no arch:BoundedContext in the model
+seams cml import: flag BoundedContext billing attributes: BoundedContext attributes are not read (ADR-0034 section 1)
+```
+
+Flagged are an open host service alone or a relationship with no roles, a
+partnership, a role the type does not use, a context name the model does not
+have or that names more than one context, a pair the model already relates in
+another direction or with another type, and every other CML construct
+(aggregates, entities, services, teams, use cases). The graph has its own facts
+for those, read from BPMN, DMN and SHACL.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The CML was printed or written, or the import finished, with or without flags. |
+| 1 | FILE cannot be parsed (the message names the line), or a file could not be read or written. Nothing is written. |
+| 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or a relationship cannot be exported. |
+
+A parse error prints as `seams cml import: <FILE>: line <n>: <message>`:
+
+```
+seams cml import: map.cml: line 3: expected the context on the right of the relationship, found '}'
+```
+
 ## seams diff
 
 ```sh
@@ -916,9 +1040,39 @@ breaking operation-removed :notify_manager_op -
 seams diff: 4 breaking, 0 compatible
 ```
 
+### Downstream contexts
+
+When the models declare bounded contexts and the relationships between them
+([ADR-0030](/adr/0030-domains-and-bounded-contexts),
+[ADR-0032](/adr/0032-context-map-relationships)), each change also names the
+downstream contexts it reaches. A change to a subject (a shape or an operation)
+belongs to the model it is `seam:inModel`, or, with no such fact, to the
+`seam:Model` declared in the graph that types it; that model's owner is the
+`arch:BoundedContext` that `seam:owns` it. The change reaches every context that is
+`arch:downstream` of an `arch:ContextRelationship` whose `arch:upstream` is the
+owner, in either model version. A change to a downstream context's own shape
+reaches no context, and a model with no relationship reports none.
+
+After the changes, the text output adds one section per downstream context that a
+breaking change reaches, sorted: a `downstream <context>` line, then those breaking
+changes indented two spaces. Changing `:amount` on expenses chapter 11's
+`:ExpenseShape` from `xsd:decimal` to `xsd:integer`, which the finance context
+reads as a conformist downstream:
+
+```
+$ seams diff examples/expenses/chapter-11 changed/
+breaking datatype-changed :ExpenseShape :amount xsd:decimal -> xsd:integer
+downstream :finance_context
+  breaking datatype-changed :ExpenseShape :amount xsd:decimal -> xsd:integer
+seams diff: 1 breaking, 0 compatible
+```
+
+### JSON
+
 `--json` prints `{"changes": [...], "counts": {"breaking": N, "compatible": M}}`;
-each change has `verdict`, `kind`, `subject` and `detail` with full IRIs, and a
-sorted `scopes` list. The output is deterministic, so it can be committed or
+each change has `verdict`, `kind`, `subject` and `detail` with full IRIs, a
+sorted `scopes` list and a sorted `contexts` list (the downstream context IRIs,
+empty when there are none). The output is deterministic, so it can be committed or
 compared.
 
 ### Exit codes

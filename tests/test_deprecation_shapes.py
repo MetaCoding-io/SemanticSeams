@@ -22,7 +22,7 @@ import seams_cli.__main__ as cli
 from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 from seams_cli import Finding
 from seams_cli.__main__ import main
-from seams_cli.check import ADVISORY_KINDS, check_migrations, check_shapes, model_graph, run_check
+from seams_cli.check import ADVISORY_KINDS, check_migrations, check_project, check_shapes, model_graph
 from seams_cli.generate import shape_warnings
 
 from seams_gen.protocol import Generator
@@ -39,8 +39,8 @@ SEAM = Namespace("https://w3id.org/seams/seam#")
 SEAMSH = Namespace("https://w3id.org/seams/shapes#")
 ARCHITECTURE = "https://example.org/expenses/expense_architecture"
 MODEL_DEPRECATED = "seam:Model is deprecated since seam 2.0 and goes in seam 3.0."
-# The checkpoints declare the shipped seam, 1.2.
-SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.2>"
+# The checkpoints declare the shipped seam, 1.5.
+SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.5>"
 IN_MODEL_DEPRECATED = "seam:inModel is deprecated since seam 2.0 and goes in seam 3.0: write seam:partOfModel instead."
 CLASSES = (RDFS.Class, OWL.Class)
 PROPERTIES = (RDF.Property, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.AnnotationProperty)
@@ -179,12 +179,12 @@ def chapter_01_copy(tmp_path: Path) -> Path:
 
 def test_check_reports_the_migration_and_the_deprecation_and_passes(tmp_path, monkeypatch, capsys) -> None:
     project = chapter_01_copy(tmp_path)
-    monkeypatch.setattr(cli, "run_check", functools.partial(run_check, ontology_dir=FIXTURE))
+    monkeypatch.setattr(cli, "check_project", functools.partial(check_project, ontology_dir=FIXTURE))
     code = main(["check", "--project", str(project)])
     out, err = capsys.readouterr()
     assert (code, out.splitlines(), err) == (
         0,
-        [f"shacl-warning {ARCHITECTURE} - {MODEL_DEPRECATED}", "vocabulary-migrated seam 1.2 2.0"],
+        [f"shacl-warning {ARCHITECTURE} - {MODEL_DEPRECATED}", "vocabulary-migrated seam 1.5 2.0"],
         "seams check: 2 warning(s)\n",
     )
 
@@ -215,7 +215,7 @@ def test_warnings_do_not_hide_a_violation(tmp_path, monkeypatch, capsys) -> None
     trig.write_text(
         text + "\n<urn:seams:graph:seams> {\n    <https://example.org/x> seam:detailedBy <https://example.org/y> .\n}\n"
     )
-    monkeypatch.setattr(cli, "run_check", functools.partial(run_check, ontology_dir=FIXTURE))
+    monkeypatch.setattr(cli, "check_project", functools.partial(check_project, ontology_dir=FIXTURE))
     assert main(["check", "--project", str(project)]) == 1
     out, err = capsys.readouterr()
     kinds = [line.split(" ", 1)[0] for line in out.splitlines()]

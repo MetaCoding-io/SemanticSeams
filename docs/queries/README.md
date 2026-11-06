@@ -17,7 +17,9 @@ user sees (RDF-invisibility principle, see `orig_convo/product-brief.md`).
 
 `c4-l1-rollup.rq` is a projection query, not a Questions-catalog entry: it
 feeds the C4 L1 (system context) view's rolled-up edges (ADR-0008) and is not
-exposed as an inspector button.
+exposed as an inspector button. Its `runs` branch joins each bounded context to the
+systems whose containers run it (ADR-0030 section 5); a model with no context
+returns no `runs` row.
 
 `tests/test_acceptance.py` runs each query against `examples/checkout.ttl` and
 the chat-app model and asserts the exact expected rows; a change that silently
@@ -48,7 +50,12 @@ their results against the chat app, checkout and expense chapter-08 models.
 `seams check` runs the ones a project lists under `gates` in its seams.toml and reports
 every row as a problem (see [the CLI reference](../reference/seams-cli.md#seams-check)).
 `gates/ungoverned-writes.rq` lists each UI event that can write a data shape with no policy
-governing it; the chat app and expense chapters 7 and 8 run it. Like `complexity/`, the
+governing it; the chat app and expense chapters 7 to 11 run it.
+`gates/untranslated-cross-context-calls.rq` ([ADR-0032](../adr/0032-context-map-relationships.md)
+section 4) lists each element in one bounded context that `seam:reads` or `seam:writes` a shape
+another context owns, with the two contexts, unless an `arch:ContextRelationship` makes its
+context the conformist downstream of the shape's, the two share a kernel, or the element is a
+translating operation; chapter 11 runs it. A dataset with no contexts returns no rows. Like `complexity/`, the
 gates are kept off the query reference page. `tests/test_gate_queries.py` checks their rows.
 
 `coverage/` holds coverage queries (decision D054): SELECT queries that list the parts of a
@@ -58,11 +65,18 @@ project can list it under `gates`.
 with the lifecycle it is `seam:inModel`. `coverage/policies-without-deny.rq` lists each
 `odrl:permission` the `tests` generator writes no party deny test for: anyone may use it (it
 has no `odrl:assignee`, or its assignee is an `odrl:PartyCollection`), or no `odrl:Party` in
-the model is outside its assignee. Bind `?lifecycle` or `?policy` to check one element. The
+the model is outside its assignee. `coverage/core-operations-untested.rq` (ADR-0030 section 6)
+lists each `hydra:Operation` of a context in an `arch:Core` domain (its `seam:inModel` model is
+one the context `seam:owns`) that is not `seam:implementedBy` a `comm:PythonHandler` and that no
+`verify:Scenario` reaches: no event that `seam:submitsTo` it `seam:triggers` a scenario's process,
+and no user task a scenario steps through is `seam:completedOn` a form whose event submits to it.
+A dataset with no `arch:Domain` returns no rows. Bind `?lifecycle`, `?policy` or `?context` to
+check one element. The
 `seams` library bundles them as package data and loads them by folder-qualified name:
 `model.question("coverage/unfired-transitions")`, with `seams.question_names("coverage")`
 listing them. `question_names()` with no folder still returns only the top-level questions, so
 coverage stays off the query reference page. `tests/test_coverage_queries.py` checks their
 rows (none on expense chapter 9; the chat app's two failure transitions and its
 party-collection send policy), that the deny query matches what the generator emits, and that
-the bundled copies are byte-identical to these files.
+the bundled copies are byte-identical to these files. `tests/test_core_operations_untested.py`
+checks the core-operations rows on an inline fixture.

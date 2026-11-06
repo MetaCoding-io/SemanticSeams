@@ -1,0 +1,352 @@
+{
+  "generator": "htmx",
+  "lines": [
+    {
+      "line": 1,
+      "templates": [
+        "htmx_task_form.html.j2:7"
+      ],
+      "terms": [
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "line": 2,
+      "templates": [
+        "htmx_task_form.html.j2:8"
+      ],
+      "terms": [
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/expense_ifml",
+        "https://example.org/expenses/expenses_page"
+      ]
+    },
+    {
+      "line": 3,
+      "templates": [
+        "htmx_task_form.html.j2:9"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 4,
+      "templates": [
+        "htmx_task_form.html.j2:10"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 5,
+      "templates": [
+        "htmx_task_form.html.j2:11"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 6,
+      "templates": [
+        "htmx_task_form.html.j2:12"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 7,
+      "templates": [
+        "htmx_task_form.html.j2:13"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 8,
+      "templates": [
+        "htmx_task_form.html.j2:15"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 9,
+      "templates": [
+        "htmx_task_form.html.j2:16"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 10,
+      "templates": [
+        "htmx_task_form.html.j2:18"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape"
+      ]
+    },
+    {
+      "line": 11,
+      "templates": [
+        "htmx_task_form.html.j2:18"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape"
+      ]
+    },
+    {
+      "line": 12,
+      "templates": [
+        "htmx_task_form.html.j2:18"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape"
+      ]
+    },
+    {
+      "line": 13,
+      "templates": [
+        "htmx_task_form.html.j2:18"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape"
+      ]
+    },
+    {
+      "line": 14,
+      "templates": [
+        "htmx_task_form.html.j2:18"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape"
+      ]
+    },
+    {
+      "line": 15,
+      "templates": [
+        "htmx_task_form.html.j2:20"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 16,
+      "templates": [
+        "htmx_task_form.html.j2:21"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 17,
+      "templates": [
+        "htmx_task_form.html.j2:24"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/submit_approval"
+      ]
+    },
+    {
+      "line": 18,
+      "templates": [
+        "htmx_task_form.html.j2:25"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/approve_form",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/submit_approval"
+      ]
+    },
+    {
+      "line": 19,
+      "templates": [
+        "htmx_task_form.html.j2:26"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 20,
+      "templates": [
+        "htmx_task_form.html.j2:27"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_expense_op",
+        "https://example.org/expenses/employee_portal",
+        "https://example.org/expenses/submit_approval"
+      ]
+    },
+    {
+      "line": 21,
+      "templates": [
+        "htmx_task_form.html.j2:28"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 22,
+      "templates": [
+        "htmx_task_form.html.j2:29"
+      ],
+      "terms": [
+        "https://example.org/expenses/approval_to_details",
+        "https://example.org/expenses/expense_details"
+      ]
+    },
+    {
+      "line": 23,
+      "templates": [
+        "htmx_task_form.html.j2:31"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 24,
+      "templates": [
+        "htmx_task_form.html.j2:33"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 25,
+      "templates": [
+        "htmx_task_form.html.j2:35"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 26,
+      "templates": [
+        "htmx_task_form.html.j2:35"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 27,
+      "templates": [
+        "htmx_task_form.html.j2:38"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 28,
+      "templates": [
+        "htmx_task_form.html.j2:38"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 29,
+      "templates": [
+        "htmx_task_form.html.j2:40"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 30,
+      "templates": [
+        "htmx_task_form.html.j2:31"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 31,
+      "templates": [
+        "htmx_task_form.html.j2:42"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 32,
+      "templates": [
+        "htmx_task_form.html.j2:44"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 33,
+      "templates": [
+        "htmx_task_form.html.j2:44"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 34,
+      "templates": [
+        "htmx_task_form.html.j2:44"
+      ],
+      "terms": [
+        "https://example.org/expenses/ApprovalShape"
+      ]
+    },
+    {
+      "line": 35,
+      "templates": [
+        "htmx_task_form.html.j2:51"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 36,
+      "templates": [
+        "htmx_task_form.html.j2:52"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    },
+    {
+      "line": 37,
+      "templates": [
+        "htmx_task_form.html.j2:53"
+      ],
+      "terms": [
+        "https://example.org/expenses/approve_form"
+      ]
+    }
+  ],
+  "output": "approve_form.html",
+  "trace_version": 1
+}

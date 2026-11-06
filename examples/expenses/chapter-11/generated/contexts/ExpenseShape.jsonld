@@ -1,0 +1,32 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "Expense": "https://example.org/expenses/Expense",
+    "amount": {
+      "@id": "https://example.org/expenses/amount",
+      "@type": "http://www.w3.org/2001/XMLSchema#decimal"
+    },
+    "date": {
+      "@id": "https://example.org/expenses/date",
+      "@type": "http://www.w3.org/2001/XMLSchema#date"
+    },
+    "description": {
+      "@id": "https://example.org/expenses/description",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
+    "id": {
+      "@id": "https://example.org/expenses/id",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
+    "status": {
+      "@context": {
+        "approved": "https://example.org/expenses/s_approved",
+        "draft": "https://example.org/expenses/s_draft",
+        "rejected": "https://example.org/expenses/s_rejected",
+        "submitted": "https://example.org/expenses/s_submitted"
+      },
+      "@id": "https://example.org/expenses/status",
+      "@type": "@vocab"
+    }
+  }
+}

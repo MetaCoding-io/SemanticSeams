@@ -54,6 +54,11 @@ FIRST_ROLES_CHAPTER = 7
 # there a paid expense's correlation key also names a payout instance, so
 # ``status`` and ``trace`` read the approval instance by default.
 FIRST_PAYOUT_CHAPTER = 8
+# The first chapter with two bounded contexts (ADR-0030): from there the
+# pay_expense task is the payout process's first step, so the approval
+# instance completes when the expense is approved and the payout instance
+# holds the payment task.
+FIRST_CONTEXTS_CHAPTER = 11
 APPROVAL_PROCESS = "https://example.org/expenses/approval_process"
 PAYOUT_PROCESS = "https://example.org/expenses/payout_process"
 
@@ -70,8 +75,25 @@ def has_payout(chapter: str) -> bool:
     return chapter_number(chapter) >= FIRST_PAYOUT_CHAPTER
 
 
+def pays_in_payout(chapter: str) -> bool:
+    return chapter_number(chapter) >= FIRST_CONTEXTS_CHAPTER
+
+
 def chapter_dir(chapter: str) -> Path:
     return EXPENSES / chapter
+
+
+def model_of(directory: Path) -> Path:
+    """The model a checkpoint directory's seams.toml names: expenses.trig, or
+    from chapter 11 the directory itself (one TriG file per context)."""
+    model = load_project(directory).model
+    assert model is not None, f"{directory}/seams.toml names no model"
+    return model
+
+
+def model_arg(chapter: str) -> str:
+    """The SEAMS_MODEL value a chapter page shows, relative to the repository root."""
+    return model_of(chapter_dir(chapter)).relative_to(ROOT).as_posix()
 
 
 def generate_command(chapter: str) -> str:
@@ -87,7 +109,7 @@ def commands(chapter: str) -> dict[str, str]:
 def host_command(chapter: str) -> list[str]:
     """The fragments of the host command a chapter page must show."""
     return [
-        f"SEAMS_MODEL=examples/expenses/{chapter}/expenses.trig",
+        f"SEAMS_MODEL={model_arg(chapter)}",
         f"SEAMS_TEMPLATES=examples/expenses/{chapter}/generated/templates",
         "SEAMS_DB=",
         f"python -m seams_runtime.host --routes examples/expenses/{chapter}/generated/expense_api.py",
@@ -100,7 +122,7 @@ def assert_generated_current(chapter: str, tmp_path: Path, generator: str) -> No
     writes into the same generated/) or templates (``htmx``) equal a fresh
     run of the generator on the chapter's checkpoint."""
     generated = chapter_dir(chapter) / "generated"
-    trig = chapter_dir(chapter) / "expenses.trig"
+    trig = model_of(chapter_dir(chapter))
     fresh = regenerate(generator, trig, tmp_path / generator)
     if generator == "fastapi":
         committed_dir, committed = generated, committed_files(generated, HAND_WRITTEN)
@@ -129,10 +151,10 @@ def copy_checkpoint(chapter: str, tmp_path: Path, file: str, old: str, new: str)
     shutil.rmtree(generated / "templates")
     routes = {
         name: text
-        for name, text in regenerate("fastapi", copy / "expenses.trig", generated).items()
+        for name, text in regenerate("fastapi", model_of(copy), generated).items()
         if name not in HAND_WRITTEN
     }
-    templates = regenerate("htmx", copy / "expenses.trig", generated / "templates")
+    templates = regenerate("htmx", model_of(copy), generated / "templates")
     return copy, {**routes, **{f"templates/{n}": t for n, t in templates.items()}}
 
 
@@ -149,8 +171,8 @@ def serve(chapter: str, tmp_path: Path, monkeypatch):
 @contextmanager
 def serve_directory(directory: Path, tmp_path: Path, monkeypatch):
     """``serve`` for a checkpoint directory anywhere (for example a copy in
-    tmp_path): its expenses.trig, generated/expense_api.py and templates."""
-    monkeypatch.setenv("SEAMS_MODEL", str(directory / "expenses.trig"))
+    tmp_path): its model (``model_of``), generated/expense_api.py and templates."""
+    monkeypatch.setenv("SEAMS_MODEL", str(model_of(directory)))
     monkeypatch.setenv("SEAMS_TEMPLATES", str(directory / "generated" / "templates"))
     monkeypatch.setenv("SEAMS_DB", str(tmp_path / "seams.sqlite"))
     # chapter 08 declares PostgreSQL; the harness runs every chapter on SQLite

@@ -85,7 +85,11 @@ def _pairs(rows: list, *names: str) -> list[tuple[str | None, ...]]:
 
 def test_coverage_questions_match_docs():
     assert question_names("coverage") == sorted(f"coverage/{p.stem}" for p in DOCS_COVERAGE.glob("*.rq"))
-    assert question_names("coverage") == ["coverage/policies-without-deny", "coverage/unfired-transitions"]
+    assert question_names("coverage") == [
+        "coverage/core-operations-untested",
+        "coverage/policies-without-deny",
+        "coverage/unfired-transitions",
+    ]
     assert QUESTION_FOLDERS == ("coverage",)
 
 

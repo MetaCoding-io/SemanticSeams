@@ -6,12 +6,16 @@
 # variable: it returns every rolled-up edge in the model, and the viewer keeps
 # the rows whose endpoints are visible at L1 (see ADR-0008).
 #
-# Two branches:
+# Three branches:
 #   - "depends on"  : a container of ?from arch:dependsOn a container of ?to,
 #                     where both are arch:System and ?from != ?to (dependencies
 #                     inside one system do not roll up into a self-edge).
 #   - "deployed to" : a container of system ?from is seam:deployedTo a
 #                     deployment node that environment ?to arch:contains.
+#   - "runs"        : bounded context ?from seam:owns a model that a container
+#                     of system ?to seam:presents, or a model holding a process
+#                     that container seam:executes (ADR-0030 sections 2 and 5:
+#                     the containers that run a context are derived).
 
 PREFIX seam: <https://w3id.org/seams/seam#>
 PREFIX arch: <https://w3id.org/seams/arch#>
@@ -34,5 +38,18 @@ SELECT DISTINCT ?from ?to ?kind WHERE {
     ?to a arch:Environment ;
         arch:contains ?n .
     BIND("deployed to" AS ?kind)
+  }
+  UNION
+  {
+    VALUES ?runs { seam:executes seam:presents }
+    ?from a arch:BoundedContext ;
+          seam:owns ?m .
+    ?to a arch:System ;
+        arch:contains ?c .
+    ?c a arch:Container .
+    { ?c ?runs ?m . }
+    UNION
+    { ?c ?runs ?t . ?t seam:inModel ?m . }
+    BIND("runs" AS ?kind)
   }
 }

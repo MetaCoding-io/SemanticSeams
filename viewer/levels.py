@@ -11,6 +11,11 @@ question bundle), which has its own acceptance tests.
 L4 (M007/S02) is L3 plus the targets of nest-mode seams (seam:reveal
 seam:Nest — today seam:presents and seam:executes) drawn as compound nodes
 inside their source container, each holding its model's top-level members.
+
+L1 also draws ADR-0030's arch:Domain and arch:BoundedContext (M028/S03): a
+domain nests the systems and contexts it arch:contains, so it is a compound
+node, and the rollup's "runs" edges join each context to the systems that run
+it. A model with no domain draws L1 as before.
 """
 
 from __future__ import annotations
@@ -53,7 +58,7 @@ class C4Level:
     nest: bool = False
 
 
-_L1_CLASSES = frozenset({ARCH.System, ARCH.Person, ARCH.Environment})
+_L1_CLASSES = frozenset({ARCH.System, ARCH.Person, ARCH.Environment, ARCH.Domain, ARCH.BoundedContext})
 _L2_CLASSES = _L1_CLASSES | {ARCH.Container, ARCH.Component, ARCH.DeploymentNode}
 _L2_EDGES = ((ARCH.dependsOn, "depends on"), (SEAM.deployedTo, "deployed to"))
 

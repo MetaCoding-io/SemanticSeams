@@ -15,14 +15,17 @@ from rdflib.namespace import SH
 from ..namespaces import COMM, HYDRA, ODRL, PROC, SEAM, STATE, VERIFY
 from ..ontologies import ontology_models
 from ._base import Element, HasIri, Many, Views
+from .aggregates import Aggregate
 from .architecture import (
     Architecture,
     Artifact,
     Binding,
+    BoundedContext,
     Build,
     Container,
     Deployment,
     DeploymentNode,
+    Domain,
     Environment,
     Healthcheck,
     Override,
@@ -44,9 +47,11 @@ if TYPE_CHECKING:
     from ..loader import Model
 
 __all__ = [
+    "Aggregate",
     "Architecture",
     "Artifact",
     "Binding",
+    "BoundedContext",
     "Build",
     "Channel",
     "Component",
@@ -55,6 +60,7 @@ __all__ = [
     "DecisionExample",
     "Deployment",
     "DeploymentNode",
+    "Domain",
     "Element",
     "Environment",
     "ErrorBoundary",
@@ -97,6 +103,7 @@ __all__ = [
     "Transition",
     "Views",
     "Volume",
+    "aggregates",
     "architecture",
     "channels",
     "decision_examples",
@@ -110,6 +117,16 @@ __all__ = [
     "scenarios",
     "shapes",
 ]
+
+
+def aggregates(model: Model) -> Many[Aggregate]:
+    views = model.views
+
+    def build() -> Many[Aggregate]:
+        found = views.iris(s for s, _o in views.ds.subject_objects(SEAM.aggregateMember))
+        return views.many(Aggregate, found, model.subject, SEAM.aggregateMember)
+
+    return views.view("aggregates", build)
 
 
 def architecture(model: Model) -> Architecture:

@@ -353,22 +353,9 @@
       ]
     },
     {
-      "line": 42,
+      "line": 43,
       "templates": [
-<<<<<<< HEAD
         "runtime.Dockerfile.j2:41"
-=======
-        "runtime.Dockerfile.j2:44"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api"
-      ]
-    },
-    {
-      "line": 44,
-      "templates": [
-        "runtime.Dockerfile.j2:46"
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -402,22 +389,9 @@
       ]
     },
     {
-      "line": 47,
+      "line": 48,
       "templates": [
-<<<<<<< HEAD
         "runtime.Dockerfile.j2:46"
-=======
-        "runtime.Dockerfile.j2:49"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api"
-      ]
-    },
-    {
-      "line": 49,
-      "templates": [
-        "runtime.Dockerfile.j2:51"
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -469,13 +443,9 @@
       ]
     },
     {
-      "line": 54,
+      "line": 55,
       "templates": [
-<<<<<<< HEAD
         "runtime.Dockerfile.j2:53"
-=======
-        "runtime.Dockerfile.j2:56"
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -491,22 +461,9 @@
       ]
     },
     {
-      "line": 57,
+      "line": 58,
       "templates": [
-<<<<<<< HEAD
         "runtime.Dockerfile.j2:56"
-=======
-        "runtime.Dockerfile.j2:59"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api"
-      ]
-    },
-    {
-      "line": 59,
-      "templates": [
-        "runtime.Dockerfile.j2:61"
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
       ],
       "terms": [
         "https://example.org/expenses/expense_api"
@@ -534,15 +491,6 @@
       "line": 62,
       "templates": [
         "runtime.Dockerfile.j2:60"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_api"
-      ]
-    },
-    {
-      "line": 61,
-      "templates": [
-        "runtime.Dockerfile.j2:63"
       ],
       "terms": [
         "https://example.org/expenses/expense_api"

@@ -46,13 +46,16 @@ RENAME_PREDICATES = (OWL.sameAs, OWL.equivalentClass, OWL.equivalentProperty, DC
 
 
 class Change(NamedTuple):
-    """One difference. ``subject`` is a shape, operation or term IRI; ``detail`` names the path and values."""
+    """One difference. ``subject`` is a shape, operation or term IRI; ``detail`` names the path and values.
+    ``contexts`` are the downstream arch:BoundedContexts a change to the subject reaches (``seams diff``,
+    ADR-0032 section 2), sorted; empty for a model with no contexts and for vocabulary terms."""
 
     verdict: str
     kind: str
     subject: str
     detail: str
     scopes: tuple[str, ...]
+    contexts: tuple[str, ...] = ()
 
 
 def sort_changes(changes: list[Change]) -> list[Change]:

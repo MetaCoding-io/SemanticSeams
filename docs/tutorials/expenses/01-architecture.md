@@ -82,8 +82,8 @@ imports the version of every vocabulary the model uses, here `arch:` and `seam:`
 
     # One owl:imports per vocabulary the model uses (ADR-0021).
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> .
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
+                    <https://w3id.org/seams/seam/1.5> .
 }
 ```
 

@@ -1,0 +1,328 @@
+# The DDD profile's shapes (ADR-0033 sections 2 and 4).
+#
+# Three kinds of shape, over terms the graph already has (principle 4: no DDD
+# class, no new term):
+#
+#   - Rules: one sh:NodeShape per rule of the DDD note's section 5, severity
+#     sh:Violation. seams check fails on their results, and the viewer's
+#     health panel lists them. Each rule is a sh:sparql constraint whose
+#     sh:select binds $this, and whose sh:message names the other IRIs it
+#     found; the focus node is the result's own. A rule with no facts to
+#     read holds: a dataset with no arch:BoundedContext has no cross-context
+#     access, and a model with no seam:lifecycle has no aggregate.
+#   - Instance-data rules (ADR-0036): a sh:NodeShape of severity sh:Warning
+#     with a sh:sparql constraint, written against the model's own paths.
+#     It reads stored entities, which Runtime.data_health lifts to RDF
+#     through their shape contracts, and it reports; it never refuses a
+#     write. The model holds no entity, so seams check finds nothing for it.
+#   - Pills: a sh:NodeShape of severity sh:Info with a skos:prefLabel. The
+#     viewer shows the label on every focus node that conforms to it, and
+#     seams check reports none of its results. No rdf:type is added to the
+#     model.
+#
+# Three rules restate gate queries anchored on $this, with the walk and the
+# filters in the same order. tests/test_ddd_profile.py pins each to its query:
+#
+#   ddd:GovernedWrites     docs/queries/gates/ungoverned-writes.rq             ?event
+#   ddd:FiredTransitions   docs/queries/coverage/unfired-transitions.rq        ?transition
+#   ddd:TranslatedAccess   docs/queries/gates/untranslated-cross-context-calls.rq  ?element
+#
+# A project that attaches this profile drops those gates from its seams.toml,
+# so one run reports a fact once.
+
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
+@prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix arch:  <https://w3id.org/seams/arch#> .
+@prefix comm:  <https://w3id.org/seams/comm#> .
+@prefix ifml:  <https://w3id.org/seams/ifml#> .
+@prefix proc:  <https://w3id.org/seams/proc#> .
+@prefix state: <https://w3id.org/seams/state#> .
+@prefix ddd:   <https://example.org/profiles/ddd#> .
+
+# The prefixes every sh:select below uses.
+<https://example.org/profiles/ddd/shapes> a owl:Ontology ;
+    rdfs:label "DDD profile shapes" ;
+    sh:declare [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ] ,
+        [ sh:prefix "hydra" ; sh:namespace "http://www.w3.org/ns/hydra/core#"^^xsd:anyURI ] ,
+        [ sh:prefix "seam" ; sh:namespace "https://w3id.org/seams/seam#"^^xsd:anyURI ] ,
+        [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] ,
+        [ sh:prefix "proc" ; sh:namespace "https://w3id.org/seams/proc#"^^xsd:anyURI ] .
+
+#################################################################
+# Rules
+#################################################################
+
+# Governed writes: every UI event that can write a shape is governed by a
+# policy. Restates gates/ungoverned-writes.rq with ?event bound to $this.
+ddd:GovernedWrites a sh:NodeShape ;
+    rdfs:label "Governed writes" ;
+    sh:targetClass ifml:Event ;
+    sh:severity sh:Violation ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "reaches {?writer}, which seam:writes {?shape}, and neither the event nor the operation it seam:submitsTo is seam:governedBy a policy" ;
+        sh:select """
+            SELECT DISTINCT $this ?writer ?shape WHERE {
+              $this ( (seam:triggers/seam:detailedBy/^seam:inModel)
+                    | seam:decidedBy
+                    | seam:invokes
+                    | (seam:publishesTo/^seam:subscribesTo/seam:inModel/^seam:inModel)
+                    )+ ?writer .
+              ?writer seam:writes ?shape .
+              FILTER NOT EXISTS {
+                $this (seam:governedBy | (seam:submitsTo/seam:governedBy)) ?policy .
+              }
+            }
+            """ ] .
+
+# Fired transitions: every transition is fired by something. Restates
+# coverage/unfired-transitions.rq with ?transition bound to $this. It is a
+# sh:sparql constraint, not a core sh:inversePath one, so it joins
+# seam:inModel as the query does and its result has no blank-node path.
+ddd:FiredTransitions a sh:NodeShape ;
+    rdfs:label "Fired transitions" ;
+    sh:targetClass state:Transition ;
+    sh:severity sh:Violation ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "is a transition of {?lifecycle} that no element seam:fires, so no modeled behavior can cause it" ;
+        sh:select """
+            SELECT $this ?lifecycle WHERE {
+              $this seam:inModel ?lifecycle .
+              FILTER NOT EXISTS { ?task seam:fires $this . }
+            }
+            """ ] .
+
+# Translated access: a seam:reads or seam:writes of a shape another context
+# owns is translated, unless the element's context is a conformist downstream
+# of the shape's or the two share a kernel (ADR-0032 section 4). Restates
+# gates/untranslated-cross-context-calls.rq with ?element bound to $this.
+ddd:TranslatedAccess a sh:NodeShape ;
+    rdfs:label "Translated access" ;
+    sh:targetSubjectsOf seam:reads , seam:writes ;
+    sh:severity sh:Violation ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "in {?elementContext}, seam:reads or seam:writes {?shape}, which {?shapeContext} seam:owns, with no arch:Conformist or arch:SharedKernel relationship and no translating hydra:Operation" ;
+        sh:select """
+            SELECT DISTINCT $this ?shape ?elementContext ?shapeContext WHERE {
+              $this (seam:reads | seam:writes) ?shape .
+              $this seam:inModel ?elementModel .
+              ?elementContext seam:owns ?elementModel .
+              ?shape seam:inModel ?shapeModel .
+              ?shapeContext seam:owns ?shapeModel .
+              FILTER (?elementContext != ?shapeContext)
+              FILTER NOT EXISTS {
+                ?conformist arch:upstream ?shapeContext ;
+                    arch:downstream ?elementContext ;
+                    arch:relationshipType arch:Conformist .
+              }
+              FILTER NOT EXISTS {
+                ?kernel arch:relationshipType arch:SharedKernel ;
+                    arch:upstream|arch:downstream ?shapeContext ;
+                    arch:upstream|arch:downstream ?elementContext .
+              }
+              FILTER NOT EXISTS {
+                $this a hydra:Operation .
+                {
+                  $this seam:acceptsShape ?shape ; seam:returnsShape ?own .
+                } UNION {
+                  $this seam:returnsShape ?shape ; seam:acceptsShape ?own .
+                }
+                ?own seam:inModel ?ownModel .
+                ?elementContext seam:owns ?ownModel .
+              }
+            }
+            """ ] .
+
+# One writing context: a shape is written only from the context that owns
+# its model, so never from two. A conformist relationship lets the downstream
+# read and write in the upstream's language; it does not make the downstream
+# the shape's owner.
+ddd:OneWritingContext a sh:NodeShape ;
+    rdfs:label "One writing context" ;
+    sh:targetObjectsOf seam:writes ;
+    sh:severity sh:Violation ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "is seam:writes of {?writer}, in {?writerContext}, but {?shapeContext} seam:owns the shape's model" ;
+        sh:select """
+            SELECT DISTINCT $this ?writer ?writerContext ?shapeContext WHERE {
+              ?writer seam:writes $this ;
+                  seam:inModel ?writerModel .
+              ?writerContext seam:owns ?writerModel .
+              $this seam:inModel ?shapeModel .
+              ?shapeContext seam:owns ?shapeModel .
+              FILTER NOT EXISTS { ?writerContext seam:owns ?shapeModel . }
+            }
+            """ ] .
+
+# Aggregate boundary. An aggregate is what names a seam:lifecycle: the
+# owl:Class (ADR-0031), or a sh:NodeShape that names one directly. Its
+# shapes are itself and every sh:NodeShape whose sh:targetClass it is
+# (the path (^sh:targetClass)? below). The aggregate has one lifecycle, is
+# in one store, and every process that writes it is keyed the same way. Its
+# seam:aggregateMember shapes (ADR-0035), the entities it commits together,
+# are in one store between them, so they can commit in one transaction.
+ddd:AggregateBoundary a sh:NodeShape ;
+    rdfs:label "Aggregate boundary" ;
+    sh:targetSubjectsOf seam:lifecycle ;
+    sh:severity sh:Violation ;
+    # One lifecycle.
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "names two seam:lifecycle state machines, {?lifecycle} and {?other}" ;
+        sh:select """
+            SELECT DISTINCT $this ?lifecycle ?other WHERE {
+              $this seam:lifecycle ?lifecycle , ?other .
+              FILTER (STR(?lifecycle) < STR(?other))
+            }
+            """ ] ,
+    # One store: not none ...
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "is an aggregate none of whose shapes is seam:storedIn a store" ;
+        sh:select """
+            SELECT $this WHERE {
+              FILTER NOT EXISTS { $this (^sh:targetClass)?/seam:storedIn ?store . }
+            }
+            """ ] ,
+    # ... and not two.
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "is an aggregate whose shapes are seam:storedIn two stores, {?store} and {?other}" ;
+        sh:select """
+            SELECT DISTINCT $this ?store ?other WHERE {
+              $this (^sh:targetClass)?/seam:storedIn ?store .
+              $this (^sh:targetClass)?/seam:storedIn ?other .
+              FILTER (STR(?store) < STR(?other))
+            }
+            """ ] ,
+    # One correlation key: a process that writes the aggregate states one ...
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "is written by {?process}, and no process that writes the aggregate states a proc:correlationKey" ;
+        sh:select """
+            SELECT DISTINCT $this ?process WHERE {
+              $this (^sh:targetClass)?/^seam:writes/seam:inModel/^seam:detailedBy ?process .
+              FILTER NOT EXISTS {
+                $this (^sh:targetClass)?/^seam:writes/seam:inModel/^seam:detailedBy/proc:correlationKey ?key .
+              }
+            }
+            """ ] ,
+    # ... and the processes that write it state no two.
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "is written by processes keyed by two proc:correlationKey values, {?key} and {?other}" ;
+        sh:select """
+            SELECT DISTINCT $this ?key ?other WHERE {
+              $this (^sh:targetClass)?/^seam:writes/seam:inModel/^seam:detailedBy/proc:correlationKey ?key .
+              $this (^sh:targetClass)?/^seam:writes/seam:inModel/^seam:detailedBy/proc:correlationKey ?other .
+              FILTER (STR(?key) < STR(?other))
+            }
+            """ ] ,
+    # One transaction store (ADR-0035 section 2): every member is stored ...
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "has seam:aggregateMember {?member}, which is seam:storedIn no store, so it has no transaction to commit in" ;
+        sh:select """
+            SELECT DISTINCT $this ?member WHERE {
+              $this seam:aggregateMember ?member .
+              FILTER NOT EXISTS { ?member seam:storedIn ?store . }
+            }
+            """ ] ,
+    # ... and all of them in the same one.
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "has seam:aggregateMember shapes seam:storedIn two stores, {?store} and {?other}, so they cannot commit in one transaction" ;
+        sh:select """
+            SELECT DISTINCT $this ?store ?other WHERE {
+              $this seam:aggregateMember/seam:storedIn ?store .
+              $this seam:aggregateMember/seam:storedIn ?other .
+              FILTER (STR(?store) < STR(?other))
+            }
+            """ ] .
+
+#################################################################
+# Instance-data rules (ADR-0036)
+#################################################################
+
+# Paid once: an expense is paid by one payment. The rule is across two
+# aggregates, the expense and the payment, so it is eventually consistent:
+# severity sh:Warning, never a refused write. Its focus nodes are the
+# objects of :paysExpense on the stored payments, which the runtime lifts
+# through :PaymentShape's contract (Runtime.data_health); the model holds
+# no payment, so seams check finds no focus node for it.
+ddd:PaidOnce a sh:NodeShape ;
+    rdfs:label "Paid once" ;
+    sh:targetObjectsOf <https://example.org/expenses/paysExpense> ;
+    sh:severity sh:Warning ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:message "expense {$this} is paid by {?payments} payments, and an expense is paid once" ;
+        sh:select """
+            SELECT $this (COUNT(DISTINCT ?payment) AS ?payments) WHERE {
+              ?payment <https://example.org/expenses/paysExpense> $this .
+            }
+            GROUP BY $this
+            HAVING (COUNT(DISTINCT ?payment) > 1)
+            """ ] .
+
+#################################################################
+# Pills (ADR-0033 section 4)
+#################################################################
+
+# An aggregate: what names a seam:lifecycle, and a sh:NodeShape with an
+# effective lifecycle (its own, or its sh:targetClass's).
+ddd:Aggregate a sh:NodeShape ;
+    skos:prefLabel "Aggregate" ;
+    sh:targetSubjectsOf seam:lifecycle ;
+    sh:targetClass sh:NodeShape ;
+    sh:severity sh:Info ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "has no effective seam:lifecycle" ;
+        sh:select """
+            SELECT $this WHERE {
+              FILTER NOT EXISTS { $this (sh:targetClass)?/seam:lifecycle ?lifecycle . }
+            }
+            """ ] .
+
+# A command: an operation that accepts a shape and that a UI event
+# seam:submitsTo.
+ddd:Command a sh:NodeShape ;
+    skos:prefLabel "Command" ;
+    sh:targetClass hydra:Operation ;
+    sh:severity sh:Info ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "accepts no shape that a seam:submitsTo reaches" ;
+        sh:select """
+            SELECT $this WHERE {
+              FILTER NOT EXISTS {
+                ?event seam:submitsTo $this .
+                $this seam:acceptsShape ?shape .
+              }
+            }
+            """ ] .
+
+# A domain event: a lifecycle transition ...
+ddd:DomainEvent a sh:NodeShape ;
+    skos:prefLabel "Domain event" ;
+    sh:targetClass state:Transition ;
+    sh:severity sh:Info .
+
+# ... and a channel that carries a shape.
+ddd:PublishedEvent a sh:NodeShape ;
+    skos:prefLabel "Domain event" ;
+    sh:targetClass comm:Channel ;
+    sh:severity sh:Info ;
+    sh:property [
+        sh:path seam:acceptsShape ;
+        sh:minCount 1 ;
+        sh:severity sh:Info ;
+        sh:message "carries no seam:acceptsShape" ] .

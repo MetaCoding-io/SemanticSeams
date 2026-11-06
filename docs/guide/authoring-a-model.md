@@ -600,6 +600,18 @@ is also the `owl:Ontology`, with `seam:notation seam:Ontology` in the seams grap
   `cannot resolve <https://example.org/expenses/expense_ontology>: missing owl:imports
   (imports gistCore14.1.0; the vendored version is gistCore14.0.0)`. Vocabulary
   versions are not imported here; they belong in the [manifest graph](#vocabulary-versions).
+- **Import another context's ontology from the same dataset.** When a model is split into
+  bounded contexts ([ADR-0030](/adr/0030-domains-and-bounded-contexts)), each context
+  owns one ontology, and a context that uses another's classes imports that ontology by
+  its `owl:versionIRI`. An import resolves first to a `seam:Ontology` model in the same
+  dataset with that version IRI, then to `ontology/vendor/`. An import of a version the
+  dataset does not hold is refused the same way:
+  `cannot resolve <https://example.org/expenses/expense_ontology>: missing owl:imports
+  (imports <https://example.org/expenses/finance_ontology/2.0>; the dataset's
+  finance_ontology is version <https://example.org/expenses/finance_ontology/1.0>)`.
+  The imported classes are the owner's: the class view draws them as read-only cards,
+  and your shapes may target them with `sh:targetClass`. Keep each context in its own
+  TriG file in one directory and load the directory (`model = "."` in `seams.toml`).
 - **The imported ontology stays out of the model.** gist is read to check the import and
   to label superclasses; it is not added to the model's graphs, so the model hash,
   generation and the runtime are the same as without it. A superclass declared neither
@@ -608,7 +620,8 @@ is also the `owl:Ontology`, with `seam:notation seam:Ontology` in the seams grap
 
 The viewer draws an ontology model as a class view: a card per class with its
 definition, an edge to each superclass, and gist's classes as read-only cards. The
-health panel lists each import and whether it resolved
+health panel lists each import and whether it resolved, to a vendored file or to an
+ontology in the dataset
 ([the viewer](/guide/the-viewer)). Chapter 9 of the expense tutorial declares its
 ontology this way, and its shapes target the classes, as the next section shows.
 
@@ -681,10 +694,176 @@ category label must be usable as a JSON-LD term (not empty, not starting with `@
 `:`), and the target class's local name must not also be a field name; the generator
 refuses either with a `GeneratorError` naming the member or the shape.
 
+## Lifecycles on the class
+
+A lifecycle belongs to the thing, not to one view of it. With `seam` 1.4 in the
+[manifest graph](#vocabulary-versions), `seam:lifecycle` names an `owl:Class`, and every
+shape that targets the class gets the lifecycle
+([ADR-0031](/adr/0031-lifecycle-on-the-class)). Chapter 9 of the expense tutorial does
+this:
+
+```trig
+:Expense seam:lifecycle :expense_lifecycle .
+:Payment seam:lifecycle :payment_lifecycle .
+```
+
+- **Derivation.** A shape's lifecycle is its own `seam:lifecycle`, else that of its
+  `sh:targetClass`. `:ExpenseShape` targets `:Expense`, so its guards
+  (`seam:visibleWhen`, `seam:expectState`), its first state on write and its category
+  options all come from `:expense_lifecycle`. A lifecycle's shapes are those that name it
+  and those that target a class that names it.
+- **The shape form still works.** `:ExpenseShape seam:lifecycle :expense_lifecycle`
+  loads unchanged; the other chapters and the chat app keep it. Naming the same machine
+  on both the shape and its class counts once.
+- **At most one.** A shape that reaches two different lifecycles, directly or through its
+  class, fails `EffectiveLifecycleShape`, and the typed shape view raises
+  `ResolutionError(shape, seam:lifecycle)` listing both.
+
+### Aggregate members
+
+What names a `seam:lifecycle` is an aggregate. With `seam` 1.5, the aggregate lists the
+shapes whose entities it commits together with `seam:aggregateMember`, in the seams
+graph ([ADR-0035](/adr/0035-aggregate-transaction-boundary)). Chapter 11 lists one
+member for each aggregate:
+
+```trig
+:Expense seam:lifecycle :expense_lifecycle ;
+    seam:aggregateMember :ExpenseShape .
+:Payment seam:lifecycle :payment_lifecycle ;
+    seam:aggregateMember :PaymentShape .
+```
+
+- **Listed, never derived.** The members are exactly the objects of the aggregate's
+  `seam:aggregateMember` triples. A shape that targets the class is not a member unless
+  it is listed, and a member may target another class (an expense's line items). An
+  aggregate with no `seam:aggregateMember` declares no boundary.
+- **The seam shapes check it.** The subject has a `seam:lifecycle`
+  (`AggregateMemberShape`), each member is a `sh:NodeShape`, and a shape is a member of
+  at most one aggregate (`OneAggregateShape`).
+- **One store.** The members commit in one store transaction, so they are
+  `seam:storedIn` one store between them. The DDD profile checks this, and the runtime
+  refuses an aggregate whose members it cannot commit together (ADR-0035 section 5).
+  That is why chapter 11's approval is not a member of the expense: the approval is in
+  `:expense_db` and the expense in `:expense_pkm`, so they are two aggregates that refer
+  to each other by id.
+- **Typed view.** `model.aggregates` lists the aggregates that declare members, by IRI;
+  each one's `members` are its shapes, by IRI, and `Shape.aggregate` is the aggregate a
+  shape belongs to.
+- **At run time.** When one process element `seam:writes` two or more members of an
+  aggregate, the worker writes them in one store transaction: all of them or none.
+  `Runtime.write_aggregate` does the same for an operation that starts no process. A
+  rollback raises `AggregateRolledBack`, naming the aggregate and the shape whose write
+  failed ([seams_runtime README](../../seams_runtime/README.md#aggregates-adr-0035)).
+
+A `state:Transition` is a domain event, identified by its IRI, and may
+`seam:publishesTo` a `comm:Channel`. The event's name is the transition's IRI or its
+`state:trigger`; do not copy a label onto the channel:
+
+```trig
+:t_approve seam:publishesTo :expense_events .
+:expense_events a comm:Channel ; rdfs:label "expense events" ;
+    seam:inModel :expense_interface .
+```
+
+The shapes accept the fact; the runtime does not yet emit the event when the transition
+fires (B3's follow-up in the [backlog](/backlog)).
+
+## Domains and bounded contexts
+
+A domain groups systems and bounded contexts and says where effort goes; a bounded
+context owns one ontology and the model graphs written in its language
+([ADR-0030](/adr/0030-domains-and-bounded-contexts)). Both are architecture elements,
+declared in the architecture model; what a context owns is a cross-layer fact in the
+seams graph. The notation needs `arch` 1.1 and `seam` 1.3 in the
+[manifest graph](#vocabulary-versions):
+
+```trig
+<urn:seams:graph:model:expense_architecture> {
+    :finance a arch:Domain ; rdfs:label "Finance" ;
+        arch:classification arch:Core ;
+        arch:contains :finance_context .
+    :finance_context a arch:BoundedContext ; rdfs:label "Payouts" .
+}
+
+<urn:seams:graph:seams> {
+    :finance_context seam:owns :finance_ontology , :payout_bpmn , :finance_console .
+}
+```
+
+- **A domain** has one `rdfs:label` and exactly one `arch:classification`:
+  `arch:Core`, `arch:Supporting` or `arch:Generic`. It `arch:contains` its systems and
+  contexts with the ordinary nesting property.
+- **A context** has one `rdfs:label`, sits in exactly one domain, and `seam:owns`
+  exactly one model whose notation is `seam:Ontology`: that ontology is its language.
+  Its classification is its domain's.
+- **Each model has at most one owner.** Once a dataset declares any context, every
+  model except the architecture model (`seam:C4`) is owned by exactly one. The
+  architecture model describes the boundaries and is never owned.
+- **No context is one implicit context.** A dataset that declares none, like every
+  example today, checks as before.
+- **What is derived, not stated.** The containers that run a context are those that
+  `seam:executes` or `seam:presents` a model it owns, and an element is in a context
+  when its `seam:inModel` model is owned by it. There is no context-to-container fact
+  and no `seam:inContext`.
+
+One file per context is a convention, not a rule: ownership is a fact, so moving a model
+graph between files changes nothing. `seams check` and the viewer's health panel name the
+element and the predicate for each break (`DomainShape`, `BoundedContextShape`,
+`ModelOwnerShape`, `OwnsTargetShape` in the [shapes reference](/reference/shapes)).
+
+### Context maps
+
+Where two contexts meet, an `arch:ContextRelationship` in the architecture model says
+which way the dependency runs and what the teams agreed about it
+([ADR-0032](/adr/0032-context-map-relationships)). It needs `arch` 1.2:
+
+```trig
+<urn:seams:graph:model:expense_architecture> {
+    :expense_to_finance a arch:ContextRelationship ;
+        arch:upstream :expense_context ;
+        arch:downstream :finance_context ;
+        arch:relationshipType arch:Conformist .
+}
+```
+
+- **Upstream is the side whose change can break the other.** The downstream context
+  reads, writes or subscribes to what the upstream owns. Declare the direction; the gate
+  below checks the accesses against it.
+- **One relationship per pair, with one type**: `arch:CustomerSupplier`,
+  `arch:Conformist`, `arch:AntiCorruptionLayer`, `arch:PublishedLanguage` or
+  `arch:SharedKernel`. Its two ends are different contexts. Two contexts with no
+  relationship have agreed nothing (DDD's separate ways). `ContextRelationshipShape` and
+  `ContextRelationshipTermsShape` name the predicate for each break.
+- **`seams diff` reports per downstream context.** A breaking change to a shape an
+  upstream context owns is listed under every context downstream of it
+  ([seams diff](#checking-a-change-with-seams-diff)).
+- **Cross-context accesses are translated unless the relationship says otherwise.** An
+  element in one context that `seam:reads` or `seam:writes` a shape another context owns
+  is a row of `docs/queries/gates/untranslated-cross-context-calls.rq` unless its context
+  is the conformist downstream of the shape's, the two share a kernel, or the element is
+  a translating operation: a `hydra:Operation` in a model its context owns that accepts
+  or returns the other context's shape and, on its other side, one of its own.
+  Customer-supplier, anti-corruption layer and published language all keep the
+  downstream's own model, so they need that operation. Publishing and subscribing on a
+  channel is not an access. List the gate in `seams.toml` to make `seams check` fail on
+  a row, as chapter 11 does:
+
+```toml
+gates = [
+    "../../../docs/queries/gates/ungoverned-writes.rq",
+    "../../../docs/queries/gates/untranslated-cross-context-calls.rq",
+]
+```
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.2>`). A model says which versions it is written for in
+(`<https://w3id.org/seams/seam/1.5>`). `arch` 1.1 added domains and bounded contexts and
+`seam` 1.3 added `seam:owns` (ADR-0030); `seam` 1.4 lets `seam:lifecycle` name an
+`owl:Class` and a `state:Transition` `seam:publishesTo` a channel (ADR-0031); `arch` 1.2
+added context-map relationships (`arch:ContextRelationship`, ADR-0032); `seam` 1.5 adds
+`seam:aggregateMember`, the shapes an aggregate commits together (ADR-0035). All are
+compatible widenings, so a model that declares an older `arch` or `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -694,8 +873,8 @@ version IRI of each SemanticSeams vocabulary the model uses
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> .
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
+                    <https://w3id.org/seams/seam/1.5> .
 }
 ```
 
@@ -767,9 +946,9 @@ versions:
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> .
+                    <https://w3id.org/seams/seam/1.5> .
 }
 ```
 
@@ -979,7 +1158,8 @@ SEAMS_MODEL=path/to/model.trig python3 -m uvicorn viewer.app:app --port 8000
 ```
 
 `SEAMS_MODEL` may also name a directory: its TriG files load together as one model, and
-payload paths resolve against the directory.
+payload paths and the `handlers/` package resolve against the directory. In `seams.toml`
+the same directory is `model = "."`.
 
 The root view is your model's C4 `seam:Model`. If the file has none, or more than one,
 set `SEAMS_VIEWER_ROOT` to the IRI the viewer should open at. See
@@ -994,6 +1174,53 @@ the model:
 ```
 
 The viewer's edit mode then offers only the profile's classes under its labels, runs its
-shapes in health and previews only its generators. A profile never changes what
-`seams generate` builds. See [Domain profiles](/guide/the-viewer#domain-profiles) and
-[ADR-0018](/adr/0018-domain-profiles).
+shapes in health and previews only its generators. `seams check` validates the model
+against the profile's shapes too, and fails on a `sh:Violation`. A profile never changes
+what `seams generate` builds. See [Domain profiles](/guide/the-viewer#domain-profiles),
+[ADR-0018](/adr/0018-domain-profiles) and [ADR-0033](/adr/0033-ddd-profile).
+
+### Attaching the DDD profile
+
+Expense chapter 11 ships a profile that turns "this model follows domain-driven design"
+into rules `seams check` tests: `examples/expenses/chapter-11/profiles/ddd/`. It offers
+no classes and lists no generators, so the editor behaves as it does with no profile;
+it is a shapes library and nothing else. To use it, copy the directory beside your
+model and attach it with one triple in the seams graph, on the manifest's
+`owl:Ontology`:
+
+```trig
+<urn:seams:graph:seams> {
+    <urn:seams:graph:manifest> seam:conformsTo <https://example.org/profiles/ddd> .
+}
+```
+
+Its rules read facts the model already states (`seam:owns`, `arch:ContextRelationship`,
+`seam:lifecycle`, `seam:aggregateMember`, `seam:storedIn`, `proc:correlationKey`, `seam:governedBy`,
+`seam:fires`), so a model with no bounded contexts or no lifecycle has nothing for them
+to fail on:
+
+- every UI event that can write a shape is governed by a policy;
+- every lifecycle transition is fired by some element;
+- an element reads or writes another context's shape only through a conformist or
+  shared-kernel relationship or a translating operation;
+- a shape is written only from the context that owns its model;
+- an aggregate, whatever names a `seam:lifecycle`, has one lifecycle, one store and one
+  correlation key across the processes that write it, and its `seam:aggregateMember`
+  shapes are `seam:storedIn` one store between them (ADR-0035).
+
+The first three restate the `ungoverned-writes.rq` and
+`untranslated-cross-context-calls.rq` gates and the `unfired-transitions.rq` coverage
+query. Drop those gates from `seams.toml` when you attach the profile, so each fact is
+reported once. The profile's labelled `sh:Info` shapes give the viewer its type pills
+(Aggregate, Command, Domain event); `seams check` does not report them.
+
+A profile shape with `sh:severity sh:Warning` and a `sh:sparql` constraint is an
+instance-data rule ([ADR-0036](/adr/0036-cross-aggregate-invariants)): it is written
+against the model's own properties, so it finds nothing in the model and `seams check`
+passes it. The runtime runs it on the stored entities instead, through
+`Runtime.data_health()` and the viewer's [data-health view](/guide/the-viewer#data-health),
+and reports what breaks it without refusing the write. Chapter 11's paid-once rule is
+one; the [tutorial](/tutorials/expenses/11-bounded-contexts#paid-once) shows an expense
+paid twice. Chapter 11's
+[tutorial page](/tutorials/expenses/11-bounded-contexts#the-ddd-profile) walks through
+it.

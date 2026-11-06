@@ -4,6 +4,7 @@ from .channels import ChannelBus
 from .contracts import validate
 from .engine import Engine
 from .errors import (
+    AggregateRolledBack,
     ContractViolation,
     LifecycleViolation,
     ModelHashMismatch,
@@ -16,6 +17,7 @@ from .errors import (
     StoreUnavailable,
     TaskNotOpen,
 )
+from .invariants import Finding, data_health
 from .lifecycle import LifecycleGuard
 from .llm import LLMClient, LLMError
 from .model import ModelGraph, model_hash
@@ -39,10 +41,12 @@ from .worker import Instance, Worker
 __version__ = "0.1.0"  # must equal [project].version in seams_runtime/pyproject.toml
 
 __all__ = [
+    "AggregateRolledBack",
     "Authenticator",
     "ChannelBus",
     "ContractViolation",
     "Engine",
+    "Finding",
     "HeaderAuthenticator",
     "Identity",
     "Instance",
@@ -75,6 +79,7 @@ __all__ = [
     "Worker",
     "__version__",
     "authenticator_from_env",
+    "data_health",
     "model_hash",
     "tracer_from_env",
     "validate",

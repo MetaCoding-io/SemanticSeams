@@ -29,14 +29,8 @@ WORKDIR /app
 # (the [tool.uv.workspace] members of the root pyproject.toml, with their readmes)
 # is needed; no member is installed (--no-install-workspace).
 COPY pyproject.toml uv.lock .python-version /app/
-<<<<<<< HEAD
 COPY packages/seams/README.md packages/seams/pyproject.toml /app/packages/seams/
 COPY packages/seams-cli/README.md packages/seams-cli/pyproject.toml /app/packages/seams-cli/
-=======
-COPY packages/seams/pyproject.toml packages/seams/README.md /app/packages/seams/
-COPY seams_runtime/pyproject.toml /app/seams_runtime/
-COPY seams_gen/pyproject.toml /app/seams_gen/
->>>>>>> 429483b384b3b10aef3edba7252f5fbefd111ade
 COPY seams_edit/pyproject.toml /app/seams_edit/
 COPY seams_gateway/pyproject.toml /app/seams_gateway/
 COPY seams_gen/pyproject.toml /app/seams_gen/

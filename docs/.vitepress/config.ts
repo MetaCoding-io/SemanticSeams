@@ -57,6 +57,13 @@ const decisions = [
   ["0028", "Copilot suggestions", "0028-copilot-suggestions"],
   ["0029", "LLM-drafted generators", "0029-llm-drafted-generators"],
   ["0030", "Domains and bounded contexts", "0030-domains-and-bounded-contexts"],
+  ["0031", "Lifecycle on the class", "0031-lifecycle-on-the-class"],
+  ["0032", "Context-map relationships", "0032-context-map-relationships"],
+  ["0033", "The DDD profile", "0033-ddd-profile"],
+  ["0034", "Context Mapper interchange", "0034-context-mapper-interchange"],
+  ["0035", "Aggregate transaction boundary", "0035-aggregate-transaction-boundary"],
+  ["0036", "Cross-aggregate invariants", "0036-cross-aggregate-invariants"],
+  ["0037", "Timers and scheduling", "0037-timers-and-scheduling"],
 ] as const;
 
 export default defineConfig({
@@ -125,6 +132,7 @@ export default defineConfig({
               { text: "8 · Growing up", link: "/tutorials/expenses/08-growing-up" },
               { text: "9 · Hand-written code", link: "/tutorials/expenses/09-hand-written-code" },
               { text: "10 · Expenses in SemPKM", link: "/tutorials/expenses/10-sempkm" },
+              { text: "11 · A second bounded context", link: "/tutorials/expenses/11-bounded-contexts" },
             ],
           },
         ],

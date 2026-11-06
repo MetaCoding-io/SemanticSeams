@@ -1,0 +1,14 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "Vendor": "https://example.org/expenses/Vendor",
+    "id": {
+      "@id": "https://example.org/expenses/id",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
+    "name": {
+      "@id": "https://example.org/expenses/name",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    }
+  }
+}

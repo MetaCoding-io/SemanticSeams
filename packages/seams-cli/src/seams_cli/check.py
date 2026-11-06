@@ -46,6 +46,18 @@ is reported and nothing is written.
   likely typo (``gist:Transation``), not a contradiction. The detail is the
   class IRI, ``rdfs:subClassOf``, the target IRI and the message. An import
   that does not resolve is a ``ResolutionError`` on load, so a ProjectError.
+- ``profile``: when the model attaches a domain profile with ``seam:conformsTo``
+  (ADR-0018, ADR-0033 section 1), ``seams.resolve_profile`` finds it in the
+  model directory and the same union graph is validated against the profile's
+  shapes alone (the seam shapes are the ``shacl`` check's), inference off. A
+  sh:Violation result is a ``profile`` finding; a sh:Warning or sh:Info result
+  is an advisory ``profile-warning``. The detail is the focus node, path and
+  message. Results of pill shapes (labelled sh:Info shapes, ADR-0033 section 4)
+  are not reported. A profile that cannot be resolved is one ``profile``
+  finding: the ResolutionError's subject, predicate and detail.
+  ``check_project`` also returns the resolved profile's IRI and its result
+  count, which ``seams check`` prints first as ``profile <IRI> <n> result(s)``.
+  A model with no seam:conformsTo reads no profile file.
 - ``coverage``: with ``coverage = ["paths"]`` in the project file, one finding
   per BPMN path no verify:Scenario runs (``seams.coverage``, D054): the
   process IRI, then the path's flow node IRIs.
@@ -92,7 +104,7 @@ SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 FILE_KINDS = frozenset({"missing", "stale", "hand-edited", "orphan", "lock-out-of-date"})
 
 # Finding kinds that flag the model for review but do not fail the check.
-ADVISORY_KINDS = frozenset({"ontology-superclass", "review", "shacl-warning", "vocabulary-migrated"})
+ADVISORY_KINDS = frozenset({"ontology-superclass", "profile-warning", "review", "shacl-warning", "vocabulary-migrated"})
 
 
 class Finding(NamedTuple):
@@ -132,6 +144,34 @@ def check_shapes(graph: rdflib.Graph, shapes_file: Path = SHAPES_FILE) -> list[F
         parts = (results.value(result, key) for key in (SH.focusNode, SH.resultPath, SH.resultMessage))
         findings.append(Finding(kind, " ".join(str(v) if v is not None else "-" for v in parts)))
     return findings
+
+
+class ProfileCheck(NamedTuple):
+    """The attached profile's IRI (None when unresolved) and its findings."""
+
+    iri: str | None
+    findings: list[Finding]
+
+
+def check_profile(model: Path, graph: rdflib.Graph, ontology_dir: Path = ONTOLOGY_DIR) -> ProfileCheck | None:
+    """``profile`` and ``profile-warning`` findings of the attached profile's shapes, or None with no profile."""
+    try:
+        profile = seams.resolve_profile(load_model(model, ontology_dir).ds, seams.model_dir(model))
+    except seams.ResolutionError as err:
+        return ProfileCheck(None, [Finding("profile", f"{err.subject} {err.predicate} {err.detail}")])
+    if profile is None:
+        return None
+    _conforms, report, _text = pyshacl.validate(graph, shacl_graph=profile.shapes, inference="none")
+    results = cast(rdflib.Graph, report)
+    pills = profile.pill_sources()
+    findings = []
+    for result in results.subjects(rdflib.RDF.type, SH.ValidationResult):
+        if results.value(result, SH.sourceShape) in pills:
+            continue
+        kind = "profile" if results.value(result, SH.resultSeverity) == SH.Violation else "profile-warning"
+        parts = (results.value(result, key) for key in (SH.focusNode, SH.resultPath, SH.resultMessage))
+        findings.append(Finding(kind, " ".join(str(v) if v is not None else "-" for v in parts)))
+    return ProfileCheck(str(profile.iri), findings)
 
 
 def check_migrations(model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
@@ -258,20 +298,38 @@ def check_drafts(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DI
     return findings
 
 
-def run_check(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
-    """Every finding of the checks, sorted by kind and detail."""
+class CheckReport(NamedTuple):
+    """Every finding, sorted, and the attached profile's IRI and result count (None without one)."""
+
+    findings: list[Finding]
+    profile: tuple[str, int] | None
+
+
+def check_project(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> CheckReport:
+    """Every finding of the checks, sorted by kind and detail, and the resolved profile."""
     graph = model_graph(model, ontology_dir)
     findings = check_gates(project, graph) + check_shapes(graph, ontology_dir / "shapes" / "seam-shapes.ttl")
+    profiled = check_profile(model, graph, ontology_dir)
+    if profiled is not None:
+        findings += profiled.findings
     findings += check_migrations(model, ontology_dir) + check_outputs(project, model)
     findings += check_decisions(model, ontology_dir) + check_review(model, ontology_dir)
     findings += check_ontology(model, ontology_dir)
     findings += check_coverage(project, model, ontology_dir) + check_drafts(project, model, ontology_dir)
-    return sorted(findings)
+    summary = None if profiled is None or profiled.iri is None else (profiled.iri, len(profiled.findings))
+    return CheckReport(sorted(findings), summary)
+
+
+def run_check(project: Project, model: Path, ontology_dir: Path = ONTOLOGY_DIR) -> list[Finding]:
+    """Every finding of the checks, sorted by kind and detail."""
+    return check_project(project, model, ontology_dir).findings
 
 
 __all__ = [
     "ADVISORY_KINDS",
+    "CheckReport",
     "Finding",
+    "ProfileCheck",
     "check_coverage",
     "check_decisions",
     "check_drafts",
@@ -279,6 +337,8 @@ __all__ = [
     "check_migrations",
     "check_ontology",
     "check_outputs",
+    "check_profile",
+    "check_project",
     "check_review",
     "check_shapes",
     "load_model",

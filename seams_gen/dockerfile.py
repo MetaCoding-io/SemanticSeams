@@ -142,8 +142,8 @@ def extract_dockerfile(model: Model) -> DockerfileModel:
             DEPLOY.build,
             f"the {env.iri} deploy:artifact needs a deploy:build to generate the runtime image's Dockerfile",
         )
-    context_dir = (model.path.parent / artifact.build.context).resolve()
-    app_dir = Path(os.path.relpath(model.path.parent.resolve(), context_dir)).as_posix()
+    context_dir = (model.base_dir / artifact.build.context).resolve()
+    app_dir = Path(os.path.relpath(model.base_dir, context_dir)).as_posix()
     if app_dir == ".." or app_dir.startswith("../"):
         raise GeneratorError(
             container.iri,
@@ -190,7 +190,7 @@ def dockerfile_inputs(trig: Path, out: Path) -> tuple[Path, ...]:
         return ()
     if artifact is None or artifact.build is None:
         return ()
-    context_dir = (model.path.parent / artifact.build.context).resolve()
+    context_dir = (model.base_dir / artifact.build.context).resolve()
     root = context_dir / "pyproject.toml"
     if not root.is_file():
         return ()

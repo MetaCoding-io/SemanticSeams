@@ -1,0 +1,17 @@
+# The DDD profile (ADR-0033): "this model follows domain-driven design" as a
+# claim seams check can test. Chapter 11's seams graph attaches it with
+# <urn:seams:graph:manifest> seam:conformsTo <https://example.org/profiles/ddd>.
+#
+# The profile is a shapes library and nothing else. It offers no classes and
+# lists no generators, so the editor's palette and preview are what they are
+# with no profile (ADR-0018). Its rules and its type pills are in
+# ddd-shapes.ttl, beside this file.
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix seam: <https://w3id.org/seams/seam#> .
+
+<https://example.org/profiles/ddd> a seam:Profile ;
+    skos:prefLabel "Domain-driven design" ;
+    rdfs:comment "The DDD note's section 5 rules over bounded contexts, context relationships and aggregates." ;
+    seam:profileShapes "ddd-shapes.ttl" .

@@ -1,0 +1,52 @@
+# Gate: which elements read or write another context's shape with no translation?
+#
+# A gate is a query `seams check` runs from a project's `gates` and that must
+# return no rows. ADR-0032 section 4 defines the rule. An element is in the
+# context that seam:owns its seam:inModel model; a shape is in the context that
+# owns the model it is declared in. Each row is a cross-context access:
+# ?element, in ?elementContext, seam:reads or seam:writes ?shape, owned by
+# ?shapeContext, and none of these holds:
+#   - ?elementContext conforms: an arch:ContextRelationship with arch:upstream
+#     ?shapeContext, arch:downstream ?elementContext and type arch:Conformist;
+#   - the two share a kernel: a relationship of type arch:SharedKernel between
+#     them, either way round;
+#   - ?element is a translating operation: a hydra:Operation in a model
+#     ?elementContext owns that accepts or returns ?shape, and whose other side
+#     is a shape ?elementContext owns.
+#
+# An access against the declared direction, and one between two contexts with
+# no relationship, are rows. Publishing and subscribing on a channel are not
+# accesses; only seam:reads and seam:writes are read.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX arch: <https://w3id.org/seams/arch#>
+PREFIX hydra: <http://www.w3.org/ns/hydra/core#>
+
+SELECT DISTINCT ?element ?shape ?elementContext ?shapeContext WHERE {
+  ?element (seam:reads | seam:writes) ?shape .
+  ?element seam:inModel ?elementModel .
+  ?elementContext seam:owns ?elementModel .
+  ?shape seam:inModel ?shapeModel .
+  ?shapeContext seam:owns ?shapeModel .
+  FILTER (?elementContext != ?shapeContext)
+  FILTER NOT EXISTS {
+    ?conformist arch:upstream ?shapeContext ;
+        arch:downstream ?elementContext ;
+        arch:relationshipType arch:Conformist .
+  }
+  FILTER NOT EXISTS {
+    ?kernel arch:relationshipType arch:SharedKernel ;
+        arch:upstream|arch:downstream ?shapeContext ;
+        arch:upstream|arch:downstream ?elementContext .
+  }
+  FILTER NOT EXISTS {
+    ?element a hydra:Operation .
+    {
+      ?element seam:acceptsShape ?shape ; seam:returnsShape ?own .
+    } UNION {
+      ?element seam:returnsShape ?shape ; seam:acceptsShape ?own .
+    }
+    ?own seam:inModel ?ownModel .
+    ?elementContext seam:owns ?ownModel .
+  }
+}

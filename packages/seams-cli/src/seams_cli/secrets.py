@@ -120,7 +120,7 @@ def collect_rows(model: seams.Model, root: Path, env: str | None = None) -> list
         if not environments:
             names = ", ".join(environment_names(model)) or "(none)"
             raise ProjectError(f"{model.path}: no arch:Environment {env!r}; environments: {names}")
-    model_dir = model.path.parent
+    model_dir = model.base_dir
     rows = []
     for environment in environments:
         for container in arch.containers():

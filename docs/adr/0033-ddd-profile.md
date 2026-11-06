@@ -80,10 +80,18 @@ sh:Violation`. The rules, over the terms the graph already has:
 | Rule | Focus nodes | Constraint |
 |---|---|---|
 | **Governed writes**: every UI event that can write a shape is governed by a policy | `sh:targetClass ifml:Event` | `sh:sparql`: the walk of `gates/ungoverned-writes.rq` from `$this` to a writer, with no `seam:governedBy` on the event or the operation it submits to |
-| **Fired transitions**: every transition is fired by something | `sh:targetClass state:Transition` | core: `sh:property [ sh:path [ sh:inversePath seam:fires ] ; sh:minCount 1 ]` |
+| **Fired transitions**: every transition is fired by something | `sh:targetClass state:Transition` | `sh:sparql`: the body of `coverage/unfired-transitions.rq` with `?transition` bound to `$this` (see the note below the table) |
 | **Translated access**: a cross-context `seam:reads` or `seam:writes` is translated unless the relationship is conformist or a shared kernel | `sh:targetSubjectsOf seam:reads`, `sh:targetSubjectsOf seam:writes` | `sh:sparql`: ADR-0032 section 4's rule, the body of `gates/untranslated-cross-context-calls.rq` with `?element` bound to `$this` |
 | **One writing context**: a shape is written only from the context that owns it, so never from two | `sh:targetObjectsOf seam:writes` | `sh:sparql`: a writer of `$this` whose `seam:inModel` model is owned by a context that does not own `$this`'s model |
 | **Aggregate boundary**: an aggregate has one lifecycle, one correlation key and one store | `sh:targetSubjectsOf seam:lifecycle` | `sh:sparql`, one constraint per fact, below |
+
+*Implementation note (M029/S02/T03).* The fired-transitions rule was first written
+as the core constraint `sh:property [ sh:path [ sh:inversePath seam:fires ] ; sh:minCount
+1 ]`. It is a `sh:sparql` constraint instead, for two reasons: a core result on an
+inverse path carries a blank-node `sh:resultPath`, which `seams check` would print as a
+different identifier on every run; and the query joins `seam:inModel ?lifecycle`, so
+the SPARQL form reports exactly the query's rows. Every DDD rule is therefore
+`sh:sparql`.
 
 An **aggregate** is what ADR-0031 and the note make it: the `owl:Class` that
 `seam:lifecycle` names (or, kept for compatibility, a `sh:NodeShape` that names one

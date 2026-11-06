@@ -522,7 +522,14 @@ things:
   the health badge, and a property they give a path to gets a field in the element's form.
 - **The preview runs only the profile's generators.** Only the project's generators named
   by `seam:usesGenerator` run. A listed name the project's `seams.toml` does not configure
-  is shown as not configured. `seams generate` and `seams check` ignore profiles.
+  is shown as not configured. `seams generate` ignores profiles; `seams check` validates
+  the profile's shapes ([ADR-0033](/adr/0033-ddd-profile)).
+
+A part the profile leaves out restricts nothing (ADR-0033 section 3): a profile with no
+`seam:offersClass` shows no palette and flags no class, and one with no
+`seam:usesGenerator` previews every configured generator. Expense chapter 11's DDD
+profile is such a profile, a shapes library and nothing else. A profile's labelled
+`sh:Info` shapes are type pills, not rules, so their results are not shown in health.
 
 The health panel names the attached profile with its class and generator counts, and the
 server log records one line when the model loads, naming the profile IRI and the same

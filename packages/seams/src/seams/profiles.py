@@ -48,6 +48,15 @@ class Profile:
     graph: rdflib.Graph = field(default_factory=rdflib.Graph)
     pills: dict[URIRef, str] = field(default_factory=lambda: dict[URIRef, str]())
 
+    def pill_sources(self) -> frozenset[Node]:
+        """The sh:sourceShape values of pill results: each pill shape and its sh:property
+        shapes. Neither ``seams check`` nor the health panel reports these results
+        (ADR-0033 section 4)."""
+        sources: set[Node] = set(self.pills)
+        for pill in self.pills:
+            sources.update(self.shapes.objects(pill, SH.property))
+        return frozenset(sources)
+
 
 def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()

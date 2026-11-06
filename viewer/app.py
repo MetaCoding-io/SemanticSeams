@@ -1346,9 +1346,10 @@ templates.env.globals["edit_enabled"] = edit_enabled
 
 def edit_palette() -> dict | None:
     """The classes the editor offers (ADR-0018): the attached profile's, with its
-    labels, computed in viewer/editing.py. None without a profile or edit mode."""
+    labels, computed in viewer/editing.py. None without a profile or edit mode, and
+    for a profile that offers no classes, which restricts nothing (ADR-0033 section 3)."""
     profile = get_profile() if edit_enabled() else None
-    if profile is None:
+    if profile is None or not profile.classes:
         return None
     health = profile_health() or {}
     return {"profile": health.get("label"), "iri": str(profile.iri), "classes": editing.palette(profile)}
@@ -1525,10 +1526,13 @@ def _roll_back(records: list[seams_edit.EditRecord]) -> str:
 def preview_context() -> dict:
     """The live preview of the loaded model (viewer/preview.py), logged with its
     project, output count, fault count and duration. An attached profile limits it
-    to the profile's generators (ADR-0018)."""
+    to the profile's generators (ADR-0018); one that lists none limits nothing
+    (ADR-0033 section 3)."""
     start = time.perf_counter()
     profile = get_profile()
-    facts = preview.preview(MODEL_PATH, MODEL_DIR, profile.generators if profile is not None else None)
+    facts = preview.preview(
+        MODEL_PATH, MODEL_DIR, profile.generators if profile is not None and profile.generators else None
+    )
     logger.info(
         "preview %s: %d output(s), %d fault(s) in %.2fs%s",
         facts["project"] or MODEL_DIR,

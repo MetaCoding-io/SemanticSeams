@@ -1137,6 +1137,43 @@ the model:
 ```
 
 The viewer's edit mode then offers only the profile's classes under its labels, runs its
-shapes in health and previews only its generators. A profile never changes what
-`seams generate` builds. See [Domain profiles](/guide/the-viewer#domain-profiles) and
-[ADR-0018](/adr/0018-domain-profiles).
+shapes in health and previews only its generators. `seams check` validates the model
+against the profile's shapes too, and fails on a `sh:Violation`. A profile never changes
+what `seams generate` builds. See [Domain profiles](/guide/the-viewer#domain-profiles),
+[ADR-0018](/adr/0018-domain-profiles) and [ADR-0033](/adr/0033-ddd-profile).
+
+### Attaching the DDD profile
+
+Expense chapter 11 ships a profile that turns "this model follows domain-driven design"
+into rules `seams check` tests: `examples/expenses/chapter-11/profiles/ddd/`. It offers
+no classes and lists no generators, so the editor behaves as it does with no profile;
+it is a shapes library and nothing else. To use it, copy the directory beside your
+model and attach it with one triple in the seams graph, on the manifest's
+`owl:Ontology`:
+
+```trig
+<urn:seams:graph:seams> {
+    <urn:seams:graph:manifest> seam:conformsTo <https://example.org/profiles/ddd> .
+}
+```
+
+Its rules read facts the model already states (`seam:owns`, `arch:ContextRelationship`,
+`seam:lifecycle`, `seam:storedIn`, `proc:correlationKey`, `seam:governedBy`,
+`seam:fires`), so a model with no bounded contexts or no lifecycle has nothing for them
+to fail on:
+
+- every UI event that can write a shape is governed by a policy;
+- every lifecycle transition is fired by some element;
+- an element reads or writes another context's shape only through a conformist or
+  shared-kernel relationship or a translating operation;
+- a shape is written only from the context that owns its model;
+- an aggregate, whatever names a `seam:lifecycle`, has one lifecycle, one store and one
+  correlation key across the processes that write it.
+
+The first three restate the `ungoverned-writes.rq` and
+`untranslated-cross-context-calls.rq` gates and the `unfired-transitions.rq` coverage
+query. Drop those gates from `seams.toml` when you attach the profile, so each fact is
+reported once. The profile's labelled `sh:Info` shapes give the viewer its type pills
+(Aggregate, Command, Domain event); `seams check` does not report them. Chapter 11's
+[tutorial page](/tutorials/expenses/11-bounded-contexts#the-ddd-profile) walks through
+it.

@@ -390,22 +390,6 @@
         sh:property [ sh:path comm:detail ; sh:datatype xsd:string ; sh:maxCount 1 ] ;
         seam:inModel :expense_data .
 
-    # What finance records when it pays an approved expense: the payment
-    # reference and the day it was paid. The RDF property is :paidOn; its
-    # sh:name keeps the form field and the payload member "paid_on".
-    :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
-        sh:targetClass :Payment ;
-        sh:property [ sh:path :reference ; sh:name "reference" ; sh:datatype xsd:string ;
-                      sh:minCount 1 ; sh:maxCount 1 ; sh:maxLength 100 ; sh:order 0 ] ;
-        sh:property [ sh:path :paidOn ; sh:name "paid_on" ; sh:datatype xsd:date ;
-                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 1 ] ;
-        # Set by the runtime, never entered: the payment's current state in
-        # :payment_lifecycle. The payment has no state category yet, so the
-        # options are an sh:in of the state IRIs, sent as their labels.
-        sh:property [ sh:path :status ; sh:name "status" ; sh:maxCount 1 ; sh:order 2 ;
-                      sh:in ( :s_recorded :s_scheduled :s_batched :s_sent ) ] ;
-        seam:inModel :expense_data .
-
     # A company the expenses are paid to. Finance keeps vendors in SemPKM;
     # the app never writes one, it only reads one when it changes (ADR-0027).
     :VendorShape a sh:NodeShape ; rdfs:label "Vendor" ;
@@ -711,6 +695,12 @@
 #################################################################
 
 <urn:seams:graph:seams> {
+
+    # The model claims to follow domain-driven design (ADR-0033): seams check
+    # validates it against the rules of profiles/ddd/, beside this file, and
+    # the viewer shows that profile's type pills. The subject is the
+    # manifest's owl:Ontology, which stands for the whole dataset.
+    <urn:seams:graph:manifest> seam:conformsTo <https://example.org/profiles/ddd> .
 
     # The viewer opens at the model whose notation is C4.
     :expense_architecture seam:notation seam:C4 .
@@ -1059,6 +1049,7 @@
 
 
     :finance_ontology seam:notation seam:Ontology .
+    :finance_data seam:notation seam:ShapeGraph .
     :payout_bpmn seam:notation seam:BPMN ;
         seam:renderPayload <payout.bpmn> .
     :payout_dmn seam:notation seam:DMN ;
@@ -1070,8 +1061,8 @@
 
     # What the finance context owns (ADR-0030): its ontology and the models
     # written in its language.
-    :finance_context seam:owns :finance_ontology , :payout_bpmn , :payout_dmn ,
-        :finance_console , :payment_lifecycle , :vendor_bpmn .
+    :finance_context seam:owns :finance_ontology , :finance_data , :payout_bpmn ,
+        :payout_dmn , :finance_console , :payment_lifecycle , :vendor_bpmn .
 
     # Architecture to UI and API: the same portal presents the finance
     # console and calls its operations; the same API exposes them, serves

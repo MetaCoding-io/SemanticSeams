@@ -41,8 +41,9 @@ From this chapter the checkpoint is a directory with two TriG files:
 
 - `expenses.trig` holds the architecture, the expense context's models and the seams
   graph;
-- `finance.trig` holds the finance context's models: its ontology, the payout process
-  and decision, the payment lifecycle, the vendor review and the finance console.
+- `finance.trig` holds the finance context's models: its ontology, its data model (the
+  payment's shape), the payout process and decision, the payment lifecycle, the vendor
+  review and the finance console.
 
 The project file names the directory instead of a file:
 
@@ -113,9 +114,12 @@ context to each model written in its language:
 ```
 
 ```trig
-    :finance_context seam:owns :finance_ontology , :payout_bpmn , :payout_dmn ,
-        :finance_console , :payment_lifecycle , :vendor_bpmn .
+    :finance_context seam:owns :finance_ontology , :finance_data , :payout_bpmn ,
+        :payout_dmn , :finance_console , :payment_lifecycle , :vendor_bpmn .
 ```
+
+`:finance_data` is the finance context's shape graph, which you add when you move Pay
+Expense, below.
 
 The seam shapes check the rules. A context owns exactly one ontology, its language. A
 model has at most one owner, and once a model declares any context, every model except
@@ -153,8 +157,8 @@ the expense ontology.
 
 ## Importing by version IRI
 
-The expense context still uses the finance words: `:PaymentShape` and `:VendorShape`
-target `:Payment` and `:Vendor`. A context reaches another's classes the way the model
+The expense context still uses the finance words: `:VendorShape` targets `:Vendor`
+(and, until you move it below, `:PaymentShape` targets `:Payment`). A context reaches another's classes the way the model
 already reaches gist, by `owl:imports` of a version IRI. Add the finance version to
 the expense ontology's imports, and move its own version on, because its classes
 changed:
@@ -212,6 +216,28 @@ Finance still completes it on `:payment_form`, and it still writes the payment:
 
 Point `:finance_payment_policy`'s `odrl:target` and the `seam:governedBy` fact at the new
 IRI, so only finance can pay.
+
+The payment's shape moves too. Every element that writes `:PaymentShape` is now in a
+finance model, so the shape belongs to the context that writes it. Add a shape graph to
+`finance.trig`, move `:PaymentShape` into it from `expense_data` with its IRI unchanged,
+and register its notation in the seams graph (`:finance_data seam:notation
+seam:ShapeGraph`). `finance.trig` now needs the `sh:` and `xsd:` prefixes:
+
+```trig
+<urn:seams:graph:model:finance_data> {
+
+    :finance_data a seam:Model ; rdfs:label "Finance Data" .
+
+    :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
+        sh:targetClass :Payment ;
+        ...
+        seam:inModel :finance_data .
+}
+```
+
+Where the payment is stored does not change: `:PaymentShape seam:storedIn :expense_db`
+stays in the seams graph. The DDD profile, below, checks this rule: a shape is written
+only from the context that owns it.
 
 Whether an approved expense has been paid is now the payment lifecycle's business, so
 the expense lifecycle loses `paid` and its `t_pay` transition. It ends at approved or
@@ -291,13 +317,67 @@ The seam shapes check the relationship. It needs exactly one upstream, one downs
 and one type, and the two ends must be different contexts. Only one relationship may
 join a pair of contexts, in either direction.
 
-The project file adds a second gate, `untranslated-cross-context-calls.rq`. It lists
-every element that reads or writes a shape another context owns, unless the context
-map allows it. A conformist downstream may use the upstream's shapes as they are, so
-the gate has no rows here. Change the type to customer-supplier and `seams check`
-fails, naming each finance element that reads `ExpenseShape`, `PaymentShape` or
-`VendorShape`. Finance would then need an operation that translates the expense shape
-into one of its own.
+The gate `untranslated-cross-context-calls.rq` lists every element that reads or
+writes a shape another context owns, unless the context map allows it. A conformist
+downstream may use the upstream's shapes as they are, so the gate has no rows here.
+Change the type to customer-supplier and `seams check` fails, naming each finance
+element that reads `ExpenseShape` or `VendorShape`. Finance would then need an
+operation that translates the expense shape into one of its own. This chapter checks
+the rule through the DDD profile, next, rather than listing the gate.
+
+## The DDD profile
+
+The model now has the facts a domain-driven design needs: bounded contexts that own
+models, a context map, and aggregates whose lifecycle is on the class. "This model
+follows DDD" can be a claim `seams check` tests. A domain profile
+([ADR-0018](../../adr/0018-domain-profiles.md)) holds the rules, and
+[ADR-0033](../../adr/0033-ddd-profile.md) makes `seams check` validate them.
+
+The profile is a directory beside the model, `profiles/ddd/`. Its
+[`profile.ttl`](../../../examples/expenses/chapter-11/profiles/ddd/profile.ttl)
+declares the profile and names its shapes file,
+[`ddd-shapes.ttl`](../../../examples/expenses/chapter-11/profiles/ddd/ddd-shapes.ttl):
+
+```turtle
+<https://example.org/profiles/ddd> a seam:Profile ;
+    skos:prefLabel "Domain-driven design" ;
+    seam:profileShapes "ddd-shapes.ttl" .
+```
+
+Attach the model to it with one triple in the seams graph. The subject is the
+manifest's `owl:Ontology`, which stands for the whole dataset:
+
+```trig
+    <urn:seams:graph:manifest> seam:conformsTo <https://example.org/profiles/ddd> .
+```
+
+`ddd-shapes.ttl` holds one SHACL shape per rule, each a `sh:sparql` constraint over
+terms the model already has. No DDD class is added, and no element is typed as an
+aggregate:
+
+| Rule | Fails when |
+|---|---|
+| Governed writes | a UI event can reach a writer of a shape, and neither it nor the operation it submits to is `seam:governedBy` a policy |
+| Fired transitions | no element `seam:fires` a lifecycle transition |
+| Translated access | an element reads or writes another context's shape, with no conformist or shared-kernel relationship and no translating operation |
+| One writing context | a shape is written from a context that does not own it |
+| Aggregate boundary | what names a `seam:lifecycle` has two lifecycles, no store or two, or is written by processes with no correlation key or two |
+
+The first three restate the gates `ungoverned-writes.rq` and
+`untranslated-cross-context-calls.rq` and the coverage query `unfired-transitions.rq`,
+so the project file lists no gates: a fact is reported once. Before you moved
+`:PaymentShape`, the one-writing-context rule failed on it, once per finance writer:
+
+```
+profile https://example.org/expenses/PaymentShape - is seam:writes of https://example.org/expenses/payment_form, in https://example.org/expenses/finance_context, but https://example.org/expenses/expense_context seam:owns the shape's model
+```
+
+The profile also holds three labelled shapes of severity `sh:Info`, which are not rules
+but type pills: the viewer shows "Aggregate", "Command" or "Domain event" on the
+elements that conform to them. `seams check` does not report them.
+
+A profile never changes what `seams generate` builds. Attaching it changes the model
+hash once; editing the profile's files changes none.
 
 ## Generate, check and run
 
@@ -306,8 +386,14 @@ seams generate --project examples/expenses/chapter-11
 seams check --project examples/expenses/chapter-11
 ```
 
-`seams check` validates the domains, contexts and ownership against the seam shapes
-and resolves the finance import from the dataset. The generated app has the same routes
+`seams check` validates the domains, contexts and ownership against the seam shapes,
+resolves the finance import from the dataset, and validates the DDD profile's rules. It
+prints the profile and its result count before any findings:
+
+```
+profile https://example.org/profiles/ddd 0 result(s)
+```
+ The generated app has the same routes
 as chapter 10's. The approval instance now completes as soon as the expense is
 approved, and Pay Expense waits in the payout instance, in the `/tasks` inbox.
 
@@ -342,8 +428,10 @@ Your files should now match
 [`examples/expenses/chapter-11/expenses.trig`](../../../examples/expenses/chapter-11/expenses.trig),
 [`finance.trig`](../../../examples/expenses/chapter-11/finance.trig),
 [`approval.bpmn`](../../../examples/expenses/chapter-11/approval.bpmn),
-[`payout.bpmn`](../../../examples/expenses/chapter-11/payout.bpmn) and
-[`seams.toml`](../../../examples/expenses/chapter-11/seams.toml). To see what moved,
+[`payout.bpmn`](../../../examples/expenses/chapter-11/payout.bpmn),
+[`seams.toml`](../../../examples/expenses/chapter-11/seams.toml) and the profile's
+[`profile.ttl`](../../../examples/expenses/chapter-11/profiles/ddd/profile.ttl) and
+[`ddd-shapes.ttl`](../../../examples/expenses/chapter-11/profiles/ddd/ddd-shapes.ttl). To see what moved,
 compare chapter 10's file with the two files together:
 
 ```sh
@@ -358,4 +446,7 @@ a finance version the import does not name, fails with a `ResolutionError` namin
 `owl:imports`. It checks that the approval storm writes no payment and its one channel
 is `:payouts`, and it serves the app: an approved expense opens Pay Expense in its
 payout instance, an employee's payment is a 403, and finance's payment is batched while
-the expense stays approved.
+the expense stays approved. `tests/test_ddd_profile.py` checks that `seams check` passes
+on the chapter and names the profile, that each rule fails a small model that breaks
+it with a message naming the fact, and that each rule restating a query reports that
+query's rows.

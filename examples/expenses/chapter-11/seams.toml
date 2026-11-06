@@ -9,13 +9,13 @@
 # as one dataset (ADR-0030 section 3). Every *.trig file here is part of it.
 model = "."
 
-# `seams check` fails if any UI event can write data with no policy governing
-# it, or if an element reads or writes another context's shape with no
-# translation the context map allows (ADR-0032 section 4).
-gates = [
-    "../../../docs/queries/gates/ungoverned-writes.rq",
-    "../../../docs/queries/gates/untranslated-cross-context-calls.rq",
-]
+# No gates: the model attaches the DDD profile (profiles/ddd/, ADR-0033), and
+# `seams check` validates its rules, which restate the ungoverned-writes and
+# untranslated-cross-context-calls gates (and the unfired-transitions
+# coverage query). Listing those gates here as well would report each fact
+# twice. The profile also checks that a shape is written only from the
+# context that owns it, and that an aggregate has one lifecycle, one store and
+# one correlation key.
 
 [[generators]]
 name = "fastapi"

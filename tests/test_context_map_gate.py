@@ -3,7 +3,9 @@
 Chapter 11 declares finance a conformist downstream of expense, so the gate has no
 rows there. A scratch copy without that relationship, or with a type that still
 needs translation, lists every finance element that reads or writes an expense
-shape. Inline graphs pin the exemptions the chapter does not exercise: a shared
+shape. Chapter 11 checks the rule through the DDD profile it attaches (ADR-0033), so
+its seams.toml no longer lists the gate; tests/test_ddd_profile.py pins the profile's
+rule to this query. Inline graphs pin the exemptions the chapter does not exercise: a shared
 kernel either way round, a translating operation, and an access against the
 declared direction.
 """
@@ -13,7 +15,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from rdflib import Graph
+import seams
+from rdflib import RDF, Graph, Namespace, URIRef
 from seams_cli import load_project
 from seams_cli.__main__ import main
 from seams_cli.check import model_graph
@@ -22,6 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 GATE = Path("docs/queries/gates/untranslated-cross-context-calls.rq")
 CHAPTER_11 = Path("examples/expenses/chapter-11")
 EX = "https://example.org/expenses/"
+SH = Namespace("http://www.w3.org/ns/shacl#")
 RELATIONSHIP = """    :expense_to_finance a arch:ContextRelationship ;
         arch:upstream :expense_context ;
         arch:downstream :finance_context ;
@@ -29,17 +33,12 @@ RELATIONSHIP = """    :expense_to_finance a arch:ContextRelationship ;
 """
 
 # Every finance element that reads or writes a shape the expense context owns.
+# :PaymentShape is finance's own (finance.trig's :finance_data), so its accesses
+# are not here.
 FINANCE_ACCESSES = {
     ("paid_expenses", "ExpenseShape"),
-    ("payment_details", "PaymentShape"),
-    ("payment_form", "PaymentShape"),
-    ("payment_list", "PaymentShape"),
-    ("payout_bpmn#add_to_batch", "PaymentShape"),
     ("payout_bpmn#choose_payout", "ExpenseShape"),
     ("payout_bpmn#pay_expense", "ExpenseShape"),
-    ("payout_bpmn#pay_expense", "PaymentShape"),
-    ("payout_bpmn#schedule_payout", "PaymentShape"),
-    ("payout_bpmn#send_now", "PaymentShape"),
     ("payout_method", "ExpenseShape"),
     ("vendor_bpmn#review_vendor", "VendorShape"),
 }
@@ -80,18 +79,24 @@ def test_chapter_11_has_no_untranslated_cross_context_calls():
     assert _project_rows(ROOT / CHAPTER_11) == set()
 
 
-def test_chapter_11_declares_the_gate():
+def test_chapter_11_checks_the_rule_through_its_profile_not_the_gate():
     project = load_project(ROOT / CHAPTER_11)
-    assert (ROOT / GATE).resolve() in [gate.resolve() for gate in project.gates]
-    gates = tomllib.loads((ROOT / CHAPTER_11 / "seams.toml").read_text(encoding="utf-8"))["gates"]
+    assert (ROOT / GATE).resolve() not in [gate.resolve() for gate in project.gates]
+    model = seams.load(project.model).ds
+    profile = seams.resolve_profile(model, seams.model_dir(project.model))
+    assert profile is not None
+    assert (URIRef("https://example.org/profiles/ddd#TranslatedAccess"), RDF.type, SH.NodeShape) in profile.shapes
+    gates = tomllib.loads((ROOT / CHAPTER_11 / "seams.toml").read_text(encoding="utf-8")).get("gates", [])
     assert all((ROOT / CHAPTER_11 / gate).is_file() for gate in gates)
 
 
-def test_seams_check_passes_on_chapter_11_with_the_gate(capsys):
+def test_seams_check_passes_on_chapter_11_with_the_profile(capsys):
     code = main(["check", "--project", str(ROOT / CHAPTER_11)])
     out, _ = capsys.readouterr()
     assert code == 0
-    assert [line for line in out.splitlines() if line.startswith("gate ")] == []
+    assert [line for line in out.splitlines() if line.startswith(("gate ", "profile "))] == [
+        "profile https://example.org/profiles/ddd 0 result(s)"
+    ]
 
 
 def test_without_the_relationship_every_finance_access_is_a_row(tmp_path):
@@ -126,17 +131,22 @@ def test_seams_check_fails_on_chapter_11_without_the_relationship(tmp_path, caps
     code = main(["check", "--project", str(app)])
     out, err = capsys.readouterr()
 
-    gate = f"gate ../../../{GATE.as_posix()} "
-    problems = [line for line in out.splitlines() if not line.startswith("review ")]
-    lines = sorted(line for line in problems if line.startswith(gate))
+    # The DDD profile's translated-access rule reports what the gate's rows would.
+    summary = f"profile https://example.org/profiles/ddd {len(FINANCE_ACCESSES)} result(s)"
+    lines = out.splitlines()
+    assert summary in lines
+    problems = [line for line in lines if not line.startswith("review ") and line != summary]
+    found = sorted(line for line in problems if line.startswith("profile "))
     assert code == 1
-    assert lines == sorted(
-        f"{gate}{EX}{element} {EX}{shape} {EX}finance_context {EX}expense_context"
+    assert found == sorted(
+        f"profile {EX}{element} - in {EX}finance_context, seam:reads or seam:writes {EX}{shape}, which "
+        f"{EX}expense_context seam:owns, with no arch:Conformist or arch:SharedKernel relationship and no "
+        "translating hydra:Operation"
         for element, shape in FINANCE_ACCESSES
     )
     # Editing the model changes its hash, so the lock and the generated outputs
     # are reported out of date too; nothing else is.
-    rest = [line for line in problems if not line.startswith(gate)]
+    rest = [line for line in problems if not line.startswith("profile ")]
     assert rest and all(line.startswith(("stale ", "lock-out-of-date ")) for line in rest)
     assert err.strip() == f"seams check: {len(problems)} problem(s)"
 

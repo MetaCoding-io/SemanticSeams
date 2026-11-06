@@ -163,8 +163,7 @@ def check_profile(model: Path, graph: rdflib.Graph, ontology_dir: Path = ONTOLOG
         return None
     _conforms, report, _text = pyshacl.validate(graph, shacl_graph=profile.shapes, inference="none")
     results = cast(rdflib.Graph, report)
-    pills = set(profile.pills)
-    pills |= {o for pill in profile.pills for o in profile.shapes.objects(pill, SH.property)}
+    pills = profile.pill_sources()
     findings = []
     for result in results.subjects(rdflib.RDF.type, SH.ValidationResult):
         if results.value(result, SH.sourceShape) in pills:

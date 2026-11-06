@@ -114,6 +114,9 @@ def _out_of_profile(ds: rdflib.Dataset, union: rdflib.Graph, profile: Profile) -
     directly or through rdfs:subClassOf over the ontology, the model and the profile
     (``union``), sorted by element then class."""
     offered = set(profile.classes)
+    if not offered:
+        # A profile that offers no classes restricts nothing (ADR-0033 section 3).
+        return []
     found = sorted(
         {
             (s, cls)
@@ -244,12 +247,16 @@ def get_model_conformance(ds: rdflib.Dataset, profile: Profile | None = None) ->
 
     violations: list[dict] = []
     shape_warnings: list[dict] = []
+    # A pill shape's results are its non-conforming targets, not findings (ADR-0033 section 4).
+    pills = frozenset() if profile is None else profile.pill_sources()
     for result in results_graph.subjects(rdflib.RDF.type, SH.ValidationResult):
+        source_shape = results_graph.value(result, SH.sourceShape)
+        if source_shape in pills:
+            continue
         focus = results_graph.value(result, SH.focusNode)
         path = results_graph.value(result, SH.resultPath)
         message = results_graph.value(result, SH.resultMessage)
         severity = results_graph.value(result, SH.resultSeverity)
-        source_shape = results_graph.value(result, SH.sourceShape)
         (shape_warnings if severity == SH.Warning else violations).append(
             {
                 "focusNode": str(focus) if focus is not None else None,

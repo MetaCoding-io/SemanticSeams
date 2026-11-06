@@ -348,7 +348,7 @@
     {
       "line": 35,
       "templates": [
-        "compose.yaml.j2:80"
+        "compose.yaml.j2:78"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -358,17 +358,7 @@
     {
       "line": 36,
       "templates": [
-        "compose.yaml.j2:81"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 37,
-      "templates": [
-        "compose.yaml.j2:82"
+        "compose.yaml.j2:79"
       ],
       "terms": [
         "https://example.org/chat/app01",
@@ -378,9 +368,21 @@
       ]
     },
     {
-      "line": 38,
+      "line": 37,
       "templates": [
         "compose.yaml.j2:13"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_api",
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/chat_ui",
+        "https://example.org/chat/web01"
+      ]
+    },
+    {
+      "line": 38,
+      "templates": [
+        "compose.yaml.j2:14"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -392,7 +394,7 @@
     {
       "line": 39,
       "templates": [
-        "compose.yaml.j2:14"
+        "compose.yaml.j2:24"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -404,18 +406,6 @@
     {
       "line": 40,
       "templates": [
-        "compose.yaml.j2:24"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_api",
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/chat_ui",
-        "https://example.org/chat/web01"
-      ]
-    },
-    {
-      "line": 41,
-      "templates": [
         "compose.yaml.j2:27"
       ],
       "terms": [
@@ -424,7 +414,7 @@
       ]
     },
     {
-      "line": 42,
+      "line": 41,
       "templates": [
         "compose.yaml.j2:29"
       ],
@@ -434,7 +424,7 @@
       ]
     },
     {
-      "line": 43,
+      "line": 42,
       "templates": [
         "compose.yaml.j2:39"
       ],
@@ -444,7 +434,7 @@
       ]
     },
     {
-      "line": 44,
+      "line": 43,
       "templates": [
         "compose.yaml.j2:41"
       ],
@@ -453,7 +443,7 @@
       ]
     },
     {
-      "line": 45,
+      "line": 44,
       "templates": [
         "compose.yaml.j2:42"
       ],
@@ -462,7 +452,7 @@
       ]
     },
     {
-      "line": 46,
+      "line": 45,
       "templates": [
         "compose.yaml.j2:72"
       ],
@@ -472,9 +462,19 @@
       ]
     },
     {
+      "line": 46,
+      "templates": [
+        "compose.yaml.j2:77"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/production"
+      ]
+    },
+    {
       "line": 47,
       "templates": [
-        "compose.yaml.j2:80"
+        "compose.yaml.j2:78"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -484,17 +484,7 @@
     {
       "line": 48,
       "templates": [
-        "compose.yaml.j2:81"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 49,
-      "templates": [
-        "compose.yaml.j2:82"
+        "compose.yaml.j2:79"
       ],
       "terms": [
         "https://example.org/chat/chat_api",
@@ -504,7 +494,7 @@
       ]
     },
     {
-      "line": 50,
+      "line": 49,
       "templates": [
         "compose.yaml.j2:13"
       ],
@@ -515,7 +505,7 @@
       ]
     },
     {
-      "line": 51,
+      "line": 50,
       "templates": [
         "compose.yaml.j2:14"
       ],
@@ -526,7 +516,7 @@
       ]
     },
     {
-      "line": 52,
+      "line": 51,
       "templates": [
         "compose.yaml.j2:33"
       ],
@@ -536,7 +526,7 @@
       ]
     },
     {
-      "line": 53,
+      "line": 52,
       "templates": [
         "compose.yaml.j2:35"
       ],
@@ -546,9 +536,19 @@
       ]
     },
     {
-      "line": 54,
+      "line": 53,
       "templates": [
         "compose.yaml.j2:46"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/production"
+      ]
+    },
+    {
+      "line": 54,
+      "templates": [
+        "compose.yaml.j2:48"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -568,7 +568,7 @@
     {
       "line": 56,
       "templates": [
-        "compose.yaml.j2:48"
+        "compose.yaml.j2:52"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -578,7 +578,7 @@
     {
       "line": 57,
       "templates": [
-        "compose.yaml.j2:52"
+        "compose.yaml.j2:54"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -588,16 +588,6 @@
     {
       "line": 58,
       "templates": [
-        "compose.yaml.j2:54"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 59,
-      "templates": [
         "compose.yaml.j2:64"
       ],
       "terms": [
@@ -606,7 +596,7 @@
       ]
     },
     {
-      "line": 60,
+      "line": 59,
       "templates": [
         "compose.yaml.j2:65"
       ],
@@ -617,7 +607,7 @@
       ]
     },
     {
-      "line": 61,
+      "line": 60,
       "templates": [
         "compose.yaml.j2:66"
       ],
@@ -628,7 +618,7 @@
       ]
     },
     {
-      "line": 62,
+      "line": 61,
       "templates": [
         "compose.yaml.j2:67"
       ],
@@ -638,7 +628,7 @@
       ]
     },
     {
-      "line": 63,
+      "line": 62,
       "templates": [
         "compose.yaml.j2:68"
       ],
@@ -648,7 +638,7 @@
       ]
     },
     {
-      "line": 64,
+      "line": 63,
       "templates": [
         "compose.yaml.j2:69"
       ],
@@ -658,7 +648,7 @@
       ]
     },
     {
-      "line": 65,
+      "line": 64,
       "templates": [
         "compose.yaml.j2:72"
       ],
@@ -668,9 +658,19 @@
       ]
     },
     {
+      "line": 65,
+      "templates": [
+        "compose.yaml.j2:77"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/production"
+      ]
+    },
+    {
       "line": 66,
       "templates": [
-        "compose.yaml.j2:80"
+        "compose.yaml.j2:78"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -680,17 +680,7 @@
     {
       "line": 67,
       "templates": [
-        "compose.yaml.j2:81"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 68,
-      "templates": [
-        "compose.yaml.j2:82"
+        "compose.yaml.j2:79"
       ],
       "terms": [
         "https://example.org/chat/app01",
@@ -699,7 +689,7 @@
       ]
     },
     {
-      "line": 69,
+      "line": 68,
       "templates": [
         "compose.yaml.j2:13"
       ],
@@ -710,7 +700,7 @@
       ]
     },
     {
-      "line": 70,
+      "line": 69,
       "templates": [
         "compose.yaml.j2:14"
       ],
@@ -721,9 +711,19 @@
       ]
     },
     {
-      "line": 71,
+      "line": 70,
       "templates": [
         "compose.yaml.j2:46"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/production"
+      ]
+    },
+    {
+      "line": 71,
+      "templates": [
+        "compose.yaml.j2:48"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -743,7 +743,7 @@
     {
       "line": 73,
       "templates": [
-        "compose.yaml.j2:48"
+        "compose.yaml.j2:52"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -753,7 +753,7 @@
     {
       "line": 74,
       "templates": [
-        "compose.yaml.j2:52"
+        "compose.yaml.j2:54"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -763,7 +763,7 @@
     {
       "line": 75,
       "templates": [
-        "compose.yaml.j2:54"
+        "compose.yaml.j2:58"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -773,7 +773,7 @@
     {
       "line": 76,
       "templates": [
-        "compose.yaml.j2:58"
+        "compose.yaml.j2:60"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -783,16 +783,6 @@
     {
       "line": 77,
       "templates": [
-        "compose.yaml.j2:60"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 78,
-      "templates": [
         "compose.yaml.j2:64"
       ],
       "terms": [
@@ -801,7 +791,7 @@
       ]
     },
     {
-      "line": 79,
+      "line": 78,
       "templates": [
         "compose.yaml.j2:65"
       ],
@@ -812,7 +802,7 @@
       ]
     },
     {
-      "line": 80,
+      "line": 79,
       "templates": [
         "compose.yaml.j2:66"
       ],
@@ -823,7 +813,7 @@
       ]
     },
     {
-      "line": 81,
+      "line": 80,
       "templates": [
         "compose.yaml.j2:67"
       ],
@@ -833,7 +823,7 @@
       ]
     },
     {
-      "line": 82,
+      "line": 81,
       "templates": [
         "compose.yaml.j2:68"
       ],
@@ -843,7 +833,7 @@
       ]
     },
     {
-      "line": 83,
+      "line": 82,
       "templates": [
         "compose.yaml.j2:69"
       ],
@@ -853,7 +843,7 @@
       ]
     },
     {
-      "line": 84,
+      "line": 83,
       "templates": [
         "compose.yaml.j2:72"
       ],
@@ -863,9 +853,19 @@
       ]
     },
     {
+      "line": 84,
+      "templates": [
+        "compose.yaml.j2:77"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/production"
+      ]
+    },
+    {
       "line": 85,
       "templates": [
-        "compose.yaml.j2:80"
+        "compose.yaml.j2:78"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -875,17 +875,7 @@
     {
       "line": 86,
       "templates": [
-        "compose.yaml.j2:81"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 87,
-      "templates": [
-        "compose.yaml.j2:82"
+        "compose.yaml.j2:79"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -894,9 +884,19 @@
       ]
     },
     {
+      "line": 87,
+      "templates": [
+        "compose.yaml.j2:84"
+      ],
+      "terms": [
+        "https://example.org/chat/chat_system",
+        "https://example.org/chat/production"
+      ]
+    },
+    {
       "line": 88,
       "templates": [
-        "compose.yaml.j2:87"
+        "compose.yaml.j2:86"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -906,7 +906,7 @@
     {
       "line": 89,
       "templates": [
-        "compose.yaml.j2:89"
+        "compose.yaml.j2:90"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -916,7 +916,7 @@
     {
       "line": 90,
       "templates": [
-        "compose.yaml.j2:93"
+        "compose.yaml.j2:91"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -926,7 +926,7 @@
     {
       "line": 91,
       "templates": [
-        "compose.yaml.j2:94"
+        "compose.yaml.j2:86"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -936,7 +936,7 @@
     {
       "line": 92,
       "templates": [
-        "compose.yaml.j2:89"
+        "compose.yaml.j2:90"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -946,7 +946,7 @@
     {
       "line": 93,
       "templates": [
-        "compose.yaml.j2:93"
+        "compose.yaml.j2:91"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -956,7 +956,7 @@
     {
       "line": 94,
       "templates": [
-        "compose.yaml.j2:94"
+        "compose.yaml.j2:86"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -966,7 +966,7 @@
     {
       "line": 95,
       "templates": [
-        "compose.yaml.j2:89"
+        "compose.yaml.j2:90"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -976,7 +976,7 @@
     {
       "line": 96,
       "templates": [
-        "compose.yaml.j2:93"
+        "compose.yaml.j2:91"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -986,7 +986,7 @@
     {
       "line": 97,
       "templates": [
-        "compose.yaml.j2:94"
+        "compose.yaml.j2:96"
       ],
       "terms": [
         "https://example.org/chat/chat_system",
@@ -996,17 +996,7 @@
     {
       "line": 98,
       "templates": [
-        "compose.yaml.j2:99"
-      ],
-      "terms": [
-        "https://example.org/chat/chat_system",
-        "https://example.org/chat/production"
-      ]
-    },
-    {
-      "line": 99,
-      "templates": [
-        "compose.yaml.j2:101"
+        "compose.yaml.j2:98"
       ],
       "terms": [
         "https://example.org/chat/chat_system",

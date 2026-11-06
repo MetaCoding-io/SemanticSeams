@@ -95,12 +95,12 @@ def test_root_holds_one_generated_file_per_environment():
     assert not (ROOT / "compose.yaml").exists()
 
 
-def test_chat_api_is_built_locally_with_one_replica(dev):
+def test_chat_api_is_built_locally_with_three_replicas(dev):
     api = dev["services"]["chat_api"]
     assert api["build"]["dockerfile"] == "examples/chat-app/generated/chat_api.Dockerfile"
     assert Path(api["build"]["context"]) == ROOT
     assert api["pull_policy"] == "build"
-    assert api["deploy"]["replicas"] == 1
+    assert api["deploy"]["replicas"] == 3
     assert api["environment"]["SEAMS_DEV_USER"] == "builder"
     assert api["environment"]["SEAMS_SEED"] == "/app/seed.json"
     assert "healthz" in " ".join(api["healthcheck"]["test"])
@@ -226,7 +226,9 @@ def test_production_stays_production_shaped(prod):
     assert db_env["POSTGRES_PASSWORD_FILE"] == "/run/secrets/postgres_password"
 
 
-def test_production_caps_the_serving_container_at_one_replica():
-    # The model declares 3 replicas; the file holds 1 and says why (backlog A10).
-    text = (ROOT / PRODUCTION).read_text(encoding="utf-8")
-    assert "The model declares 3 replicas" in text and "A10" in text
+def test_both_files_carry_the_declared_replicas_without_a_cap():
+    # ADR-0038: the model declares 3 replicas and they share the PostgreSQL store.
+    for name in (DEVELOPMENT, PRODUCTION):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "      replicas: 3\n" in text, name
+        assert "The model declares" not in text and "A10" not in text, name

@@ -137,7 +137,7 @@ def test_production_structure_parses_as_compose():
         "/model/routing.dmn",
     ]
     assert api["secrets"] == ["db_url"]
-    assert api["deploy"] == {"replicas": 1, "placement": {"constraints": ["node.labels.seams.node == app01"]}}
+    assert api["deploy"] == {"replicas": 3, "placement": {"constraints": ["node.labels.seams.node == app01"]}}
     assert all(s["external"] is True for s in doc["secrets"].values())
     assert sorted(doc["secrets"]) == ["db_url", "llm_api_key", "postgres_password"]
     assert doc["secrets"]["llm_api_key"]["name"] == "chat-prod-llm-key"
@@ -204,10 +204,11 @@ def test_healthchecks_depends_on_and_the_proxy(env):
 
 
 @pytest.mark.parametrize("env", ENVIRONMENTS)
-def test_the_serving_container_is_capped_at_one_replica_with_a_comment(env):
+def test_the_serving_container_runs_the_declared_replicas(env):
+    # ADR-0038: the replicas share the PostgreSQL store, so there is no cap and no comment.
     text = generate_compose(TRIG, env, base_dir=ROOT)
-    assert "      # The model declares 3 replicas; one until backlog A10" in text
-    assert yaml.safe_load(text)["services"]["chat_api"]["deploy"]["replicas"] == 1
+    assert "The model declares" not in text and "A10" not in text
+    assert yaml.safe_load(text)["services"]["chat_api"]["deploy"]["replicas"] == 3
 
 
 def test_bind_sources_are_relative_to_base_dir():
@@ -283,22 +284,23 @@ def test_replicas_follow_the_graph():
     g = ds.graph(ARCH_GRAPH)
     g.remove((API, DEPLOY.replicas, None))
     g.add((API, DEPLOY.replicas, Literal(5)))
-    out = _render(ds)
-    assert "# The model declares 5 replicas" in out and "      replicas: 1\n" in out
+    assert _services(ds)["chat_api"]["deploy"]["replicas"] == 5
     g.remove((API, DEPLOY.replicas, None))
     g.add((API, DEPLOY.replicas, Literal(1)))
-    out = _render(ds)
-    assert "The model declares" not in out and "      replicas: 1\n" in out
+    assert _services(ds)["chat_api"]["deploy"]["replicas"] == 1
     g.remove((API, DEPLOY.replicas, None))
     assert "replicas" not in _services(ds)["chat_api"]["deploy"]
 
 
-def test_replicas_of_a_container_without_process_state_are_not_capped():
+def test_replicas_of_a_container_without_process_state_need_no_shared_store():
     ds = _dataset()
-    ds.graph(ARCH_GRAPH).add((GATEWAY, DEPLOY.replicas, Literal(4)))
-    out = _render(ds)
-    assert _services(ds)["llm_gateway"]["deploy"]["replicas"] == 4
-    assert out.count("The model declares") == 1  # only the serving container's
+    g = ds.graph(ARCH_GRAPH)
+    g.set((DB, DEPLOY.storeKind, DEPLOY.SQLite))
+    g.set((API, DEPLOY.replicas, Literal(1)))
+    g.add((GATEWAY, DEPLOY.replicas, Literal(4)))
+    services = _services(ds)
+    assert services["llm_gateway"]["deploy"]["replicas"] == 4
+    assert services["chat_api"]["deploy"]["replicas"] == 1
 
 
 def test_an_override_replicas_replaces_the_shared_count():
@@ -412,6 +414,39 @@ def _raises(ds, env="production") -> GeneratorError:
     with pytest.raises(GeneratorError) as err:
         _render(ds, env)
     return err.value
+
+
+def test_replicas_on_a_sqlite_store_name_the_container_and_replicas():
+    # ADR-0038 section 4: a SQLite store lives in one process, so its replicas would not share state.
+    ds = _dataset()
+    ds.graph(ARCH_GRAPH).set((DB, DEPLOY.storeKind, DEPLOY.SQLite))
+    for env in ENVIRONMENTS:
+        err = _raises(ds, env)
+        assert (err.subject, err.predicate) == (str(API), str(DEPLOY.replicas))
+        assert err.detail.startswith(f"3 replicas in {CHAT}{env} need a shared runtime store")
+        assert "deploy:SQLite" in err.detail
+
+
+def test_replicas_on_the_embedded_store_are_refused():
+    # A model that declares no store keeps embedded SQLite: one process.
+    ds = _dataset()
+    for g in ds.graphs():
+        g.remove((None, DEPLOY.storeKind, None))
+        g.remove((None, DEPLOY.connectsTo, None))
+        g.remove((None, SEAM.storedIn, None))
+    err = _raises(ds)
+    assert (err.subject, err.predicate) == (str(API), str(DEPLOY.replicas))
+    assert "deploy:SQLite" in err.detail
+
+
+def test_an_override_of_one_replica_admits_a_sqlite_store_in_that_environment():
+    ds = _dataset()
+    g = ds.graph(ARCH_GRAPH)
+    g.set((DB, DEPLOY.storeKind, DEPLOY.SQLite))
+    development = _override(ds, API)
+    g.add((development, DEPLOY.replicas, Literal(1)))
+    assert _services(ds, "development")["chat_api"]["deploy"]["replicas"] == 1
+    assert _raises(ds, "production").predicate == str(DEPLOY.replicas)
 
 
 def test_missing_artifact_names_container():

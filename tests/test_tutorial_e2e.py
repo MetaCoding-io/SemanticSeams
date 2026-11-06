@@ -9,11 +9,14 @@ gateway forced into stub mode (LLM_GATEWAY_STUB=1), so the reply is
 the gateway's deterministic "Stub reply to: <content>". The flow is the
 tutorial's "open http://localhost:8080 and chat": load the landmark page,
 post the compose form, read the token stream, see the thread update.
+The model declares three chat_api replicas (ADR-0038), so one test opens
+the stream on one replica and posts through another.
 Every command passes ``-f compose.development.yaml``. On any failure the
 module prints ``docker compose logs``; teardown always runs
 ``docker compose down -v`` and checks no container is left.
 """
 
+import json
 import os
 import re
 import shutil
@@ -38,16 +41,42 @@ MESSAGE_DB = "https://example.org/chat/message_db"
 # docker compose arguments for a psql query against the declared store
 # (docs/tutorial.md shows the same command; tests/test_tutorial_doc.py checks)
 PSQL = ("exec", "-T", "message_db", "psql", "-U", "postgres", "-d", "chat", "-tAc")
+API = "chat_api"
+REPLICAS = 3  # :chat_api deploy:replicas in examples/chat-app/chat-app.trig
+# Run inside a chat_api replica: the replica's own port from its healthcheck,
+# so no host port reaches a single container. The reader prints its hostname,
+# then "open", then every SSE line; the poster prints its hostname and status.
+READER = """
+import socket, sys, urllib.request
+print(socket.gethostname(), flush=True)
+with urllib.request.urlopen("http://127.0.0.1:8000" + sys.argv[1], timeout=float(sys.argv[2])) as r:
+    print("open", r.status, flush=True)
+    for line in r:
+        print(line.decode().rstrip("\\n"), flush=True)
+"""
+POSTER = """
+import socket, sys, urllib.parse, urllib.request
+data = urllib.parse.urlencode({"content": sys.argv[2]}).encode()
+with urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000" + sys.argv[1], data=data)) as r:
+    print(socket.gethostname(), r.status, flush=True)
+"""
 
 pytestmark = pytest.mark.skipif(os.environ.get("SEAMS_E2E") != "1", reason="live docker compose test; set SEAMS_E2E=1")
 
 
+def _compose_argv(*args) -> list[str]:
+    return ["docker", "compose", "-f", COMPOSE_FILE, *args]
+
+
+def _compose_env() -> dict[str, str]:
+    return {**os.environ, "LLM_GATEWAY_STUB": "1"}
+
+
 def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
-    env = {**os.environ, "LLM_GATEWAY_STUB": "1"}
     return subprocess.run(
-        ["docker", "compose", "-f", COMPOSE_FILE, *args],
+        _compose_argv(*args),
         cwd=ROOT,
-        env=env,
+        env=_compose_env(),
         timeout=timeout,
         check=check,
         capture_output=True,
@@ -200,6 +229,83 @@ def test_healthz_reports_the_declared_postgres_store(stack):
     body = r.json()
     assert body["status"] == "ok"
     assert body["store"] == {"kind": "postgresql", "declared": "PostgreSQL", "container": MESSAGE_DB, "override": False}
+    # a PostgreSQL store shares the live-update channel across replicas (ADR-0038)
+    assert body["channel"]["kind"] == "postgresql", body
+    assert body["channel"]["listening"] is True, body
+
+
+def _frames(lines):
+    """(event, data) for each complete SSE frame in ``lines``."""
+    event = None
+    for line in lines:
+        if line.startswith("event:"):
+            event = line.split(":", 1)[1].strip()
+        elif line.startswith("data:") and event is not None:
+            yield event, json.loads(line.split(":", 1)[1])
+            event = None
+
+
+def test_the_model_declares_three_running_replicas(stack):
+    running = _compose("ps", "--status", "running", "-q", API).stdout.split()
+    assert len(running) == REPLICAS, running
+    logs = _compose("logs", "--no-color", API, check=False).stdout
+    for index in range(1, REPLICAS + 1):
+        mine = [line for line in logs.splitlines() if line.startswith(f"{API}-{index} ")]
+        assert any("channel bus postgresql" in line for line in mine), f"{API}-{index}:\n" + "\n".join(mine)
+        assert any("channel listen" in line for line in mine), f"{API}-{index}:\n" + "\n".join(mine)
+
+
+def test_a_message_streams_to_a_client_on_another_replica(stack, messages_url):
+    """The slice demo (ADR-0038): the SSE client is on replica 1, the message
+    is posted to replica 2, whose worker runs the process. The tokens and the
+    completion frame reach replica 1 through the PostgreSQL channel."""
+    content = f"across {uuid.uuid4().hex[:8]}"
+    reply = f"Stub reply to: {content}"
+    stream_path = messages_url.rsplit("/", 1)[0] + "/stream"
+    reader = subprocess.Popen(
+        _compose_argv(
+            "exec", "-T", "--index", "1", API, "python", "-u", "-c", READER, stream_path, str(STREAM_TIMEOUT)
+        ),
+        cwd=ROOT,
+        env=_compose_env(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    lines: list[str] = []
+    try:
+        assert reader.stdout is not None
+        reader_host = reader.stdout.readline().strip()
+        opened = reader.stdout.readline().strip()
+        assert opened == "open 200", f"{opened!r}; stderr: {reader.stderr.read() if reader.poll() is not None else ''}"
+        post = _compose("exec", "-T", "--index", "2", API, "python", "-c", POSTER, messages_url, content, check=False)
+        assert post.returncode == 0, post.stdout + post.stderr
+        poster_host, status = post.stdout.split()
+        assert status == "200", post.stdout
+        assert poster_host != reader_host, (poster_host, reader_host)
+
+        deadline = time.monotonic() + STREAM_TIMEOUT
+        tokens: dict[str, list[tuple[int, str]]] = {}
+        done = None
+        for line in reader.stdout:
+            lines.append(line.rstrip("\n"))
+            if line.startswith("data:"):
+                tokens.clear()
+                for event, data in _frames(lines):
+                    if event == "token":
+                        tokens.setdefault(data["instance"], []).append((data["seq"], data["content"]))
+                    elif "status" in data:
+                        streamed = "".join(c for _, c in sorted(tokens.get(data["instance"], [])))
+                        if streamed == reply:
+                            done = data
+                if done is not None or time.monotonic() > deadline:
+                    break
+        assert done is not None, f"replica {reader_host} never streamed {reply!r} and its completion:\n" + "\n".join(
+            lines
+        )
+    finally:
+        reader.kill()
+        reader.wait(timeout=30)
 
 
 def test_seams_status_reports_the_runtime_current(stack, capsys):

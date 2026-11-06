@@ -24,7 +24,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:9355a76c1142a1a8291afbb1eaba3c61a22470731f7097e3da1c51df58daa396",
       "path": "compose.development.yaml.trace.json",
-      "sha256": "108f164373f668e42ed013697bf61ed69aa2e85c97fb659c3b63ca51bffc7fd7",
+      "sha256": "661d59db28d46409a28536c6f9d4970bc6494e2c6ed32b9da8aa2794f44c1298",
       "sources": [
         "https://example.org/expenses/approval_process",
         "https://example.org/expenses/development",
@@ -59,7 +59,7 @@
       "generator_version": "0.1.0",
       "model_hash": "sha256:9355a76c1142a1a8291afbb1eaba3c61a22470731f7097e3da1c51df58daa396",
       "path": "compose.production.yaml.trace.json",
-      "sha256": "f8f104a76b2c51b46e80dc9893c57c2099cdf8e81256541b204359d43cbd3512",
+      "sha256": "0b68981093d990a22ccd2f4429c363e14c4baa2487b11671bdc7e70aea554240",
       "sources": [
         "https://example.org/expenses/app01",
         "https://example.org/expenses/approval_process",

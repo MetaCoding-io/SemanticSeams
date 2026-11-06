@@ -68,7 +68,8 @@
                                deploy:binding [ deploy:key "LLM_GATEWAY_URL" ;
                                                 deploy:serviceOf :llm_gateway ] ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
-        # The production intent; the compose generator caps it at 1 until backlog A10.
+        # Three replicas in every environment; they share process instances and the
+        # live-update stream through :message_db, a PostgreSQL store (ADR-0038).
         deploy:replicas 3 ;
         deploy:dependsOn :message_db , :llm_gateway ;
         deploy:placement [ a deploy:PlacementPolicy ;

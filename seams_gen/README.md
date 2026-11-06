@@ -438,7 +438,7 @@ container.
 | `volumes` | For the serving container, read-only model binds first: `./<trig relative to --out>:/model/<trig name>:ro`, then each `seam:renderPayload` as `./<payload relative to --out>:/model/<path relative to the trig dir>:ro` and, when an operation that container `seam:exposes` is `seam:implementedBy` a `comm:PythonHandler` ([ADR-0012](../docs/adr/0012-operation-implementation.md)), the handlers package `./<handlers/ beside the trig, relative to --out>:/model/handlers:ro` (the runtime's default handlers directory), all sorted. Then each named `deploy:volume` as `<volumeName>:<mountPath>`, with a top-level `<volumeName>: {}`. |
 | `healthcheck` | `deploy:healthcheck`: `test: ["CMD-SHELL", "<deploy:probe>"]`, `interval: <deploy:interval>`. The serving container without one gets the runtime's `/healthz` probe on its single `deploy:containerPort` (not one port: error), interval `5s`. Every healthcheck has the fixed `timeout: 5s`, `retries: 12` and `start_period: 5s`. |
 | `# schedules:` | Above a container that `seam:schedules` processes ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)), one comment `# schedules: <process IRI>, ...`, sorted by IRI. The container's own runtime runs their timer starts, so there is no service and no binding for them, and no timer expression is read. |
-| `deploy` | `replicas` from the environment's `deploy:replicas`; the serving container is capped at 1 (backlog A10: process state lives in the process), with a comment naming the declared count. `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node, only in the environment that `arch:contains` that node (no label there: error on the node and `rdfs:label`). |
+| `deploy` | `replicas` from the environment's `deploy:replicas`, as declared ([ADR-0038](../docs/adr/0038-shared-stream-channel.md) lifted ADR-0015's cap of one). The serving container's replicas share process instances and the live-update stream through the runtime store, so more than one replica on a store that is not `deploy:PostgreSQL` (an embedded or `deploy:SQLite` store, from `ModelGraph.store_plan()`) is a `GeneratorError` on the container and `deploy:replicas`, naming the count, the environment and the store kind; the shapes report it as `ReplicatedStoreShape`. `placement.constraints: - node.labels.seams.node == <rdfs:label>` of the one `seam:deployedTo` node, only in the environment that `arch:contains` that node (no label there: error on the node and `rdfs:label`). |
 | Top level | `secrets:` and `volumes:` after `services:`, sorted, omitted when empty. |
 
 ## Tests rendering rules
@@ -910,11 +910,14 @@ and `compose.production.yaml` goldens, one file per environment in IRI order, th
 header (hash and environment) and project name, determinism, no domain literals in the
 template, the parsed structure of both files (read-only model binds, external secrets
 in production; builds, secret files, `${KEY:-value}` and no placement in development),
-healthchecks and `depends_on` conditions, the proxy command, the replica cap, paths
+healthchecks and `depends_on` conditions, the proxy command, the declared replicas
+(three for the chat app's serving container, with no cap comment), paths
 following `base_dir`, replicas/override-replicas/published-port/node-label/`deployedTo`/
 environment-placement/quoted-value/healthcheck/proxy mutations, missing artifact,
 `deploy:secretName`, node label, single ports, unknown or missing environments, two
-environments with one name, override faults and one secret from two sources failing
+environments with one name, override faults, replicas on a SQLite or the embedded store
+(and the one-replica override that admits it in one environment) and one secret from two
+sources failing
 through the API (and the first three through the CLI, which then writes no file), the
 CLI writing exactly the two files, and `docker compose config -q` accepting both
 (skipped when docker compose is not installed).

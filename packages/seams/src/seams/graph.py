@@ -274,7 +274,7 @@ STORE_FINDING_SEVERITIES = ("Violation", "Warning", "Info")
 @dataclass(frozen=True)
 class StoreFinding:
     """One storage health finding (ADR-0011), from ``ModelGraph.store_health()``,
-    or a replica-cap finding (ADR-0015) from ``ModelGraph.replica_health()``.
+    or a replicas finding (ADR-0038) from ``ModelGraph.replica_health()``.
 
     ``severity`` is a ``STORE_FINDING_SEVERITIES`` member: a Violation is a
     store the runtime cannot resolve (``subject``/``predicate`` name the
@@ -1200,19 +1200,23 @@ class ModelGraph(Model):
         return sorted(findings, key=lambda f: (order[f.severity], str(f.subject or "")))
 
     def replica_health(self) -> list[StoreFinding]:
-        """The replica cap as model-health findings (ADR-0015, backlog A10).
+        """Replicas that would not share state, as model-health findings (ADR-0038).
 
-        Process instances and the live-update stream live in the serving
-        process, so one replica of a serving container works: the compose
-        generator caps it at 1. A Warning (predicate deploy:replicas) for each
-        serving container whose deploy:replicas is above 1 in some environment
-        under the override rule (or its shared count, in a model with no
-        environment), naming the declared counts. A Violation when the facts
-        cannot be resolved (as ``ResolutionError`` names them). Sorted by
-        subject. Never raises."""
+        Replicas of a serving container share process instances and the
+        live-update stream through a deploy:PostgreSQL store; an embedded or
+        SQLite store lives in one process, and the compose generator refuses
+        more than one replica on it. A Violation (predicate deploy:replicas)
+        for each serving container whose deploy:replicas is above 1 in some
+        environment under the override rule (or its shared count, in a model
+        with no environment) while ``store_plan()`` is not PostgreSQL, naming
+        the declared counts and the store kind. A Violation when the
+        container's facts cannot be resolved (as ``ResolutionError`` names
+        them); an unresolvable store plan is ``store_health()``'s finding, not
+        this one's. Sorted by subject. Never raises."""
         findings: list[StoreFinding] = []
         try:
             environments = self.architecture.environments()
+            replicated: list[tuple[URIRef, str]] = []
             for c in self.architecture.serving_containers():
                 if environments:
                     counts = {e.iri: c.for_environment(e).replicas for e in environments}
@@ -1220,18 +1224,28 @@ class ModelGraph(Model):
                     counts = {self.subject: c.replicas}
                 above = {str(where): n for where, n in counts.items() if n is not None and n > 1}
                 if above:
-                    declared = ", ".join(f"{n} in {where}" for where, n in sorted(above.items()))
-                    findings.append(
-                        StoreFinding(
-                            "Warning",
-                            c.iri,
-                            DEPLOY.replicas,
-                            f"{c.iri} declares deploy:replicas {declared}; the generator runs one replica of a "
-                            "serving container until backlog A10, because process state lives in the serving process",
-                        )
-                    )
+                    replicated.append((c.iri, ", ".join(f"{n} in {where}" for where, n in sorted(above.items()))))
         except ResolutionError as err:
-            findings.append(StoreFinding("Violation", URIRef(err.subject), URIRef(err.predicate), str(err)))
+            return [StoreFinding("Violation", URIRef(err.subject), URIRef(err.predicate), str(err))]
+        if not replicated:
+            return []
+        try:
+            kind = self.store_plan().kind
+        except ResolutionError:
+            return []
+        if kind == DEPLOY.PostgreSQL:
+            return []
+        for iri, declared in replicated:
+            findings.append(
+                StoreFinding(
+                    "Violation",
+                    iri,
+                    DEPLOY.replicas,
+                    f"{iri} declares deploy:replicas {declared}, but the runtime store is {self.compact(kind)}, "
+                    "which lives in one process, so the replicas would not share process state; state one "
+                    "replica or connect a deploy:PostgreSQL store (ADR-0038)",
+                )
+            )
         return sorted(findings, key=lambda f: str(f.subject or ""))
 
     # ── IFML pages ──

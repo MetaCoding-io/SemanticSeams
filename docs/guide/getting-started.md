@@ -69,7 +69,8 @@ it afterwards, so nothing is left in `public`.
 
 The chat app's local stack runs from the generated `compose.development.yaml` at the
 repository root. It builds the runtime and gateway images from this checkout, starts
-PostgreSQL, and serves the app on port 8080. You don't need a hand-written compose file.
+PostgreSQL, and serves the app on port 8080 from the three `chat_api` replicas the model
+declares. You don't need a hand-written compose file.
 First check that the development environment's configuration keys and secrets exist:
 
 ```sh

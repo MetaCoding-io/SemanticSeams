@@ -886,16 +886,20 @@ Each row of ADR-0027 section 10 raises `ResolutionError(subject, predicate)`:
 `seamsh:SemPKMWebhookChannelShape` reports the same faults in `seams check`, so a
 model that passes the shapes resolves.
 
-`ModelGraph.replica_health()` reports the replica cap of
-[ADR-0015](/adr/0015-environments) in the same `StoreFinding` form, and the
-viewer's health panel shows it beside the store findings. Process instances
-and the live-update stream live in the serving process, so the compose
-generator runs one replica of a serving container until backlog A10. A
-serving container whose `deploy:replicas` is above 1 in some environment
-(under the override rule, or its shared count in a model with no
-environment) is a `Warning` with predicate `deploy:replicas` naming the
-declared counts; facts the override rule cannot resolve are a `Violation`.
-The chat app's `:chat_api` declares 3, so it gets the warning.
+`ModelGraph.replica_health()` reports replicas that would not share state
+([ADR-0038](/adr/0038-shared-stream-channel)) in the same `StoreFinding`
+form, and the viewer's health panel shows it beside the store findings.
+Replicas of a serving container share process instances and the live-update
+stream through a `deploy:PostgreSQL` store; an embedded or `deploy:SQLite`
+store lives in one process. A serving container whose `deploy:replicas` is
+above 1 in some environment (under the override rule, or its shared count in
+a model with no environment) while `store_plan()` is not PostgreSQL is a
+`Violation` with predicate `deploy:replicas` naming the declared counts and
+the store kind; the compose generator refuses the same model, and
+`seamsh:ReplicatedStoreShape` reports it in `seams check`. Facts the override
+rule cannot resolve are a `Violation` too, and a store plan that cannot be
+resolved is left to `store_health()`. The chat app's `:chat_api` declares 3
+on its PostgreSQL store, so it gets no finding.
 
 ## Operation implementation
 

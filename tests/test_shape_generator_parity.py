@@ -825,6 +825,17 @@ CASES = [
         CHAT.chat_ui,
     ),
     Case(
+        "replicas-on-an-unshared-store",
+        Site("compose", "_service", "DEPLOY.replicas"),
+        CHAT_TRIG,
+        lambda ds: _replace(_chat_arch(ds), CHAT.message_db, DEPLOY.storeKind, DEPLOY.SQLite),
+        "compose",
+        CHAT.chat_api,
+        DEPLOY.replicas,
+        CHAT.chat_api,
+        match="shared runtime store",
+    ),
+    Case(
         "placed-on-an-unlabelled-node",
         Site("compose", "_service", "RDFS.label"),
         CHAT_TRIG,

@@ -105,8 +105,10 @@ keeps embedded SQLite at `SEAMS_DB`. The model review checks of `seams check`
 (`seams.review_findings()`) add one warning each: lifecycle state labels copied into
 a `sh:in` list, a `sh:class` that points at a shape, a shape with no `sh:targetClass`
 and a `sh:path` nothing declares a property. Each names the shape or path (the
-*focusNode*) and the fact (the *path*); the chat app shows eleven of them beside the
-replica cap. The static decision checks (`seams.decision_findings()`) add one warning
+*focusNode*) and the fact (the *path*); the chat app shows eleven of them. A serving
+container with more than one `deploy:replicas` on a store that is not PostgreSQL is a
+violation (`ModelGraph.replica_health()`, [ADR-0038](/adr/0038-shared-stream-channel)),
+since its replicas would not share process state. The static decision checks (`seams.decision_findings()`) add one warning
 each too, listed just before the review warnings: a DMN `typeRef` the input's
 `sh:datatype` does not fit, a gateway condition reading a variable nothing upstream
 sets, and, for a `UNIQUE` decision table, each pair of rules that match the same input

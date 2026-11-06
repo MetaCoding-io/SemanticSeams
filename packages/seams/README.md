@@ -169,9 +169,10 @@ process state stays in embedded SQLite.
 resolves them all and `webhook_channel_iris()` lists them. Each fact of the
 ADR's section 10 table that is missing or wrong raises `ResolutionError`
 naming its subject and predicate.
-`ModelGraph.replica_health()` adds the replica cap (ADR-0015, backlog A10): a
-`Warning` for a serving container that declares more than one
-`deploy:replicas` in some environment.
+`ModelGraph.replica_health()` adds replicas that would not share state
+(ADR-0038): a `Violation` for a serving container that declares more than one
+`deploy:replicas` in some environment while `store_plan()` is not
+`deploy:PostgreSQL` (an embedded or SQLite store lives in one process).
 
 `Container.for_environment(environment)` applies ADR-0015's override rule to
 a container's `deploy:override`s and returns a `Deployment` (`artifact`,

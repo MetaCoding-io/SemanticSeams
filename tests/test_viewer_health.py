@@ -225,16 +225,14 @@ def _store_warnings(result: dict, ds: rdflib.Dataset) -> list[dict]:
     return result["warnings"][:split]
 
 
-def test_loaded_chat_app_warns_about_the_replica_cap_and_review_findings():
-    """No store warnings or notes; :chat_api's deploy:replicas 3 is capped at
-    one replica until backlog A10 (ADR-0015), then one warning per model
-    review finding (backlog R1)."""
+def test_loaded_chat_app_warns_only_about_review_findings():
+    """No store or replica findings and no notes: :chat_api's deploy:replicas 3
+    share its PostgreSQL store (ADR-0038). Then one warning per model review
+    finding (backlog R1)."""
     result = validation.get_model_conformance(viewer_app.get_graph())
     assert result["conforms"] is True
-    replicas, *review = result["warnings"]
-    assert replicas["focusNode"] == "https://example.org/chat/chat_api"
-    assert replicas["path"] == str(DEPLOY.replicas)
-    assert "A10" in replicas["message"]
+    review = result["warnings"]
+    assert str(DEPLOY.replicas) not in {w["path"] for w in review}
     assert [(w["focusNode"], w["path"]) for w in review] == CHAT_REVIEW
     assert {w["severity"] for w in review} == {"Warning"}
     assert {w["sourceShape"] for w in review} == {None}
@@ -331,8 +329,7 @@ def test_failing_review_check_is_one_warning(monkeypatch):
     result = validation.get_model_conformance(viewer_app.get_graph())
     assert result["conforms"] is True
     assert result["violations"] == []
-    replicas, failed = result["warnings"]
-    assert replicas["path"] == str(DEPLOY.replicas)
+    [failed] = result["warnings"]
     assert failed == {
         "focusNode": None,
         "path": None,
@@ -347,7 +344,7 @@ def test_full_page_renders_review_warnings():
     assert resp.status_code == 200
     html = resp.text
     assert 'data-conforms="true"' in html
-    assert f'data-warnings="{1 + len(CHAT_REVIEW)}"' in html
+    assert f'data-warnings="{len(CHAT_REVIEW)}"' in html
     assert "MessageShape has no sh:targetClass" in html
 
 
@@ -368,7 +365,7 @@ def test_unused_postgres_store_warns_and_still_conforms():
     result = validation.get_model_conformance(ds)
     assert result["conforms"] is True
     assert result["violations"] == []
-    [warning] = [w for w in _store_warnings(result, ds) if w["path"] != str(DEPLOY.replicas)]
+    [warning] = _store_warnings(result, ds)
     assert warning["focusNode"] == STORE + "spare_db"
     assert warning["path"] == str(SEAM.storedIn)
     assert warning["severity"] == "Warning"
@@ -436,11 +433,11 @@ def test_full_page_renders_store_warning(unused_store_viewer):
     assert resp.status_code == 200
     html = resp.text
     assert 'data-conforms="true"' in html
-    # the unused store, the chat app's replica cap and its review findings
-    assert f'data-warnings="{2 + len(CHAT_REVIEW)}"' in html
+    # the unused store and the chat app's review findings
+    assert f'data-warnings="{1 + len(CHAT_REVIEW)}"' in html
     assert STORE + "spare_db" in html
     json_mc = _client().get(f"/view/{ROOT_IRI}", params={"format": "json"}).json()["modelConformance"]
-    assert len(json_mc["warnings"]) == 2 + len(CHAT_REVIEW)
+    assert len(json_mc["warnings"]) == 1 + len(CHAT_REVIEW)
 
 
 def test_fragment_response_omits_store_warning(unused_store_viewer):

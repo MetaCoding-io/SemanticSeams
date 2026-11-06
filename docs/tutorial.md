@@ -171,6 +171,12 @@ Compose builds the runtime and gateway images from this checkout and starts four
 `chat_api` (the runtime serving the generated route module), `llm_gateway`, `chat_ui`
 (a reverse proxy on port 8080) and `message_db`. The first build takes a minute or two.
 
+The model gives `chat_api` `deploy:replicas 3`, so compose runs three copies of it and
+`chat_ui` reaches them through the `chat_api` service name. They share `message_db`: a
+process started on one replica resumes on any other, and the token stream reaches a page
+connected to any replica through PostgreSQL LISTEN/NOTIFY
+([ADR-0038](/adr/0038-shared-stream-channel)).
+
 The runtime image bakes in one app's generated route module, templates and seed data.
 Its build file, `examples/chat-app/generated/chat_api.Dockerfile`, is generated from the
 model too: the `dockerfile` generator writes the app's paths into it literally and labels
@@ -213,8 +219,9 @@ curl localhost:8080/healthz
 ```
 
 The `store` object says `"kind": "postgresql"`, `"declared": "PostgreSQL"`, the
-`:message_db` container IRI and `"override": false`. The end-to-end test
-(`tests/test_tutorial_e2e.py`) runs both checks.
+`:message_db` container IRI and `"override": false`, and the `channel` object says
+`"kind": "postgresql"`. The end-to-end test (`tests/test_tutorial_e2e.py`) runs both
+checks, and also streams a message posted to one replica to a client on another.
 
 Optionally, ask the seams CLI whether the running `chat_api` is on the model in your
 working tree. `examples/chat-app/seams.toml` gives the `development` environment an

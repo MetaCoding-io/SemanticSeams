@@ -4,7 +4,8 @@ ontology/deploy.ttl adds deploy:Override, deploy:override, deploy:environment,
 deploy:Build, deploy:build, deploy:context, deploy:dockerfile,
 deploy:secretFile and deploy:proxies; ontology/shapes/seam-shapes.ttl
 constrains them; ``Container.for_environment`` applies the override rule; and
-``ModelGraph.replica_health`` reports the replica cap (backlog A10).
+``ModelGraph.replica_health`` reports replicas on a store they would not share
+(ADR-0038).
 
 Fixtures are the chat app's shared facts (its own overrides and its
 :development environment removed) plus inline TriG in its architecture graph,
@@ -28,6 +29,7 @@ SHAPES_FILE = ROOT / "ontology" / "shapes" / "seam-shapes.ttl"
 SH = rdflib.Namespace("http://www.w3.org/ns/shacl#")
 SEAMSH = rdflib.Namespace("https://w3id.org/seams/shapes#")
 C = rdflib.Namespace("https://example.org/chat/")
+ARCHITECTURE = URIRef("urn:seams:graph:model:chat_architecture")
 
 PREFIXES = """\
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
@@ -72,12 +74,15 @@ def _drop(ds: Dataset, node) -> None:
     ds.remove((node, None, None, None))
 
 
-def _dataset(*extra: str) -> Dataset:
+def _dataset(*extra: str, store_kind: URIRef | None = None) -> Dataset:
     """The chat app's shared facts with ``extra`` TriG statements added to its
     architecture graph: the model's own deploy:overrides and :development are
-    removed, so each test states the environment facts it needs."""
+    removed, so each test states the environment facts it needs. ``store_kind``
+    replaces :message_db's deploy:storeKind when given."""
     ds = Dataset(default_union=True)
     ds.parse(CHAT, format="trig")
+    if store_kind is not None:
+        ds.graph(ARCHITECTURE).set((C.message_db, DEPLOY.storeKind, store_kind))
     for _, _, node, _ in list(ds.quads((None, DEPLOY.override, None, None))):
         _drop(ds, node)
     ds.remove((None, DEPLOY.override, None, None))
@@ -88,8 +93,8 @@ def _dataset(*extra: str) -> Dataset:
     return ds
 
 
-def model(*extra: str) -> ModelGraph:
-    return ModelGraph(CHAT, _dataset(*extra))
+def model(*extra: str, store_kind: URIRef | None = None) -> ModelGraph:
+    return ModelGraph(CHAT, _dataset(*extra, store_kind=store_kind))
 
 
 def env(m: ModelGraph, name: str):
@@ -110,12 +115,12 @@ def raises(m: ModelGraph, name: str = "chat_api") -> ResolutionError:
     return info.value
 
 
-def violating_shapes(*extra: str) -> set[URIRef]:
+def violating_shapes(*extra: str, store_kind: URIRef | None = None) -> set[URIRef]:
     """The named shapes (or the named parent of a property shape) that report on the chat app plus ``extra``."""
     union = rdflib.Graph()
     for p in ONTOLOGY_FILES:
         union.parse(p, format="turtle")
-    for s, p, o, _ in _dataset(*extra).quads((None, None, None, None)):
+    for s, p, o, _ in _dataset(*extra, store_kind=store_kind).quads((None, None, None, None)):
         union.add((s, p, o))
     shapes = rdflib.Graph().parse(SHAPES_FILE, format="turtle")
     conforms, results, _ = pyshacl.validate(union, shacl_graph=shapes, inference="none")
@@ -389,33 +394,48 @@ def test_a_build_needs_a_context():
     assert (err.subject, err.predicate) == (str(C.chat_api), str(DEPLOY.context))
 
 
-# ── model health: the replica cap (A10) ─────────────────────────────────────
+# ── model health: replicas share the store (ADR-0038) ───────────────────────
 
 
-def test_chat_app_warns_that_chat_api_replicas_are_capped():
-    [finding] = ModelGraph(CHAT).replica_health()
-    assert (finding.severity, finding.subject, finding.predicate) == ("Warning", C.chat_api, DEPLOY.replicas)
-    assert f"3 in {C.production}" in finding.message and "A10" in finding.message
+def test_chat_app_replicas_share_its_postgresql_store():
+    assert ModelGraph(CHAT).replica_health() == []
+    assert SEAMSH.ReplicatedStoreShape not in violating_shapes()
 
 
-def test_the_warning_names_only_the_environments_above_one():
-    [finding] = model(DEVELOPMENT, DEV_OVERRIDE).replica_health()
+def test_replicas_on_a_sqlite_store_are_a_violation():
+    [finding] = model(store_kind=DEPLOY.SQLite).replica_health()
+    assert (finding.severity, finding.subject, finding.predicate) == ("Violation", C.chat_api, DEPLOY.replicas)
+    assert f"3 in {C.production}" in finding.message and "deploy:SQLite" in finding.message
+    assert SEAMSH.ReplicatedStoreShape in violating_shapes(store_kind=DEPLOY.SQLite)
+
+
+def test_the_violation_names_only_the_environments_above_one():
+    [finding] = model(DEVELOPMENT, DEV_OVERRIDE, store_kind=DEPLOY.SQLite).replica_health()
     assert f"3 in {C.production}" in finding.message
     assert str(C.development) not in finding.message
 
 
-def test_no_warning_when_every_environment_runs_one_replica():
-    m = model(":chat_api deploy:override [ a deploy:Override ; deploy:environment :production ; deploy:replicas 1 ] .")
-    assert m.replica_health() == []
+def test_an_override_above_one_is_a_violation_too():
+    one = ":chat_api deploy:replicas 1 ; deploy:override [ a deploy:Override ; deploy:environment :production ; "
+    [finding] = model(one + "deploy:replicas 2 ] .", store_kind=DEPLOY.SQLite).replica_health()
+    assert f"2 in {C.production}" in finding.message
+    assert SEAMSH.ReplicatedStoreShape in violating_shapes(one + "deploy:replicas 2 ] .", store_kind=DEPLOY.SQLite)
 
 
-def test_containers_without_process_state_are_not_capped():
-    assert model(":llm_gateway deploy:replicas 4 .").replica_health()[0].subject == C.chat_api
-    assert len(model(":llm_gateway deploy:replicas 4 .").replica_health()) == 1
+def test_no_violation_when_every_environment_runs_one_replica():
+    one = ":chat_api deploy:override [ a deploy:Override ; deploy:environment :production ; deploy:replicas 1 ] ."
+    assert model(one, store_kind=DEPLOY.SQLite).replica_health() == []
+    assert SEAMSH.ReplicatedStoreShape not in violating_shapes(one, store_kind=DEPLOY.SQLite)
+
+
+def test_containers_without_process_state_need_no_shared_store():
+    gateway = ":llm_gateway deploy:replicas 4 ."
+    [finding] = model(gateway, store_kind=DEPLOY.SQLite).replica_health()
+    assert finding.subject == C.chat_api
 
 
 def test_a_model_without_environments_uses_the_shared_count():
-    ds = _dataset()
+    ds = _dataset(store_kind=DEPLOY.SQLite)
     ds.remove((C.production, None, None, None))
     [finding] = ModelGraph(CHAT, ds).replica_health()
     assert finding.subject == C.chat_api and "3 in " in finding.message

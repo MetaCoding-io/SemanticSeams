@@ -14,9 +14,10 @@ The same summary carries the storage health checks of ADR-0011
 (seams.ModelGraph.store_health()): a store the runtime cannot resolve is a
 violation, a declared store no shape is seam:storedIn is a warning, and a model
 that declares no store gets a note that the runtime keeps embedded SQLite.
-The replica cap of ADR-0015 (seams.ModelGraph.replica_health()) joins them: a
-serving container declaring more than one deploy:replicas is a warning, since
-the generator runs one until backlog A10. The model review checks of backlog
+The replicas check of ADR-0038 (seams.ModelGraph.replica_health()) joins them:
+a serving container declaring more than one deploy:replicas on a store that is
+not PostgreSQL is a violation, since its replicas would not share process state
+and the compose generator refuses it. The model review checks of backlog
 R1 (seams.review_findings()) add one warning each: lifecycle labels copied
 into sh:in, sh:class pointing at a shape, shapes without sh:targetClass and
 undeclared sh:path IRIs. They flag the model for review and never change

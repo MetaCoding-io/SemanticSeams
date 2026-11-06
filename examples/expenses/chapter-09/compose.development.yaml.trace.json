@@ -637,7 +637,7 @@
     {
       "line": 63,
       "templates": [
-        "compose.yaml.j2:87"
+        "compose.yaml.j2:84"
       ],
       "terms": [
         "https://example.org/expenses/development",
@@ -647,7 +647,7 @@
     {
       "line": 64,
       "templates": [
-        "compose.yaml.j2:89"
+        "compose.yaml.j2:86"
       ],
       "terms": [
         "https://example.org/expenses/development",
@@ -657,7 +657,7 @@
     {
       "line": 65,
       "templates": [
-        "compose.yaml.j2:91"
+        "compose.yaml.j2:88"
       ],
       "terms": [
         "https://example.org/expenses/development",
@@ -667,7 +667,7 @@
     {
       "line": 66,
       "templates": [
-        "compose.yaml.j2:99"
+        "compose.yaml.j2:96"
       ],
       "terms": [
         "https://example.org/expenses/development",
@@ -677,7 +677,7 @@
     {
       "line": 67,
       "templates": [
-        "compose.yaml.j2:101"
+        "compose.yaml.j2:98"
       ],
       "terms": [
         "https://example.org/expenses/development",

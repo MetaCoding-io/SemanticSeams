@@ -1153,6 +1153,47 @@ seamsh:StoreKindShape a sh:NodeShape ;
         sh:message "deploy:storeKind is at most one of deploy:PostgreSQL, deploy:SQLite or deploy:SemPKM." ] ;
     sh:message "Only an arch:Container carries a deploy:storeKind." .
 
+# Replicas share process instances and the live-update stream through the store
+# (ADR-0038 section 4), so a serving container (as for ServingProbePortShape) with
+# more than one deploy:replicas in some arch:Environment, under ADR-0015's override
+# rule, has a deploy:PostgreSQL store. An embedded or SQLite store lives in one
+# process. The store plan is PostgreSQL only when the container's binding
+# deploy:connectsTo one (OverrideStoreShape keeps it the same in every environment)
+# or a shape is seam:storedIn one; a PostgreSQL store with no connecting binding is
+# store_health()'s fault on deploy:connectsTo, so it is not reported here.
+seamsh:ReplicatedStoreShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "A serving container with more than one deploy:replicas in an arch:Environment keeps process state in a deploy:PostgreSQL store, which its replicas share; an embedded or deploy:SQLite store lives in one process (ADR-0038)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this WHERE {
+                { $this seam:executes ?process . ?process a proc:Process . }
+                UNION
+                { $this seam:exposes ?op . ?op a hydra:Operation . ?event seam:submitsTo ?op . }
+                {
+                    $this deploy:override/deploy:replicas ?n .
+                    FILTER (?n > 1)
+                } UNION {
+                    $this deploy:replicas ?n .
+                    FILTER (?n > 1)
+                    ?environment a arch:Environment .
+                    FILTER NOT EXISTS {
+                        $this deploy:override ?override .
+                        ?override deploy:environment ?environment ; deploy:replicas ?own .
+                    }
+                }
+                FILTER NOT EXISTS {
+                    $this deploy:configuration/deploy:binding/deploy:connectsTo ?store .
+                    ?store deploy:storeKind deploy:PostgreSQL .
+                }
+                FILTER NOT EXISTS {
+                    ?shape seam:storedIn ?stored .
+                    ?stored deploy:storeKind deploy:PostgreSQL .
+                }
+            }""" ;
+    ] .
+
 # The token binding of a SemPKM store (ADR-0025 section 1): its value is a
 # secret (a deploy:secretRef or a deploy:secretFile), and the store it
 # authenticates to is a deploy:SemPKM store.

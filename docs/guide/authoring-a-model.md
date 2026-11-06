@@ -322,9 +322,13 @@ Dockerfile, and the hand-written Dockerfile of any other container whose develop
 when its `push` input is set) or on a `v*` tag, never on a push to main or a pull
 request. `python -m seams_gen.images PROJECT...` prints the list it builds, as JSON.
 
-The generated serving container runs one replica until the runtime can share state
-(backlog A10). A larger `deploy:replicas` stays in the model, shows as a warning in the
-viewer's model health, and as a comment in the generated file.
+The generated serving container runs the replicas the model declares
+([ADR-0038](/adr/0038-shared-stream-channel)). Its replicas share process instances
+and the live-update stream through the runtime store, so more than one needs a
+`deploy:PostgreSQL` store: on an embedded or `deploy:SQLite` store, `seams check`
+reports a violation, the viewer's model health shows it, and the compose generator
+raises a `GeneratorError` on the container and `deploy:replicas`. State one replica
+there, in the shared fact or in an environment's override.
 
 ### Human tasks
 

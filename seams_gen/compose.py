@@ -50,8 +50,11 @@ runtime at them (D018). A directory model mounts each of its TriG files under
 ``seam:implementedBy`` a ``comm:PythonHandler`` (ADR-0012), the handlers
 package beside the TriG is bind-mounted read-only at /model/handlers too,
 where the runtime's default looks for it. It gets the runtime's /healthz
-probe unless the model states a healthcheck, and at most one replica until
-backlog A10, with a comment naming the declared count. Its build takes no
+probe unless the model states a healthcheck, and the model's replicas in
+every environment (ADR-0038). More than one replica needs a shared runtime
+store: when the store plan's kind is not deploy:PostgreSQL (the embedded or a
+declared SQLite store), the count is a ``GeneratorError`` on the container
+and deploy:replicas. Its build takes no
 arguments: the Dockerfile the model names is the one ``seams_gen.dockerfile``
 generates, with the app's paths written literally.
 
@@ -110,9 +113,10 @@ RUNTIME_PROBE = (
     "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:{port}/healthz', timeout=3)\""
 )
 RUNTIME_PROBE_INTERVAL = "5s"
-#: The serving container holds process instances and the live-update stream
-#: in its process, so only one replica works until backlog A10.
-SERVING_REPLICAS = 1
+#: The runtime store kinds the serving container's replicas share process
+#: instances and the live-update stream through (ADR-0038); any other store
+#: (SQLite) lives in one process, so it runs one replica.
+SHARED_STORE_KINDS = (DEPLOY.PostgreSQL,)
 #: A deploy:proxies container is a code-free Caddy reverse proxy.
 PROXY_COMMAND = "caddy reverse-proxy --from :{port} --to {target}:{target_port}"
 
@@ -154,9 +158,7 @@ class Service:
     placement: str | None = None  # the constraint, as a YAML scalar
     build: Build | None = None
     command: str | None = None  # YAML scalar
-    declared_replicas: int | None = None  # the model's count when capped
     has_replicas: bool = False  # replicas is set
-    has_declared_replicas: bool = False  # declared_replicas is set
     has_deploy: bool = False  # a deploy section: replicas or a placement
     iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
     # the IRIs of the processes it seam:schedules, sorted (ADR-0037): the
@@ -452,9 +454,18 @@ def _service(
             )
         )
 
-    replicas, declared = deployment.replicas, None
-    if serving and replicas is not None and replicas > SERVING_REPLICAS:
-        replicas, declared = SERVING_REPLICAS, replicas
+    replicas = deployment.replicas
+    if serving and replicas is not None and replicas > 1:
+        graph = model if isinstance(model, ModelGraph) else ModelGraph(model.path, model.ds)
+        with view_errors():
+            store = graph.store_plan()
+        if store.kind not in SHARED_STORE_KINDS:
+            raise GeneratorError(
+                c.iri,
+                DEPLOY.replicas,
+                f"{replicas} replicas in {ctx.environment.iri} need a shared runtime store, and the store is "
+                f"{model.compact(store.kind)}; state one replica or connect a deploy:PostgreSQL store (ADR-0038)",
+            )
 
     placement = None
     if node is not None and node in ctx.nodes:
@@ -487,9 +498,7 @@ def _service(
         placement=placement,
         build=build,
         command=command,
-        declared_replicas=declared,
         has_replicas=replicas is not None,
-        has_declared_replicas=declared is not None,
         has_deploy=replicas is not None or placement is not None,
     )
 

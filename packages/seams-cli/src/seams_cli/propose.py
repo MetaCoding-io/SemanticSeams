@@ -198,13 +198,22 @@ def cache_key(context_hash: str, template: str, provider: str, model: str | None
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
+def resolve_llm_model(project: Project, llm_model: str | None) -> str | None:
+    """The LLM model label: ``llm_model``, else the project's ``[propose] model``,
+    else None. ProjectError when the label is empty."""
+    llm_model = llm_model if llm_model is not None else project.llm_model
+    if llm_model is not None and not llm_model.strip():
+        raise ProjectError("the LLM model name is empty: pass a non-empty --llm-model")
+    return llm_model
+
+
 def call_provider(provider: str, text: str, answer: str = "draft", model: str | None = None) -> str:
     """The provider command's answer to the prompt ``text``: ``provider`` split
-        with shlex (never a shell), ``text`` on stdin, the answer on stdout, and
-        ``model``, when given, in env LLM_MODEL_ENV (an inherited one is dropped, so
+    with shlex (never a shell), ``text`` on stdin, the answer on stdout, and
+    ``model``, when given, in env LLM_MODEL_ENV (an inherited one is dropped, so
     the cache key always names the model asked for). ProposeError when the command
-        is empty or missing, runs over PROVIDER_TIMEOUT, exits non-zero or prints
-        no ``answer``."""
+    is empty or missing, runs over PROVIDER_TIMEOUT, exits non-zero or prints
+    no ``answer``."""
     argv = shlex.split(provider)
     if not argv:
         raise ProposeError("the provider command is empty")
@@ -277,9 +286,7 @@ def propose(
     provider = provider if provider is not None else project.provider
     if provider is None or not provider.strip():
         raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
-    llm_model = llm_model if llm_model is not None else project.llm_model
-    if llm_model is not None and not llm_model.strip():
-        raise ProjectError("the LLM model name is empty: pass a non-empty --llm-model")
+    llm_model = resolve_llm_model(project, llm_model)
     prompt = build_prompt(project, model, task)
     target = _handlers_target(project, model, prompt)
     lock = read_lock(project)

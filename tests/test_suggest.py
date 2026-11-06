@@ -16,7 +16,8 @@ from pathlib import Path
 import pytest
 import seams
 from seams_cli.__main__ import main
-from seams_cli.project import load_project
+from seams_cli.project import ProjectError, load_project
+from seams_cli.propose import ProposeError
 from seams_cli.suggest import (
     CACHE_DIR,
     SUGGESTION_FILE,
@@ -38,6 +39,20 @@ INLINE = {"approved": "amount &lt;= 2000", "rejected": "amount &gt; 2000"}
 
 def _provider(name: str, *args: str) -> str:
     return shlex.join([sys.executable, str(FIXTURES / name), *args])
+
+
+# Appends the SEAMS_LLM_MODEL it was given (or "-") to its first argument, then
+# runs the fake provider named by the rest.
+_RECORD_LLM_MODEL = (
+    "import os, runpy, sys; "
+    "open(sys.argv[1], 'a').write(os.environ.get('SEAMS_LLM_MODEL', '-') + '\\n'); "
+    "sys.argv = sys.argv[2:]; sys.path.insert(0, os.path.dirname(sys.argv[0])); "
+    "runpy.run_path(sys.argv[0], run_name='__main__')"
+)
+
+
+def _recording(seen: Path, name: str, *args: str) -> str:
+    return shlex.join([sys.executable, "-c", _RECORD_LLM_MODEL, str(seen), str(FIXTURES / name), *args])
 
 
 @pytest.fixture(autouse=True)
@@ -169,6 +184,57 @@ def test_a_cache_hit_does_not_call_the_provider(app, tmp_path):
     assert (tmp_path / "calls").read_text() == "1"
     assert len(list((app / CACHE_DIR).iterdir())) == 1
     assert [p.id for p in pending(load_project(app))] == [first.id]
+
+
+def test_the_llm_model_reaches_the_provider_keys_the_cache_and_is_stored(app, tmp_path, capsys):
+    seen = tmp_path / "seen"
+    provider = _recording(seen, "good_provider.py", str(tmp_path / "calls"))
+    code = main(["suggest", "--project", str(app), "--provider", provider, "--llm-model", "model-a"])
+    out = capsys.readouterr().out.splitlines()
+    assert code == 0, out
+    assert out[:3] == ["template suggest-v1", f"provider {provider}", "llm-model model-a"]
+    assert out[4] == "cache miss"
+    assert seen.read_text() == "model-a\n"
+    stored = json.loads((app / _value(out, "stored") / SUGGESTION_FILE).read_text(encoding="utf-8"))
+    assert stored["llm_model"] == "model-a"
+
+    # The same model hits the cache: the provider, which fails when called again, is not run.
+    again = suggest(load_project(app), None, provider, "model-a")
+    assert (again.cache_hit, again.llm_model) == (True, "model-a")
+    assert (tmp_path / "calls").read_text() == "1"
+
+    # Another model, or none, misses it and calls the provider again.
+    with pytest.raises(ProposeError, match="called again"):
+        suggest(load_project(app), None, provider, "model-b")
+    with pytest.raises(ProposeError, match="called again"):
+        suggest(load_project(app), None, provider)
+    assert seen.read_text() == "model-a\nmodel-b\n-\n"
+    assert len(list((app / CACHE_DIR).iterdir())) == 1
+
+
+def test_no_llm_model_prints_no_line_and_stores_no_key(app, capsys):
+    code = main(["suggest", "--project", str(app), "--provider", _provider("good_provider.py")])
+    out = capsys.readouterr().out.splitlines()
+    assert code == 0, out
+    assert not any(line.startswith("llm-model") for line in out)
+    stored = json.loads((app / _value(out, "stored") / SUGGESTION_FILE).read_text(encoding="utf-8"))
+    assert "llm_model" not in stored
+
+
+def test_the_project_llm_model_is_the_default_and_the_flag_wins(app, tmp_path):
+    toml = app / "seams.toml"
+    toml.write_text(toml.read_text(encoding="utf-8") + '\n[propose]\nmodel = "from-toml"\n', encoding="utf-8")
+    seen = tmp_path / "seen"
+    assert suggest(load_project(app), None, _recording(seen, "good_provider.py")).llm_model == "from-toml"
+    assert suggest(load_project(app), None, _recording(seen, "good_provider.py"), "from-flag").llm_model == "from-flag"
+    assert seen.read_text() == "from-toml\nfrom-flag\n"
+
+
+def test_an_empty_llm_model_is_refused_before_the_provider(app, tmp_path):
+    with pytest.raises(ProjectError, match="the LLM model name is empty"):
+        suggest(load_project(app), None, _provider("good_provider.py", str(tmp_path / "calls")), " ")
+    assert not (tmp_path / "calls").exists()
+    assert not (app / ".seams").exists()
 
 
 def test_accept_is_refused_on_a_changed_model(app, capsys):

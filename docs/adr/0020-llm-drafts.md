@@ -84,6 +84,12 @@ project may now name the model:
 - **No SemPKM copilot connection.** `seams` does not reuse SemPKM's copilot
   connection or its credentials; the provider command stays the only way to reach a
   model.
+- **The same for suggest and draft-generator.** `seams suggest` (ADR-0028) and
+  `seams draft-generator` (ADR-0029) take the same `[propose] model` and
+  `--llm-model`, pass the same variable, add the name to their own cache keys only
+  when one is named, and print the same `llm-model <name>` line after `provider`.
+  A stored suggestion records it as `llm_model` in its `suggestion.json`. Neither
+  writes a lock record, so the lock field is propose's alone.
 - **Still never in CI** (rule 6): the tests use fake provider scripts that echo the
   model name they get.
 

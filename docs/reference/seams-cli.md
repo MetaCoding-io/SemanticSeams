@@ -54,7 +54,7 @@ out = "generated/templates"
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. Use the local names of the model's `arch:Environment`s (`development`, `production`), so `seams status --env development` and the generated `compose.development.yaml` name the same environment. |
 | `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose), [`seams suggest`](#seams-suggest) and [`seams draft-generator`](#seams-draft-generator) send their prompts to; `--provider` overrides it. |
-| `[propose] model` | string, optional | The LLM model [`seams propose`](#seams-propose) asks the provider for, by name: passed as the environment variable `SEAMS_LLM_MODEL`, part of the cache key and recorded in the lock; `--llm-model` overrides it. |
+| `[propose] model` | string, optional | The LLM model [`seams propose`](#seams-propose), [`seams suggest`](#seams-suggest) and [`seams draft-generator`](#seams-draft-generator) ask the provider for, by name: passed as the environment variable `SEAMS_LLM_MODEL` and part of each command's cache key; `seams propose` also records it in the lock. `--llm-model` overrides it. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
@@ -1177,7 +1177,7 @@ Errors print to stderr as `seams propose: <message>`.
 ## seams suggest
 
 ```sh
-seams suggest --project examples/expenses/chapter-10 --provider "my-llm --model some-model"
+seams suggest --project examples/expenses/chapter-10 --provider "my-llm" --llm-model some-model
 seams suggest --project examples/expenses/chapter-10 --list
 seams suggest --project examples/expenses/chapter-10 --accept 3f2a9c
 ```
@@ -1186,7 +1186,9 @@ It asks an LLM for an improvement to the model itself, checks the change, and
 keeps it pending until a person accepts it (backlog R2,
 [ADR-0028](/adr/0028-copilot-suggestions)). The provider is the same command as
 [`seams propose`](#seams-propose)'s: `[propose] provider` in `seams.toml`, or
-`--provider`. The first kind of suggestion is `condition-to-dmn`: a gateway
+`--provider`, and the LLM model is named the same way, with `[propose] model` or
+`--llm-model` (the flag wins; [ADR-0020](/adr/0020-llm-drafts)'s amendment). The
+first kind of suggestion is `condition-to-dmn`: a gateway
 whose outgoing conditions read a name no upstream decision outputs (a form
 field, as in `amount <= 2000`) gets a DMN decision, a business-rule task
 before the gateway, and conditions over the decision's output variable.
@@ -1218,8 +1220,8 @@ suggestion is stored in `.seams/suggestions/<id>/` (gitignored):
 `suggestion.json` and one unified diff per changed file, `<file>.diff`, to read
 before accepting. The id is the sha256 of the model hash, the template, the
 provider and the answer. The answer of a passing suggestion is cached in
-`.seams/suggest-cache/`, keyed by the model hash, the template and the
-provider, so asking again on the same model calls no provider; a rejected
+`.seams/suggest-cache/`, keyed by the model hash, the template, the
+provider and the LLM model when one is named, so asking again on the same model calls no provider; a rejected
 answer is neither stored nor cached. Nothing in the model is written until
 `--accept`.
 
@@ -1233,7 +1235,8 @@ provider. `seams suggest` is never run in CI.
 
 ### Output
 
-`template <name>`, `provider <command>`, `model <hash>`, `cache hit` or
+`template <name>`, `provider <command>`, `llm-model <name>` (only when an LLM
+model is named), `model <hash>` (the TriG model's hash), `cache hit` or
 `cache miss`, `suggestion <id>`, `gateway <iri>`, one `changed <file>` line per
 file, `validated pass|fail`, `generated pass|fail (<n> outputs)`, then
 `stored .seams/suggestions/<id>`. A rejected suggestion prints one
@@ -1251,7 +1254,7 @@ the kind is `suggestion` (the answer names something the model does not have),
 |---|---|
 | 0 | A suggestion was stored, listed or accepted, or the model has nothing to suggest. |
 | 1 | The answer was rejected (nothing stored), the provider failed, or `--accept` was refused: a stale suggestion or a failed re-check (nothing written). |
-| 2 | No provider, an unknown suggestion id, or a project error. |
+| 2 | No provider, an empty `--llm-model`, an unknown suggestion id, or a project error. |
 
 Errors print to stderr as `seams suggest: <message>`.
 
@@ -1292,7 +1295,7 @@ Errors print to stderr as `seams new-generator: <message>`.
 ## seams draft-generator
 
 ```sh
-seams draft-generator processes --reference processes.yaml --provider "my-llm --model some-model"
+seams draft-generator processes --reference processes.yaml --provider "my-llm" --llm-model some-model
 ```
 
 It does the [reference-first loop](/guide/write-your-own-generator#start-from-a-reference-output)
@@ -1303,7 +1306,8 @@ writes the package only when its golden test passes (backlog R3,
 follow `seams new-generator`; `--force` lets the package's files replace files of the
 same path in a non-empty `--out`. The model is the project's (`--project`,
 `--model`). The provider is the same command as [`seams propose`](#seams-propose)'s:
-`[propose] provider` in `seams.toml`, or `--provider`.
+`[propose] provider` in `seams.toml`, or `--provider`; the LLM model is
+`[propose] model` or `--llm-model`, as for `seams propose`.
 
 The prompt is the versioned template `draft-generator-v1`, filled with the reference
 verbatim, the model's names (one `IRI<TAB>label` line per labelled subject, sorted)
@@ -1318,21 +1322,22 @@ The draft is accepted only when the template holds no logic (only `[[ name ]]`,
 that occurs in the reference, and the scaffold's four tests pass in a scratch copy
 with the answer in place, run on the project's model. An accepted answer is cached
 in `.seams/generator-drafts/` (gitignored), keyed by the reference's hash, the model
-hash, the template and the provider, so the same request again calls no provider.
+hash, the template, the provider and the LLM model when one is named, so the same
+request again calls no provider and another model does.
 Nothing is written or cached on failure. The written package runs without an LLM and
 is the author's from then on. `seams draft-generator` is never run in CI.
 
 ### Output
 
-`template <name>`, `provider <command>`, `prompt sha256:<hex>`, `cache hit` or
-`cache miss`, then each written path, as `seams new-generator` prints them.
+`template <name>`, `provider <command>`, `llm-model <name>` (only when one is
+named), `prompt sha256:<hex>`, `cache hit` or `cache miss`, then each written path, as `seams new-generator` prints them.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | The package was written. |
-| 1 | Nothing was written: a refused name, reference or `--out`, a project or model that cannot be read, no provider, a failed provider, a malformed answer, a template with logic or a restated label, or failed scratch tests (each named). |
+| 1 | Nothing was written: a refused name, reference or `--out`, a project or model that cannot be read, no provider, an empty `--llm-model`, a failed provider, a malformed answer, a template with logic or a restated label, or failed scratch tests (each named). |
 
 Errors print to stderr as `seams draft-generator: <message>`; failed tests are named
 one per line after `tests failed:`.

@@ -1,8 +1,8 @@
 """Command line: ``seams generate|check|migrate|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
-``seams suggest [--provider CMD] [--list | --accept ID]``,
-``seams draft-generator NAME --reference FILE [--provider CMD] [--out DIR] [--force]``,
+``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
+``seams draft-generator NAME --reference FILE [--provider CMD] [--llm-model NAME] [--out DIR] [--force]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
 
 ``--project`` is a seams.toml file or a directory holding one (default: the
@@ -136,11 +136,12 @@ failing test, the pytest output on stderr, writes nothing and exits 1. A
 failed provider exits 1; no provider, an unknown task or an existing module
 without ``--force`` exits 2.
 
-``seams suggest [--provider CMD]`` (M025/S01, backlog R2, ADR-0028) sends the
+``seams suggest [--provider CMD] [--llm-model NAME]`` (M025/S01, backlog R2, ADR-0028) sends the
 suggest-v1 prompt, built from every gateway whose conditions read a name no
 upstream decision outputs, to the provider command, and reads one
 ``condition-to-dmn`` JSON answer. It builds the change, checks it in a scratch
-copy and prints ``template``, ``provider``, ``model``, ``cache hit|miss``,
+copy and prints ``template``, ``provider``, ``llm-model`` (only when one is
+named, as for propose), ``model``, ``cache hit|miss``,
 ``suggestion <id>``, ``gateway <iri>``, one ``changed <file>`` per file and
 ``validated pass|fail`` and ``generated pass|fail (N outputs)``. A passing
 suggestion is stored pending under ``.seams/suggestions/<id>/``
@@ -156,12 +157,13 @@ change, writes it through seams_edit, prints ``accepted <id>`` and each
 written file, and removes the pending directory. An unknown ID or no provider
 exits 2.
 
-``seams draft-generator NAME --reference FILE [--provider CMD] [--out DIR]
-[--force]`` (M025/S02, backlog R3, ADR-0029) sends the draft-generator-v1
+``seams draft-generator NAME --reference FILE [--provider CMD] [--llm-model
+NAME] [--out DIR] [--force]`` (M025/S02, backlog R3, ADR-0029) sends the draft-generator-v1
 prompt (the reference, the model's names and the scaffolded package module, as
 quoted data) to the provider command, default ``[propose] provider``, and reads
 one JSON answer holding the extract step, template and golden. It prints
-``template``, ``provider``, ``prompt <sha256>`` and ``cache hit|miss``; when
+``template``, ``provider``, ``llm-model`` (only when one is named),
+``prompt <sha256>`` and ``cache hit|miss``; when
 the template restates no model label, holds no logic and the scaffold's golden
 test passes in a scratch copy, it writes the package and prints each written
 path. Any refusal (bad name, reference or non-empty DIR without ``--force``, no
@@ -335,11 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     prop.add_argument(
         "--provider", help="the provider command (prompt on stdin, draft on stdout); overrides seams.toml"
     )
-    prop.add_argument(
-        "--llm-model",
-        metavar="NAME",
-        help="the LLM model the provider is asked for (env SEAMS_LLM_MODEL); overrides seams.toml",
-    )
+    _llm_model_argument(prop)
     prop.add_argument("--force", action="store_true", help="replace an existing handlers module")
     prop.set_defaults(run=_propose)
     sug = sub.add_parser(
@@ -354,6 +352,7 @@ def build_parser() -> argparse.ArgumentParser:
     sug.add_argument(
         "--provider", help="the provider command (prompt on stdin, JSON answer on stdout); overrides seams.toml"
     )
+    _llm_model_argument(sug)
     action = sug.add_mutually_exclusive_group()
     action.add_argument("--list", action="store_true", help="list the pending suggestions, current or stale")
     action.add_argument("--accept", metavar="ID", help="apply the pending suggestion ID (or a unique prefix)")
@@ -374,6 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
     draft.add_argument(
         "--provider", help="the provider command (prompt on stdin, JSON answer on stdout); overrides seams.toml"
     )
+    _llm_model_argument(draft)
     draft.add_argument("--out", type=Path, help="the package directory, absent or empty (default: ./seams-<name>)")
     draft.add_argument("--force", action="store_true", help="write into a non-empty --out, replacing same-named files")
     draft.set_defaults(run=_draft_generator)
@@ -407,6 +407,14 @@ def _project_arguments(parser: argparse.ArgumentParser, *, path: bool = False) -
         help="seams.toml or a directory holding one (default: .)",
     )
     parser.add_argument("--model", type=Path, help="the model (.trig); overrides the project file and SEAMS_MODEL")
+
+
+def _llm_model_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--llm-model",
+        metavar="NAME",
+        help="the LLM model the provider is asked for (env SEAMS_LLM_MODEL); overrides seams.toml",
+    )
 
 
 def _fold_path(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
@@ -644,7 +652,7 @@ def _suggest(args: argparse.Namespace) -> int:
             return EXIT_IO_ERROR
         return _print_verdicts("accepted", accepted.id, accepted.verdicts, accepted.files)
     try:
-        result = suggest(project, args.model, args.provider)
+        result = suggest(project, args.model, args.provider, args.llm_model)
     except NothingToSuggest as err:
         print(f"seams suggest: nothing to suggest: {err}", file=sys.stderr)
         return 0
@@ -653,6 +661,8 @@ def _suggest(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
     print(f"template {result.template}")
     print(f"provider {result.provider}")
+    if result.llm_model is not None:
+        print(f"llm-model {result.llm_model}")
     print(f"model {result.model_hash}")
     print(f"cache {'hit' if result.cache_hit else 'miss'}")
     print(f"suggestion {result.id}")
@@ -687,12 +697,16 @@ def _print_verdicts(verb: str, what: str | None, verdicts: Verdicts, files: tupl
 def _draft_generator(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
-        result = draft_generator(project, args.name, args.reference, args.provider, args.out, args.force, args.model)
+        result = draft_generator(
+            project, args.name, args.reference, args.provider, args.out, args.force, args.model, args.llm_model
+        )
     except (DraftGeneratorError, ProjectError) as err:
         print(f"seams draft-generator: {err}", file=sys.stderr)
         return EXIT_IO_ERROR
     print(f"template {result.template}")
     print(f"provider {result.provider}")
+    if result.llm_model is not None:
+        print(f"llm-model {result.llm_model}")
     print(f"prompt {result.prompt_sha256}")
     print(f"cache {'hit' if result.cache_hit else 'miss'}")
     for path in result.written:

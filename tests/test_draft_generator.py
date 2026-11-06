@@ -9,6 +9,7 @@ a subprocess pytest, PYTHONPATH set to the package, as an author would.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import runpy
@@ -27,6 +28,7 @@ from seams_cli.draft_generator import (
     DraftGeneratorError,
     assemble,
     build_prompt,
+    cache_key,
     check_extract,
     check_template,
     draft_generator,
@@ -52,6 +54,20 @@ EXPECTED = [
 
 def _provider(name: str, *args: str) -> str:
     return shlex.join([sys.executable, str(FIXTURES / name), *args])
+
+
+# Appends the SEAMS_LLM_MODEL it was given (or "-") to its first argument, then
+# runs the fake provider named by the rest.
+_RECORD_LLM_MODEL = (
+    "import os, runpy, sys; "
+    "open(sys.argv[1], 'a').write(os.environ.get('SEAMS_LLM_MODEL', '-') + '\\n'); "
+    "sys.argv = sys.argv[2:]; sys.path.insert(0, os.path.dirname(sys.argv[0])); "
+    "runpy.run_path(sys.argv[0], run_name='__main__')"
+)
+
+
+def _recording(seen: Path, name: str, *args: str) -> str:
+    return shlex.join([sys.executable, "-c", _RECORD_LLM_MODEL, str(seen), str(FIXTURES / name), *args])
 
 
 @pytest.fixture(autouse=True)
@@ -219,6 +235,44 @@ def test_a_changed_model_misses_the_cache(app, tmp_path):
     assert not (tmp_path / "two").exists()
 
 
+def test_the_llm_model_reaches_the_provider_and_keys_the_cache(app, tmp_path):
+    seen = tmp_path / "seen"
+    provider = _recording(seen, "good_provider.py", str(tmp_path / "calls"))
+    first = draft_generator(load_project(app), "procs", REFERENCE, provider, tmp_path / "one", llm_model="model-a")
+    assert (first.cache_hit, first.llm_model) == (False, "model-a")
+    assert seen.read_text() == "model-a\n"
+    # The same model hits the cache: the provider, which fails when called again, is not run.
+    second = draft_generator(load_project(app), "procs", REFERENCE, provider, tmp_path / "two", llm_model="model-a")
+    assert second.cache_hit
+    assert _files(tmp_path / "one") == _files(tmp_path / "two")
+    # Another model, or none, misses it and calls the provider again.
+    for llm_model in ("model-b", None):
+        with pytest.raises(DraftGeneratorError, match="called again"):
+            draft_generator(load_project(app), "procs", REFERENCE, provider, tmp_path / "three", llm_model=llm_model)
+    assert seen.read_text() == "model-a\nmodel-b\n-\n"
+    assert not (tmp_path / "three").exists()
+    assert len(list((app / CACHE_DIR).iterdir())) == 1
+
+
+def test_the_cache_key_without_an_llm_model_is_unchanged():
+    key = hashlib.sha256("\n".join(("ref", "model", "tpl", "prov")).encode("utf-8")).hexdigest()
+    assert cache_key("ref", "model", "tpl", "prov") == key
+    assert cache_key("ref", "model", "tpl", "prov", "m") != key
+
+
+def test_the_project_llm_model_is_the_default_and_an_empty_one_is_refused(app, tmp_path):
+    seen = tmp_path / "seen"
+    (app / "seams.toml").write_text('model = "chat-app.trig"\n\n[propose]\nmodel = "from-toml"\n', encoding="utf-8")
+    done = draft_generator(
+        load_project(app), "procs", REFERENCE, _recording(seen, "good_provider.py"), tmp_path / "one"
+    )
+    assert done.llm_model == "from-toml"
+    assert seen.read_text() == "from-toml\n"
+    with pytest.raises(ProjectError, match="the LLM model name is empty"):
+        draft_generator(load_project(app), "procs", REFERENCE, _recording(seen, "good_provider.py"), llm_model="")
+    assert seen.read_text() == "from-toml\n"
+
+
 @pytest.mark.parametrize(
     ("variant", "message"),
     [
@@ -309,6 +363,15 @@ def test_the_command_prints_the_prompt_hash_cache_state_and_written_paths(app, t
     assert main([*argv, *provider, "--out", str(tmp_path / "two")]) == 0
     assert "cache hit" in capsys.readouterr().out.splitlines()
     assert (tmp_path / "calls").read_text() == "1"
+
+
+def test_the_command_prints_the_llm_model_after_the_provider(app, tmp_path, capsys):
+    argv = ["draft-generator", "procs", "--reference", str(REFERENCE), "--project", str(app)]
+    provider = _provider("good_provider.py")
+    assert main([*argv, "--provider", provider, "--llm-model", "model-a", "--out", str(tmp_path / "out")]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[1:3] == [f"provider {provider}", "llm-model model-a"]
+    assert lines[4] == "cache miss"
 
 
 def test_the_command_reports_failed_tests_on_stderr_and_exits_1(app, tmp_path, capsys):

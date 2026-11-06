@@ -18,7 +18,8 @@ with ``SEAMS_MODEL`` set to the project's model. Every refusal is a
 DraftGeneratorError naming the key, line, label or failed tests.
 
 ``draft_generator`` asks the provider (``propose.call_provider``) unless an
-accepted answer for the same reference, model, template and provider is cached
+accepted answer for the same reference, model, template, provider and LLM model
+label (``--llm-model``, else ``[propose] model``) is cached
 in ``.seams/generator-drafts/<key>.json`` below the project root, checks it,
 and only then caches it and writes the package with ``new_generator.write``.
 Nothing is written on failure.
@@ -49,7 +50,7 @@ from seams_gen.testing import MARKER
 from . import new_generator
 from .new_generator import COMMENT, NewGeneratorError
 from .project import Project, ProjectError, resolve_model
-from .propose import TEST_TIMEOUT, ProposeError, call_provider, extract_draft, quote
+from .propose import TEST_TIMEOUT, ProposeError, call_provider, extract_draft, quote, resolve_llm_model
 
 TEMPLATE_NAME = "draft-generator"
 TEMPLATE_VERSION = 1
@@ -103,7 +104,8 @@ class GeneratorPrompt:
 @dataclass(frozen=True)
 class DraftedGenerator:
     """What ``draft_generator`` did: the prompt's hash, whether the answer came
-    from the cache, and the package files written, sorted."""
+    from the cache, the package files written, sorted, and the LLM model label
+    the provider was asked for, if any."""
 
     name: str
     template: str
@@ -111,6 +113,7 @@ class DraftedGenerator:
     prompt_sha256: str
     cache_hit: bool
     written: tuple[Path, ...]
+    llm_model: str | None = None
 
 
 def _scaffold(name: str, reference: Path, extract: str | None = None) -> dict[str, str]:
@@ -282,9 +285,11 @@ def run_tests(files: dict[str, str], trig: Path) -> None:
     raise DraftGeneratorError("the drafted generator's tests failed:\n" + "\n".join(lines), failures)
 
 
-def cache_key(reference_hash: str, model_hash: str, template: str, provider: str) -> str:
-    text = "\n".join((reference_hash, model_hash, template, provider))
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+def cache_key(reference_hash: str, model_hash: str, template: str, provider: str, llm_model: str | None = None) -> str:
+    """The cache file stem. ``llm_model`` joins the key only when set, so keys
+    made without one are unchanged (ADR-0020 amendment)."""
+    parts = (reference_hash, model_hash, template, provider)
+    return hashlib.sha256("\n".join(parts if llm_model is None else (*parts, llm_model)).encode("utf-8")).hexdigest()
 
 
 def _accept(name: str, reference: Path, prompt: GeneratorPrompt, draft: Draft, trig: Path) -> dict[str, str]:
@@ -306,13 +311,16 @@ def draft_generator(
     out: Path | None = None,
     force: bool = False,
     model: Path | None = None,
+    llm_model: str | None = None,
 ) -> DraftedGenerator:
     """Draft, check and (on acceptance) write generator ``name`` from ``reference``
     on the project's model. ``force`` lets the package's files replace files of
-    the same path in a non-empty ``out``."""
+    the same path in a non-empty ``out``. ``llm_model`` is the LLM model label,
+    else the project's ``[propose] model`` (ADR-0020 amendment)."""
     provider = provider if provider is not None else project.provider
     if provider is None or not provider.strip():
         raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
+    llm_model = resolve_llm_model(project, llm_model)
     _scaffold(name, reference)
     out = new_generator.default_out(name) if out is None else out
     if not force:
@@ -328,14 +336,14 @@ def draft_generator(
     except Exception as err:
         raise ProjectError(f"{trig}: cannot load the model: {err}") from err
     prompt = build_prompt(name, reference, loaded)
-    key = cache_key(prompt.reference_hash, prompt.model_hash, prompt.template, provider)
+    key = cache_key(prompt.reference_hash, prompt.model_hash, prompt.template, provider, llm_model)
     cached = project.root / CACHE_DIR / f"{key}.json"
     cache_hit = cached.is_file()
     if cache_hit:
         response = cached.read_text(encoding="utf-8")
     else:
         try:
-            response = call_provider(provider, prompt.text, "answer")
+            response = call_provider(provider, prompt.text, "answer", model=llm_model)
         except ProposeError as err:
             raise DraftGeneratorError(str(err)) from None
     draft = parse_answer(response)
@@ -352,6 +360,7 @@ def draft_generator(
         prompt_sha256=prompt.sha256,
         cache_hit=cache_hit,
         written=tuple(written),
+        llm_model=llm_model,
     )
 
 

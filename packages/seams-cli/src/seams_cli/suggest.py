@@ -54,7 +54,7 @@ from seams_gen import GeneratorError
 from .check import ONTOLOGY_DIR, check_shapes, load_model, model_graph
 from .generate import generate_project, generator_inputs
 from .project import Project, ProjectError, load_project, resolve_model
-from .propose import cache_key, call_provider, extract_draft, quote
+from .propose import cache_key, call_provider, extract_draft, quote, resolve_llm_model
 
 #: The suggestion kinds this module builds (ADR-0028 section 3).
 KINDS = ("condition-to-dmn",)
@@ -958,7 +958,8 @@ class Suggested:
     """What ``suggest`` did. ``findings`` say why the answer was rejected (the
     ``suggestion`` kind for an answer the model does not allow); ``files`` are
     the changed files, relative to the project root; ``stored`` the pending
-    suggestion's directory, or None when it was rejected."""
+    suggestion's directory, or None when it was rejected; ``llm_model`` the LLM
+    model label the provider was asked for, if any."""
 
     id: str
     template: str
@@ -970,6 +971,7 @@ class Suggested:
     verdicts: Verdicts | None
     findings: tuple[ChangeFinding, ...]
     stored: str | None
+    llm_model: str | None = None
 
     @property
     def passed(self) -> bool:
@@ -1007,25 +1009,36 @@ def _store(project: Project, ident: str, record: Mapping[str, object], texts: It
     return target
 
 
-def suggest(project: Project, model: Path | None = None, provider: str | None = None) -> Suggested:
+def suggest(
+    project: Project, model: Path | None = None, provider: str | None = None, llm_model: str | None = None
+) -> Suggested:
     """Ask the provider for a suggestion, build and check its change, and store
-    it pending when it passes (ADR-0028 sections 1, 5 and 6).
+    it pending when it passes (ADR-0028 sections 1, 5 and 6). ``llm_model`` is
+    the LLM model label, else the project's ``[propose] model`` (ADR-0020
+    amendment).
 
-    The provider's answer is cached by (model hash, template, provider) once it
-    passes; a rejected answer is reported, and neither it nor anything else is
+    The provider's answer is cached by (model hash, template, provider[, LLM
+    model]) once it passes; a rejected answer is reported, and neither it nor anything else is
     written. ``ProposeError`` when the provider fails; ``NothingToSuggest`` when
     no gateway qualifies; ``ProjectError`` when no provider is set."""
     provider = provider if provider is not None else project.provider
     if provider is None or not provider.strip():
         raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
+    llm_model = resolve_llm_model(project, llm_model)
     trig = resolve_model(project, model)
     prompt = build_prompt(project, model)
-    cached = project.root / CACHE_DIR / f"{cache_key(prompt.model_hash, prompt.template, provider)}.txt"
+    cached = project.root / CACHE_DIR / f"{cache_key(prompt.model_hash, prompt.template, provider, llm_model)}.txt"
     cache_hit = cached.is_file()
-    response = cached.read_text(encoding="utf-8") if cache_hit else call_provider(provider, prompt.text, "suggestion")
+    response = (
+        cached.read_text(encoding="utf-8")
+        if cache_hit
+        else call_provider(provider, prompt.text, "suggestion", model=llm_model)
+    )
     ident = suggestion_id(prompt.model_hash, prompt.template, provider, response)
 
-    base = Suggested(ident, prompt.template, provider, prompt.model_hash, cache_hit, None, (), None, (), None)
+    base = Suggested(
+        ident, prompt.template, provider, prompt.model_hash, cache_hit, None, (), None, (), None, llm_model
+    )
     loaded = load_model(trig, ONTOLOGY_DIR)
     try:
         suggestion = parse_suggestion(loaded, extract_draft(response))
@@ -1052,6 +1065,8 @@ def suggest(project: Project, model: Path | None = None, provider: str | None = 
         "generated": verdicts.generated,
         "outputs": verdicts.outputs,
     }
+    if llm_model is not None:
+        record["llm_model"] = llm_model
     stored = _store(project, ident, record, texts)
     if not cache_hit:
         cached.parent.mkdir(parents=True, exist_ok=True)

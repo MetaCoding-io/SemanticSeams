@@ -197,7 +197,7 @@ schedules all of them except X10, which stays parked.*
 | X8 | **Rationale links**: ADRs and decisions name the elements they decide, so the inspector can say why an element exists. [UML note §3.7](research/2026-10-29-uml-coverage-and-gaps.md) | S | none | none if `dcterms:references` serves | proposed |
 | X9 | **Interchange exports**: the C4 layer as Structurizr DSL and LikeC4, and derived sequence and storm views as PlantUML beside Mermaid. Context Mapper stays with B5. [UML note §3.7](research/2026-10-29-uml-coverage-and-gaps.md) | S | none | none | proposed |
 | X10 | **Imports from OpenAPI, SQL DDL and compose files**: the enterprise persona's entry point, drafting a model that is flagged, not refused | L | X9 | none | parked: a v1 non-goal in the product brief; revisit after X9 and the storm import (X12) show what an import has to carry |
-| X11 | **Pinned providers and cached drafts**: `seams propose`, `suggest` and `draft-generator` record the provider and model, and cache a response by context hash so that a re-run is free and reproducible; decide whether to reuse SemPKM's copilot connection. Open questions in the [LLM](research/2026-10-31-llm-generator.md) and [data-centric](research/2026-10-31-data-centric-model-and-copilot.md) notes | S | C4, C5 | none | proposed |
+| X11 | **Pinned providers and cached drafts**: `seams propose`, `suggest` and `draft-generator` record the provider and model, and cache a response by context hash so that a re-run is free and reproducible; decide whether to reuse SemPKM's copilot connection. Open questions in the [LLM](research/2026-10-31-llm-generator.md) and [data-centric](research/2026-10-31-data-centric-model-and-copilot.md) notes | S | C4, C5 | none | done (M027/S05): `[propose] model` or `--llm-model` names the LLM model, passed as `SEAMS_LLM_MODEL`, keyed into all three caches and recorded in `seams.lock` drafts; SemPKM's copilot connection is not reused ([ADR-0020](adr/0020-llm-drafts.md) amendment) |
 | X12 | **Event-storm import**: read a big-picture storm into a model skeleton that is flagged, not refused, for missing paths and routes. Open question in the [DDD note](research/2026-11-02-domain-driven-design.md) | M | B4, I2 | none | proposed |
 | X13 | **Static completeness and overlap for `UNIQUE` DMN tables**: report gaps and overlapping rules at check time instead of at run time. Open question in the [generator kit note](research/2026-10-30-domain-ide-and-generator-kit.md). Done in M027/S04: `seams.table_findings` reads `-`, number comparisons, ranges, quoted strings and comma lists of these, reports each overlapping rule pair and the first uncovered input as `decision` findings in `seams check` and warnings in the viewer's health panel, and skips a table with any other entry | S | K2 | none | done |
 
@@ -593,7 +593,9 @@ UI work must not eat M3.*
       `Decimal` for them (A14). List event shape done, M027/S04: an `ifml:List` without
       exactly one `ifml:hasEvent` fails the seam shapes (K7). UNIQUE tables done, M027/S04:
       `seams check` and the viewer's health panel report overlapping rules and uncovered
-      inputs of `UNIQUE` DMN tables (X13).*
+      inputs of `UNIQUE` DMN tables (X13). Pinned models done, M027/S05: `seams propose`,
+      `suggest` and `draft-generator` name the LLM model with `[propose] model` or
+      `--llm-model`, key their caches by it and, for propose, record it in the lock (X11).*
     - **M028, Event Storm and Bounded Contexts** (B4, B1, B3, E6): the storm view first,
       then B1's ADR and vocabulary, lifecycle on the class, and chapter 11.
     - **M029, Context Maps and the DDD Profile** (B2, B5, X7, X6). Depends on M028.

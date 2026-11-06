@@ -398,6 +398,29 @@ never read. It exits 0 on success, 1 when the task is unknown, is not a
 stderr), and 2 on a project error or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-context).
 
+## seams cml
+
+```sh
+seams cml export examples/expenses/chapter-11
+seams cml export --project examples/expenses/chapter-11 --out build/context-map.cml
+seams cml import build/context-map.cml examples/expenses/chapter-11
+```
+
+It moves the context map between the model and Context Mapper DSL (CML), as
+[ADR-0034](../../docs/adr/0034-context-mapper-interchange.md) maps it (backlog
+B5, `cml.py`). PATH is a project or a model, or `--project` and `--model`
+choose it as for `seams generate`. `export` prints one `ContextMap` holding
+every `arch:BoundedContext` and one line per `arch:ContextRelationship`, sorted
+by IRI; `--out FILE` writes it to FILE instead, which `seams.lock` does not
+record. `import FILE` adds each CML relationship the model can hold through
+seams_edit, never removes a fact, and skips one the model already holds, so a
+re-imported export writes nothing. A construct with no mapping is flagged on
+stderr and skipped, and the exit code stays 0. It exits 1 when FILE cannot be
+parsed (the message names the line) or a file cannot be read or written, and 2
+on a project error, a model that cannot be loaded or a relationship that cannot
+be exported. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-cml).
+
 ## seams propose
 
 ```sh

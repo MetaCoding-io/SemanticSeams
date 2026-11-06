@@ -418,11 +418,16 @@ def _triggered(model: Model, processes: Many[Process]) -> dict[URIRef, Process]:
                 )
             if starts:
                 continue
+            with view_errors():
+                timed = any(t.is_start for t in process.timer_events())
+            if timed:
+                continue
             raise GeneratorError(
                 process.iri,
                 SEAM.triggers,
                 f"expected one triggering event submitting to one operation, found {[str(o) for o in ops.iris()]}"
-                ", and no proc:MessageCatchEvent start event seam:subscribesTo a comm:Channel (ADR-0010)",
+                ", no proc:MessageCatchEvent start event seam:subscribesTo a comm:Channel (ADR-0010)"
+                ", and no proc:TimerStartEvent (ADR-0037)",
             )
         op = ops[0].iri
         if op in found:

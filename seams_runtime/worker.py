@@ -98,6 +98,15 @@ is completed) and applies these rules to each BPMN element, in this order:
    serializer into the store, so ``Runtime.resume`` can continue it. The
    checkpoint also replaces the instance's open ``user_tasks`` rows with its
    READY manual tasks (none once it completes or fails).
+8a. Timers (ADR-0037): at each checkpoint every WAITING timer catch
+   (``Runtime.timers``) the instance has newly reached gets its due time from
+   the injected clock (``Timer.catch_due``), kept in
+   ``workflow.data["seams"]["timers"]`` and in the Spiff task, and never
+   recomputed. The checkpoint replaces the instance's catch rows in the
+   store's timer table with them (none once it completes or fails).
+   ``fire_timer`` marks a claimed timer fired; the element row of the timer
+   event that then runs records ``timer`` (its due time), and a cycle
+   boundary, whose own task keeps waiting, adds such a row when it fires.
 9. User tasks (``proc:UserTask``, manual in Spiff) are never stepped by the
    loop: the instance ends "waiting" on them. ``complete_user_task`` makes
    the person's validated payload the current entity of the task's output
@@ -133,6 +142,7 @@ from .errors import MODEL_MEMBERS, AggregateRolledBack, OperationError, Resoluti
 from .handlers import EndpointClient, EndpointError, HandlerError
 from .model import COMM, SEAM, ModelGraph, local_name
 from .telemetry import Telemetry
+from .timers import Clock, SystemClock, Timer, format_due, parse_due
 
 log = logging.getLogger(__name__)
 
@@ -226,6 +236,8 @@ class Worker:
         implementations: dict | None = None,
         http: EndpointClient | None = None,
         boundaries: dict | None = None,
+        timers: dict | None = None,
+        clock: Clock | None = None,
     ):
         self.model = model
         self.engine = engine
@@ -239,6 +251,10 @@ class Worker:
         self.http = http if http is not None else EndpointClient()
         # {(task IRI, errorCode): seams.ErrorBoundary}, from resolve_boundaries (ADR-0013)
         self.boundaries = boundaries if boundaries is not None else {}
+        # {event IRI: timers.Timer}, from resolve_timers (ADR-0037); only catches are armed here
+        self.timers = timers if timers is not None else {}
+        self.catches = any(not t.is_start for t in self.timers.values())
+        self.clock = clock if clock is not None else SystemClock()
         # Set by Runtime: called as on_published(instance, channel IRI) after
         # rule 6 publishes; returns [{process, instance}] for the trace row.
         self.on_published = None
@@ -278,9 +294,10 @@ class Worker:
         self._checkpoint(instance, status)
         if status == WAITING:
             log.info(
-                "instance %s waiting on user task(s) %s",
+                "instance %s waiting on user task(s) %s, timer(s) %s",
                 instance.id,
                 [t.task_spec.bpmn_id for t in self.open_user_tasks(wf)] or "(none)",
+                sorted(v["due"] for v in instance.state.get("timers", {}).values() if v["due"]) or "(none)",
             )
         return self._finish(instance, status)
 
@@ -348,6 +365,9 @@ class Worker:
     async def _dispatch(self, instance: Instance, task, iri, row: dict) -> None:
         """Rules 1-6 for one graph element, filling its trace ``row``."""
         st = instance.state
+        due = st.get("fired", {}).pop(str(task.id), None)
+        if due is not None:
+            row["timer"] = due  # 8a: the timer event that fired
 
         # 1. the fired transition must be enabled
         element = self.model.task_element(iri)
@@ -749,8 +769,62 @@ class Worker:
                 instance.id, instance.process, "{}", correlation_key=instance.correlation_key, status=FAILED
             )
             self.store.replace_user_tasks(instance.id, [])
+            if self.catches:
+                self.store.replace_timers(instance.id, [])
+
+    # ── timers (rule 8a) ──
+
+    def fire_timer(self, instance: Instance, task, timer: Timer, due: str, now) -> None:
+        """Mark the WAITING timer ``task`` fired at ``now`` for its row due at
+        ``due``; the caller checkpoints and runs the instance. A cycle
+        boundary fires its path once, for the latest due time at or before
+        ``now`` (the trace row's ``timer``), and is armed at its next one; the
+        due times it skipped are logged."""
+        st = instance.state
+        task_id = str(task.id)
+        if not timer.is_cycle:
+            self.engine.fire(task)
+            st.setdefault("fired", {})[task_id] = due
+            return
+        fired, skipped, following = timer.cycle_after(parse_due(due), now)
+        if skipped:
+            log.info("timer missed %s %d firing(s)", timer.event, skipped)
+        self.engine.fire_cycle(task, following)
+        armed = st.setdefault("timers", {})
+        armed[task_id] = {"event": str(timer.event), "due": None if following is None else format_due(following)}
+        st["trace"].append({"task": timer.bpmn_id, "iri": str(timer.event), "timer": format_due(fired)})
+
+    def _arm(self, instance: Instance, status: str) -> list[dict]:
+        """Rule 8a: the instance's timer catch rows, arming every WAITING
+        catch it has newly reached at the clock's now."""
+        st = instance.state
+        armed = st.setdefault("timers", {})
+        if status in (COMPLETE, FAILED):
+            armed.clear()
+            return []
+        waiting = {str(t.id): t for t in self.engine.waiting_timers(instance.workflow)}
+        for task_id in [k for k in armed if k not in waiting]:
+            del armed[task_id]
+        for task_id, task in waiting.items():
+            if task_id in armed:
+                continue
+            iri = self.engine.task_iri(task)
+            timer = self.timers.get(iri)
+            if timer is None or timer.is_start:
+                continue
+            at = timer.catch_due(self.clock.now())
+            armed[task_id] = {"event": str(iri), "due": None if at is None else format_due(at)}
+            if at is not None:
+                self.engine.set_due(task, at)
+                log.info("instance %s waits on timer %s due %s", instance.id, iri, armed[task_id]["due"])
+        return [
+            {"event": v["event"], "due": v["due"], "task_id": k}
+            for k, v in sorted(armed.items())
+            if v["due"] is not None
+        ]
 
     def _checkpoint(self, instance: Instance, status: str) -> None:
+        timers = self._arm(instance, status) if self.catches else None
         self.store.save_state(
             instance.id,
             instance.process,
@@ -771,6 +845,8 @@ class Worker:
                 for t in tasks
             ],
         )
+        if timers is not None:
+            self.store.replace_timers(instance.id, timers)
 
     def _finish(self, instance: Instance, status: str) -> dict:
         st = instance.state

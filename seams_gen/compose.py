@@ -35,7 +35,11 @@ From them it renders:
 - the ``seam:deployedTo`` node's placement constraint, only in the
   environment that ``arch:contains`` the node;
 - the project ``name:``, the arch:System's local name lower-cased, and a
-  header naming the model, its hash and the environment.
+  header naming the model, its hash and the environment;
+- above a container that ``seam:schedules`` processes (ADR-0037), one
+  comment naming them by IRI, sorted. The container's own runtime runs their
+  timer starts, so they add no service and no binding, and no timer
+  expression is read.
 
 The serving container (``seams_gen.fastapi.serving_containers``: it
 ``seam:executes`` a process or exposes an operation a UI event submits to,
@@ -155,7 +159,12 @@ class Service:
     has_declared_replicas: bool = False  # declared_replicas is set
     has_deploy: bool = False  # a deploy section: replicas or a placement
     iri: str = ""  # the container's full IRI, its origin in a generation trace (ADR-0019)
-    # the IRIs of the system, the processes it seam:executes, its placement
+    # the IRIs of the processes it seam:schedules, sorted (ADR-0037): the
+    # comment above the service; no service and no binding of their own
+    schedules: tuple[str, ...] = ()
+    schedules_text: str = ""  # schedules joined with ", "
+    # the IRIs of the system, the processes it seam:executes or
+    # seam:schedules, its placement
     # node and its deploy:proxies target, sorted: further trace origins
     origins: tuple[str, ...] = ()
 
@@ -389,6 +398,7 @@ def _service(
         depends = c.deploy_depends_on
         proxied = c.proxies
         executes = c.executes
+        scheduled = c.schedules
         systems = c.systems
     artifact = required(deployment.artifact, c.iri, DEPLOY.artifact)
     image = f"{artifact.reference}:{artifact.version}"
@@ -456,11 +466,14 @@ def _service(
             ) from err
         placement = _scalar(f"node.labels.seams.node == {node_label}")
 
-    origins = {str(x.iri) for x in (*systems, *executes)} | brought_in_by
+    schedules = tuple(sorted(str(p.iri) for p in scheduled))
+    origins = {str(x.iri) for x in (*systems, *executes, *scheduled)} | brought_in_by
     origins |= {str(x.iri) for x in (node if placement else None, proxied) if x is not None}
     return Service(
         iri=str(c.iri),
         origins=tuple(sorted(origins)),
+        schedules=schedules,
+        schedules_text=", ".join(schedules),
         name=local_name(c.iri),
         image=_scalar(image),
         ports=tuple(ports),

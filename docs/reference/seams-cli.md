@@ -285,7 +285,16 @@ pre-commit hook (D044):
    or user task puts in the task data, are `decision` findings: the subject IRI
    (the decision, or the sequence flow as `<bpmn model>#<flow id>`), the fact
    (the property, or the variable name) and a message.
-5. **Review.** Facts the model states twice or not at all (backlog R1,
+5. **Timers.** The checks the runtime makes on load for every lifted timer
+   ([ADR-0037](/adr/0037-timers-and-scheduling) section 2): the graph and the BPMN
+   XML agree, the expression is one quoted ISO 8601 literal of an accepted form
+   (no variable, cron string, date-time without an offset, zero duration or cycle
+   without a start), a cycle sits only on a timer start or a non-interrupting
+   boundary, no timer start holds a duration, and each timer-started process has
+   one `seam:schedules` container. The first refusal of each process is a `timer`
+   finding: the event (or process) IRI, the fact (`bpmn:timeCycle` and the like)
+   and the message, so a model the runtime would refuse fails here first.
+6. **Review.** Facts the model states twice or not at all (backlog R1,
    `seams.review_findings`): a `sh:in` list that copies the `rdfs:label`s of a
    lifecycle's states, a `sh:class` whose object is a `sh:NodeShape`, a
    `sh:NodeShape` with no `sh:targetClass` that is not itself a class, and a
@@ -293,7 +302,7 @@ pre-commit hook (D044):
    shape or path IRI, the fact (the `sh:path`, `sh:targetClass` or `sh:path`
    itself) and a message. Review findings are warnings: they print, but they
    never fail the check.
-6. **Ontology.** A class of a `seam:Ontology` model whose `rdfs:subClassOf`
+7. **Ontology.** A class of a `seam:Ontology` model whose `rdfs:subClassOf`
    target is declared neither in the ontology nor in a resolved import (a
    mistyped `gist:Transation`) is an `ontology-superclass` finding: the class
    IRI, `rdfs:subClassOf`, the target IRI and a message. It is a warning, since
@@ -302,7 +311,7 @@ pre-commit hook (D044):
    unknown IRI, or another gist version than the vendored one) is a
    `ResolutionError(<ontology>, owl:imports, …)` on load, so the model cannot be
    loaded and the check exits 2.
-7. **Profile**, only when the model attaches a domain profile with
+8. **Profile**, only when the model attaches a domain profile with
    `seam:conformsTo` ([ADR-0033](/adr/0033-ddd-profile) section 1). The profile is
    resolved from the model directory as the viewer resolves it
    (`seams.resolve_profile`), and the same union graph is validated against the
@@ -316,7 +325,7 @@ pre-commit hook (D044):
    (`seam:conformsTo` or `seam:profileShapes`) and detail. A model with no
    `seam:conformsTo` reads no profile file and prints nothing for this check.
    `seams generate` ignores profiles.
-8. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
+9. **Coverage**, only with `coverage = ["paths"]` in the project file. Each
    start-to-end BPMN path no `verify:Scenario` runs is a `coverage` finding:
    the process IRI, then the path's flow node IRIs (see
    [seams coverage](#seams-coverage)). The other two coverage reports are gate
@@ -334,6 +343,7 @@ pre-commit hook (D044):
 | `lock-out-of-date` | There is no `seams.lock`, or the lock generate would write differs from it. |
 | `flagged` | `seams.lock` records faults from `seams generate --lenient`; the detail is the lock path and `N fault(s)`. |
 | `decision` | A DMN typeRef disagrees with its input's sh:datatype, or a gateway condition reads a variable nothing upstream sets. |
+| `timer` | The runtime would refuse a timer: its expression, its placement or its scheduling container. |
 | `review` | A warning, not a problem: lifecycle labels copied into sh:in, sh:class pointing at a shape, a shape without sh:targetClass, or an undeclared sh:path. |
 | `ontology-superclass` | A warning, not a problem: an ontology class's superclass is declared neither in the ontology nor in a resolved import, a likely typo. |
 | `profile` | The model breaks a `sh:Violation` shape of its attached profile, or the profile cannot be resolved. |
@@ -367,7 +377,7 @@ unchanged. When the only findings are these advisory kinds,
 `ontology-superclass` and `review`, stderr says `seams check: N warning(s)` instead and the exit code is 0.
 
 `seams generate` fixes every output finding except `flagged`, which needs the
-model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`,
+model fixed and a strict `seams generate`. A `shacl`, `gate`, `decision`, `timer`,
 `review`, `ontology-superclass`, `profile`, `profile-warning` or `coverage` finding is
 fixed in the model (or, for an unresolvable profile, in its `profiles/` package).
 

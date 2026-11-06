@@ -1,6 +1,6 @@
 """Persistence for process state and entities: one ``Store`` interface, two backends.
 
-Three tables:
+Four tables:
 
 - ``workflow_state(instance_id PK, process, correlation_key, state, status, updated)``
   holds serialized Spiff workflows (``Engine.serialize`` output).
@@ -9,6 +9,16 @@ Three tables:
 - ``user_tasks(instance_id, task, bpmn_id, process, correlation_key, created)``
   holds one row per open BPMN user task (ADR-0009). The worker replaces an
   instance's rows at every checkpoint, so they are empty once it ends.
+- ``timers(kind, event, due, task_id, instance_id, holder, lease_until, created)``,
+  keyed by ``(event, due, task_id)``, holds the timer claims (ADR-0037). A
+  ``start`` row is a timer start's firing, ``task_id`` empty: the runtime
+  that inserts it (``claim_firing``) starts the instance, so a conflicting
+  insert means the firing is taken; only the latest firing of each event is
+  kept. A ``catch`` row is a timer an instance waits on, ``task_id`` the Spiff
+  task: the checkpoint replaces an instance's rows (``replace_timers``), a
+  runtime takes a due one with a lease (``lease_timer``) and deletes it while
+  the lease still holds (``release_timer``). ``due`` is UTC text,
+  ``YYYY-MM-DDTHH:MM:SSZ``, so it compares as text.
 
 ``SQLiteStore`` keeps them in an embedded SQLite file (stdlib sqlite3).
 ``PostgresStore`` keeps them in PostgreSQL (psycopg 3): ``data`` is jsonb, the
@@ -23,7 +33,7 @@ its writes commit when the block exits normally or all roll back when it
 raises. A ``transaction()`` inside another joins the outer one.
 
 ``SplitStore`` puts a relational store in front of an entity backend
-(``sempkm.SemPKMStore``, ADR-0025): process state, user tasks and the entities
+(``sempkm.SemPKMStore``, ADR-0025): process state, user tasks, timers and the entities
 of every other shape stay relational, while the data of the entity backend's
 shapes lives only there. For each of those entities the relational
 ``entities`` table keeps an index row, ``id`` the backend's IRI and ``data``
@@ -52,6 +62,7 @@ log = logging.getLogger(__name__)
 _INSTANCE_COLUMNS = "instance_id, process, correlation_key, status, updated"
 _ENTITY_COLUMNS = "id, shape, correlation_key, instance_id, data, status, created"
 _USER_TASK_COLUMNS = "instance_id, task, bpmn_id, process, correlation_key, created"
+_TIMER_COLUMNS = "kind, event, due, task_id, instance_id, holder, lease_until, created"
 
 
 @runtime_checkable
@@ -96,6 +107,24 @@ class Store(Protocol):
     def transaction(self) -> AbstractContextManager[None]:
         """One all-or-nothing unit of this thread's writes (ADR-0035)."""
         ...
+
+    # ── timer claims (ADR-0037) ──
+
+    def claim_firing(self, event, due: str, instance_id: str) -> bool:
+        """Insert the firing row of timer start ``event`` at ``due``; False when it exists."""
+        ...
+
+    def last_firing(self, event) -> str | None: ...
+
+    def replace_timers(self, instance_id: str, rows) -> None: ...
+
+    def due_timers(self, due: str, now: float) -> list[dict]: ...
+
+    def lease_timer(self, event, due: str, task_id: str, holder: str, until: float, now: float) -> bool: ...
+
+    def release_timer(self, event, due: str, task_id: str, holder: str, now: float) -> bool: ...
+
+    def list_timers(self) -> list[dict]: ...
 
 
 def redact(url: str) -> str:
@@ -168,6 +197,19 @@ CREATE TABLE IF NOT EXISTS user_tasks(
     PRIMARY KEY (instance_id, task)
 );
 CREATE INDEX IF NOT EXISTS user_tasks_task_ck ON user_tasks(task, correlation_key);
+CREATE TABLE IF NOT EXISTS timers(
+    kind TEXT NOT NULL,
+    event TEXT NOT NULL,
+    due TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    instance_id TEXT NOT NULL,
+    holder TEXT,
+    lease_until REAL,
+    created REAL NOT NULL,
+    PRIMARY KEY (event, due, task_id)
+);
+CREATE INDEX IF NOT EXISTS timers_kind_due ON timers(kind, due);
+CREATE INDEX IF NOT EXISTS timers_instance ON timers(instance_id);
 """
 
 
@@ -361,6 +403,81 @@ class SQLiteStore:
         )
         return dict(rows[0]) if rows else None
 
+    # ── timer claims (ADR-0037) ──
+
+    def claim_firing(self, event, due: str, instance_id: str) -> bool:
+        """Insert the firing row of timer start ``event`` at ``due`` for
+        ``instance_id`` and drop its older firings. False, changing nothing,
+        when the row exists: another runtime has the firing."""
+        with self._session() as con:
+            cur = con.execute(
+                f"INSERT OR IGNORE INTO timers({_TIMER_COLUMNS}) VALUES ('start', ?, ?, '', ?, NULL, NULL, ?)",
+                (str(event), due, str(instance_id), time.time()),
+            )
+            if cur.rowcount != 1:
+                return False
+            con.execute("DELETE FROM timers WHERE kind = 'start' AND event = ? AND due < ?", (str(event), due))
+        return True
+
+    def last_firing(self, event) -> str | None:
+        """The due time of timer start ``event``'s latest firing, or None."""
+        rows = self._read("SELECT max(due) AS due FROM timers WHERE kind = 'start' AND event = ?", (str(event),))
+        return rows[0]["due"] if rows else None
+
+    def replace_timers(self, instance_id: str, rows) -> None:
+        """Make ``rows`` (dicts with event, due, task_id) the timers the
+        instance waits on. A row that stays keeps its lease; an empty ``rows``
+        clears the instance."""
+        instance_id = str(instance_id)
+        wanted = {(str(r["event"]), str(r["due"]), str(r["task_id"])) for r in rows}
+        with self._session() as con:
+            have = {
+                (r["event"], r["due"], r["task_id"])
+                for r in con.execute(
+                    "SELECT event, due, task_id FROM timers WHERE kind = 'catch' AND instance_id = ?", (instance_id,)
+                )
+            }
+            con.executemany("DELETE FROM timers WHERE event = ? AND due = ? AND task_id = ?", sorted(have - wanted))
+            con.executemany(
+                f"INSERT OR IGNORE INTO timers({_TIMER_COLUMNS}) VALUES ('catch', ?, ?, ?, ?, NULL, NULL, ?)",
+                [(e, d, t, instance_id, time.time()) for e, d, t in sorted(wanted - have)],
+            )
+
+    def due_timers(self, due: str, now: float) -> list[dict]:
+        """Catch rows due at or before ``due`` that no lease holds at ``now``, by (due, event, task_id)."""
+        return [
+            dict(r)
+            for r in self._read(
+                f"SELECT {_TIMER_COLUMNS} FROM timers WHERE kind = 'catch' AND due <= ? "
+                "AND (holder IS NULL OR lease_until < ?) ORDER BY due, event, task_id",
+                (due, now),
+            )
+        ]
+
+    def lease_timer(self, event, due: str, task_id: str, holder: str, until: float, now: float) -> bool:
+        """Give ``holder`` the catch row until ``until`` if no lease holds it at ``now``."""
+        with self._session() as con:
+            cur = con.execute(
+                "UPDATE timers SET holder = ?, lease_until = ? WHERE kind = 'catch' AND event = ? AND due = ? "
+                "AND task_id = ? AND (holder IS NULL OR lease_until < ?)",
+                (holder, until, str(event), due, task_id, now),
+            )
+            return cur.rowcount == 1
+
+    def release_timer(self, event, due: str, task_id: str, holder: str, now: float) -> bool:
+        """Delete the catch row if ``holder``'s lease still holds at ``now``."""
+        with self._session() as con:
+            cur = con.execute(
+                "DELETE FROM timers WHERE kind = 'catch' AND event = ? AND due = ? AND task_id = ? "
+                "AND holder = ? AND lease_until >= ?",
+                (str(event), due, task_id, holder, now),
+            )
+            return cur.rowcount == 1
+
+    def list_timers(self) -> list[dict]:
+        """Every timer row, by (kind, due, event, task_id)."""
+        return [dict(r) for r in self._read(f"SELECT {_TIMER_COLUMNS} FROM timers ORDER BY kind, due, event, task_id")]
+
 
 def _sqlite_entity(row: sqlite3.Row) -> dict:
     out = dict(row)
@@ -403,6 +520,19 @@ _POSTGRES_SCHEMA = (
     PRIMARY KEY (instance_id, task)
 )""",
     "CREATE INDEX IF NOT EXISTS user_tasks_task_ck ON user_tasks(task, correlation_key)",
+    """CREATE TABLE IF NOT EXISTS timers(
+    kind TEXT NOT NULL,
+    event TEXT NOT NULL,
+    due TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    instance_id TEXT NOT NULL,
+    holder TEXT,
+    lease_until DOUBLE PRECISION,
+    created DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (event, due, task_id)
+)""",
+    "CREATE INDEX IF NOT EXISTS timers_kind_due ON timers(kind, due)",
+    "CREATE INDEX IF NOT EXISTS timers_instance ON timers(instance_id)",
 )
 
 # Serialises schema creation across runtimes starting together on one database:
@@ -595,6 +725,86 @@ class PostgresStore:
         )
         return rows[0] if rows else None
 
+    # ── timer claims (ADR-0037) ──
+
+    def claim_firing(self, event, due: str, instance_id: str) -> bool:
+        """Insert the firing row of timer start ``event`` at ``due`` for
+        ``instance_id`` and drop its older firings. False, changing nothing,
+        when the row exists: another runtime has the firing."""
+        with self._session() as con:
+            cur = con.execute(
+                f"INSERT INTO timers({_TIMER_COLUMNS}) VALUES ('start', %s, %s, '', %s, NULL, NULL, %s) "
+                "ON CONFLICT (event, due, task_id) DO NOTHING",
+                (str(event), due, str(instance_id), time.time()),
+            )
+            if cur.rowcount != 1:
+                return False
+            con.execute("DELETE FROM timers WHERE kind = 'start' AND event = %s AND due < %s", (str(event), due))
+        return True
+
+    def last_firing(self, event) -> str | None:
+        """The due time of timer start ``event``'s latest firing, or None."""
+        rows = self._read("SELECT max(due) AS due FROM timers WHERE kind = 'start' AND event = %s", (str(event),))
+        return rows[0]["due"] if rows else None
+
+    def replace_timers(self, instance_id: str, rows) -> None:
+        """Make ``rows`` (dicts with event, due, task_id) the timers the
+        instance waits on. A row that stays keeps its lease; an empty ``rows``
+        clears the instance."""
+        instance_id = str(instance_id)
+        wanted = {(str(r["event"]), str(r["due"]), str(r["task_id"])) for r in rows}
+        with self._session() as con:
+            have = {
+                (r["event"], r["due"], r["task_id"])
+                for r in con.execute(
+                    "SELECT event, due, task_id FROM timers WHERE kind = 'catch' AND instance_id = %s", (instance_id,)
+                )
+            }
+            gone, added = sorted(have - wanted), sorted(wanted - have)
+            with con.cursor() as cur:
+                if gone:
+                    cur.executemany("DELETE FROM timers WHERE event = %s AND due = %s AND task_id = %s", gone)
+                if added:
+                    cur.executemany(
+                        f"INSERT INTO timers({_TIMER_COLUMNS}) VALUES ('catch', %s, %s, %s, %s, NULL, NULL, %s) "
+                        "ON CONFLICT (event, due, task_id) DO NOTHING",
+                        [(e, d, t, instance_id, time.time()) for e, d, t in added],
+                    )
+
+    def due_timers(self, due: str, now: float) -> list[dict]:
+        """Catch rows due at or before ``due`` that no lease holds at ``now``, by (due, event, task_id)."""
+        return list(
+            self._read(
+                f"SELECT {_TIMER_COLUMNS} FROM timers WHERE kind = 'catch' AND due <= %s "
+                "AND (holder IS NULL OR lease_until < %s) ORDER BY due, event, task_id",
+                (due, now),
+            )
+        )
+
+    def lease_timer(self, event, due: str, task_id: str, holder: str, until: float, now: float) -> bool:
+        """Give ``holder`` the catch row until ``until`` if no lease holds it at ``now``."""
+        with self._session() as con:
+            cur = con.execute(
+                "UPDATE timers SET holder = %s, lease_until = %s WHERE kind = 'catch' AND event = %s AND due = %s "
+                "AND task_id = %s AND (holder IS NULL OR lease_until < %s)",
+                (holder, until, str(event), due, task_id, now),
+            )
+            return cur.rowcount == 1
+
+    def release_timer(self, event, due: str, task_id: str, holder: str, now: float) -> bool:
+        """Delete the catch row if ``holder``'s lease still holds at ``now``."""
+        with self._session() as con:
+            cur = con.execute(
+                "DELETE FROM timers WHERE kind = 'catch' AND event = %s AND due = %s AND task_id = %s "
+                "AND holder = %s AND lease_until >= %s",
+                (str(event), due, task_id, holder, now),
+            )
+            return cur.rowcount == 1
+
+    def list_timers(self) -> list[dict]:
+        """Every timer row, by (kind, due, event, task_id)."""
+        return list(self._read(f"SELECT {_TIMER_COLUMNS} FROM timers ORDER BY kind, due, event, task_id"))
+
 
 def _postgres_entity(row: dict) -> dict:
     # jsonb reorders object keys; re-sorting gives the sort_keys order SQLite stored.
@@ -645,6 +855,29 @@ class SplitStore:
 
     def get_user_task(self, task_iri, correlation_key: str) -> dict | None:
         return self.relational.get_user_task(task_iri, correlation_key)
+
+    # ── timer claims: relational ──
+
+    def claim_firing(self, event, due: str, instance_id: str) -> bool:
+        return self.relational.claim_firing(event, due, instance_id)
+
+    def last_firing(self, event) -> str | None:
+        return self.relational.last_firing(event)
+
+    def replace_timers(self, instance_id: str, rows) -> None:
+        self.relational.replace_timers(instance_id, rows)
+
+    def due_timers(self, due: str, now: float) -> list[dict]:
+        return self.relational.due_timers(due, now)
+
+    def lease_timer(self, event, due: str, task_id: str, holder: str, until: float, now: float) -> bool:
+        return self.relational.lease_timer(event, due, task_id, holder, until, now)
+
+    def release_timer(self, event, due: str, task_id: str, holder: str, now: float) -> bool:
+        return self.relational.release_timer(event, due, task_id, holder, now)
+
+    def list_timers(self) -> list[dict]:
+        return self.relational.list_timers()
 
     def transaction(self) -> AbstractContextManager[None]:
         """The relational store's transaction. ``Runtime.load`` refuses an

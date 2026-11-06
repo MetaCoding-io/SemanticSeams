@@ -26,7 +26,9 @@ app needs but no generated handler holds:
   its generated form partial (the row's ``partial``, given ``task=row``).
   JSON (``{"identity": ..., "tasks": [...]}``) when the request accepts
   ``application/json``; 401 without an identity;
-- a startup seed from the JSON file ``SEAMS_SEED`` names (``seed_store``).
+- a startup seed from the JSON file ``SEAMS_SEED`` names (``seed_store``);
+- the runtime's timer scheduler (ADR-0037), started at startup and stopped at
+  shutdown (``Runtime.start_scheduler``; nothing runs for a model without timers).
 
 Nothing here names a model term: the page, its path and its blocks, and
 each task's form partial, come from the graph.
@@ -190,7 +192,11 @@ def build_app(routes_path) -> FastAPI:
         seed = os.environ.get(SEED_ENV)
         if seed:
             seed_store(runtime, seed)
-        yield
+        runtime.start_scheduler()  # ADR-0037: a no-op for a model without timers
+        try:
+            yield
+        finally:
+            await runtime.stop_scheduler()
 
     app = FastAPI(title=runtime.model.label(page), lifespan=lifespan)
     app.state.module = module

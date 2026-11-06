@@ -39,6 +39,12 @@ One span per data-health report (ADR-0036), ``seams.data_health``, with
 ``seams.profile.iri`` and ``seams.data_health.count``, the number of
 findings; a report that raises records the exception.
 
+Two spans per timer firing (ADR-0037): ``seams.timer.claim`` around the claim
+transaction and ``seams.timer.fire`` around the start or wake, each with
+``seams.timer.event``, ``seams.timer.due`` and, once it is known,
+``seams.instance.id``. An element span whose row records ``timer`` (the timer
+event that fired) carries ``seams.timer.due``.
+
 Spans mirror the trace rows; the rows stay the record ``seams sequence
 --trace`` renders. Nothing here imports opentelemetry until tracing is on.
 """
@@ -68,6 +74,7 @@ _ROW_ATTRIBUTES = {
     "by": "seams.by",
     "boundary": "seams.boundary",
     "caught": "seams.caught",
+    "timer": "seams.timer.due",
 }
 
 
@@ -76,6 +83,9 @@ class _NoSpan:
         pass
 
     def count(self, n: int) -> None:
+        pass
+
+    def instance(self, instance_id: str) -> None:
         pass
 
 
@@ -150,6 +160,18 @@ class Telemetry:
         with self.tracer.start_as_current_span("seams.data_health", attributes=attrs) as span:
             yield _SpanHandle(span)
 
+    @contextmanager
+    def timer_span(self, name: str, event, due: str):
+        """A ``seams.timer.claim`` or ``seams.timer.fire`` span for timer
+        ``event`` due at ``due``. Yields a handle whose ``instance(id)`` sets
+        ``seams.instance.id``; an exception is recorded."""
+        if self.tracer is None:
+            yield _NoSpan()
+            return
+        attrs = {"seams.timer.event": str(event), "seams.timer.due": due}
+        with self.tracer.start_as_current_span(name, attributes=attrs) as span:
+            yield _SpanHandle(span)
+
     def shutdown(self) -> None:
         if self.provider is not None:
             self.provider.shutdown()
@@ -169,6 +191,9 @@ class _SpanHandle:
 
     def count(self, n: int) -> None:
         self.span.set_attribute("seams.data_health.count", n)
+
+    def instance(self, instance_id: str) -> None:
+        self.span.set_attribute("seams.instance.id", instance_id)
 
 
 def _instance_attributes(instance) -> dict:

@@ -33,13 +33,14 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 
 | Call | What it does |
 |---|---|
-| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None, handlers=None, http_transport=None, http_base_url=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Resolves every invoked operation's implementation and imports the Python handlers (see [Operation implementations](#operation-implementations)); `runtime.implementations` maps each operation IRI to `(Implementation or None, callable or None)`. Resolves every lifted error boundary against the BPMN XML (see [Error boundaries](#error-boundaries)); `runtime.boundaries` maps `(task IRI, errorCode)` to its `seams.ErrorBoundary`. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). |
+| `Runtime.load(trig_path, model_hash=None, *, allow_hash_mismatch=False, db_path=None, authenticator=None, evaluator=None, llm_transport=None, llm_base_url=None, templates_dir=None, store=None, telemetry=None, handlers=None, http_transport=None, http_base_url=None, clock=None)` | Loads the model (`SEAMS_MODEL`, if set, replaces `trig_path`). Raises `ModelHashMismatch` when `model_hash` differs from the model on disk (TriG plus every `seam:renderPayload`), unless the mismatch is allowed. Resolves every invoked operation's implementation and imports the Python handlers (see [Operation implementations](#operation-implementations)); `runtime.implementations` maps each operation IRI to `(Implementation or None, callable or None)`. Resolves every lifted error boundary against the BPMN XML (see [Error boundaries](#error-boundaries)); `runtime.boundaries` maps `(task IRI, errorCode)` to its `seams.ErrorBoundary`. Resolves and checks every lifted timer and its expression (see [Timers](#timers-adr-0037)); `runtime.timers` maps each event IRI to its `timers.Timer`. Then opens the store the model declares (see [Store selection](#store-selection)) and keeps the resolved `StorePlan` as `runtime.store_plan`. `store=` injects a backend instead (the plan is still resolved, and a kind that differs from the declared one logs a WARNING). `telemetry=` injects a `Telemetry` (tests use one on a local `TracerProvider`); by default `tracer_from_env()` builds it, see [Tracing](#tracing-opentelemetry). `clock=` injects the scheduler's clock; by default it is the system clock plus any `SEAMS_CLOCK_OFFSET`. |
 | `runtime.policy(":user_send_policy")` | A FastAPI dependency. It authenticates the request and evaluates the ODRL policy, answering 401 (no identity) or 403 (denied) with `PolicyDenied.to_dict()`. |
 | `runtime.validate(":MessageShape", payload)` | Closed-world SHACL validation. Returns the normalised dict or raises `ContractViolation` (422). In form input an empty field counts as absent. Payload keys and a result's `path` are field names (`Field.name`: the property's `sh:name`, else its `sh:path` local name, [ADR-0023](../docs/adr/0023-shapes-target-classes.md)). The contract graph (`contracts.shape_contract`) is the shape lowered to the wire: no `sh:targetClass`; a category field (`sh:class` of a `gist:Category` subclass, or `sh:in` of IRIs) becomes `sh:datatype xsd:string` with `sh:in` of its members' labels in option order; a flattened `sh:node` field becomes a plain property on its outer path with the free property's value constraints. A migrated shape therefore gives the same normalised payload and the same 422 results as the string list or flat path it replaces. A `Decimal` value (a handler's `xsd:decimal`) is normalised to its plain lexical form, so stored state stays JSON; a NaN or infinite one is a `DatatypeConstraintComponent` violation. A fault the typed view names (an empty category, an ambiguous `sh:node`) raises its `ResolutionError` when the contract is first built. |
 | `await runtime.start_process(":send_message_process", payload, correlation_key=...)` | Re-validates the payload against the `seam:acceptsShape` of the operation that the process's triggering event `seam:submitsTo`, checkpoints a new instance and runs the worker as an asyncio task. Returns an `Instance` at once. `await instance.wait()` returns the result dict: status, lifecycle, history, variables, entities, trace and error. |
 | `await runtime.start_subscribed(":payout_process", correlation_key, current, status)` | Starts a channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md)): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel. The instance gets the correlation key and a copy of `current` (entities by shape IRI, ids kept) and `status` (status by shape IRI). Nothing is re-validated. It is checkpointed before its worker task runs. Rule 6a calls this for you; a process that is not channel-started raises `ResolutionError(process, seam:subscribesTo)`. |
 | `runtime.fail_operation(correlation_key, ":notify_manager_op", "notify-failed")` | From now on, every instance with that correlation key that invokes the operation fails it with that declared error instead of calling its implementation (worker rule 3b), so the run takes the error boundary that catches it. This is what a scenario's `verify:failure` asks for (ADR-0014 as amended); the trace row records `failed`. A code that is not the `comm:errorCode` of one of the operation's errors raises `ResolutionError(operation, comm:errorCode)`. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
+| `runtime.start_scheduler()` / `await runtime.stop_scheduler()` | Starts and stops the timer scheduler loop on the running event loop (see [Timers](#timers-adr-0037)). The host calls both. Starting twice runs one loop; a model without timers has no scheduler (`runtime.scheduler` is `None`) and nothing runs. |
 | `await runtime.receive_webhook(":vendor_changes", body)` | Handles one SemPKM webhook delivery, the raw request body, on a channel whose `comm:transport` is `comm:SemPKMWebhook` ([ADR-0027](../docs/adr/0027-sempkm-webhook-channel.md)). It returns a `JSONResponse`: 202 with `started` and `skipped`, or problem+json naming the channel. See [SemPKM webhooks](#sempkm-webhooks-adr-0027). A generated webhook route only calls this. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id (the IRI SemPKM mints, for a shape stored in a SemPKM store) and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
 | `runtime.write_aggregate(":Order", {":OrderShape": order, ":LineShape": line})` | Writes one new entity per member shape of an aggregate, all or none ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). The keys are `seam:aggregateMember` shapes of the aggregate (CURIE or IRI), and each payload follows `write`'s rules (the `:id` convention, the initial status). Every payload is validated first: a `ContractViolation` (422) stores nothing. The entities are then written in member-IRI order inside one `store.transaction()`, and the stored rows come back keyed by shape IRI. A store failure rolls them all back and raises `AggregateRolledBack` naming the aggregate, the failing shape and the cause (chained), with the cause's HTTP status or 500. A shape that is not a member, an empty mapping or an aggregate that names no members raises `ResolutionError(shape or aggregate, seam:aggregateMember)`. |
@@ -107,8 +108,8 @@ hold the model's data and call these, so they stay thin:
 
 ## Store
 
-`seams_runtime.store` holds process state, entities and open user tasks in three
-tables: `workflow_state`, `entities` and `user_tasks`. `Store` is a `typing.Protocol`
+`seams_runtime.store` holds process state, entities, open user tasks and timer claims
+in four tables: `workflow_state`, `entities`, `user_tasks` and `timers`. `Store` is a `typing.Protocol`
 (runtime-checkable) with two backends, both exported from `seams_runtime`:
 
 | Backend | `kind` | `location` | Notes |
@@ -132,6 +133,10 @@ operation opens and closes its own connection, and every statement is parameteri
 | `replace_user_tasks(instance_id, rows)` | Makes `rows` the instance's open user tasks. A task that was already open keeps its `created`, and an empty list clears the instance. On PostgreSQL an advisory lock per instance serialises concurrent replacements. |
 | `list_user_tasks()` / `get_user_task(task, correlation_key)` | Every open user task, oldest first. `get_user_task` returns the newest open row of the task for that key, or `None`. |
 | `transaction()` | A context manager, one all-or-nothing unit of writes ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). Inside `with store.transaction():`, every call on that store from the calling thread uses one connection, reads included, so they see the block's writes. The writes commit when the block exits normally and all roll back when it raises; the exception propagates unchanged. A nested `transaction()` joins the outer one. `SQLiteStore` starts it with `BEGIN IMMEDIATE`, taking the write lock up front, so two concurrent transactions wait on each other (up to `timeout`) instead of failing halfway. `PostgresStore` holds one connection whose `with` block is the transaction. `SplitStore` delegates to its relational store. |
+| `claim_firing(event, due, instance_id)` / `last_firing(event)` | Timer start firings ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)). `claim_firing` inserts the row `(event, due)` and returns `True`, dropping the event's older firings, or returns `False` and changes nothing when the row exists: another runtime has the firing. `last_firing` is the due time of the event's latest firing, or `None`. |
+| `replace_timers(instance_id, rows)` | Makes `rows` (`event`, `due`, `task_id`) the timer catches the instance waits on. A row that stays keeps its lease, and an empty list clears the instance. |
+| `due_timers(due, now)` / `lease_timer(event, due, task_id, holder, until, now)` / `release_timer(event, due, task_id, holder, now)` | Catch rows due at or before `due` that no lease holds at `now` (epoch seconds), by due time. `lease_timer` gives `holder` the row until `until` if no other lease holds it at `now`. `release_timer` deletes it only while `holder`'s lease still holds at `now`. Each returns whether it changed the row. |
+| `list_timers()` | Every timer row (`kind` is `start` or `catch`, then `event`, `due`, `task_id`, `instance_id`, `holder`, `lease_until`, `created`). |
 
 `seams_runtime.store.redact(url)` replaces the password in a URL, in a `password` query
 parameter or in a libpq `password=` keyword string with `***`. `location`, `repr()` and
@@ -344,6 +349,9 @@ It includes `module.router` and adds:
   `sh:path` of the shape becomes the correlation key. Ids that are already stored are
   skipped, so seeding is idempotent. A bad item fails startup with a `ContractViolation`
   whose `focus` is `<file>#<shape>[<index>] id '<id>'`.
+- the timer scheduler ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)), started
+  at startup and stopped at shutdown (`runtime.start_scheduler`); a model without timers
+  runs none. See [Timers](#timers-adr-0037).
 
 - `GET /tasks`, the task inbox (ADR-0009). It authenticates the request with
   `runtime.hook.authenticate` and lists `runtime.user_tasks(identity)`: the open user
@@ -417,6 +425,10 @@ The worker (`worker.py`) applies these rules to each BPMN element:
    PostgreSQL, whichever `Runtime.load` selected). The checkpoint also
    replaces the instance's rows in the `user_tasks` table with its open user tasks, so
    the rows are empty once it completes or fails.
+   8a. With timers in the model, the checkpoint first arms every timer catch the
+   instance has newly reached: its due time comes from the injected clock and is kept
+   in the Spiff task and `workflow.data["seams"]["timers"]`. It then replaces the
+   instance's catch rows in the `timers` table (see [Timers](#timers-adr-0037)).
 9. User tasks are not run by the loop. The instance ends `waiting` on them, and the log
    names them. `complete_task` finishes one with the person's payload, applying rules
    1 and 3 to 6 to it with the completing identity as the trace row's `by`.
@@ -553,6 +565,75 @@ fails it with `ResolutionError(operation, comm:errorCode)` (and `code`), and a b
 violates the error shape with a `ContractViolation` whose `operation` is the status.
 Any other exception, or any other non-2xx answer, fails the instance unchanged.
 
+## Timers (ADR-0037)
+
+[ADR-0037](../docs/adr/0037-timers-and-scheduling.md): a BPMN timer event is lifted as a
+`proc:TimerStartEvent` (a process start event) or a `proc:TimerCatchEvent` (an
+intermediate catch event, or a boundary on a `proc:UserTask`, interrupting or not). Its
+expression stays in the XML. Spiff parses timers but fires one only when it is refreshed
+after its due time, by the host's clock. `seams_runtime.timers` decides when each one is
+due and claims every firing in the store.
+
+**At load** (`resolve_timers`, before the store opens) every process's
+`Process.timer_events()` joins each lifted timer to the XML (a disagreement raises
+`ResolutionError(<event>, bpmn:timerEventDefinition)`), and `check_timer` parses its one
+expression. The body must be one quoted ISO 8601 string literal, which Spiff's script
+engine reads as written:
+
+| Element | Accepted | Refused, for example |
+|---|---|---|
+| `bpmn:timeDate` | a date-time with `Z` or an offset: `"2026-12-01T09:00:00Z"` | no offset, a variable, an unquoted value, an empty body |
+| `bpmn:timeDuration` | a positive `PnYnMnDTnHnMnS` or `PnW` of whole numbers: `"PT48H"` | `"PT0S"`, `"-P1D"`, `"PT1.5H"`; any duration on a timer start, whose firing would count from when a runtime started |
+| `bpmn:timeCycle` | `R[n]/<date-time>/<duration>`: `"R/2026-11-09T08:00:00Z/P1D"`, only on a timer start or a non-interrupting boundary | `"R/P1D"` (no start), `<start>/<end>`, `<duration>/<end>`, `R0`, a cron string |
+
+A refusal is `ResolutionError(<event>, bpmn:timeDate | bpmn:timeDuration | bpmn:timeCycle,
+<detail>)`, for example `cycle has no start date-time: 'R/P1D'`. A timer start's process
+needs one `seam:schedules` container (`ModelGraph.scheduling_container`). The claims need
+a relational store: when the runtime's store is not SQLite or PostgreSQL, a scheduling
+container raises `ResolutionError(<container>, seam:schedules)` and a process with timer
+catches `ResolutionError(<process>, seam:executes)`. `seams check` reports the same
+refusals as `timer` findings, so a bad expression is found before deployment.
+
+**Due times** are UTC, rounded up to the second and written `YYYY-MM-DDTHH:MM:SSZ`. A
+timer start fires at its date-time, or at its cycle's start plus whole multiples of the
+duration (years and months step by calendar month). A timer catch's due time is fixed
+when the instance reaches it, by the injected clock: the worker writes it into the Spiff
+task and into `workflow.data["seams"]["timers"]` and the store's catch rows with the
+checkpoint (dispatch rule 8a), and never recomputes it.
+
+**The clock** is injected (`clock=`, any object with `now()` returning an aware
+datetime; the tests step one). The default `SystemClock` is the system's UTC time plus
+`SEAMS_CLOCK_OFFSET`, an ISO 8601 duration, when that is set (decision D065: a
+development setting the generated compose never writes, so an end-to-end run can reach
+a `"PT48H"` reminder at once).
+
+**The scheduler** (`runtime.scheduler`, a `timers.Scheduler`) runs `tick()` every second.
+Its loop starts with the host (`start_scheduler`); a failing tick is logged and the next
+one retries. Each tick:
+
+1. For each timer start, the firing it owes now (`Timer.start_firing`, given the store's
+   `last_firing`). In one `store.transaction()` it inserts the firing row and, only if
+   the insert did not conflict, starts the instance (`new_timer_instance`) and
+   checkpoints it. The instance's correlation key is the due time, and `state["start"]`
+   records `{timer, due}`. A crash before the commit rolls both back; after it,
+   `resume` continues the checkpoint. Missed cycle firings fire only the latest, and a
+   `timeDate` already past fires once.
+2. For each due catch row, a lease (`lease_timer`, 60 seconds). It then loads the
+   waiting instance (the in-memory one once its worker has stopped, else the
+   checkpoint), marks the Spiff timer task fired and refreshes only that task, and
+   deletes the row and writes the checkpoint in one transaction, but only while the
+   lease still holds (`release_timer`). A runtime whose lease lapsed rolls back and runs
+   nothing. Then the worker runs the instance as usual.
+
+A non-interrupting boundary leaves its user task open and runs its path. An interrupting
+one cancels the task. A cycle boundary spawns its path once per firing and keeps waiting,
+armed at its next due time, until it is spent or its task completes. The trace row of the
+timer event that fired records `timer`, the due time, so the path shows in `seams
+sequence --trace` like any other.
+
+The scheduler logs `timer fire <event> due <due> instance <id>`, `timer claimed
+elsewhere <event> due <due>` at DEBUG, and `timer missed <event> N firing(s)`.
+
 ## Environment
 
 | Variable | Meaning |
@@ -568,6 +649,7 @@ Any other exception, or any other non-2xx answer, fails the instance unchanged.
 | `SEAMS_ROUTES` | Route module the host serves when `--routes` is not given. The default is `/app/chat_api.py`. |
 | `SEAMS_HANDLERS` | The handlers package directory (ADR-0012). The default is `handlers/` beside the model file. `handlers=` overrides it. |
 | `SEAMS_SEED` | Optional seed JSON the host writes into the store on startup. |
+| `SEAMS_CLOCK_OFFSET` | An ISO 8601 duration, such as `PT49H`, that the runtime's default clock runs ahead of the system clock (decision D065). For development and end-to-end runs only; the generated compose never writes it. A value that is not a duration fails at load, naming the variable. |
 | `SEAMS_SMOKE_BASE_URL` | Base URL of the running app the generated smoke tests call (`verify.smoke_caller`). Unset, they are skipped, or fail under `SEAMS_E2E=1`. |
 | `SEAMS_SMOKE_USER` / `SEAMS_SMOKE_GROUPS` | The identity the smoke tests send as `X-Forwarded-User` and comma-separated `X-Forwarded-Groups`. Without a user no identity headers are sent. |
 | `LLM_GATEWAY_URL` | Base URL of `:llm_gateway`. The name comes from `:chat_api`'s `deploy:binding` with `deploy:serviceOf :llm_gateway`. `llm_base_url=` overrides it (`http_base_url=` for a `comm:HTTPEndpoint`). |
@@ -601,6 +683,7 @@ never sets the global one.
 | Instance: one per worker run. A resumed instance or a user-task completion is another instance span with the same instance id. | the process's local name, for example `send_message_process` | `seams.process.iri`, `seams.instance.id`, `seams.correlation_key`. A failed instance has status ERROR described by the error type, plus `seams.error.type` and `seams.error.message`. |
 | Aggregate commit: one per `write_aggregate` call or worker aggregate commit ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)); in the worker, a child of the element span | `seams.aggregate.commit` | `seams.aggregate.iri`, `seams.aggregate.members` (the written shapes, sorted) and `seams.store.kind`; in the worker also the instance attributes. A rollback records the exception and has status ERROR described by `AggregateRolledBack`, plus `seams.error.type` and `seams.error.message`. |
 | Data health: one per `runtime.data_health()` call with a profile attached ([ADR-0036](../docs/adr/0036-cross-aggregate-invariants.md)) | `seams.data_health` | `seams.profile.iri` and `seams.data_health.count`, the number of findings. A report that raises records the exception. |
+| Timer claim and fire: two per firing ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)), around the claim transaction and around the start or wake | `seams.timer.claim`, `seams.timer.fire` | `seams.timer.event`, `seams.timer.due` and, once known, `seams.instance.id`. The element span of the timer event that fired also carries `seams.timer.due`. |
 | Element: a child of the instance span for each BPMN element, one per trace row | the bpmn id, for example `invoke_llm` | The instance attributes, `seams.element.iri` and `bpmn.id`, and, when the trace row has them, `seams.fires`, `seams.decision`, `seams.invokes`, `seams.container`, `seams.channel` (from `streamed` or `published`), `seams.status` and `seams.by`; for a declared error, `seams.error.code`, `seams.error.status` and `seams.boundary` on the raising task and `seams.caught` on the boundary. An element that raises records the exception and has status ERROR. |
 
 The attributes are read from the finished trace row when the span ends. The trace rows

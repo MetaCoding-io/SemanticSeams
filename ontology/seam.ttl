@@ -6,8 +6,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/seam/1.3> ;
-    owl:versionInfo "1.3" ;
+    owl:versionIRI <https://w3id.org/seams/seam/1.4> ;
+    owl:versionInfo "1.4" ;
     rdfs:label "SemanticSeams Bridging Ontology" ;
     rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
 decision, state, data, communication, authorization, and planning models into one
@@ -165,7 +165,8 @@ seam:visibleWhen a rdf:Property ;
     rdfs:comment """ifml:ViewComponent -> state:State. Conditional rendering as a graph edge.
 Multi-valued: the component is visible when the state is any one of its values.
 Evaluation rule: the guard is evaluated server-side, at render time, against the
-lifecycle of the shape the component seam:reads (shape seam:lifecycle machine, which
+lifecycle of the shape the component seam:reads (the shape's effective lifecycle: its own
+seam:lifecycle, else that of its sh:targetClass, ADR-0031; the machine
 must state:hasState every guard state). The template variable is the shape's local name,
 lowercased, minus a trailing 'shape', plus '_state' (:MessageShape -> message_state),
 compared with the guard state's rdfs:label (one state: ==, several: in a tuple of the
@@ -215,7 +216,7 @@ seam:invokes a rdf:Property ;
 seam:publishesTo a rdf:Property ;
     seam:reveal seam:Layer ;
     rdfs:label "publishes to" ;
-    rdfs:comment "proc message throw event (completion event, named by the channel's rdfs:label) | proc service task that seam:invokes an operation (each streamed delta of that operation's reply, named by comm:eventName) -> comm:Channel." .
+    rdfs:comment "proc message throw event (completion event, named by the channel's rdfs:label) | proc service task that seam:invokes an operation (each streamed delta of that operation's reply, named by comm:eventName) | state:Transition (the domain event the transition is, named by its IRI or state:trigger, never a copied label; ADR-0031) -> comm:Channel." .
 
 seam:subscribesTo a rdf:Property ;
     seam:reveal seam:Layer ;
@@ -239,7 +240,7 @@ seam:writes a rdf:Property ;
 seam:lifecycle a rdf:Property ;
     seam:reveal seam:Open ;
     rdfs:label "lifecycle" ;
-    rdfs:comment "sh:NodeShape -> state:StateMachine governing instances of the shape. (Constraint in shapes/seam-shapes.ttl.)" .
+    rdfs:comment "owl:Class | sh:NodeShape -> state:StateMachine governing instances of the class or the shape. The class is preferred; a shape's effective lifecycle is its own, else that of its sh:targetClass, and more than one is a violation (ADR-0031). (Constraint in shapes/seam-shapes.ttl.)" .
 
 seam:fires a rdf:Property ;
     seam:reveal seam:Layer ;

@@ -350,12 +350,12 @@ seamsh:VisibleWhenGuardShape a sh:NodeShape ;
     sh:property [ sh:path seam:reads ; sh:minCount 1 ;
         sh:message "A component with seam:visibleWhen seam:reads the shape whose lifecycle state guards it." ] ;
     sh:sparql [
-        sh:message "Each seam:visibleWhen state is a state:hasState of the seam:lifecycle of the shape the component seam:reads." ;
+        sh:message "Each seam:visibleWhen state is a state:hasState of the seam:lifecycle of the shape the component seam:reads, its own or that of its sh:targetClass." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this seam:visibleWhen ?value ; seam:reads ?shape .
-                FILTER NOT EXISTS { ?shape seam:lifecycle ?machine . ?machine state:hasState ?value }
+                FILTER NOT EXISTS { ?shape seam:lifecycle|sh:targetClass/seam:lifecycle ?machine . ?machine state:hasState ?value }
             }""" ;
     ] .
 
@@ -507,10 +507,10 @@ seamsh:InvokesShape a sh:NodeShape ;
 
 seamsh:PublishesToShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:publishesTo ;
-    sh:or ( [ sh:class proc:MessageThrowEvent ] [ sh:class proc:ServiceTask ] ) ;
+    sh:or ( [ sh:class proc:MessageThrowEvent ] [ sh:class proc:ServiceTask ] [ sh:class state:Transition ] ) ;
     sh:property [ sh:path seam:publishesTo ; sh:class comm:Channel ;
         sh:message "seam:publishesTo points at a comm:Channel." ] ;
-    sh:message "Only a proc:MessageThrowEvent or a proc:ServiceTask seam:publishesTo a channel (D046)." .
+    sh:message "Only a proc:MessageThrowEvent, a proc:ServiceTask or a state:Transition seam:publishesTo a channel (D046, ADR-0031)." .
 
 seamsh:SubscribesToShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:subscribesTo ;
@@ -534,10 +534,26 @@ seamsh:WritesShape a sh:NodeShape ;
 
 seamsh:LifecycleShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:lifecycle ;
-    sh:class sh:NodeShape ;
+    sh:or ( [ sh:class owl:Class ] [ sh:class sh:NodeShape ] ) ;
     sh:property [ sh:path seam:lifecycle ; sh:class state:StateMachine ;
         sh:message "seam:lifecycle points at a state:StateMachine." ] ;
-    sh:message "Only a sh:NodeShape carries a seam:lifecycle." .
+    sh:message "Only an owl:Class or a sh:NodeShape carries a seam:lifecycle (ADR-0031)." .
+
+seamsh:EffectiveLifecycleShape a sh:NodeShape ;
+    rdfs:comment """A shape's effective lifecycle is its own seam:lifecycle, else that of its
+sh:targetClass (ADR-0031 section 2). One result per pair of machines it reaches, with the
+later IRI as the value; the same machine reached twice is one lifecycle.""" ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "A sh:NodeShape has at most one effective seam:lifecycle, its own or that of its sh:targetClass; it reaches {?other} and {?value}." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value ?other WHERE {
+                $this seam:lifecycle|sh:targetClass/seam:lifecycle ?value , ?other .
+                FILTER (STR(?other) < STR(?value))
+                BIND (seam:lifecycle AS ?path)
+            }""" ;
+    ] .
 
 seamsh:FiresShape a sh:NodeShape ;
     sh:targetSubjectsOf seam:fires ;
@@ -1472,12 +1488,12 @@ seamsh:ScenarioShape a sh:NodeShape ;
             }""" ;
     ] ;
     sh:sparql [
-        sh:message "verify:expectState is a state of a lifecycle some shape seam:lifecycle names, so the test knows whose state to read." ;
+        sh:message "verify:expectState is a state of a lifecycle some shape seam:lifecycle names, directly or through its sh:targetClass, so the test knows whose state to read." ;
         sh:prefixes <https://w3id.org/seams/shapes> ;
         sh:select """
             SELECT $this ?value WHERE {
                 $this verify:expectState ?value .
-                FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle ?machine }
+                FILTER NOT EXISTS { ?machine state:hasState ?value . ?shape seam:lifecycle|sh:targetClass/seam:lifecycle ?machine }
             }""" ;
     ] ;
     sh:sparql [

@@ -63,6 +63,7 @@ const decisions = [
   ["0034", "Context Mapper interchange", "0034-context-mapper-interchange"],
   ["0035", "Aggregate transaction boundary", "0035-aggregate-transaction-boundary"],
   ["0036", "Cross-aggregate invariants", "0036-cross-aggregate-invariants"],
+  ["0037", "Timers and scheduling", "0037-timers-and-scheduling"],
 ] as const;
 
 export default defineConfig({

@@ -83,8 +83,9 @@ def seed_store(runtime, seed_path) -> int:
     """Write the seed file's entities that are not stored yet; return how many.
 
     The file maps a shape CURIE to a list of items, each ``{"id": ..., ...}``.
-    A field named after a proc:correlationKey label that is not a sh:path of
-    the shape becomes the entity's correlation key. Every item is validated
+    A field named after a proc:correlationKey label becomes the entity's
+    correlation key; it stays in the data when it is a sh:path of the shape
+    (ADR-0036 section 3), and is removed from it otherwise. Every item is validated
     before any is written, so a bad seed writes nothing; the ContractViolation
     names the item (``focus`` is ``<file>#<shape>[<index>]`` plus its id)."""
     seed_path = Path(seed_path)
@@ -114,6 +115,9 @@ def seed_store(runtime, seed_path) -> int:
                 err.add_note(f"seed item {where} (id {entity_id!r}) violates {curie}")
                 log.error("seed %s rejected: %s", where, exc)
                 raise err from exc
+            # a key field that is a sh:path of the shape (ADR-0036) stays in
+            # the data and also keys the entity
+            scope.update({k: data[k] for k in sorted(keys & set(fields)) if k in data and k not in scope})
             correlation_key = next(iter(scope.values()), None)
             rows.append((entity_id, shape, data, None if correlation_key is None else str(correlation_key)))
     written = 0

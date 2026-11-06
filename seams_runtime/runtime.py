@@ -103,7 +103,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from seams import model_dir, resolve_profile
 
 from .channels import ChannelBus, Subscription
-from .contracts import _items, problem_body, shape_contract
+from .contracts import _items, problem_body, shape_contract, with_correlation_key
 from .contracts import validate as _validate
 from .engine import Engine
 from .errors import ModelHashMismatch, OperationError, PolicyDenied, ResolutionError, RuntimeModelError, TaskNotOpen
@@ -582,7 +582,9 @@ class Runtime:
         process = self.model.curie(process_curie)
         op = self.model.triggering_operation(process)
         shape = self.model.accepted_shape(op)
-        message = _validate(self.model, shape, payload, operation=op)
+        message = _validate(
+            self.model, shape, with_correlation_key(self.model, shape, payload, correlation_key), operation=op
+        )
         if not correlation_key:
             raise ResolutionError(process, "proc:correlationKey", "empty correlation key")
 
@@ -769,7 +771,7 @@ class Runtime:
         if self.store.get_user_task(task, correlation_key) is None:
             raise TaskNotOpen(task, correlation_key)
         shape = self.model.task_output_shape(task)
-        data = _validate(self.model, shape, payload)
+        data = _validate(self.model, shape, with_correlation_key(self.model, shape, payload, correlation_key))
 
         lock = self._task_locks.setdefault(f"{task} {correlation_key}", asyncio.Lock())
         async with lock:

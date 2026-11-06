@@ -2,6 +2,10 @@
   "@context": {
     "@version": 1.1,
     "Payment": "https://example.org/expenses/Payment",
+    "expense": {
+      "@id": "https://example.org/expenses/paysExpense",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    },
     "paid_on": {
       "@id": "https://example.org/expenses/paidOn",
       "@type": "http://www.w3.org/2001/XMLSchema#date"

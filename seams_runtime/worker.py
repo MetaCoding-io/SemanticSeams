@@ -127,7 +127,7 @@ from urllib.parse import quote
 from rdflib import URIRef
 from SpiffWorkflow.util.task import TaskState
 
-from .contracts import handler_values, problem_body, validate
+from .contracts import handler_values, problem_body, validate, with_correlation_key
 from .engine import Engine
 from .errors import MODEL_MEMBERS, AggregateRolledBack, OperationError, ResolutionError, RuntimeModelError
 from .handlers import EndpointClient, EndpointError, HandlerError
@@ -578,6 +578,7 @@ class Worker:
             return
         if not isinstance(result, dict):
             raise HandlerError(op, handler, f"returned a {type(result).__name__}, expected a dict of {returns}")
+        result = with_correlation_key(self.model, returns, result, instance.correlation_key)
         st["current"][str(returns)] = {"id": None, "data": validate(self.model, returns, result, operation=op)}
 
     async def _invoke_http(self, instance: Instance, op, container, row: dict) -> None:
@@ -593,6 +594,7 @@ class Worker:
         if not isinstance(body, dict):
             url = base.rstrip("/") + "/" + path.lstrip("/")
             raise EndpointError(url, f"response is a JSON {type(body).__name__}, expected an object of {returns}")
+        body = with_correlation_key(self.model, returns, body, instance.correlation_key)
         st["current"][str(returns)] = {"id": None, "data": validate(self.model, returns, body, operation=op)}
 
     # ── entities and statuses ──

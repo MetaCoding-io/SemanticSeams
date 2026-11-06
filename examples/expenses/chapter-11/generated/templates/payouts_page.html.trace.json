@@ -250,7 +250,7 @@
       "templates": [
         "htmx_page.html.j2:34",
         "htmx_component.html.j2:37",
-        "htmx_item.html.j2:14"
+        "htmx_item.html.j2:11"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -261,7 +261,8 @@
       "line": 24,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:38"
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:14"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -272,7 +273,7 @@
       "line": 25,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:39"
+        "htmx_component.html.j2:38"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -283,7 +284,7 @@
       "line": 26,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:49"
+        "htmx_component.html.j2:39"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -292,6 +293,17 @@
     },
     {
       "line": 27,
+      "templates": [
+        "htmx_page.html.j2:34",
+        "htmx_component.html.j2:49"
+      ],
+      "terms": [
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/payment_list"
+      ]
+    },
+    {
+      "line": 28,
       "templates": [
         "htmx_page.html.j2:35"
       ],
@@ -302,7 +314,7 @@
       ]
     },
     {
-      "line": 29,
+      "line": 30,
       "templates": [
         "htmx_page.html.j2:32"
       ],
@@ -312,20 +324,9 @@
       ]
     },
     {
-      "line": 30,
-      "templates": [
-        "htmx_page.html.j2:33"
-      ],
-      "terms": [
-        "https://example.org/expenses/ExpenseShape",
-        "https://example.org/expenses/paid_expenses"
-      ]
-    },
-    {
       "line": 31,
       "templates": [
-        "htmx_page.html.j2:34",
-        "htmx_component.html.j2:31"
+        "htmx_page.html.j2:33"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -336,7 +337,7 @@
       "line": 32,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:35"
+        "htmx_component.html.j2:31"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -347,7 +348,7 @@
       "line": 33,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:36"
+        "htmx_component.html.j2:35"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -358,8 +359,7 @@
       "line": 34,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:37",
-        "htmx_item.html.j2:4"
+        "htmx_component.html.j2:36"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -371,7 +371,7 @@
       "templates": [
         "htmx_page.html.j2:34",
         "htmx_component.html.j2:37",
-        "htmx_item.html.j2:11"
+        "htmx_item.html.j2:4"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -431,7 +431,7 @@
       "templates": [
         "htmx_page.html.j2:34",
         "htmx_component.html.j2:37",
-        "htmx_item.html.j2:14"
+        "htmx_item.html.j2:11"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -442,7 +442,8 @@
       "line": 41,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:38"
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:14"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -453,7 +454,7 @@
       "line": 42,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:39"
+        "htmx_component.html.j2:38"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -464,7 +465,7 @@
       "line": 43,
       "templates": [
         "htmx_page.html.j2:34",
-        "htmx_component.html.j2:49"
+        "htmx_component.html.j2:39"
       ],
       "terms": [
         "https://example.org/expenses/ExpenseShape",
@@ -473,6 +474,17 @@
     },
     {
       "line": 44,
+      "templates": [
+        "htmx_page.html.j2:34",
+        "htmx_component.html.j2:49"
+      ],
+      "terms": [
+        "https://example.org/expenses/ExpenseShape",
+        "https://example.org/expenses/paid_expenses"
+      ]
+    },
+    {
+      "line": 45,
       "templates": [
         "htmx_page.html.j2:35"
       ],
@@ -483,7 +495,7 @@
       ]
     },
     {
-      "line": 45,
+      "line": 46,
       "templates": [
         "htmx_page.html.j2:37"
       ],
@@ -494,7 +506,7 @@
       ]
     },
     {
-      "line": 46,
+      "line": 47,
       "templates": [
         "htmx_page.html.j2:38"
       ],
@@ -505,7 +517,7 @@
       ]
     },
     {
-      "line": 47,
+      "line": 48,
       "templates": [
         "htmx_page.html.j2:39"
       ],

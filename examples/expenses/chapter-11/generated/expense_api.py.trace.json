@@ -2833,7 +2833,27 @@
     {
       "line": 269,
       "templates": [
-        "fastapi_routes.py.j2:125"
+        "fastapi_routes.py.j2:123"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 270,
+      "templates": [
+        "fastapi_routes.py.j2:123"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 271,
+      "templates": [
+        "fastapi_routes.py.j2:123"
       ],
       "terms": [
         "https://example.org/expenses/expense_api",
@@ -2842,6 +2862,26 @@
     },
     {
       "line": 272,
+      "templates": [
+        "fastapi_routes.py.j2:123"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 273,
+      "templates": [
+        "fastapi_routes.py.j2:125"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_api",
+        "https://example.org/expenses/expense_system"
+      ]
+    },
+    {
+      "line": 276,
       "templates": [
         "fastapi_routes.py.j2:128"
       ],
@@ -2855,7 +2895,7 @@
       ]
     },
     {
-      "line": 273,
+      "line": 277,
       "templates": [
         "fastapi_routes.py.j2:129"
       ],
@@ -2869,7 +2909,7 @@
       ]
     },
     {
-      "line": 274,
+      "line": 278,
       "templates": [
         "fastapi_routes.py.j2:130"
       ],

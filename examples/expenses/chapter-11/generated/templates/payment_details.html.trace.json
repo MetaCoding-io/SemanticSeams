@@ -139,7 +139,7 @@
       "templates": [
         "htmx_fragment.html.j2:12",
         "htmx_component.html.j2:37",
-        "htmx_item.html.j2:14"
+        "htmx_item.html.j2:11"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -151,7 +151,8 @@
       "line": 13,
       "templates": [
         "htmx_fragment.html.j2:12",
-        "htmx_component.html.j2:38"
+        "htmx_component.html.j2:37",
+        "htmx_item.html.j2:14"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -163,7 +164,7 @@
       "line": 14,
       "templates": [
         "htmx_fragment.html.j2:12",
-        "htmx_component.html.j2:39"
+        "htmx_component.html.j2:38"
       ],
       "terms": [
         "https://example.org/expenses/PaymentShape",
@@ -173,6 +174,18 @@
     },
     {
       "line": 15,
+      "templates": [
+        "htmx_fragment.html.j2:12",
+        "htmx_component.html.j2:39"
+      ],
+      "terms": [
+        "https://example.org/expenses/PaymentShape",
+        "https://example.org/expenses/paid_expense",
+        "https://example.org/expenses/payment_details"
+      ]
+    },
+    {
+      "line": 16,
       "templates": [
         "htmx_fragment.html.j2:12",
         "htmx_component.html.j2:49"

@@ -1,6 +1,6 @@
 # The DDD profile's shapes (ADR-0033 sections 2 and 4).
 #
-# Two kinds of shape, over terms the graph already has (principle 4: no DDD
+# Three kinds of shape, over terms the graph already has (principle 4: no DDD
 # class, no new term):
 #
 #   - Rules: one sh:NodeShape per rule of the DDD note's section 5, severity
@@ -10,6 +10,11 @@
 #     found; the focus node is the result's own. A rule with no facts to
 #     read holds: a dataset with no arch:BoundedContext has no cross-context
 #     access, and a model with no seam:lifecycle has no aggregate.
+#   - Instance-data rules (ADR-0036): a sh:NodeShape of severity sh:Warning
+#     with a sh:sparql constraint, written against the model's own paths.
+#     It reads stored entities, which Runtime.data_health lifts to RDF
+#     through their shape contracts, and it reports; it never refuses a
+#     write. The model holds no entity, so seams check finds nothing for it.
 #   - Pills: a sh:NodeShape of severity sh:Info with a skos:prefLabel. The
 #     viewer shows the label on every focus node that conforms to it, and
 #     seams check reports none of its results. No rdf:type is added to the
@@ -241,6 +246,30 @@ ddd:AggregateBoundary a sh:NodeShape ;
               $this seam:aggregateMember/seam:storedIn ?other .
               FILTER (STR(?store) < STR(?other))
             }
+            """ ] .
+
+#################################################################
+# Instance-data rules (ADR-0036)
+#################################################################
+
+# Paid once: an expense is paid by one payment. The rule is across two
+# aggregates, the expense and the payment, so it is eventually consistent:
+# severity sh:Warning, never a refused write. Its focus nodes are the
+# objects of :paysExpense on the stored payments, which the runtime lifts
+# through :PaymentShape's contract (Runtime.data_health); the model holds
+# no payment, so seams check finds no focus node for it.
+ddd:PaidOnce a sh:NodeShape ;
+    rdfs:label "Paid once" ;
+    sh:targetObjectsOf <https://example.org/expenses/paysExpense> ;
+    sh:severity sh:Warning ;
+    sh:sparql [ a sh:SPARQLConstraint ;
+        sh:message "expense {$this} is paid by {?payments} payments, and an expense is paid once" ;
+        sh:select """
+            SELECT $this (COUNT(DISTINCT ?payment) AS ?payments) WHERE {
+              ?payment <https://example.org/expenses/paysExpense> $this .
+            }
+            GROUP BY $this
+            HAVING (COUNT(DISTINCT ?payment) > 1)
             """ ] .
 
 #################################################################

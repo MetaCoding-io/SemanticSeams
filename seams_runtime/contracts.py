@@ -344,6 +344,25 @@ def validate(model: ModelGraph, shape, payload: Mapping, operation=None) -> dict
     return normalised
 
 
+def with_correlation_key(model: ModelGraph, shape, payload: Mapping, correlation_key: str | None) -> Mapping:
+    """``payload`` with every field of ``shape`` whose sh:name is a
+    proc:correlationKey label, and that the payload omits, set to
+    ``correlation_key`` (ADR-0036 section 3). The field is found by matching
+    the contract's names against ``model.correlation_key_labels()``, so a
+    payment names the expense its instance is keyed by. A payload that gives
+    the field keeps its value; with no key field to fill, or no key, the
+    payload is returned unchanged."""
+    if not correlation_key:
+        return payload
+    names = sorted(set(shape_contract(model, shape).fields) & model.correlation_key_labels())
+    items = _items(payload)
+    given = {key for key, _value in items}
+    missing = [name for name in names if name not in given]
+    if not missing:
+        return payload
+    return {**dict(items), **dict.fromkeys(missing, str(correlation_key))}
+
+
 def problem_body(model: ModelGraph, operation, code: str, detail=None, extensions=None) -> tuple[int, dict]:
     """(HTTP status, validated problem+json body) for the error ``code`` of
     ``operation`` (CURIE or IRI), ADR-0013.

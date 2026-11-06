@@ -298,6 +298,17 @@ that holds the profile's shapes graph itself, such as the viewer.
 The report reads every stored entity on each call, so it is run on request, not per
 write.
 
+A rule joins entities on the model's own paths, never on a store column. So that an
+entity can name the instance it belongs to, a shape field whose `sh:name` is a
+`proc:correlationKey` label (chapter 11's `:PaymentShape` field `expense`, path
+`:paysExpense`) is filled from the instance's correlation key when the payload omits it
+(`contracts.with_correlation_key`, ADR-0036 section 3). The fill runs before validation
+in `start_process`, `complete_task` and the worker's handler and HTTP returns; a payload
+that gives the field keeps its value. `seed_store` keeps such a field in the data and
+also uses it as the entity's correlation key. Chapter 11's DDD profile holds the
+paid-once rule `ddd:PaidOnce`: one expense paid twice is one `sh:Warning` finding,
+focus the expense key, and both payments stay stored.
+
 ## Host
 
 `python -m seams_runtime.host --routes /app/chat_api.py --host 0.0.0.0 --port 8000`

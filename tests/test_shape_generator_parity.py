@@ -1087,6 +1087,18 @@ GENERATOR_ONLY: dict[Site, str] = {
         "The event is the command-line argument naming the diagram to derive; no or several matching events "
         "is a fault of the argument, not of the model."
     ),
+    Site("storm", "find_process", "'proc:Process'", "unknown"): (
+        "The process is the command-line argument naming the storm to derive; a name that matches no "
+        "process or triggering event is a fault of the argument, not of the model."
+    ),
+    Site("storm", "find_process", "'proc:Process'", "ambiguous"): (
+        "The argument is a local name that matches both a process and an event, or several of them; "
+        "a full IRI names one, so this is a fault of the argument, not of the model."
+    ),
+    Site("storm", "find_process", "'seam:triggers'"): (
+        "The argument names an ifml:Event that triggers no process; a valid model has events that start "
+        "nothing, so naming one is a fault of the argument."
+    ),
     Site("sequence", "add", "'proc:Process'"): (
         "The number of paths through a process is a property of its BPMN flow graph; MAX_PATHS bounds the "
         "diagrams derived, and a valid process may exceed it."

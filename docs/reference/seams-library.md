@@ -564,6 +564,13 @@ exercises (D054). It covers three things:
 - `seams.policies_without_deny(model, policy=None)` runs
   `coverage/policies-without-deny` and returns `UndeniedPermission`
   records (`policy`, `target`, `assignee`).
+- `seams.core_operations_untested(model, context=None)` runs
+  `coverage/core-operations-untested` (ADR-0030 section 6) and returns a
+  `Many[Operation]`, by (domain, context, operation): each `hydra:Operation`
+  whose `seam:inModel` model a context in an `arch:Core` domain `seam:owns`,
+  that is not `seam:implementedBy` a `comm:PythonHandler` and that no scenario
+  reaches through the process it starts or the user task it completes. A
+  dataset with no domain has no rows.
 
 On chapter 9 the nine scenarios run every path: both outcomes of each route,
 the two notify-failed escalations (`:notify_failed_approved` and

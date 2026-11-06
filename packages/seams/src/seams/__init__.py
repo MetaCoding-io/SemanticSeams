@@ -16,8 +16,8 @@ prefixes bound, and ``model.question(name, **bindings)`` runs a bundled
 canned question (``question_names()``).
 
 ``seams.coverage`` answers what no scenario or test exercises (D054):
-``unexercised_paths`` (BPMN paths no scenario runs), ``unfired_transitions``
-and ``policies_without_deny``.
+``unexercised_paths`` (BPMN paths no scenario runs), ``unfired_transitions``,
+``policies_without_deny`` and ``core_operations_untested`` (ADR-0030).
 
 ``seams.decisions_check`` finds decision faults the runtime would hit
 (backlog K2): ``decision_findings`` lists DMN typeRefs that disagree with
@@ -57,6 +57,7 @@ from .context import ContextItem, Manifest, context_for
 from .coverage import (
     ProcessPath,
     UndeniedPermission,
+    core_operations_untested,
     policies_without_deny,
     process_paths,
     unexercised_paths,
@@ -288,6 +289,7 @@ __all__ = [
     "check_versions",
     "condition_findings",
     "context_for",
+    "core_operations_untested",
     "decision_findings",
     "decision_table",
     "declared_versions",

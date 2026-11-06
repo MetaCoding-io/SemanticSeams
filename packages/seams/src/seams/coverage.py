@@ -1,6 +1,6 @@
 """Coverage: what the model declares that no scenario or test exercises (D054).
 
-Three questions, one module:
+Four questions, one module:
 
 - ``unexercised_paths(model)`` lists the start-to-end BPMN paths no
   verify:Scenario runs. Sequence flows live only in the BPMN XML
@@ -10,6 +10,9 @@ Three questions, one module:
   the state:Transitions nothing seam:fires.
 - ``policies_without_deny(model)`` runs ``coverage/policies-without-deny.rq``:
   the odrl:permissions the ``tests`` generator writes no party deny test for.
+- ``core_operations_untested(model)`` runs ``coverage/core-operations-untested.rq``
+  (ADR-0030 section 6): the hydra:Operations of a context in an arch:Core domain
+  with no comm:PythonHandler and no verify:Scenario reaching them.
 
 A path is a simple walk over a process's flow nodes: it starts at a
 bpmn:startEvent, follows outgoing sequence flows without revisiting a node,
@@ -48,7 +51,7 @@ from typing import TYPE_CHECKING
 from rdflib import URIRef
 
 from .namespaces import SEAM
-from .views import FlowNode, Many, Policy, Process, Scenario, Transition
+from .views import FlowNode, Many, Operation, Policy, Process, Scenario, Transition
 
 if TYPE_CHECKING:
     from .loader import Model
@@ -247,6 +250,15 @@ def unfired_transitions(model: Model, lifecycle: object = None) -> Many[Transiti
     return Many([model.views.intern(Transition, i) for i in iris], model.subject, SEAM.fires, model.curie)
 
 
+def core_operations_untested(model: Model, context: object = None) -> Many[Operation]:
+    """The core operations with no handler and no scenario (``coverage/core-operations-untested.rq``),
+    by (domain, context, operation); ``context`` narrows it to one arch:BoundedContext."""
+    bindings = {} if context is None else {"context": context}
+    rows = model.question("coverage/core-operations-untested", **bindings)
+    iris = list(dict.fromkeys(r["operation"] for r in rows if isinstance(r["operation"], URIRef)))
+    return Many([model.views.intern(Operation, i) for i in iris], model.subject, SEAM.implementedBy, model.curie)
+
+
 def policies_without_deny(model: Model, policy: object = None) -> tuple[UndeniedPermission, ...]:
     """The permissions the ``tests`` generator writes no party deny test for
     (``coverage/policies-without-deny.rq``), by (policy, target, assignee)."""
@@ -269,6 +281,7 @@ def policies_without_deny(model: Model, policy: object = None) -> tuple[Undenied
 __all__ = [
     "ProcessPath",
     "UndeniedPermission",
+    "core_operations_untested",
     "exercises",
     "policies_without_deny",
     "process_paths",

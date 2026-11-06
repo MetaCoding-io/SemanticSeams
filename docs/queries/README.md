@@ -58,11 +58,18 @@ project can list it under `gates`.
 with the lifecycle it is `seam:inModel`. `coverage/policies-without-deny.rq` lists each
 `odrl:permission` the `tests` generator writes no party deny test for: anyone may use it (it
 has no `odrl:assignee`, or its assignee is an `odrl:PartyCollection`), or no `odrl:Party` in
-the model is outside its assignee. Bind `?lifecycle` or `?policy` to check one element. The
+the model is outside its assignee. `coverage/core-operations-untested.rq` (ADR-0030 section 6)
+lists each `hydra:Operation` of a context in an `arch:Core` domain (its `seam:inModel` model is
+one the context `seam:owns`) that is not `seam:implementedBy` a `comm:PythonHandler` and that no
+`verify:Scenario` reaches: no event that `seam:submitsTo` it `seam:triggers` a scenario's process,
+and no user task a scenario steps through is `seam:completedOn` a form whose event submits to it.
+A dataset with no `arch:Domain` returns no rows. Bind `?lifecycle`, `?policy` or `?context` to
+check one element. The
 `seams` library bundles them as package data and loads them by folder-qualified name:
 `model.question("coverage/unfired-transitions")`, with `seams.question_names("coverage")`
 listing them. `question_names()` with no folder still returns only the top-level questions, so
 coverage stays off the query reference page. `tests/test_coverage_queries.py` checks their
 rows (none on expense chapter 9; the chat app's two failure transitions and its
 party-collection send policy), that the deny query matches what the generator emits, and that
-the bundled copies are byte-identical to these files.
+the bundled copies are byte-identical to these files. `tests/test_core_operations_untested.py`
+checks the core-operations rows on an inline fixture.

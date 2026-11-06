@@ -201,8 +201,12 @@ predicate. The operation view's `implemented_by` lists the nodes.
 
 `seams.coverage` lists what nothing exercises (D054): `unexercised_paths`
 (BPMN start-to-end paths no `verify:Scenario` runs, joined in Python because
-sequence flows live only in the XML), `unfired_transitions` and
-`policies_without_deny` (the `coverage/` canned questions).
+sequence flows live only in the XML), `unfired_transitions`,
+`policies_without_deny` and `core_operations_untested` (the `coverage/` canned
+questions). `core_operations_untested(model, context=None)` (ADR-0030 section 6)
+lists the operations of a context in an `arch:Core` domain that no
+`comm:PythonHandler` implements and no `verify:Scenario` reaches, through the
+process it starts or the user task it completes.
 
 ## Context assembly
 

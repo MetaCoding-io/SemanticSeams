@@ -33,7 +33,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.4> ,
+                    <https://w3id.org/seams/seam/1.5> ,
                     <https://w3id.org/seams/state/1.0> .
 }
 ```

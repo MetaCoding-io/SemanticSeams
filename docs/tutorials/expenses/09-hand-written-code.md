@@ -512,7 +512,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.4> ,
+                    <https://w3id.org/seams/seam/1.5> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.1> .
 }
@@ -878,10 +878,10 @@ The screen parameter and the scenario that name the property move to `:paidOn` w
 
 Options come in lifecycle order, from the initial state, and the value a form sends is
 still the member's label. Older tools would misread this notation, so the model now
-imports the seam vocabulary at 1.2 or later (1.4 today); the manifest above already shows it:
+imports the seam vocabulary at 1.2 or later (1.5 today); the manifest above already shows it:
 
 ```turtle
-                    <https://w3id.org/seams/seam/1.4> ,
+                    <https://w3id.org/seams/seam/1.5> ,
 ```
 
 Run `seams generate --project examples/expenses/chapter-09` again. Every generated form,

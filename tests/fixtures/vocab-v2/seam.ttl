@@ -251,6 +251,11 @@ seam:lifecycle a rdf:Property ;
     rdfs:label "lifecycle" ;
     rdfs:comment "owl:Class | sh:NodeShape -> state:StateMachine governing instances of the class or the shape. The class is preferred; a shape's effective lifecycle is its own, else that of its sh:targetClass, and more than one is a violation (ADR-0031). (Constraint in shapes/seam-shapes.ttl.)" .
 
+seam:aggregateMember a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "aggregate member" ;
+    rdfs:comment "aggregate (an owl:Class or sh:NodeShape with a seam:lifecycle) -> sh:NodeShape whose entities the aggregate commits together, in one store transaction. Listed, never derived from sh:targetClass; a shape is a member of at most one aggregate (ADR-0035). (Constraint in shapes/seam-shapes.ttl.)" .
+
 seam:fires a rdf:Property ;
     seam:reveal seam:Layer ;
     rdfs:label "fires" ;

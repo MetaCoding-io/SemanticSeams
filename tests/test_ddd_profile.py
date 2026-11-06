@@ -112,6 +112,21 @@ TWO_KEYS = """
 :shipping seam:detailedBy :shipping_bpmn ; proc:correlationKey :customer .
 """
 
+# An aggregate whose members (ADR-0035) are not in one store: the order shape is
+# its own and stored, the line shape is another class's and stored elsewhere, or
+# nowhere. The aggregate's own shapes are in one store, so only the member rule fails.
+TWO_MEMBER_STORES = """
+:Order seam:lifecycle :order_lifecycle ; seam:aggregateMember :OrderShape , :LineShape .
+:OrderShape sh:targetClass :Order ; seam:storedIn :db .
+:LineShape sh:targetClass :Line ; seam:storedIn :cache .
+"""
+
+UNSTORED_MEMBER = """
+:Order seam:lifecycle :order_lifecycle ; seam:aggregateMember :OrderShape , :LineShape .
+:OrderShape sh:targetClass :Order ; seam:storedIn :db .
+:LineShape sh:targetClass :Line .
+"""
+
 # One exact finding per rule (ADR-0033 section 2): focus node, no path, message.
 NEGATIVE = [
     pytest.param(
@@ -150,6 +165,18 @@ NEGATIVE = [
         TWO_STORES,
         f"{X}Order - is an aggregate whose shapes are seam:storedIn two stores, {X}cache and {X}db",
         id="two-stores",
+    ),
+    pytest.param(
+        TWO_MEMBER_STORES,
+        f"{X}Order - has seam:aggregateMember shapes seam:storedIn two stores, {X}cache and {X}db, "
+        "so they cannot commit in one transaction",
+        id="two-member-stores",
+    ),
+    pytest.param(
+        UNSTORED_MEMBER,
+        f"{X}Order - has seam:aggregateMember {X}LineShape, which is seam:storedIn no store, "
+        "so it has no transaction to commit in",
+        id="unstored-member",
     ),
     pytest.param(
         NO_KEY,

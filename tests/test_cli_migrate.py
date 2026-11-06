@@ -25,8 +25,8 @@ FIXTURE = ROOT / "tests" / "fixtures" / "vocab-v2"
 CHAPTER_01 = ROOT / "examples" / "expenses" / "chapter-01"
 SEAM_V2 = "https://w3id.org/seams/seam/2.0"
 ARCH_V1 = "https://w3id.org/seams/arch/1.2"
-# The checkpoints declare the shipped seam, 1.4.
-SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.4>"
+# The checkpoints declare the shipped seam, 1.5.
+SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.5>"
 
 
 def chapter_01_copy(tmp_path: Path) -> Path:
@@ -48,7 +48,7 @@ def test_migrate_writes_the_migration_and_keeps_the_comments(tmp_path, monkeypat
     against(monkeypatch, FIXTURE)
     assert main(["migrate", "--project", str(project)]) == 0
     out, err = capsys.readouterr()
-    assert out.splitlines() == ["migrated seam 1.4 2.0", str(trig)]
+    assert out.splitlines() == ["migrated seam 1.5 2.0", str(trig)]
     assert err == ""
     after = trig.read_text(encoding="utf-8")
     assert comments(after) == comments(before)
@@ -99,7 +99,7 @@ def test_a_newer_model_is_refused_and_nothing_is_written(tmp_path, capsys) -> No
     out, err = capsys.readouterr()
     assert out == ""
     assert err.startswith("seams migrate: ")
-    assert "targets seam 2.0; this tool supports seam up to 1.4" in err
+    assert "targets seam 2.0; this tool supports seam up to 1.5" in err
     assert trig.read_bytes() == before
 
 

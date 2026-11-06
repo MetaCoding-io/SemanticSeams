@@ -39,8 +39,8 @@ SEAM = Namespace("https://w3id.org/seams/seam#")
 SEAMSH = Namespace("https://w3id.org/seams/shapes#")
 ARCHITECTURE = "https://example.org/expenses/expense_architecture"
 MODEL_DEPRECATED = "seam:Model is deprecated since seam 2.0 and goes in seam 3.0."
-# The checkpoints declare the shipped seam, 1.4.
-SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.4>"
+# The checkpoints declare the shipped seam, 1.5.
+SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.5>"
 IN_MODEL_DEPRECATED = "seam:inModel is deprecated since seam 2.0 and goes in seam 3.0: write seam:partOfModel instead."
 CLASSES = (RDFS.Class, OWL.Class)
 PROPERTIES = (RDF.Property, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.AnnotationProperty)
@@ -184,7 +184,7 @@ def test_check_reports_the_migration_and_the_deprecation_and_passes(tmp_path, mo
     out, err = capsys.readouterr()
     assert (code, out.splitlines(), err) == (
         0,
-        [f"shacl-warning {ARCHITECTURE} - {MODEL_DEPRECATED}", "vocabulary-migrated seam 1.4 2.0"],
+        [f"shacl-warning {ARCHITECTURE} - {MODEL_DEPRECATED}", "vocabulary-migrated seam 1.5 2.0"],
         "seams check: 2 warning(s)\n",
     )
 

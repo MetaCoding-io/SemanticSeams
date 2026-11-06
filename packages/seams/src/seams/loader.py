@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
     # Imported lazily at run time: the views import this module.
     from .views import (
+        Aggregate,
         Architecture,
         Channel,
         Decision,
@@ -292,6 +293,13 @@ class Model:
         from . import views
 
         return views.ontologies(self)
+
+    @property
+    def aggregates(self) -> Many[Aggregate]:
+        """Every aggregate that names seam:aggregateMember shapes (ADR-0035), by IRI."""
+        from . import views
+
+        return views.aggregates(self)
 
     @property
     def lifecycles(self) -> Lifecycles:

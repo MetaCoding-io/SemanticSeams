@@ -30,6 +30,12 @@ that reaches two raises `ResolutionError(shape, seam:lifecycle, ...)` listing
 both. `Lifecycle.shapes` is the shapes that name it plus the `sh:NodeShape`s
 whose `sh:targetClass` names it, by IRI. `ModelGraph.has_lifecycle`,
 `lifecycle_for` and `lifecycle_shape` read through these views.
+`model.aggregates` is every aggregate that names `seam:aggregateMember` shapes
+(ADR-0035), by IRI: an `Aggregate` is the class or shape, its `members` the listed
+shapes by IRI (never derived from `sh:targetClass`) and its `lifecycle` the machine it
+names. `Shape.aggregate` is the one aggregate a shape is a member of, or None; a shape
+two aggregates list raises `ResolutionError(shape, seam:aggregateMember, ...)` naming
+both.
 `model.sparql` and `model.question` run read-only SPARQL.
 
 ## Vocabulary versions

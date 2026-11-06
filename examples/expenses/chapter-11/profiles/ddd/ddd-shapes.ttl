@@ -161,7 +161,9 @@ ddd:OneWritingContext a sh:NodeShape ;
 # owl:Class (ADR-0031), or a sh:NodeShape that names one directly. Its
 # shapes are itself and every sh:NodeShape whose sh:targetClass it is
 # (the path (^sh:targetClass)? below). The aggregate has one lifecycle, is
-# in one store, and every process that writes it is keyed the same way.
+# in one store, and every process that writes it is keyed the same way. Its
+# seam:aggregateMember shapes (ADR-0035), the entities it commits together,
+# are in one store between them, so they can commit in one transaction.
 ddd:AggregateBoundary a sh:NodeShape ;
     rdfs:label "Aggregate boundary" ;
     sh:targetSubjectsOf seam:lifecycle ;
@@ -217,6 +219,27 @@ ddd:AggregateBoundary a sh:NodeShape ;
               $this (^sh:targetClass)?/^seam:writes/seam:inModel/^seam:detailedBy/proc:correlationKey ?key .
               $this (^sh:targetClass)?/^seam:writes/seam:inModel/^seam:detailedBy/proc:correlationKey ?other .
               FILTER (STR(?key) < STR(?other))
+            }
+            """ ] ,
+    # One transaction store (ADR-0035 section 2): every member is stored ...
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "has seam:aggregateMember {?member}, which is seam:storedIn no store, so it has no transaction to commit in" ;
+        sh:select """
+            SELECT DISTINCT $this ?member WHERE {
+              $this seam:aggregateMember ?member .
+              FILTER NOT EXISTS { ?member seam:storedIn ?store . }
+            }
+            """ ] ,
+    # ... and all of them in the same one.
+    [ a sh:SPARQLConstraint ;
+        sh:prefixes <https://example.org/profiles/ddd/shapes> ;
+        sh:message "has seam:aggregateMember shapes seam:storedIn two stores, {?store} and {?other}, so they cannot commit in one transaction" ;
+        sh:select """
+            SELECT DISTINCT $this ?store ?other WHERE {
+              $this seam:aggregateMember/seam:storedIn ?store .
+              $this seam:aggregateMember/seam:storedIn ?other .
+              FILTER (STR(?store) < STR(?other))
             }
             """ ] .
 

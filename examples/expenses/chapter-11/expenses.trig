@@ -766,6 +766,10 @@
     # lifecycle with the finance context's links, below. The guard: the block reads the expense and
     # renders only while its lifecycle state is "submitted".
     :Expense seam:lifecycle :expense_lifecycle .
+    # Aggregate members (ADR-0035): the expense commits only its own shape.
+    # The approval is in another store (:expense_db), so it is another
+    # aggregate that refers to the expense by id, not a member of this one.
+    :Expense seam:aggregateMember :ExpenseShape .
     :awaiting_approval seam:reads :ExpenseShape ;
         seam:visibleWhen :s_submitted .
 
@@ -1074,8 +1078,10 @@
         seam:executes :payout_process , :vendor_review_process .
 
     # Class to lifecycle (ADR-0031): :PaymentShape reaches it through
-    # sh:targetClass.
-    :Payment seam:lifecycle :payment_lifecycle .
+    # sh:targetClass. It is also the payment aggregate's one member
+    # (ADR-0035), the entity a payout commits.
+    :Payment seam:lifecycle :payment_lifecycle ;
+        seam:aggregateMember :PaymentShape .
 
     # The payout process has no seam:triggers event: its message start event
     # subscribes to :payouts, so the runtime starts one instance per
@@ -1204,7 +1210,7 @@
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.4> ,
+                    <https://w3id.org/seams/seam/1.5> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.1> .
 }

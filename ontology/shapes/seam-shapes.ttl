@@ -106,6 +106,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:reads ,
         seam:writes ,
         seam:lifecycle ,
+        seam:aggregateMember ,
         seam:fires ,
         seam:acceptsShape ,
         seam:returnsShape ,
@@ -594,6 +595,30 @@ later IRI as the value; the same machine reached twice is one lifecycle.""" ;
                 $this seam:lifecycle|sh:targetClass/seam:lifecycle ?value , ?other .
                 FILTER (STR(?other) < STR(?value))
                 BIND (seam:lifecycle AS ?path)
+            }""" ;
+    ] .
+
+seamsh:AggregateMemberShape a sh:NodeShape ;
+    sh:targetSubjectsOf seam:aggregateMember ;
+    sh:property [ sh:path seam:lifecycle ; sh:minCount 1 ;
+        sh:message "Only an aggregate, an owl:Class or sh:NodeShape with a seam:lifecycle, has a seam:aggregateMember (ADR-0035)." ] ;
+    sh:property [ sh:path seam:aggregateMember ; sh:class sh:NodeShape ;
+        sh:message "seam:aggregateMember points at a sh:NodeShape." ] .
+
+seamsh:OneAggregateShape a sh:NodeShape ;
+    rdfs:comment """A shape is the seam:aggregateMember of at most one aggregate (ADR-0035
+section 1). One result per pair of aggregates, with the later IRI as the value. A
+sh:sparql constraint focused on the shape, so the result has no blank-node path.""" ;
+    sh:targetObjectsOf seam:aggregateMember ;
+    sh:sparql [
+        sh:message "A sh:NodeShape is the seam:aggregateMember of at most one aggregate; it is a member of {?other} and {?value}." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value ?other WHERE {
+                ?value seam:aggregateMember $this .
+                ?other seam:aggregateMember $this .
+                FILTER (STR(?other) < STR(?value))
+                BIND (seam:aggregateMember AS ?path)
             }""" ;
     ] .
 

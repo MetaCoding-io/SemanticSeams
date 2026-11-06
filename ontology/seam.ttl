@@ -6,8 +6,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/seam/1.4> ;
-    owl:versionInfo "1.4" ;
+    owl:versionIRI <https://w3id.org/seams/seam/1.5> ;
+    owl:versionInfo "1.5" ;
     rdfs:label "SemanticSeams Bridging Ontology" ;
     rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
 decision, state, data, communication, authorization, and planning models into one
@@ -241,6 +241,11 @@ seam:lifecycle a rdf:Property ;
     seam:reveal seam:Open ;
     rdfs:label "lifecycle" ;
     rdfs:comment "owl:Class | sh:NodeShape -> state:StateMachine governing instances of the class or the shape. The class is preferred; a shape's effective lifecycle is its own, else that of its sh:targetClass, and more than one is a violation (ADR-0031). (Constraint in shapes/seam-shapes.ttl.)" .
+
+seam:aggregateMember a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "aggregate member" ;
+    rdfs:comment "aggregate (an owl:Class or sh:NodeShape with a seam:lifecycle) -> sh:NodeShape whose entities the aggregate commits together, in one store transaction. Listed, never derived from sh:targetClass; a shape is a member of at most one aggregate (ADR-0035). (Constraint in shapes/seam-shapes.ttl.)" .
 
 seam:fires a rdf:Property ;
     seam:reveal seam:Layer ;

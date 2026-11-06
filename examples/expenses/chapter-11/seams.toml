@@ -15,7 +15,8 @@ model = "."
 # coverage query). Listing those gates here as well would report each fact
 # twice. The profile also checks that a shape is written only from the
 # context that owns it, and that an aggregate has one lifecycle, one store and
-# one correlation key.
+# one correlation key, and its seam:aggregateMember shapes one store between
+# them (ADR-0035).
 
 [[generators]]
 name = "fastapi"

@@ -92,7 +92,7 @@ context owns runs that context. Here both contexts run in the same portal and AP
 the checkpoint keeps one deployment.
 
 The new terms need the vocabulary versions that declare them. In the manifest graph,
-import `arch` 1.2 and `seam` 1.4:
+import `arch` 1.2 and `seam` 1.5:
 
 ```trig
         owl:imports <https://w3id.org/seams/arch/1.2> ,
@@ -100,7 +100,7 @@ import `arch` 1.2 and `seam` 1.4:
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.4> ,
+                    <https://w3id.org/seams/seam/1.5> ,
 ```
 
 ## What each context owns
@@ -228,9 +228,20 @@ seam:ShapeGraph`). `finance.trig` now needs the `sh:` and `xsd:` prefixes:
 
     :finance_data a seam:Model ; rdfs:label "Finance Data" .
 
+    # What finance records when it pays an approved expense: the payment
+    # reference and the day it was paid. The RDF property is :paidOn; its
+    # sh:name keeps the form field and the payload member "paid_on".
     :PaymentShape a sh:NodeShape ; rdfs:label "Payment" ;
         sh:targetClass :Payment ;
-        ...
+        sh:property [ sh:path :reference ; sh:name "reference" ; sh:datatype xsd:string ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:maxLength 100 ; sh:order 0 ] ;
+        sh:property [ sh:path :paidOn ; sh:name "paid_on" ; sh:datatype xsd:date ;
+                      sh:minCount 1 ; sh:maxCount 1 ; sh:order 1 ] ;
+        # Set by the runtime, never entered: the payment's current state in
+        # :payment_lifecycle. The payment has no state category yet, so the
+        # options are an sh:in of the state IRIs, sent as their labels.
+        sh:property [ sh:path :status ; sh:name "status" ; sh:maxCount 1 ; sh:order 2 ;
+                      sh:in ( :s_recorded :s_scheduled :s_batched :s_sent ) ] ;
         seam:inModel :finance_data .
 }
 ```
@@ -388,7 +399,28 @@ aggregate:
 | Fired transitions | no element `seam:fires` a lifecycle transition |
 | Translated access | an element reads or writes another context's shape, with no conformist or shared-kernel relationship and no translating operation |
 | One writing context | a shape is written from a context that does not own it |
-| Aggregate boundary | what names a `seam:lifecycle` has two lifecycles, no store or two, or is written by processes with no correlation key or two |
+| Aggregate boundary | what names a `seam:lifecycle` has two lifecycles, no store or two, or is written by processes with no correlation key or two; or its `seam:aggregateMember` shapes are not in one store between them |
+
+The aggregate boundary reads one more fact the seams graph now states: the shapes each
+aggregate commits together, its `seam:aggregateMember`s
+([ADR-0035](/adr/0035-aggregate-transaction-boundary)). Each aggregate here has one.
+The expense's is with the expense context's links:
+
+```trig
+    :Expense seam:aggregateMember :ExpenseShape .
+```
+
+The payment's is with the finance context's:
+
+```trig
+    :Payment seam:lifecycle :payment_lifecycle ;
+        seam:aggregateMember :PaymentShape .
+```
+
+The approval is not a member of the expense. `:ApprovalShape` is stored in
+`:expense_db` and `:ExpenseShape` in `:expense_pkm`, so the two cannot commit in one
+transaction: listing both would fail the rule, and the runtime would refuse the model.
+They are two aggregates that refer to each other by id.
 
 The first three restate the gates `ungoverned-writes.rq` and
 `untranslated-cross-context-calls.rq` and the coverage query `unfired-transitions.rq`,

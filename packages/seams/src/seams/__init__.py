@@ -122,6 +122,7 @@ from .profiles import Profile, resolve_profile
 from .review_check import ReviewFinding, review_findings
 from .sparql import PREFIXES, load_question, question_names
 from .views import (
+    Aggregate,
     Architecture,
     Artifact,
     Binding,
@@ -187,6 +188,7 @@ from .vocabularies import (
 
 __all__ = [
     "ARCH",
+    "Aggregate",
     "Architecture",
     "Artifact",
     "Binding",

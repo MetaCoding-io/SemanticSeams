@@ -338,6 +338,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `ResolutionError`.
   - `lifecycle`, `read_by`, `written_by` and `stored_in` (the store
     containers it is `seam:storedIn`).
+  - `aggregate`: the `Aggregate` it is a `seam:aggregateMember` of, or None;
+    a shape two aggregates list raises `ResolutionError(shape,
+    seam:aggregateMember, detail)` naming both.
   - `valid_examples` and `invalid_examples`: the IRIs of the nodes it
     `verify:validExample` or `verify:invalidExample`
     ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
@@ -353,6 +356,12 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   - `Transition` has `from_state`, `to_state` (`State` objects),
     `from_states`, `trigger`, `lifecycle`, `lifecycles` (every machine that
     `state:hasTransition` it) and `fired_by`.
+- **`model.aggregates`**: one `Aggregate` per subject of `seam:aggregateMember`
+  ([ADR-0035](/adr/0035-aggregate-transaction-boundary)), by IRI: the `owl:Class` or
+  `sh:NodeShape` that names the shapes it commits in one store transaction. An aggregate
+  with no members declares no boundary and is not listed.
+  - `Aggregate` has `members` (its listed `Shape`s, by IRI, never derived from
+    `sh:targetClass`) and `lifecycle` (the `Lifecycle` it names, or None).
 - **`model.scenarios`** and **`model.decision_examples`**: what the model says it should
   do ([ADR-0014](/adr/0014-scenarios-and-derived-tests)), by IRI.
   - `Scenario` has `process` (a `Process`), `actor` (the party IRI), `givens`,

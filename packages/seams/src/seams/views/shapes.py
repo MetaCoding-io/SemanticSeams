@@ -22,6 +22,7 @@ from ..ontologies import ontology_models
 from ._base import Element, Many, element_type, optional, sorted_many
 
 if TYPE_CHECKING:
+    from .aggregates import Aggregate
     from .architecture import Container
     from .lifecycles import Lifecycle
     from .ontologies import OntologyClass
@@ -318,6 +319,18 @@ class Shape(Element):
             detail = f"more than one effective lifecycle, its own or its sh:targetClass's: {found}"
             raise ResolutionError(self.iri, SEAM.lifecycle, detail)
         return optional(self._many(Lifecycle, machines, SEAM.lifecycle))
+
+    @property
+    def aggregate(self) -> Aggregate | None:
+        """The aggregate it is a seam:aggregateMember of (ADR-0035), or None. A
+        shape listed by two aggregates raises ``ResolutionError``."""
+        from .aggregates import Aggregate
+
+        owners = self._subjects(SEAM.aggregateMember)
+        if len(owners) > 1:
+            found = ", ".join(self._compact(o) for o in owners)
+            raise ResolutionError(self.iri, SEAM.aggregateMember, f"a member of more than one aggregate: {found}")
+        return optional(self._many(Aggregate, owners, SEAM.aggregateMember))
 
     @property
     def valid_examples(self) -> tuple[URIRef, ...]:

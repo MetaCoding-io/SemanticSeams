@@ -719,6 +719,37 @@ this:
   class, fails `EffectiveLifecycleShape`, and the typed shape view raises
   `ResolutionError(shape, seam:lifecycle)` listing both.
 
+### Aggregate members
+
+What names a `seam:lifecycle` is an aggregate. With `seam` 1.5, the aggregate lists the
+shapes whose entities it commits together with `seam:aggregateMember`, in the seams
+graph ([ADR-0035](/adr/0035-aggregate-transaction-boundary)). Chapter 11 lists one
+member for each aggregate:
+
+```trig
+:Expense seam:lifecycle :expense_lifecycle ;
+    seam:aggregateMember :ExpenseShape .
+:Payment seam:lifecycle :payment_lifecycle ;
+    seam:aggregateMember :PaymentShape .
+```
+
+- **Listed, never derived.** The members are exactly the objects of the aggregate's
+  `seam:aggregateMember` triples. A shape that targets the class is not a member unless
+  it is listed, and a member may target another class (an expense's line items). An
+  aggregate with no `seam:aggregateMember` declares no boundary.
+- **The seam shapes check it.** The subject has a `seam:lifecycle`
+  (`AggregateMemberShape`), each member is a `sh:NodeShape`, and a shape is a member of
+  at most one aggregate (`OneAggregateShape`).
+- **One store.** The members commit in one store transaction, so they are
+  `seam:storedIn` one store between them. The DDD profile checks this, and the runtime
+  refuses an aggregate whose members it cannot commit together (ADR-0035 section 5).
+  That is why chapter 11's approval is not a member of the expense: the approval is in
+  `:expense_db` and the expense in `:expense_pkm`, so they are two aggregates that refer
+  to each other by id.
+- **Typed view.** `model.aggregates` lists the aggregates that declare members, by IRI;
+  each one's `members` are its shapes, by IRI, and `Shape.aggregate` is the aggregate a
+  shape belongs to.
+
 A `state:Transition` is a domain event, identified by its IRI, and may
 `seam:publishesTo` a `comm:Channel`. The event's name is the transition's IRI or its
 `state:trigger`; do not copy a label onto the channel:
@@ -822,10 +853,11 @@ gates = [
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.4>`). `arch` 1.1 added domains and bounded contexts and
+(`<https://w3id.org/seams/seam/1.5>`). `arch` 1.1 added domains and bounded contexts and
 `seam` 1.3 added `seam:owns` (ADR-0030); `seam` 1.4 lets `seam:lifecycle` name an
 `owl:Class` and a `state:Transition` `seam:publishesTo` a channel (ADR-0031); `arch` 1.2
-added context-map relationships (`arch:ContextRelationship`, ADR-0032). All are
+added context-map relationships (`arch:ContextRelationship`, ADR-0032); `seam` 1.5 adds
+`seam:aggregateMember`, the shapes an aggregate commits together (ADR-0035). All are
 compatible widenings, so a model that declares an older `arch` or `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
@@ -837,7 +869,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.2> ,
-                    <https://w3id.org/seams/seam/1.4> .
+                    <https://w3id.org/seams/seam/1.5> .
 }
 ```
 
@@ -911,7 +943,7 @@ versions:
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.4> .
+                    <https://w3id.org/seams/seam/1.5> .
 }
 ```
 
@@ -1158,7 +1190,7 @@ model and attach it with one triple in the seams graph, on the manifest's
 ```
 
 Its rules read facts the model already states (`seam:owns`, `arch:ContextRelationship`,
-`seam:lifecycle`, `seam:storedIn`, `proc:correlationKey`, `seam:governedBy`,
+`seam:lifecycle`, `seam:aggregateMember`, `seam:storedIn`, `proc:correlationKey`, `seam:governedBy`,
 `seam:fires`), so a model with no bounded contexts or no lifecycle has nothing for them
 to fail on:
 
@@ -1168,7 +1200,8 @@ to fail on:
   shared-kernel relationship or a translating operation;
 - a shape is written only from the context that owns its model;
 - an aggregate, whatever names a `seam:lifecycle`, has one lifecycle, one store and one
-  correlation key across the processes that write it.
+  correlation key across the processes that write it, and its `seam:aggregateMember`
+  shapes are `seam:storedIn` one store between them (ADR-0035).
 
 The first three restate the `ungoverned-writes.rq` and
 `untranslated-cross-context-calls.rq` gates and the `unfired-transitions.rq` coverage

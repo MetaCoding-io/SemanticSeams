@@ -4,6 +4,7 @@
 @prefix dct:   <http://purl.org/dc/terms/> .
 @prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
     owl:versionIRI <https://w3id.org/seams/seam/2.0> ;
@@ -128,6 +129,12 @@ seam:executes a rdf:Property ;
     seam:reveal seam:Nest ;
     rdfs:label "executes" ;
     rdfs:comment "arch:Container -> proc:Process it runs. Completes impact analysis: 'what breaks if node X dies' must reach the process layer, and the generic graph-literate worker needs to know where a task's process lives." .
+
+seam:owns a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "owns" ;
+    rdfs:domain arch:BoundedContext ; rdfs:range seam:Model ;
+    rdfs:comment "A bounded context owns a model: the model is written in the context's language and changed by its team." .
 
 #################################################################
 # Data <-> architecture

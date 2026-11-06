@@ -92,6 +92,7 @@ A seam predicate added to seam.ttl is added here too.""" ;
         seam:consumes ,
         seam:deployedTo ,
         seam:executes ,
+        seam:owns ,
         seam:storedIn ,
         seam:triggers ,
         seam:completedOn ,
@@ -160,6 +161,55 @@ seamsh:ExecutesShape a sh:NodeShape ;
     sh:class arch:Container ;
     sh:property [ sh:path seam:executes ; sh:class proc:Process ;
         sh:message "seam:executes points at a proc:Process." ] .
+
+#################################################################
+# Domains and bounded contexts (ADR-0030)
+#################################################################
+
+seamsh:DomainShape a sh:NodeShape ;
+    sh:targetClass arch:Domain ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An arch:Domain has exactly one rdfs:label." ] ;
+    sh:property [ sh:path arch:classification ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( arch:Core arch:Supporting arch:Generic ) ;
+        sh:message "An arch:Domain has exactly one arch:classification: arch:Core, arch:Supporting or arch:Generic." ] .
+
+seamsh:BoundedContextShape a sh:NodeShape ;
+    sh:targetClass arch:BoundedContext ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "An arch:BoundedContext has exactly one rdfs:label." ] ;
+    sh:property [ sh:path [ sh:inversePath arch:contains ] ;
+        sh:qualifiedValueShape [ sh:class arch:Domain ] ;
+        sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "An arch:BoundedContext is arch:contains'ed by exactly one arch:Domain." ] ;
+    sh:property [ sh:path seam:owns ;
+        sh:qualifiedValueShape [ sh:path seam:notation ; sh:hasValue seam:Ontology ] ;
+        sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ;
+        sh:message "An arch:BoundedContext seam:owns exactly one model whose seam:notation is seam:Ontology." ] .
+
+# A dataset with no context is one implicit context, so the second check only runs
+# once any arch:BoundedContext is declared. The architecture model (seam:C4)
+# declares the contexts and is never owned.
+seamsh:ModelOwnerShape a sh:NodeShape ;
+    sh:targetClass seam:Model ;
+    sh:property [ sh:path [ sh:inversePath seam:owns ] ; sh:maxCount 1 ;
+        sh:message "A seam:Model is seam:owns'ed by at most one arch:BoundedContext." ] ;
+    sh:sparql [
+        sh:message "Once the dataset declares an arch:BoundedContext, every seam:Model whose notation is not seam:C4 is seam:owns'ed by exactly one." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path WHERE {
+                FILTER EXISTS { ?context a arch:BoundedContext }
+                FILTER NOT EXISTS { $this seam:notation seam:C4 }
+                FILTER NOT EXISTS { ?owner seam:owns $this }
+                BIND (seam:owns AS ?path)
+            }""" ;
+    ] .
+
+seamsh:OwnsTargetShape a sh:NodeShape ;
+    sh:targetObjectsOf seam:owns ;
+    sh:class seam:Model ;
+    sh:message "seam:owns points at a seam:Model." .
 
 #################################################################
 # UI <-> process

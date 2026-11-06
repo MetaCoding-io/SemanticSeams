@@ -3,10 +3,11 @@
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
 @prefix hydra: <http://www.w3.org/ns/hydra/core#> .
 @prefix seam:  <https://w3id.org/seams/seam#> .
+@prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/seam> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/seam/1.2> ;
-    owl:versionInfo "1.2" ;
+    owl:versionIRI <https://w3id.org/seams/seam/1.3> ;
+    owl:versionInfo "1.3" ;
     rdfs:label "SemanticSeams Bridging Ontology" ;
     rdfs:comment """The cross-layer predicates that weld architecture, UI, process,
 decision, state, data, communication, authorization, and planning models into one
@@ -119,6 +120,12 @@ seam:executes a rdf:Property ;
     seam:reveal seam:Nest ;
     rdfs:label "executes" ;
     rdfs:comment "arch:Container -> proc:Process it runs. Completes impact analysis: 'what breaks if node X dies' must reach the process layer, and the generic graph-literate worker needs to know where a task's process lives." .
+
+seam:owns a rdf:Property ;
+    seam:reveal seam:Layer ;
+    rdfs:label "owns" ;
+    rdfs:domain arch:BoundedContext ; rdfs:range seam:Model ;
+    rdfs:comment "A bounded context owns a model: the model is written in the context's language and changed by its team." .
 
 #################################################################
 # Data <-> architecture

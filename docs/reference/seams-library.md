@@ -591,7 +591,13 @@ are sorted.
 
   In each finding the subject is the flow IRI (`<bpmn model>#<flow id>`).
   The fact is the variable, or the expression itself if it does not parse.
-- `seams.decision_findings(model)` returns the findings of both checks.
+- `seams.table_findings(model)` checks `UNIQUE` decision tables (backlog X13): one
+  finding per pair of overlapping rules and one for the table's first uncovered
+  input, naming the rules or the input. The subject is the decision and the fact
+  `dmn:rule`. It reads input entries that are `-`, number comparisons, ranges,
+  quoted strings or comma lists of these; a table with any other entry is skipped,
+  not guessed at.
+- `seams.decision_findings(model)` returns the findings of all three checks.
 
 A decision or process whose payload file is missing is skipped. Any other
 `ResolutionError` met while reading one becomes a finding. Every example

@@ -138,10 +138,10 @@ def test_added_and_deprecated_terms_are_compatible(dirs):
 def test_a_removed_term_without_a_major_bump_fails(dirs):
     old, new = dirs
     _edit(new / "arch.ttl", lambda g: g.remove((ARCH.Person, None, None)))
-    _bump(new, "arch", "1.1")
+    _bump(new, "arch", "1.2")
     assert _kinds(diff_vocabularies(old, new)["arch"]) == [(BREAKING, "term-removed", str(ARCH.Person))]
     assert gate(old, new) == [
-        f"arch: 1 breaking change(s) without a major bump (1.0 -> 1.1): term-removed {ARCH.Person}"
+        f"arch: 1 breaking change(s) without a major bump (1.1 -> 1.2): term-removed {ARCH.Person}"
     ]
 
 
@@ -217,7 +217,7 @@ def test_the_seam_2_fixture_is_a_compatible_major_with_its_step():
 
 
 def test_going_back_from_the_fixture_fails():
-    assert gate(FIXTURE, ONTOLOGY) == ["seam: version goes down, 2.0 -> 1.2"]
+    assert gate(FIXTURE, ONTOLOGY) == ["seam: version goes down, 2.0 -> 1.3"]
 
 
 def test_a_removed_vocabulary_fails(dirs):

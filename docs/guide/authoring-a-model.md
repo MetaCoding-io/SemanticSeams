@@ -681,10 +681,55 @@ category label must be usable as a JSON-LD term (not empty, not starting with `@
 `:`), and the target class's local name must not also be a field name; the generator
 refuses either with a `GeneratorError` naming the member or the shape.
 
+## Domains and bounded contexts
+
+A domain groups systems and bounded contexts and says where effort goes; a bounded
+context owns one ontology and the model graphs written in its language
+([ADR-0030](/adr/0030-domains-and-bounded-contexts)). Both are architecture elements,
+declared in the architecture model; what a context owns is a cross-layer fact in the
+seams graph. The notation needs `arch` 1.1 and `seam` 1.3 in the
+[manifest graph](#vocabulary-versions):
+
+```trig
+<urn:seams:graph:model:expense_architecture> {
+    :finance a arch:Domain ; rdfs:label "Finance" ;
+        arch:classification arch:Core ;
+        arch:contains :finance_context .
+    :finance_context a arch:BoundedContext ; rdfs:label "Payouts" .
+}
+
+<urn:seams:graph:seams> {
+    :finance_context seam:owns :finance_ontology , :payout_bpmn , :finance_console .
+}
+```
+
+- **A domain** has one `rdfs:label` and exactly one `arch:classification`:
+  `arch:Core`, `arch:Supporting` or `arch:Generic`. It `arch:contains` its systems and
+  contexts with the ordinary nesting property.
+- **A context** has one `rdfs:label`, sits in exactly one domain, and `seam:owns`
+  exactly one model whose notation is `seam:Ontology`: that ontology is its language.
+  Its classification is its domain's.
+- **Each model has at most one owner.** Once a dataset declares any context, every
+  model except the architecture model (`seam:C4`) is owned by exactly one. The
+  architecture model describes the boundaries and is never owned.
+- **No context is one implicit context.** A dataset that declares none, like every
+  example today, checks as before.
+- **What is derived, not stated.** The containers that run a context are those that
+  `seam:executes` or `seam:presents` a model it owns, and an element is in a context
+  when its `seam:inModel` model is owned by it. There is no context-to-container fact
+  and no `seam:inContext`.
+
+One file per context is a convention, not a rule: ownership is a fact, so moving a model
+graph between files changes nothing. `seams check` and the viewer's health panel name the
+element and the predicate for each break (`DomainShape`, `BoundedContextShape`,
+`ModelOwnerShape`, `OwnsTargetShape` in the [shapes reference](/reference/shapes)).
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.2>`). A model says which versions it is written for in
+(`<https://w3id.org/seams/seam/1.3>`). `arch` 1.1 added domains and bounded contexts and
+`seam` 1.3 added `seam:owns` (ADR-0030); both are compatible widenings, so a model that
+declares `arch` 1.0 or `seam` 1.2 loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -694,8 +739,8 @@ version IRI of each SemanticSeams vocabulary the model uses
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> .
+        owl:imports <https://w3id.org/seams/arch/1.1> ,
+                    <https://w3id.org/seams/seam/1.3> .
 }
 ```
 
@@ -767,9 +812,9 @@ versions:
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.0> ,
+        owl:imports <https://w3id.org/seams/arch/1.1> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.2> .
+                    <https://w3id.org/seams/seam/1.3> .
 }
 ```
 

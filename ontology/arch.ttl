@@ -4,8 +4,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/arch> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/arch/1.0> ;
-    owl:versionInfo "1.0" ;
+    owl:versionIRI <https://w3id.org/seams/arch/1.1> ;
+    owl:versionInfo "1.1" ;
     rdfs:label "SemanticSeams Architecture Vocabulary" ;
     rdfs:comment """A deliberately small C4-inspired vocabulary. Unlike C4 proper,
 the containment hierarchy is user-definable (LikeC4-style): arch:contains nests
@@ -38,6 +38,17 @@ arch:DeploymentNode a rdfs:Class ; rdfs:subClassOf arch:Element ;
 arch:Environment a rdfs:Class ; rdfs:subClassOf arch:Element ;
     rdfs:comment "A deployment environment (prod, demo/dv, staging) grouping deployment nodes." .
 
+arch:Domain a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "A business area that groups systems and bounded contexts; classified core, supporting or generic." .
+
+arch:BoundedContext a rdfs:Class ; rdfs:subClassOf arch:Element ;
+    rdfs:comment "The boundary inside which a term has one meaning: owns one seam:Ontology and the model graphs that use its language." .
+
+arch:DomainClassification a rdfs:Class .
+arch:Core       a arch:DomainClassification ; rdfs:label "core" .
+arch:Supporting a arch:DomainClassification ; rdfs:label "supporting" .
+arch:Generic    a arch:DomainClassification ; rdfs:label "generic" .
+
 #################################################################
 # Properties
 #################################################################
@@ -56,3 +67,6 @@ arch:technology a rdf:Property ;
 
 arch:description a rdf:Property ;
     rdfs:domain arch:Element .
+
+arch:classification a rdf:Property ;
+    rdfs:domain arch:Domain ; rdfs:range arch:DomainClassification .

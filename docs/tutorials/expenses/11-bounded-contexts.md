@@ -91,10 +91,10 @@ context owns runs that context. Here both contexts run in the same portal and AP
 the checkpoint keeps one deployment.
 
 The new terms need the vocabulary versions that declare them. In the manifest graph,
-import `arch` 1.1 and `seam` 1.4:
+import `arch` 1.2 and `seam` 1.4:
 
 ```trig
-        owl:imports <https://w3id.org/seams/arch/1.1> ,
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
@@ -262,6 +262,34 @@ seams storm payout_process --project examples/expenses/chapter-11
 ```
 
 The `:payouts` channel is the only line between the two storms.
+
+## The context map
+
+The two contexts now depend on each other in one direction. Pay Expense, Choose
+Payout, the `payout_method` decision and the console's `paid_expenses` block all read
+`ExpenseShape`, which the expense context owns, and no expense element touches a
+finance shape. A change to an expense shape can break finance, so expense is
+**upstream** and finance **downstream**.
+
+Say so in the architecture graph, beside the two contexts, with an
+`arch:ContextRelationship` ([ADR-0032](../../adr/0032-context-map-relationships.md)):
+
+```trig
+    :expense_to_finance a arch:ContextRelationship ;
+        arch:upstream :expense_context ;
+        arch:downstream :finance_context ;
+        arch:relationshipType arch:Conformist .
+```
+
+The type records what the two teams agreed. Finance has no operation that translates
+an expense into a shape of its own: its processes read `ExpenseShape` as the expense
+context defines it. That is **conformist**. The other types are customer-supplier,
+anti-corruption layer, published language and shared kernel. Contexts that agreed
+nothing have no relationship.
+
+The seam shapes check the relationship. It needs exactly one upstream, one downstream
+and one type, and the two ends must be different contexts. Only one relationship may
+join a pair of contexts, in either direction.
 
 ## Generate, check and run
 

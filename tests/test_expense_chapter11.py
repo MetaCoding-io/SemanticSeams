@@ -97,6 +97,32 @@ def test_every_model_but_the_architecture_has_exactly_one_owner(model, seams_gra
             assert len(owners.get(iri, [])) == 1, f"{local_name(iri)} has owners {owners.get(iri)}"
 
 
+def test_expense_is_the_conformist_upstream_of_finance(model):
+    arch = model.ds.graph(ARCHITECTURE_GRAPH)
+    relationships = sorted(arch.subjects(RDF.type, ARCH.ContextRelationship))
+    assert relationships == [EX.expense_to_finance]
+    facts = {p: set(arch.objects(EX.expense_to_finance, p)) for p in (ARCH.upstream, ARCH.downstream)}
+    assert facts == {ARCH.upstream: {EX.expense_context}, ARCH.downstream: {EX.finance_context}}
+    assert set(arch.objects(EX.expense_to_finance, ARCH.relationshipType)) == {ARCH.Conformist}
+
+
+def test_every_cross_context_access_runs_from_finance_to_expense(model, seams_graph):
+    """The declared direction (ADR-0032 section 2) is the one the accesses run in."""
+    owner = {owned: context for context, owned in seams_graph.subject_objects(SEAM.owns)}
+
+    def context_of(element: URIRef) -> URIRef | None:
+        models = set(model.ds.objects(element, SEAM.inModel))
+        return next((owner[m] for m in models if m in owner), None)
+
+    crossings: set[tuple[URIRef | None, URIRef | None]] = set()
+    for predicate in (SEAM.reads, SEAM.writes):
+        for element, shape in seams_graph.subject_objects(predicate):
+            pair = (context_of(element), context_of(shape))
+            if pair[0] != pair[1]:
+                crossings.add(pair)
+    assert crossings == {(EX.finance_context, EX.expense_context)}
+
+
 @pytest.mark.parametrize(
     "file, context", [("expenses.trig", EX.expense_context), ("finance.trig", EX.finance_context)], ids=str
 )

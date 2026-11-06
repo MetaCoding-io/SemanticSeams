@@ -163,6 +163,18 @@
     :finance_context a arch:BoundedContext ; rdfs:label "Payouts" ;
         seam:inModel :expense_architecture .
 
+    # The context map (ADR-0032): one line between the two contexts. Finance
+    # reads ExpenseShape (Pay Expense, Choose Payout, payout_method and the
+    # console's paid_expenses) and expense touches no finance shape, so expense
+    # is upstream: a change to its shapes can break finance. Finance has no
+    # operation that translates an expense into a shape of its own; it uses the
+    # expense language as the expense context defines it, which is conformist.
+    # The approval process reaches finance only by publishing on :payouts.
+    :expense_to_finance a arch:ContextRelationship ;
+        arch:upstream :expense_context ;
+        arch:downstream :finance_context ;
+        arch:relationshipType arch:Conformist .
+
     # The system and the five containers it is built from.
     :expense_system a arch:System ; rdfs:label "Expense Approval" ;
         arch:contains :employee_portal , :expense_api , :expense_db , :expense_pkm ,
@@ -1196,7 +1208,7 @@
 
     # One owl:imports per vocabulary the model uses (ADR-0021).
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.1> ,
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,

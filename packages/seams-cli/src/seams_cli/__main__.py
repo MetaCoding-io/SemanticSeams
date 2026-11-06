@@ -1,5 +1,5 @@
 """Command line: ``seams generate|check|migrate|status|sequence|storm|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
-``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
+``seams generate|check|migrate|status|secrets|cml export PATH`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
 ``seams draft-generator NAME --reference FILE [--provider CMD] [--llm-model NAME] [--out DIR] [--force]``,
@@ -77,6 +77,14 @@ or an ifml:Event that seam:triggers one (a CURIE, local name or IRI). With
 deriver could not place prints to stderr as ``seams storm: gap <name>:
 <detail>``; gaps are an audit, and the exit code stays 0. An unknown name
 exits 2 and writes nothing.
+
+``seams cml export [PATH] [--out FILE]`` (M029/S03, backlog B5, ADR-0034)
+prints the context map as Context Mapper DSL: a ``ContextMap`` that
+``contains`` every arch:BoundedContext, one relationship line per
+arch:ContextRelationship in its type's bracket form, named by the IRI's local
+name, then a bodiless ``BoundedContext`` per context, all sorted by IRI. With
+``--out`` the CML goes to FILE, whose path is then printed. A relationship that
+is not fully stated, or whose type has no CML form, exits 2 and writes nothing.
 
 ``seams diff OLD NEW [--json]`` (D052) compares two model versions, each a
 TriG file or a directory, and classifies every SHACL shape and operation
@@ -210,6 +218,7 @@ from seams_edit import PatchError
 from seams_gen import GeneratorError
 
 from .check import ADVISORY_KINDS, FILE_KINDS, check_project
+from .cml import run_export as run_cml_export
 from .context import render as render_context
 from .context import run_context
 from .context import to_json as context_json
@@ -315,6 +324,20 @@ def build_parser() -> argparse.ArgumentParser:
     _project_arguments(storm)
     storm.add_argument("--out", type=Path, metavar="FILE", help="write the timeline to FILE instead of stdout")
     storm.set_defaults(run=_storm)
+    cml = sub.add_parser(
+        "cml",
+        help="export the context map as Context Mapper DSL (CML)",
+        description="Move the context map between the model and Context Mapper (ADR-0034).",
+    )
+    cml_sub = cml.add_subparsers(dest="cml_command", required=True, metavar="command")
+    cml_export = cml_sub.add_parser(
+        "export",
+        help="print the model's bounded contexts and context relationships as CML",
+        description="Write the arch:BoundedContexts and arch:ContextRelationships as one CML ContextMap.",
+    )
+    _project_arguments(cml_export, path=True)
+    cml_export.add_argument("--out", type=Path, metavar="FILE", help="write the CML to FILE instead of stdout")
+    cml_export.set_defaults(run=_cml_export)
     diff = sub.add_parser(
         "diff",
         help="classify shape and operation-contract changes between two models as compatible or breaking",
@@ -584,6 +607,15 @@ def _storm(args: argparse.Namespace) -> int:
     text, gaps = run_storm(project, args.model, args.name, args.out)
     for name, gap in gaps:
         print(f"seams storm: gap {name}: {gap}", file=sys.stderr)
+    if args.out is None:
+        sys.stdout.write(text)
+    else:
+        print(_display(args.out.resolve()))
+    return 0
+
+
+def _cml_export(args: argparse.Namespace) -> int:
+    text = run_cml_export(load_project(args.project), args.model, args.out)
     if args.out is None:
         sys.stdout.write(text)
     else:

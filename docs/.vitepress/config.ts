@@ -64,6 +64,7 @@ const decisions = [
   ["0035", "Aggregate transaction boundary", "0035-aggregate-transaction-boundary"],
   ["0036", "Cross-aggregate invariants", "0036-cross-aggregate-invariants"],
   ["0037", "Timers and scheduling", "0037-timers-and-scheduling"],
+  ["0038", "Shared stream channel and replicas", "0038-shared-stream-channel"],
 ] as const;
 
 export default defineConfig({

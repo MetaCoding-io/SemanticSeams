@@ -75,3 +75,10 @@ declare a store with the new facts and need no runtime change to use it.
 - **Schema evolution** of stored data stays with U8.
 - **Migrating existing SQLite data.** It exists only in local development volumes, so the
   plan is to document a reset rather than build a migration.
+
+*Revision, 2026-11-06: the replicas item is decided by
+[ADR-0038](../adr/0038-shared-stream-channel.md) (backlog A10, M030/S03). With a
+PostgreSQL store the live-update stream goes through `LISTEN`/`NOTIFY` and a bounded
+`channel_frames` table, instances resume from the store on whichever replica gets the
+call, and the generated replica cap is lifted; a SQLite store keeps the in-process bus and
+refuses more than one replica.*

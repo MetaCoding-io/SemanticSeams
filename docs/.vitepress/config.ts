@@ -59,6 +59,7 @@ const decisions = [
   ["0030", "Domains and bounded contexts", "0030-domains-and-bounded-contexts"],
   ["0031", "Lifecycle on the class", "0031-lifecycle-on-the-class"],
   ["0032", "Context-map relationships", "0032-context-map-relationships"],
+  ["0033", "The DDD profile", "0033-ddd-profile"],
 ] as const;
 
 export default defineConfig({

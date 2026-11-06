@@ -1,0 +1,15 @@
+{
+  "name": "semanticseams-course",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The course site for SemanticSeams, built with VitePress from course/.",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}

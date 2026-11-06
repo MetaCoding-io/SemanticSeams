@@ -217,7 +217,7 @@ def test_the_seam_2_fixture_is_a_compatible_major_with_its_step():
 
 
 def test_going_back_from_the_fixture_fails():
-    assert gate(FIXTURE, ONTOLOGY) == ["seam: version goes down, 2.0 -> 1.3"]
+    assert gate(FIXTURE, ONTOLOGY) == ["seam: version goes down, 2.0 -> 1.4"]
 
 
 def test_a_removed_vocabulary_fails(dirs):

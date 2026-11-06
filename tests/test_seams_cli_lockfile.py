@@ -325,3 +325,23 @@ def test_a_malformed_draft_names_the_key(app, capsys, drafts, key):
     (app / "seams.lock").write_text(json.dumps({**_lock(app), "drafts": drafts}), encoding="utf-8")
     with pytest.raises(LockError, match=re.escape(key)):
         read_lock(load_project(app))
+
+
+def test_a_draft_model_round_trips_and_an_absent_one_keeps_the_bytes(app, capsys):
+    from seams_cli.lockfile import render_lock
+
+    _generate(app, capsys)
+    pinned = {**DRAFT, "task": "https://example.org/t#a", "model": "model-a"}
+    text = json.dumps({**_lock(app), "drafts": [pinned, DRAFT]}, indent=2, sort_keys=True) + "\n"
+    (app / "seams.lock").write_text(text, encoding="utf-8")
+    lock = read_lock(load_project(app))
+    assert [d.model for d in lock.drafts] == ["model-a", None]
+    assert render_lock(lock) == text
+
+
+def test_a_malformed_draft_model_names_the_key(app, capsys):
+    _generate(app, capsys)
+    drafts = [{**DRAFT, "model": 3}]
+    (app / "seams.lock").write_text(json.dumps({**_lock(app), "drafts": drafts}), encoding="utf-8")
+    with pytest.raises(LockError, match=re.escape("`drafts[0].model`")):
+        read_lock(load_project(app))

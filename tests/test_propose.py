@@ -14,7 +14,7 @@ import pytest
 from seams_cli import LockError, read_lock
 from seams_cli.__main__ import main
 from seams_cli.project import ProjectError, load_project
-from seams_cli.propose import CACHE_DIR, extract_draft, propose
+from seams_cli.propose import CACHE_DIR, cache_key, extract_draft, propose
 
 from tests.workspace_copy import copy_example
 
@@ -188,3 +188,70 @@ def test_a_malformed_lock_writes_nothing(app):
         propose(load_project(app), None, TASK, _provider("good_provider.py"))
     assert not (app / "handlers" / "notify.py").exists()
     assert not (app / CACHE_DIR).exists()
+
+
+def test_the_llm_model_reaches_the_provider_and_the_lock(app, capsys):
+    args = ["propose", TASK, "--project", str(app), "--provider", _provider("good_provider.py")]
+    assert main([*args, "--llm-model", "model-a"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[3:5] == [f"provider {_provider('good_provider.py')}", "llm-model model-a"]
+    assert (app / "handlers" / "notify.py").read_text().endswith("# llm-model model-a\n")
+    (record,) = _drafts(app)
+    assert record["model"] == "model-a"
+    assert read_lock(load_project(app)).drafts[0].model == "model-a"
+
+
+def test_no_llm_model_prints_no_line_and_records_no_key(app, capsys):
+    assert main(["propose", TASK, "--project", str(app), "--provider", _provider("good_provider.py")]) == 0
+    assert not any(line.startswith("llm-model") for line in capsys.readouterr().out.splitlines())
+    assert "model" not in _drafts(app)[0]
+
+
+def test_the_same_llm_model_hits_the_cache_and_another_misses(app, tmp_path):
+    provider = _provider("good_provider.py", str(tmp_path / "calls"))
+    first = propose(load_project(app), None, TASK, provider, llm_model="model-a")
+    second = propose(load_project(app), None, TASK, provider, force=True, llm_model="model-a")
+    assert (first.cache_hit, second.cache_hit) == (False, True)
+    assert (tmp_path / "calls").read_text() == "1"
+    other = propose(load_project(app), None, TASK, _provider("good_provider.py"), force=True, llm_model="model-b")
+    assert not other.cache_hit and other.llm_model == "model-b"
+    unpinned = propose(load_project(app), None, TASK, _provider("good_provider.py"), force=True)
+    assert not unpinned.cache_hit and unpinned.llm_model is None
+    assert len(list((app / CACHE_DIR).iterdir())) == 3
+
+
+def test_the_cache_key_without_a_model_is_unchanged():
+    expected = hashlib.sha256(b"sha256:abc\ndraft-v1\nfake-llm").hexdigest()
+    assert cache_key("sha256:abc", "draft-v1", "fake-llm") == expected
+    assert cache_key("sha256:abc", "draft-v1", "fake-llm", "m") != expected
+
+
+def test_llm_model_from_the_project_file_and_the_flag_wins(app):
+    toml = app / "seams.toml"
+    toml.write_text(toml.read_text() + '\n[propose]\nmodel = "model-a"\n')
+    assert load_project(app).llm_model == "model-a"
+    assert propose(load_project(app), None, TASK, _provider("good_provider.py")).llm_model == "model-a"
+    flagged = propose(load_project(app), None, TASK, _provider("good_provider.py"), force=True, llm_model="model-b")
+    assert flagged.llm_model == "model-b"
+    assert _drafts(app)[0]["model"] == "model-b"
+
+
+@pytest.mark.parametrize("value", ["3", '""', '"  "', "[]"])
+def test_bad_propose_model_is_a_project_error(app, value):
+    toml = app / "seams.toml"
+    toml.write_text(toml.read_text() + f"\n[propose]\nmodel = {value}\n")
+    with pytest.raises(ProjectError, match="propose.model"):
+        load_project(app)
+
+
+def test_an_empty_llm_model_flag_is_refused_before_the_provider_runs(app, capsys):
+    args = ["propose", TASK, "--project", str(app), "--provider", _provider("good_provider.py"), "--llm-model", " "]
+    assert main(args) == 2
+    assert "--llm-model" in capsys.readouterr().err
+    assert not (app / CACHE_DIR).exists()
+
+
+def test_an_inherited_llm_model_env_does_not_reach_an_unpinned_provider(app, monkeypatch):
+    monkeypatch.setenv("SEAMS_LLM_MODEL", "ambient")
+    assert propose(load_project(app), None, TASK, _provider("good_provider.py")).passed
+    assert "llm-model" not in (app / "handlers" / "notify.py").read_text()

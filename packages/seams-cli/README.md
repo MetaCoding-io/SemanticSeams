@@ -39,6 +39,9 @@ out = "generated/templates"
   report each BPMN path no scenario runs as a `coverage` finding (D054).
 - `propose` (table, optional): `provider`, the command `seams propose` and
   `seams suggest` send their prompts to (D059, D061); `--provider` overrides it.
+  `model`, the LLM model name `seams propose` asks the provider for (D063);
+  `--llm-model` overrides it. It is stored as `Project.llm_model`, because
+  `Project.model` is the TriG path.
 - `environments` (table of tables, optional): environment names, the local
   names of the model's `arch:Environment`s (the compose generator writes
   `compose.<name>.yaml` for each, ADR-0015). An environment may carry an `endpoints` inline table, container local name to
@@ -375,11 +378,14 @@ It drafts the handler body of one service task with an LLM (backlog C4,
 context manifest, the stub and the acceptance tests, with model text in DATA
 fences and bindings named only. The provider is the command in `[propose]
 provider` or `--provider` (shlex-split, no shell, prompt on stdin, draft on
-stdout). Successful responses are cached in `.seams/drafts/` keyed by
-sha256(context hash, template, provider). The draft is tested with the
+stdout). `[propose] model` or `--llm-model` names the LLM model (D063):
+`call_provider` passes it as env `SEAMS_LLM_MODEL` (and drops an inherited one when
+none is named), and `propose` prints it as an `llm-model` line. Successful responses
+are cached in `.seams/drafts/` keyed by sha256(context hash, template, provider[,
+model]); `cache_key` adds the model only when one is named, so older keys still hit. The draft is tested with the
 module's acceptance tests in a scratch copy and written to the handlers module
 only on pass (an existing one only with `--force`). An accepted draft's record
-(task, path, context hash, template, provider, sha256) is upserted by task into
+(task, path, context hash, template, provider, sha256, plus `model` when named) is upserted by task into
 the `drafts` list of `seams.lock` (`lockfile.with_draft`), which `seams check`
 audits for `draft-stale` and `draft-hand-edited`. Exit 0 on accept, 1 on
 failed tests or a failed provider, 2 on a project error. See

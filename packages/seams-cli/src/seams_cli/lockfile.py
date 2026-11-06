@@ -33,7 +33,8 @@ strict run.
 ``seams propose`` (M022/S05) adds a top-level ``drafts`` list, sorted by task,
 of ``{"context_hash", "path", "provider", "sha256", "task", "template"}``
 objects: one per accepted LLM draft of a handlers module (ADR-0020), upserted
-by task. ``seams generate`` carries the old lock's drafts forward unchanged.
+by task. A draft made with an LLM model label (D063) also has ``"model"``;
+without one the key is absent, so older locks keep their bytes. ``seams generate`` carries the old lock's drafts forward unchanged.
 Without drafts the key is absent, so a lock without drafts keeps its bytes.
 
 Paths are posix and relative to the project root; a target outside it (the
@@ -90,7 +91,8 @@ class Fault(NamedTuple):
 class Draft(NamedTuple):
     """An accepted ``seams propose`` draft: the task IRI, the handlers module
     (relative to the project root), the task's context hash, the prompt
-    template, the provider command and the hex sha256 of the draft written."""
+    template, the provider command, the hex sha256 of the draft written and
+    the LLM model label it was asked for, if any."""
 
     task: str
     path: str
@@ -98,6 +100,7 @@ class Draft(NamedTuple):
     template: str
     provider: str
     sha256: str
+    model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -189,10 +192,18 @@ def _fault(path: Path, index: int, item: object) -> Fault:
 def _draft(path: Path, index: int, item: object) -> Draft:
     key = f"drafts[{index}]"
     entry = _mapping(path, item, key)
-    draft = Draft(**{name: _require(path, entry.get(name), f"{key}.{name}", str) for name in Draft._fields})
+    required = Draft._fields[:-1]
+    draft = Draft(
+        **{name: _require(path, entry.get(name), f"{key}.{name}", str) for name in required},
+        model=_require(path, entry["model"], f"{key}.model", str) if "model" in entry else None,
+    )
     if not _SHA256.fullmatch(draft.sha256):
         raise LockError(f"{path}: `{key}.sha256` must be 64 lowercase hex digits")
     return draft
+
+
+def _draft_order(draft: Draft) -> tuple[str, ...]:
+    return (*draft[:-1], draft.model or "")
 
 
 def read_lock(project: Project) -> Lock | None:
@@ -218,7 +229,7 @@ def read_lock(project: Project) -> Lock | None:
         model_hash,
         outputs,
         tuple(_fault(path, i, entry) for i, entry in enumerate(faults)),
-        tuple(sorted(_draft(path, i, entry) for i, entry in enumerate(drafts))),
+        tuple(sorted((_draft(path, i, entry) for i, entry in enumerate(drafts)), key=_draft_order)),
     )
 
 
@@ -228,7 +239,7 @@ def with_draft(project: Project, model: Path, lock: Lock | None, draft: Draft) -
     if lock is None:
         lock = build_lock(project, model, {})
     kept = [d for d in lock.drafts if d.task != draft.task]
-    return replace(lock, drafts=tuple(sorted((*kept, draft))))
+    return replace(lock, drafts=tuple(sorted((*kept, draft), key=_draft_order)))
 
 
 def build_lock(project: Project, model: Path, outputs: Mapping[Path, Output], faults: Iterable[Fault] = ()) -> Lock:
@@ -270,7 +281,9 @@ def render_lock(lock: Lock) -> str:
     if lock.faults:
         data["faults"] = [f._asdict() for f in sorted(lock.faults)]
     if lock.drafts:
-        data["drafts"] = [d._asdict() for d in sorted(lock.drafts)]
+        data["drafts"] = [
+            {k: v for k, v in d._asdict().items() if v is not None} for d in sorted(lock.drafts, key=_draft_order)
+        ]
     return json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 

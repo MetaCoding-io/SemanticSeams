@@ -54,6 +54,7 @@ out = "generated/templates"
 | `coverage` | array of strings, optional | Coverage reports `seams check` also fails on. The only one is `"paths"`: each BPMN path no scenario runs (see [seams coverage](#seams-coverage)). |
 | `[environments.<name>]` | table of tables, optional | The app's environment names. Use the local names of the model's `arch:Environment`s (`development`, `production`), so `seams status --env development` and the generated `compose.development.yaml` name the same environment. |
 | `[propose] provider` | string, optional | The provider command [`seams propose`](#seams-propose), [`seams suggest`](#seams-suggest) and [`seams draft-generator`](#seams-draft-generator) send their prompts to; `--provider` overrides it. |
+| `[propose] model` | string, optional | The LLM model [`seams propose`](#seams-propose) asks the provider for, by name: passed as the environment variable `SEAMS_LLM_MODEL`, part of the cache key and recorded in the lock; `--llm-model` overrides it. |
 | `[environments.<name>].endpoints` | inline table of strings, optional | Container local name to base URL, read by [`seams status`](#seams-status). Any other key in an environment table is ignored. |
 
 Relative paths (`model`, every `out` and every gate) resolve against the directory holding
@@ -134,7 +135,7 @@ level holds:
 | `model_hash` | `seams.model_hash` of the model, `sha256:<hex>`. |
 | `outputs` | One entry per generated file, sorted by `path`. |
 | `faults` | Only after `seams generate --lenient` found faults: one `{focus, generator, message, shape}` object per fault, sorted. A lock with this key is flagged. |
-| `drafts` | Only once [`seams propose`](#seams-propose) has accepted a draft: one `{context_hash, path, provider, sha256, task, template}` object per accepted draft, sorted by task. `seams generate` carries it forward unchanged; [`seams check`](#seams-check) reports `draft-stale` and `draft-hand-edited` from it. |
+| `drafts` | Only once [`seams propose`](#seams-propose) has accepted a draft: one `{context_hash, path, provider, sha256, task, template}` object per accepted draft, sorted by task, with `model` too when the draft was asked for an LLM model. `seams generate` carries it forward unchanged; [`seams check`](#seams-check) reports `draft-stale` and `draft-hand-edited` from it. |
 
 Each output entry records the generator, its version, the model hash, the
 file's sha256 and the full IRIs of the model elements the file came from. For a
@@ -1116,6 +1117,7 @@ Errors print to stderr as `seams context: <message>`.
 ```sh
 seams propose send_now --project examples/expenses/chapter-09 --provider "my-llm --model some-model"
 seams propose send_now --project examples/expenses/chapter-09 --force
+seams propose send_now --project examples/expenses/chapter-09 --llm-model some-model
 ```
 
 It asks an LLM for the body of one service task's handler and keeps the draft
@@ -1133,19 +1135,32 @@ bindings are named, never valued.
 provider = "my-llm --model some-model"
 ```
 
+The provider command is the pinned provider. To say which model answers,
+name it with `[propose] model` or `--llm-model` (the flag wins). The provider gets
+the name in the environment variable `SEAMS_LLM_MODEL`; without a name the variable
+is removed from its environment. The name is a label: `seams` checks nothing
+about it, and the provider decides what to do with it.
+
+```toml
+[propose]
+provider = "my-llm"
+model = "some-model"
+```
+
 A successful response is cached in `.seams/drafts/` (gitignored), keyed by the
-context hash, the template and the provider, so the same context runs again
-without calling the provider. The draft is tested in a scratch copy of the
+context hash, the template, the provider and the model name when one is given,
+so the same context runs again without calling the provider and another model
+misses the cache. Keys made without a model name are unchanged. The draft is tested in a scratch copy of the
 project; only on pass is it written to the handlers module, never outside the
 handlers package, and an existing module only with `--force`. An accepted draft
 is recorded in the `drafts` list of [`seams.lock`](#the-lockfile) (task, path,
-context hash, template, provider and sha256), replacing any earlier record of the
+context hash, template, provider, sha256 and the model name when given), replacing any earlier record of the
 same task; a rejected one leaves the lock alone. `seams propose` is never run in CI.
 
 ### Output
 
 `task <iri>`, `context <hash>`, `template <name>`, `provider <command>`,
-`cache hit` or `cache miss`, `draft sha256:<hex>`; then `tests passed` and
+`llm-model <name>` (only when a model is named), `cache hit` or `cache miss`, `draft sha256:<hex>`; then `tests passed` and
 `wrote <handlers module>`, or one `failed <test>` line per failing test with the
 pytest output on stderr.
 
@@ -1155,7 +1170,7 @@ pytest output on stderr.
 |---|---|
 | 0 | The tests passed and the handlers module was written. |
 | 1 | The tests failed (nothing written), or the provider failed: non-zero exit, no output or a timeout. |
-| 2 | No provider, an unknown task or one with no handler, an existing module without `--force`, or a project error. |
+| 2 | No provider, an empty `--llm-model`, an unknown task or one with no handler, an existing module without `--force`, or a project error (such as a `[propose] model` that is not a non-empty string). |
 
 Errors print to stderr as `seams propose: <message>`.
 

@@ -1,6 +1,6 @@
 """Command line: ``seams generate|check|migrate|status|sequence|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
 ``seams generate|check|migrate|status|secrets PATH`` (PATH: a project or a model, see ``_fold_path``),
-``seams propose TASK [--provider CMD] [--force]``,
+``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--list | --accept ID]``,
 ``seams draft-generator NAME --reference FILE [--provider CMD] [--out DIR] [--force]``,
 ``seams coverage [MODEL | --project PATH]``, ``seams new-generator NAME --reference FILE [--out DIR]``.
@@ -125,11 +125,12 @@ unknown task, one that is not a service task, or a missing hop prints
 ``seams context: <message>`` to stderr and exits 1; a model that cannot be
 loaded exits 2. It writes nothing.
 
-``seams propose TASK [--provider CMD] [--force]`` (M022/S04, backlog C4, D059)
-sends the task's draft prompt to the provider command, runs the handlers
-module's acceptance tests against the draft in a scratch copy and prints
-``task``, ``context``, ``template``, ``provider``, ``cache hit|miss`` and
-``draft <sha256>`` lines. On pass it prints ``tests passed`` and ``wrote
+``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]`` (M022/S04,
+backlog C4, D059) sends the task's draft prompt to the provider command, runs
+the handlers module's acceptance tests against the draft in a scratch copy and
+prints ``task``, ``context``, ``template``, ``provider``, ``llm-model`` (only
+when ``--llm-model`` or ``[propose] model`` names one, D063), ``cache
+hit|miss`` and ``draft <sha256>`` lines. On pass it prints ``tests passed`` and ``wrote
 <handlers module>`` and exits 0; on failure one ``failed <test>`` line per
 failing test, the pytest output on stderr, writes nothing and exits 1. A
 failed provider exits 1; no provider, an unknown task or an existing module
@@ -333,6 +334,11 @@ def build_parser() -> argparse.ArgumentParser:
     _project_arguments(prop)
     prop.add_argument(
         "--provider", help="the provider command (prompt on stdin, draft on stdout); overrides seams.toml"
+    )
+    prop.add_argument(
+        "--llm-model",
+        metavar="NAME",
+        help="the LLM model the provider is asked for (env SEAMS_LLM_MODEL); overrides seams.toml",
     )
     prop.add_argument("--force", action="store_true", help="replace an existing handlers module")
     prop.set_defaults(run=_propose)
@@ -598,7 +604,7 @@ def _context(args: argparse.Namespace) -> int:
 def _propose(args: argparse.Namespace) -> int:
     project = load_project(args.project)
     try:
-        result = propose(project, args.model, args.task, args.provider, args.force)
+        result = propose(project, args.model, args.task, args.provider, args.force, args.llm_model)
     except ProposeError as err:
         print(f"seams propose: {err}", file=sys.stderr)
         return EXIT_IO_ERROR
@@ -606,6 +612,8 @@ def _propose(args: argparse.Namespace) -> int:
     print(f"context {result.context_hash}")
     print(f"template {result.template}")
     print(f"provider {result.provider}")
+    if result.llm_model is not None:
+        print(f"llm-model {result.llm_model}")
     print(f"cache {'hit' if result.cache_hit else 'miss'}")
     print(f"draft {result.sha256}")
     if not result.passed:

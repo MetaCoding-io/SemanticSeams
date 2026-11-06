@@ -28,7 +28,8 @@ also fails on; the only one is ``paths``, the BPMN paths no scenario runs
 ``endpoints`` table, a runtime container's local name to the base URL whose
 /healthz ``seams status`` reads (D045); its other keys are still ignored.
 ``[propose] provider`` is the command ``seams propose`` sends its prompt to
-(D059); ``--provider`` overrides it.
+(D059); ``--provider`` overrides it. ``[propose] model`` is the LLM model the
+provider is asked for, by label (D063); ``--llm-model`` overrides it.
 """
 
 from __future__ import annotations
@@ -73,6 +74,7 @@ class Project:
     endpoints: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
     coverage: tuple[str, ...] = ()
     provider: str | None = None
+    llm_model: str | None = None
 
 
 def _known_generators() -> dict:
@@ -152,6 +154,9 @@ def load_project(path: Path | str) -> Project:
     provider = propose.get("provider")
     if provider is not None and (not isinstance(provider, str) or not provider.strip()):
         raise ProjectError(f"{path}: `propose.provider` must be a non-empty command string")
+    llm_model = propose.get("model")
+    if llm_model is not None and (not isinstance(llm_model, str) or not llm_model.strip()):
+        raise ProjectError(f"{path}: `propose.model` must be a non-empty model name string")
 
     return Project(
         path=path,
@@ -163,6 +168,7 @@ def load_project(path: Path | str) -> Project:
         endpoints=endpoints,
         coverage=tuple(dict.fromkeys(coverage)),
         provider=provider,
+        llm_model=llm_model,
     )
 
 

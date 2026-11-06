@@ -32,7 +32,7 @@ review.
    the C1 stub and the C2 tests. Every piece of model text, labels, comments and native
    BPMN and DMN fragments, sits in a fenced DATA block the prompt says is data, not
    instructions. Bindings appear by name only; no secret value is read.
-3. **Responses are cached, providers are not pinned.** A successful response is stored
+3. **Responses are cached, providers are not pinned** (the model is now named; see the amendment below). A successful response is stored
    in `.seams/drafts/<sha256(context hash, template, provider)>.py` (gitignored). The
    same context, template and provider re-run free and give the same draft; a changed
    fact changes the context hash and misses the cache. Failed calls are not cached.
@@ -60,6 +60,32 @@ task's context hash with `seams.context_for`, as `build_prompt` does, and report
 again whenever a fact it was written from changes. It reports `draft-hand-edited`
 when the file's sha256 differs from the record or the file is missing. Both are
 problems, not warnings; accepting a new draft (`--force`) refreshes the record.
+
+## Amendment: the model is pinned by name (M027/S05, D063, backlog X11)
+
+Rule 3 said providers are not pinned. The provider command is still the pinned
+provider, but a command such as `my-llm` does not say which model answered. So a
+project may now name the model:
+
+- **By name only.** `[propose] model` in seams.toml, or `--llm-model` (which wins),
+  is a non-empty string; anything else is a ProjectError naming `propose.model`.
+  `seams` checks nothing else about it and adds no SDK or network code: the
+  provider gets it as the environment variable `SEAMS_LLM_MODEL` and decides what to
+  do with it. Without a name the variable is removed from the provider's
+  environment, so an inherited value cannot change the answer without changing the
+  key. The flag and the variable are not `--model` and `SEAMS_MODEL`, because those
+  already name the TriG model (D034).
+- **In the cache key.** The key is sha256(context hash, template, provider, model).
+  The model is added only when one is named, so keys made before this amendment
+  still hit, and asking for another model misses the cache.
+- **In the lock.** An accepted draft's record gets `model` when one was named. Without
+  one the key is absent, so existing locks keep their bytes. The command prints an
+  `llm-model <name>` line after `provider`.
+- **No SemPKM copilot connection.** `seams` does not reuse SemPKM's copilot
+  connection or its credentials; the provider command stays the only way to reach a
+  model.
+- **Still never in CI** (rule 6): the tests use fake provider scripts that echo the
+  model name they get.
 
 ## Consequences
 

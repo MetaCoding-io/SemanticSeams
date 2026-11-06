@@ -23,14 +23,16 @@ ResolutionError naming the fact; a stub or acceptance fault, GeneratorError.
 ``propose`` is the other half (D059). It sends the prompt on stdin to the
 provider command (``--provider`` or seams.toml ``[propose] provider``; split
 with shlex, never a shell) and reads the draft from stdout, stripping one
-fenced code block around it. The raw response is cached in
-``.seams/drafts/<sha256(context hash, template, provider)>.py`` under the
-project root, so an unchanged context does not call the provider again. The
+fenced code block around it. An LLM model label (``--llm-model`` or seams.toml
+``[propose] model``, D063) reaches the provider as env ``SEAMS_LLM_MODEL``. The
+raw response is cached in
+``.seams/drafts/<sha256(context hash, template, provider[, model])>.py`` under
+the project root, so an unchanged context does not call the provider again. The
 draft is written at the handler path of a scratch copy of the project, the
 module's acceptance tests run there with pytest in a subprocess, and only when
 they pass is it written to the project's handlers module; an existing module is
 kept unless ``force``. On acceptance the draft's record (task, path, context
-hash, template, provider, sha256) is upserted into seams.lock (S05); the lock
+hash, template, provider, model when set, sha256) is upserted into seams.lock (S05); the lock
 is read before anything is written, so a malformed one raises LockError and
 writes nothing. Nothing else is written outside the handlers directory.
 """
@@ -67,6 +69,7 @@ ACCEPTANCE_GENERATOR = "acceptance"
 CACHE_DIR = Path(".seams") / "drafts"
 PROVIDER_TIMEOUT = 600
 TEST_TIMEOUT = 600
+LLM_MODEL_ENV = "SEAMS_LLM_MODEL"
 
 _BACKTICKS = re.compile(r"`+")
 _FENCED = re.compile(r"\A\s*(`{3,})[^\n`]*\n(.*?\n)\1\s*\Z", re.DOTALL)
@@ -173,6 +176,7 @@ class Proposal:
     context_hash: str
     template: str
     provider: str
+    llm_model: str | None
     cache_hit: bool
     passed: bool
     failures: tuple[str, ...]
@@ -187,21 +191,36 @@ def extract_draft(response: str) -> str:
     return match.group(2) if match else response
 
 
-def cache_key(context_hash: str, template: str, provider: str) -> str:
-    return hashlib.sha256("\n".join((context_hash, template, provider)).encode("utf-8")).hexdigest()
+def cache_key(context_hash: str, template: str, provider: str, model: str | None = None) -> str:
+    """The cache file stem. ``model`` joins the key only when set, so keys made
+    without one are unchanged (D063)."""
+    parts = (context_hash, template, provider) if model is None else (context_hash, template, provider, model)
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
-def call_provider(provider: str, text: str, answer: str = "draft") -> str:
+def call_provider(provider: str, text: str, answer: str = "draft", model: str | None = None) -> str:
     """The provider command's answer to the prompt ``text``: ``provider`` split
-    with shlex (never a shell), ``text`` on stdin, the answer on stdout.
-    ProposeError when the command is empty or missing, runs over
-    PROVIDER_TIMEOUT, exits non-zero or prints no ``answer``."""
+        with shlex (never a shell), ``text`` on stdin, the answer on stdout, and
+        ``model``, when given, in env LLM_MODEL_ENV (an inherited one is dropped, so
+    the cache key always names the model asked for). ProposeError when the command
+        is empty or missing, runs over PROVIDER_TIMEOUT, exits non-zero or prints
+        no ``answer``."""
     argv = shlex.split(provider)
     if not argv:
         raise ProposeError("the provider command is empty")
+    env = {key: value for key, value in os.environ.items() if key != LLM_MODEL_ENV}
+    if model is not None:
+        env[LLM_MODEL_ENV] = model
     try:
         done = subprocess.run(
-            argv, input=text, capture_output=True, text=True, encoding="utf-8", timeout=PROVIDER_TIMEOUT, check=False
+            argv,
+            input=text,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            timeout=PROVIDER_TIMEOUT,
+            check=False,
         )
     except FileNotFoundError as err:
         raise ProposeError(f"provider {provider!r}: command not found: {err.filename}") from err
@@ -245,23 +264,33 @@ def _handlers_target(project: Project, model: Path | None, prompt: Prompt) -> Pa
 
 
 def propose(
-    project: Project, model: Path | None, task: str, provider: str | None = None, force: bool = False
+    project: Project,
+    model: Path | None,
+    task: str,
+    provider: str | None = None,
+    force: bool = False,
+    llm_model: str | None = None,
 ) -> Proposal:
-    """Draft, test and (on pass) write the handlers module of service task ``task``."""
+    """Draft, test and (on pass) write the handlers module of service task ``task``.
+    ``model`` is the TriG model path; ``llm_model`` the LLM model label, else
+    the project's ``[propose] model``."""
     provider = provider if provider is not None else project.provider
     if provider is None or not provider.strip():
         raise ProjectError(f"no provider: set `[propose] provider` in {project.path} or pass --provider")
+    llm_model = llm_model if llm_model is not None else project.llm_model
+    if llm_model is not None and not llm_model.strip():
+        raise ProjectError("the LLM model name is empty: pass a non-empty --llm-model")
     prompt = build_prompt(project, model, task)
     target = _handlers_target(project, model, prompt)
     lock = read_lock(project)
     if target.exists() and not force:
         raise ProjectError(f"{prompt.handler_path}: already exists; pass --force to replace it")
-    cached = project.root / CACHE_DIR / f"{cache_key(prompt.context_hash, prompt.template, provider)}.py"
+    cached = project.root / CACHE_DIR / f"{cache_key(prompt.context_hash, prompt.template, provider, llm_model)}.py"
     cache_hit = cached.is_file()
     if cache_hit:
         response = cached.read_text(encoding="utf-8")
     else:
-        response = call_provider(provider, prompt.text)
+        response = call_provider(provider, prompt.text, model=llm_model)
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(response, encoding="utf-8")
     draft = extract_draft(response)
@@ -270,7 +299,9 @@ def propose(
     if passed:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(draft, encoding="utf-8")
-        record = Draft(prompt.task, prompt.handler_path, prompt.context_hash, prompt.template, provider, digest)
+        record = Draft(
+            prompt.task, prompt.handler_path, prompt.context_hash, prompt.template, provider, digest, llm_model
+        )
         text = render_lock(with_draft(project, resolve_model(project, model), lock, record))
         with open(lock_path(project), "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
@@ -279,6 +310,7 @@ def propose(
         context_hash=prompt.context_hash,
         template=prompt.template,
         provider=provider,
+        llm_model=llm_model,
         cache_hit=cache_hit,
         passed=passed,
         failures=failures,

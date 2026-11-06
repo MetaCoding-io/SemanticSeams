@@ -30,7 +30,9 @@ layout, and its output would not be repeatable.
    as `seams propose`: prompt on stdin, answer on stdout, no shell, no SDK, no key, no
    network code in the repository. SemPKM's copilot connection is not used; it would
    make a model-authoring tool depend on a running SemPKM. A non-zero exit, empty output
-   or a timeout is a provider failure.
+   or a timeout is a provider failure. The LLM model can be named too, with
+   `[propose] model` or `--llm-model`; it joins the cache key when named
+   ([ADR-0020](0020-llm-drafts.md)'s amendment, M027/S05, backlog X11).
 2. **The answer is a structured suggestion, from a versioned prompt.**
    `prompts/suggest-v1.txt` (the version is in the file name) is filled
    deterministically from the model. Model text, labels, conditions and native BPMN and

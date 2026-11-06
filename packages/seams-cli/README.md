@@ -39,8 +39,8 @@ out = "generated/templates"
   report each BPMN path no scenario runs as a `coverage` finding (D054).
 - `propose` (table, optional): `provider`, the command `seams propose` and
   `seams suggest` send their prompts to (D059, D061); `--provider` overrides it.
-  `model`, the LLM model name `seams propose` asks the provider for (D063);
-  `--llm-model` overrides it. It is stored as `Project.llm_model`, because
+  `model`, the LLM model name `seams propose`, `seams suggest` and
+  `seams draft-generator` ask the provider for (D063); `--llm-model` overrides it. It is stored as `Project.llm_model`, because
   `Project.model` is the TriG path.
 - `environments` (table of tables, optional): environment names, the local
   names of the model's `arch:Environment`s (the compose generator writes
@@ -413,7 +413,10 @@ scratch copy, laid out from the common directory of the project and the files
 its generators name with `Generator.inputs` (`generator_inputs`, ADR-0016). A passing suggestion goes to `.seams/suggestions/<id>/`
 (`suggestion.json` and one `<file>.diff` per changed file), id =
 sha256(model hash, template, provider, answer); its answer is cached in
-`.seams/suggest-cache/` by sha256(model hash, template, provider). A rejected
+`.seams/suggest-cache/` by sha256(model hash, template, provider[, LLM model]);
+`--llm-model` or `[propose] model` names the LLM model as for propose
+(`propose.resolve_llm_model`), printed as `llm-model` and stored as `llm_model`
+in `suggestion.json`. A rejected
 one names the subject and predicate and writes nothing. `accept` refuses a
 stale model hash, rebuilds and re-checks the change, and writes it through
 `seams_edit.apply` and `save_payload` (undone if a later write fails). Exit 0
@@ -440,7 +443,8 @@ exactly the string keys `extract`, `template` and `golden`. `check_extract`,
 `assemble` puts the answer into `new_generator.scaffold(name, reference, extract)`
 and `run_tests` runs its four tests in a scratch copy with `SEAMS_MODEL` set to the
 project's model. An accepted answer is cached in `.seams/generator-drafts/<key>.json`,
-key = sha256(reference hash, model hash, template, provider), and the package is
+key = sha256(reference hash, model hash, template, provider[, LLM model]) (the LLM
+model from `--llm-model` or `[propose] model`, printed as `llm-model`), and the package is
 written with `new_generator.write`; on any failure nothing is written or cached.
 `--force` writes into a non-empty `--out`. It prints `template`, `provider`,
 `prompt sha256:<hex>`, `cache hit|miss` and each written path, and exits 0; every

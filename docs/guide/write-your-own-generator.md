@@ -546,9 +546,10 @@ seams draft-generator processes --reference processes.yaml --provider "my-llm"
 ```
 
 The provider is the command `seams propose` uses (`[propose] provider` in `seams.toml`,
-or `--provider`): it reads the prompt on stdin and prints one JSON object with the keys
-`extract`, `template` and `golden`. The prompt holds the reference, the model's names
-(each labelled IRI and its label) and the scaffolded package module, as quoted data.
+or `--provider`), and `[propose] model` or `--llm-model` names the LLM model it is asked
+for (as `SEAMS_LLM_MODEL`; it is part of the cache key). The provider reads the prompt
+on stdin and prints one JSON object with the keys `extract`, `template` and `golden`.
+The prompt holds the reference, the model's names (each labelled IRI and its label) and the scaffolded package module, as quoted data.
 
 The command writes `./seams-processes` only when the draft keeps the rules of this
 section: the template holds no logic and restates no model label found in the

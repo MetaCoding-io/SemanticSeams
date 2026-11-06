@@ -936,10 +936,12 @@ A gateway whose outgoing conditions compute over a form field, such as
 `amount <= 2000`, keeps a business rule in the BPMN file. `seams suggest` asks an LLM
 command to move that rule into a DMN decision, checks the change, and keeps it pending
 until you accept it ([ADR-0028](/adr/0028-copilot-suggestions)). The provider is the
-same command `seams propose` uses, `[propose] provider` in `seams.toml` or `--provider`:
+same command `seams propose` uses, `[propose] provider` in `seams.toml` or `--provider`.
+Name the LLM model with `[propose] model` or `--llm-model`; the provider gets it as
+`SEAMS_LLM_MODEL`, and asking for another model does not reuse a cached answer:
 
 ```sh
-seams suggest --project my-project --provider "my-llm --model some-model"
+seams suggest --project my-project --provider "my-llm" --llm-model some-model
 ```
 
 The LLM only proposes a JSON answer: the gateway, a decision id and name, its inputs,

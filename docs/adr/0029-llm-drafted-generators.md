@@ -46,7 +46,9 @@ cache lives below that project.
 The provider is the command named by `[propose] provider` in `seams.toml`, or by
 `--provider`, run through `seams_cli.propose.call_provider`: split with `shlex`, no
 shell, prompt on stdin, answer on stdout. No SDK, key or network code is added. A
-non-zero exit, empty output or a timeout is a provider failure.
+non-zero exit, empty output or a timeout is a provider failure. The LLM model can be
+named too, with `[propose] model` or `--llm-model`; it joins the cache key when named
+([ADR-0020](0020-llm-drafts.md)'s amendment, M027/S05, backlog X11).
 
 ### 3. The prompt is deterministic and versioned
 

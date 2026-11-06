@@ -23,7 +23,7 @@ canvas or `?level=` in the URL (default L2). Each level adds to the one before:
 
 | Level | Shows |
 |---|---|
-| L1 System context | Systems, people and environments, with container edges rolled up to them |
+| L1 System context | Systems, people and environments, with container edges rolled up to them; domains as frames around the systems and bounded contexts they `arch:contains`, labelled with their classification, and a `runs` edge from each context to each system whose containers present or execute its models ([ADR-0030](../adr/0030-domains-and-bounded-contexts.md)) |
 | L2 Containers | Containers nested in their system, deployment nodes in their environment, `depends on` and `deployed to` edges |
 | L3 Components and operations | The operations each container `seam:exposes`, nested in it, and `consumes` edges |
 | L4 Seams | The targets of nest-mode seams nested in their source: the IFML model a container `seam:presents` and the process it `seam:executes`, each holding its model's top-level members in that layer's colour |
@@ -31,6 +31,10 @@ canvas or `?level=` in the URL (default L2). Each level adds to the one before:
 L4 is the nest reveal mode applied to the whole diagram: every seam predicate whose
 `seam:reveal` is nest draws its target inside its source instead of as a separate view.
 The nested models' own edges are not drawn. Clicking a nested model still opens it.
+
+A model that declares no `arch:Domain` draws L1 as systems, people and environments
+only. Domains and contexts, once declared, stay visible at every level, since levels
+are cumulative.
 
 ### Interface
 

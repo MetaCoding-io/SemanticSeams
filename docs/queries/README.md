@@ -17,7 +17,9 @@ user sees (RDF-invisibility principle, see `orig_convo/product-brief.md`).
 
 `c4-l1-rollup.rq` is a projection query, not a Questions-catalog entry: it
 feeds the C4 L1 (system context) view's rolled-up edges (ADR-0008) and is not
-exposed as an inspector button.
+exposed as an inspector button. Its `runs` branch joins each bounded context to the
+systems whose containers run it (ADR-0030 section 5); a model with no context
+returns no `runs` row.
 
 `tests/test_acceptance.py` runs each query against `examples/checkout.ttl` and
 the chat-app model and asserts the exact expected rows; a change that silently

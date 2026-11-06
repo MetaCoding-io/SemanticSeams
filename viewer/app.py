@@ -648,6 +648,19 @@ def edges_for_predicates(members: set[str], preds: list[tuple]) -> list[dict]:
     return edges
 
 
+def domain_classifications() -> dict[str, str]:
+    """arch:Domain IRI -> the label of its arch:classification ("core"), drawn
+    on the domain's frame (ADR-0030 section 5). A domain with none or several
+    is left out: DomainShape reports it in the health panel."""
+    found: dict[str, str] = {}
+    for domain in get_model().architecture.domains():
+        try:
+            found[str(domain.iri)] = domain.classification_label
+        except seams.ResolutionError:
+            continue
+    return found
+
+
 def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict], list[dict]]:
     """Compound C4 graph at one zoom level (ADR-0008, viewer/levels.py).
 
@@ -683,6 +696,11 @@ def c4_graph_data(model_iri: str, level: str = DEFAULT_LEVEL) -> tuple[list[dict
         for n in nodes:
             if n["id"] in nested_layers and n["layer"] == "other":
                 n["layer"] = nested_layers[n["id"]]
+    classifications = domain_classifications()
+    for n in nodes:
+        if n["id"] in classifications:
+            n["classification"] = classifications[n["id"]]
+            n["typeLabel"] = f"{n['typeLabel']} · {n['classification']}"
     nodes.sort(key=lambda n: (n["parent"] or "", n["id"]))
 
     if spec.rollup:

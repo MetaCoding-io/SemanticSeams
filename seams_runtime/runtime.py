@@ -99,6 +99,19 @@ findings sorted, logs ``data health <profile> N warning(s)`` and emits a
 ``seams.data_health`` span. No write calls it: a broken rule never refuses a
 write.
 
+Replicas (ADR-0038): ``load`` picks the live-update bus from the store's kind
+(``channels.bus_for``): a ``PostgresChannelBus`` on a PostgreSQL store, so
+a frame published on one runtime reaches subscribers on every runtime of that
+database and schema, else the in-process ``ChannelBus``; a ``bus=`` given to
+the constructor is used as is, and ``stop`` ends a shared bus's listener.
+``instances`` only caches what this runtime runs: a user-task completion and
+a timer wake reload the store's checkpoint when the instance is not here or
+moved on elsewhere (``_waiting_instance``), and a completion first claims
+the task's ``user_tasks`` row (``Store.claim_user_task``), so of several
+runtimes completing one task only one runs it and the others raise
+``TaskNotOpen``. A completion that fails after its claim reopens the
+checkpoint's user tasks.
+
 Tracing (D049): ``telemetry=`` injects a ``Telemetry`` (tests); otherwise
 ``tracer_from_env()`` builds one, a no-op unless ``OTEL_EXPORTER_OTLP_ENDPOINT``
 is set and the otel extra is installed (``seams_runtime.telemetry``).
@@ -116,7 +129,7 @@ from pathlib import Path
 from fastapi.responses import HTMLResponse, JSONResponse
 from seams import model_dir, resolve_profile
 
-from .channels import ChannelBus, Subscription
+from .channels import ChannelBus, Subscription, bus_for
 from .contracts import _items, problem_body, shape_contract, with_correlation_key
 from .contracts import validate as _validate
 from .engine import Engine
@@ -510,6 +523,7 @@ class Runtime:
             webhooks=webhooks,
             timers=timers,
             clock=clock,
+            bus=bus_for(store),  # ADR-0038: shared across runtimes on a PostgreSQL store
         )
         log.info(
             "runtime loaded %s (%s), store kind %s (declared %s: store %s, container %s, key %s) at %s, templates %s",
@@ -730,6 +744,10 @@ class Runtime:
         if self.scheduler is not None:
             await self.scheduler.stop()
 
+    def stop(self) -> None:
+        """Stop the bus's listener (ADR-0038); nothing to stop for an in-process bus."""
+        self.bus.stop()
+
     def _on_published(self, publisher: Instance, channel) -> list[dict]:
         """Worker rule 6a: start every process subscribed to ``channel``. A
         subscriber that cannot start is logged and recorded with its error;
@@ -855,12 +873,20 @@ class Runtime:
             row = self.store.get_user_task(task, correlation_key)  # a racing call may have won
             if row is None:
                 raise TaskNotOpen(task, correlation_key)
-            instance = await self._waiting_instance(row["instance_id"])
+            instance_id = row["instance_id"]
+            # ADR-0038: the row is the claim across runtimes sharing the store
+            if not self.store.claim_user_task(instance_id, task):
+                log.info(
+                    "complete %s on instance %s (correlation %s): claimed elsewhere", task, instance_id, correlation_key
+                )
+                raise TaskNotOpen(task, correlation_key)
             try:
+                instance = await self._waiting_instance(instance_id)
                 await self.worker.complete_user_task(instance, task, shape, data, identity.id)
             except Exception:
-                self.instances.pop(instance.id, None)  # next call reloads the last checkpoint
-                log.exception("complete %s on instance %s by %s failed", task, instance.id, identity.id)
+                self.instances.pop(instance_id, None)  # next call reloads the last checkpoint
+                log.exception("complete %s on instance %s by %s failed", task, instance_id, identity.id)
+                self._reopen_user_tasks(instance_id)
                 raise
             log.info(
                 "completed %s on instance %s (correlation %s) by %s", task, instance.id, correlation_key, identity.id
@@ -868,17 +894,37 @@ class Runtime:
             return self._launch(instance)
 
     async def _waiting_instance(self, instance_id: str) -> Instance:
-        """The in-memory instance once its worker has stopped, else the
-        checkpoint deserialized from the store."""
+        """The in-memory instance once its worker has stopped waiting, when
+        the store's checkpoint is still its state; else (not run here, or
+        moved on by another runtime, ADR-0038) the checkpoint deserialized
+        from the store. LookupError when the store has no such instance."""
         instance = self.instances.get(instance_id)
         if instance is not None and instance.task is not None:
             if not instance.task.done():
                 await instance.wait()
             if instance.result is not None and instance.result["status"] == "waiting":
-                return instance
+                if self.store.load_state(instance_id) == self.engine.serialize(instance.workflow):
+                    return instance
+                log.info("instance %s moved on in another runtime; reloading its checkpoint", instance_id)
         meta = self.store.get_instance(instance_id)
+        if meta is None:
+            raise LookupError(f"no instance {instance_id} in {self.store.location}")
         wf = self.engine.deserialize(self.store.load_state(instance_id))
+        log.debug("instance %s loaded from the store (was %s)", instance_id, meta["status"])
         return Instance(instance_id, meta["correlation_key"], self.model.curie(meta["process"]), wf)
+
+    def _reopen_user_tasks(self, instance_id: str) -> None:
+        """After a failed completion: the open user tasks of the stored
+        checkpoint again, undoing the claim (the checkpoint was not advanced)."""
+        try:
+            meta = self.store.get_instance(instance_id)
+            if meta is None:
+                return
+            wf = self.engine.deserialize(self.store.load_state(instance_id))
+            stored = Instance(instance_id, meta["correlation_key"], self.model.curie(meta["process"]), wf)
+            self.store.replace_user_tasks(instance_id, self.worker.user_task_rows(stored))
+        except Exception:  # noqa: BLE001 - the completion's own error is the one to raise
+            log.exception("instance %s: reopening its user tasks after a failed completion failed", instance_id)
 
     # ── reads ──
 

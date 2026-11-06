@@ -832,21 +832,23 @@ class Worker:
             correlation_key=instance.correlation_key,
             status=status,
         )
-        tasks = [] if status in (COMPLETE, FAILED) else self.open_user_tasks(instance.workflow)
         self.store.replace_user_tasks(
-            instance.id,
-            [
-                {
-                    "task": str(self.engine.task_iri(t)),
-                    "bpmn_id": t.task_spec.bpmn_id,
-                    "process": str(instance.process),
-                    "correlation_key": instance.correlation_key,
-                }
-                for t in tasks
-            ],
+            instance.id, [] if status in (COMPLETE, FAILED) else self.user_task_rows(instance)
         )
         if timers is not None:
             self.store.replace_timers(instance.id, timers)
+
+    def user_task_rows(self, instance: Instance) -> list[dict]:
+        """The ``user_tasks`` rows of the instance's open user tasks."""
+        return [
+            {
+                "task": str(self.engine.task_iri(t)),
+                "bpmn_id": t.task_spec.bpmn_id,
+                "process": str(instance.process),
+                "correlation_key": instance.correlation_key,
+            }
+            for t in self.open_user_tasks(instance.workflow)
+        ]
 
     def _finish(self, instance: Instance, status: str) -> dict:
         st = instance.state

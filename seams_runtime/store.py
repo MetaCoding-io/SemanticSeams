@@ -1,6 +1,6 @@
 """Persistence for process state and entities: one ``Store`` interface, two backends.
 
-Four tables:
+Four tables, and a fifth in PostgreSQL:
 
 - ``workflow_state(instance_id PK, process, correlation_key, state, status, updated)``
   holds serialized Spiff workflows (``Engine.serialize`` output).
@@ -19,6 +19,15 @@ Four tables:
   runtime takes a due one with a lease (``lease_timer``) and deletes it while
   the lease still holds (``release_timer``). ``due`` is UTC text,
   ``YYYY-MM-DDTHH:MM:SSZ``, so it compares as text.
+- ``channel_frames(id PK, channel, scope, frame, created)``, PostgreSQL only,
+  holds the live-update frames ``channels.PostgresChannelBus`` publishes
+  (ADR-0038): the backlog of each (channel, scope), at most ``backlog`` rows,
+  and a row with no ``frame`` when the scope is closed. ``publish_frame``
+  writes a row and sends its ``NOTIFY`` in one transaction.
+
+``claim_user_task`` deletes one open user-task row and says whether this call
+deleted it: on a shared store it is the claim that lets one runtime, of
+several, complete a task (ADR-0038 section 3).
 
 ``SQLiteStore`` keeps them in an embedded SQLite file (stdlib sqlite3).
 ``PostgresStore`` keeps them in PostgreSQL (psycopg 3): ``data`` is jsonb, the
@@ -103,6 +112,10 @@ class Store(Protocol):
     def list_user_tasks(self) -> list[dict]: ...
 
     def get_user_task(self, task_iri, correlation_key: str) -> dict | None: ...
+
+    def claim_user_task(self, instance_id: str, task_iri) -> bool:
+        """Delete the open row of ``task_iri`` on ``instance_id``; False when no call of this one deleted it."""
+        ...
 
     def transaction(self) -> AbstractContextManager[None]:
         """One all-or-nothing unit of this thread's writes (ADR-0035)."""
@@ -403,6 +416,15 @@ class SQLiteStore:
         )
         return dict(rows[0]) if rows else None
 
+    def claim_user_task(self, instance_id: str, task_iri) -> bool:
+        """Delete the open row of ``task_iri`` on ``instance_id``. False,
+        changing nothing, when there is none: another call has the task."""
+        with self._session() as con:
+            cur = con.execute(
+                "DELETE FROM user_tasks WHERE instance_id = ? AND task = ?", (str(instance_id), str(task_iri))
+            )
+            return cur.rowcount == 1
+
     # ── timer claims (ADR-0037) ──
 
     def claim_firing(self, event, due: str, instance_id: str) -> bool:
@@ -533,7 +555,18 @@ _POSTGRES_SCHEMA = (
 )""",
     "CREATE INDEX IF NOT EXISTS timers_kind_due ON timers(kind, due)",
     "CREATE INDEX IF NOT EXISTS timers_instance ON timers(instance_id)",
+    """CREATE TABLE IF NOT EXISTS channel_frames(
+    id BIGSERIAL PRIMARY KEY,
+    channel TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    frame TEXT,
+    created DOUBLE PRECISION NOT NULL
+)""",
+    "CREATE INDEX IF NOT EXISTS channel_frames_key ON channel_frames(channel, scope, id)",
 )
+
+# PostgreSQL refuses a NOTIFY payload of 8000 bytes or more (ADR-0038 section 1).
+NOTIFY_LIMIT = 8000
 
 # Serialises schema creation across runtimes starting together on one database:
 # concurrent CREATE TABLE IF NOT EXISTS can still collide in the catalog.
@@ -725,6 +758,77 @@ class PostgresStore:
         )
         return rows[0] if rows else None
 
+    def claim_user_task(self, instance_id: str, task_iri) -> bool:
+        """Delete the open row of ``task_iri`` on ``instance_id``. False,
+        changing nothing, when there is none: another runtime has the task."""
+        with self._session() as con:
+            cur = con.execute(
+                "DELETE FROM user_tasks WHERE instance_id = %s AND task = %s", (str(instance_id), str(task_iri))
+            )
+            return cur.rowcount == 1
+
+    # ── live-update frames (ADR-0038) ──
+
+    @property
+    def channel_name(self) -> str:
+        """The ``LISTEN``/``NOTIFY`` channel of this store's schema."""
+        return "seams" if self.schema is None else f"seams_{self.schema}"
+
+    def listen(self):
+        """A new autocommit connection that ``LISTEN``s on ``channel_name``;
+        the caller closes it. Raises psycopg's ``OperationalError`` when the
+        server cannot be reached."""
+        con = self._psycopg.connect(
+            self.url, connect_timeout=self.connect_timeout, autocommit=True, row_factory=self._dict_row
+        )
+        try:
+            con.execute(self._sql.SQL("LISTEN {}").format(self._sql.Identifier(self.channel_name)))
+        except BaseException:
+            con.close()
+            raise
+        return con
+
+    def publish_frame(self, channel: str, scope: str, frame: str | None, backlog: int) -> int:
+        """Store ``frame`` for (``channel``, ``scope``) and notify it, in one
+        transaction; returns the row id. ``None`` closes the scope: its rows
+        are replaced by one close row. A frame reopens a closed scope, and
+        only the newest ``backlog`` frames of the scope are kept. The payload
+        is ``{id, channel, scope, frame}``, or ``{id}`` when that would reach
+        ``NOTIFY_LIMIT`` bytes."""
+        key = (channel, scope)
+        with self._session() as con:
+            if frame is None:
+                con.execute("DELETE FROM channel_frames WHERE channel = %s AND scope = %s", key)
+            else:
+                con.execute("DELETE FROM channel_frames WHERE channel = %s AND scope = %s AND frame IS NULL", key)
+            row = con.execute(
+                "INSERT INTO channel_frames(channel, scope, frame, created) VALUES (%s, %s, %s, %s) RETURNING id",
+                (channel, scope, frame, time.time()),
+            ).fetchone()
+            frame_id = row["id"]
+            if frame is not None:
+                con.execute(
+                    "DELETE FROM channel_frames WHERE channel = %s AND scope = %s AND id IN ("
+                    "SELECT id FROM channel_frames WHERE channel = %s AND scope = %s ORDER BY id DESC OFFSET %s)",
+                    (*key, *key, backlog),
+                )
+            payload = json.dumps({"id": frame_id, "channel": channel, "scope": scope, "frame": frame}, sort_keys=True)
+            if len(payload.encode()) >= NOTIFY_LIMIT:
+                payload = json.dumps({"id": frame_id})
+            con.execute("SELECT pg_notify(%s, %s)", (self.channel_name, payload))
+        return frame_id
+
+    def channel_frame(self, frame_id: int) -> dict | None:
+        """The ``channel_frames`` row ``frame_id`` (id, channel, scope, frame), or None."""
+        rows = self._read("SELECT id, channel, scope, frame FROM channel_frames WHERE id = %s", (frame_id,))
+        return rows[0] if rows else None
+
+    def channel_backlog(self, channel: str, scope: str) -> list[dict]:
+        """The stored rows of (``channel``, ``scope``) by id; a close row has ``frame`` None."""
+        return self._read(
+            "SELECT id, frame FROM channel_frames WHERE channel = %s AND scope = %s ORDER BY id", (channel, scope)
+        )
+
     # ── timer claims (ADR-0037) ──
 
     def claim_firing(self, event, due: str, instance_id: str) -> bool:
@@ -855,6 +959,9 @@ class SplitStore:
 
     def get_user_task(self, task_iri, correlation_key: str) -> dict | None:
         return self.relational.get_user_task(task_iri, correlation_key)
+
+    def claim_user_task(self, instance_id: str, task_iri) -> bool:
+        return self.relational.claim_user_task(instance_id, task_iri)
 
     # ── timer claims: relational ──
 

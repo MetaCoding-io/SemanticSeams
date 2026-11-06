@@ -40,6 +40,7 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `await runtime.start_subscribed(":payout_process", correlation_key, current, status)` | Starts a channel-started process ([ADR-0010](../docs/adr/0010-channel-started-processes.md)): its start event, a `proc:MessageCatchEvent`, `seam:subscribesTo` a channel. The instance gets the correlation key and a copy of `current` (entities by shape IRI, ids kept) and `status` (status by shape IRI). Nothing is re-validated. It is checkpointed before its worker task runs. Rule 6a calls this for you; a process that is not channel-started raises `ResolutionError(process, seam:subscribesTo)`. |
 | `runtime.fail_operation(correlation_key, ":notify_manager_op", "notify-failed")` | From now on, every instance with that correlation key that invokes the operation fails it with that declared error instead of calling its implementation (worker rule 3b), so the run takes the error boundary that catches it. This is what a scenario's `verify:failure` asks for (ADR-0014 as amended); the trace row records `failed`. A code that is not the `comm:errorCode` of one of the operation's errors raises `ResolutionError(operation, comm:errorCode)`. |
 | `await runtime.resume(instance_id)` | Continues a checkpointed instance, for example after a restart. |
+| `runtime.stop()` | Stops the live-update bus's listener thread (see [Shared channel and replicas](#shared-channel-and-replicas-adr-0038)); nothing to stop for the in-process bus. The host calls it at shutdown. |
 | `runtime.start_scheduler()` / `await runtime.stop_scheduler()` | Starts and stops the timer scheduler loop on the running event loop (see [Timers](#timers-adr-0037)). The host calls both. Starting twice runs one loop; a model without timers has no scheduler (`runtime.scheduler` is `None`) and nothing runs. |
 | `await runtime.receive_webhook(":vendor_changes", body)` | Handles one SemPKM webhook delivery, the raw request body, on a channel whose `comm:transport` is `comm:SemPKMWebhook` ([ADR-0027](../docs/adr/0027-sempkm-webhook-channel.md)). It returns a `JSONResponse`: 202 with `started` and `skipped`, or problem+json naming the channel. See [SemPKM webhooks](#sempkm-webhooks-adr-0027). A generated webhook route only calls this. |
 | `runtime.write(":ExpenseShape", payload)` | For an operation that triggers no process (D026): validates the payload like `validate`, sets the initial lifecycle status when the shape has `seam:lifecycle` (unless the payload names one), stores it as a new entity with a fresh uuid4 id (the IRI SemPKM mints, for a shape stored in a SemPKM store) and no correlation key (a shape with an `:id` path gets that id there before validation, replacing any the payload sent, so a required `:id` does not reject a form), and returns the stored row, the same form `query` returns. A `ContractViolation` (422) stores nothing. |
@@ -47,11 +48,11 @@ mismatch is allowed. A missing model file raises `FileNotFoundError` naming the 
 | `runtime.data_health()` | The findings of the attached profile's instance-data rules on the stored entities ([ADR-0036](../docs/adr/0036-cross-aggregate-invariants.md)), sorted; see [Data health](#data-health-adr-0036). `[]` when the model attaches no profile. No write calls it. |
 | `runtime.problem(operation, error)` | The `application/problem+json` response for an `OperationError` raised while serving `operation` (ADR-0013); a generated route module's `problem_handler` calls it. `contracts.problem_body` builds the body: `title` from the status's `rdfs:label`, `status` from its `hydra:statusCode`, then `detail` and the error's extension members, validated (closed-world, as `validate`) against the status's `seam:returnsShape`. The response has that status code. A code the operation does not declare (`ResolutionError(operation, comm:errorCode)`), a route with no declared errors (`operation` None), or a body that violates the error shape (`ContractViolation` whose `operation` is the status) is a server fault: 500 with `{"detail": fault.to_dict()}`, logged at ERROR. |
 | `runtime.user_tasks(identity, process=None)` | The open BPMN user tasks `identity` may complete (ADR-0009), oldest first, optionally for one process. Each is a dict: `instance`, `task` (IRI), `bpmn_id`, `label`, `process`, `correlation_key`, `form` (the `seam:completedOn` form), `partial` (its htmx partial name), `screen` (the `ifml:path` of the page that contains the form) and `entity` (the newest stored entity of the task's `seam:reads` shape for that key, flattened). A task is listed only when every `seam:governedBy` policy of the task permits the identity, evaluated with the task IRI as the `odrl:target`. An ungoverned task is open to any identity. `None` raises `PolicyDenied` (401). |
-| `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once. |
+| `await runtime.complete_task(task, payload, correlation_key, identity)` | Completes the open user task of the instance with that correlation key. In order: the task's policies (401 for no identity, 403 denied), the open `user_tasks` row (`TaskNotOpen`, 409), and the payload against the task's output shape, which is the form's `seam:writes` (`ContractViolation`, 422). A failure at any step changes nothing. The worker then makes the payload the current entity of that shape, merges it into the task data so gateways can route on it, applies the task's `seam:fires`, `seam:invokes` and `seam:writes` with `"by": identity.id` on its trace row, and continues the instance. Returns the `Instance`. Concurrent completions of one task complete it once: before the worker runs, the completion claims the `user_tasks` row (`claim_user_task`), and a call that loses the claim, on this runtime or another sharing the store, raises `TaskNotOpen`. A completion that fails after its claim writes the stored checkpoint's open tasks back, so it can be retried. The instance is the in-memory one only while the store's checkpoint is still its state; otherwise the checkpoint is loaded, so a task opened on another runtime completes here. |
 | `PolicyHook(model, authenticator=None, evaluator=None)` | The policy hook behind `runtime.policy` and `runtime.task_policy`. The default authenticator is `HeaderAuthenticator`: the proxy-set `X-Forwarded-User` header is the identity id, and the comma-separated `X-Forwarded-Groups` header gives its roles (stripped, empty items ignored, none when absent). The default evaluator is `RoleEvaluator` (D028): a permission must target the operation with an `odrl:action`; no assignee or an `odrl:PartyCollection` admits any identity, and a specific party admits an identity whose id or any role equals the party IRI or its local name. A denial names the identity, its roles and the assignees. `PresenceEvaluator`, the id-only v1 evaluator, is still exported. |
 | `runtime.task_policy(task)` | A FastAPI dependency for a completion route. It authenticates the request (401) and checks the task's policies (403), answering with `PolicyDenied.to_dict()`, and yields the `Identity`. |
 | `runtime.query(":MessageShape", conversation="c1")` | Persisted entities of a shape. A filter named after a `proc:correlationKey` parameter label matches the correlation key. |
-| `runtime.subscribe(":stream_events", scope)` | An async iterator of SSE frames for one channel scope: the backlog first, then live frames. |
+| `runtime.subscribe(":stream_events", scope)` | An async iterator of SSE frames for one channel scope: the backlog first, then live frames. On a PostgreSQL store these include frames published by other runtimes on the same database and schema ([ADR-0038](../docs/adr/0038-shared-stream-channel.md)). |
 | `runtime.render_fragment("message_thread.html", messages, **params)` | An `HTMLResponse` rendering an htmx partial from the templates dir (D017). The name is a `seam:rendersComponent` target's local name, or that plus `_item` for the one-item partial. It is resolved against the graph before any file is read, and an unknown name raises `ResolutionError`. The component's `seam:reads` shape `:MessageShape` binds `messages` (a list) or `message` (one item). Store entity rows are flattened to their payload plus `id` and `status`. A component with `seam:visibleWhen` also gets `message_state`: the last item's status, else the lifecycle's initial state label. Extra keyword params are merged last. |
 | `runtime.render_page(page=None, **params)` | An `HTMLResponse` rendering `<page local name>.html` (default: the single `ifml:ViewContainer` with `ifml:isLandmark true`). Each `ifml:contains` component that `seam:reads` a shape is bound by the `render_fragment` rule (`conversations`, `messages`, `message_state`). A component whose `ifml:hasParameter` labels include a `proc:correlationKey` label reads only that key's entities. The key comes from `params` (for example `conversation="c1"`), or else it is the smallest id among the unscoped components' entities. It is also bound under its label. `runtime.page_context(...)` returns the dict without rendering. |
 
@@ -109,7 +110,9 @@ hold the model's data and call these, so they stay thin:
 ## Store
 
 `seams_runtime.store` holds process state, entities, open user tasks and timer claims
-in four tables: `workflow_state`, `entities`, `user_tasks` and `timers`. `Store` is a `typing.Protocol`
+in four tables: `workflow_state`, `entities`, `user_tasks` and `timers`. `PostgresStore`
+adds a fifth, `channel_frames(id, channel, scope, frame, created)`, the live-update
+frames of the shared bus ([ADR-0038](../docs/adr/0038-shared-stream-channel.md)). `Store` is a `typing.Protocol`
 (runtime-checkable) with two backends, both exported from `seams_runtime`:
 
 | Backend | `kind` | `location` | Notes |
@@ -132,10 +135,12 @@ operation opens and closes its own connection, and every statement is parameteri
 | `query(shape, **filters)` | Entities of `shape`, oldest first. `correlation_key=` matches the column; any other filter must equal that top-level key of `data`. |
 | `replace_user_tasks(instance_id, rows)` | Makes `rows` the instance's open user tasks. A task that was already open keeps its `created`, and an empty list clears the instance. On PostgreSQL an advisory lock per instance serialises concurrent replacements. |
 | `list_user_tasks()` / `get_user_task(task, correlation_key)` | Every open user task, oldest first. `get_user_task` returns the newest open row of the task for that key, or `None`. |
+| `claim_user_task(instance_id, task)` | Deletes the open row of `task` on the instance and returns `True`, or returns `False` when there is none: another call, possibly on another runtime, has the task (ADR-0038 section 3). |
 | `transaction()` | A context manager, one all-or-nothing unit of writes ([ADR-0035](../docs/adr/0035-aggregate-transaction-boundary.md)). Inside `with store.transaction():`, every call on that store from the calling thread uses one connection, reads included, so they see the block's writes. The writes commit when the block exits normally and all roll back when it raises; the exception propagates unchanged. A nested `transaction()` joins the outer one. `SQLiteStore` starts it with `BEGIN IMMEDIATE`, taking the write lock up front, so two concurrent transactions wait on each other (up to `timeout`) instead of failing halfway. `PostgresStore` holds one connection whose `with` block is the transaction. `SplitStore` delegates to its relational store. |
 | `claim_firing(event, due, instance_id)` / `last_firing(event)` | Timer start firings ([ADR-0037](../docs/adr/0037-timers-and-scheduling.md)). `claim_firing` inserts the row `(event, due)` and returns `True`, dropping the event's older firings, or returns `False` and changes nothing when the row exists: another runtime has the firing. `last_firing` is the due time of the event's latest firing, or `None`. |
 | `replace_timers(instance_id, rows)` | Makes `rows` (`event`, `due`, `task_id`) the timer catches the instance waits on. A row that stays keeps its lease, and an empty list clears the instance. |
 | `due_timers(due, now)` / `lease_timer(event, due, task_id, holder, until, now)` / `release_timer(event, due, task_id, holder, now)` | Catch rows due at or before `due` that no lease holds at `now` (epoch seconds), by due time. `lease_timer` gives `holder` the row until `until` if no other lease holds it at `now`. `release_timer` deletes it only while `holder`'s lease still holds at `now`. Each returns whether it changed the row. |
+| `publish_frame(channel, scope, frame, backlog)` / `channel_backlog(channel, scope)` / `channel_frame(id)` / `listen()` / `channel_name` | `PostgresStore` only, for `PostgresChannelBus`. `publish_frame` inserts the frame row, keeps only the newest `backlog` frames of the scope and sends `pg_notify(channel_name, payload)` in one transaction, returning the row id. The payload is `{id, channel, scope, frame}` as JSON, or `{id}` when it would reach `store.NOTIFY_LIMIT` (8000 bytes). `frame=None` closes the scope: its rows become one close row, which the next frame deletes. `channel_backlog` returns the scope's rows by id and `channel_frame` one row by id. `listen()` opens an autocommit connection that `LISTEN`s on `channel_name`, which is `seams_<schema>`, or `seams` without a schema. |
 | `list_timers()` | Every timer row (`kind` is `start` or `catch`, then `event`, `due`, `task_id`, `instance_id`, `holder`, `lease_until`, `created`). |
 
 `seams_runtime.store.redact(url)` replaces the password in a URL, in a `password` query
@@ -328,7 +333,10 @@ It includes `module.router` and adds:
 - the module's `problem_handler` as the `OperationError` handler, when the module defines one
   (it routes an operation that declares error statuses, ADR-0013): the declared
   `application/problem+json` response from `runtime.problem`;
-- `GET /healthz`, which returns `{"status": "ok", "model_hash": ..., "runtime_version": ..., "store": {"kind": ..., "declared": ..., "container": ..., "override": ...}}`.
+- `GET /healthz`, which returns `{"status": "ok", "model_hash": ..., "runtime_version": ..., "store": {"kind": ..., "declared": ..., "container": ..., "override": ...}, "channel": {"kind": ...}}`.
+  `channel` is the live-update bus's `health()`: `{"kind": "in-process"}`, or
+  `{"kind": "postgresql", "name": ..., "listening": ..., "reconnects": ...}` for the
+  shared bus ([ADR-0038](../docs/adr/0038-shared-stream-channel.md)).
   `kind` is the backend in use (`sqlite` or `postgresql`), `declared` the local name of
   the declared `deploy:storeKind` (`null` when the model declares none), `container` the
   store container IRI (or `null`), and `override` is true when the backend is not the
@@ -619,8 +627,8 @@ one retries. Each tick:
    `resume` continues the checkpoint. Missed cycle firings fire only the latest, and a
    `timeDate` already past fires once.
 2. For each due catch row, a lease (`lease_timer`, 60 seconds). It then loads the
-   waiting instance (the in-memory one once its worker has stopped, else the
-   checkpoint), marks the Spiff timer task fired and refreshes only that task, and
+   waiting instance (the in-memory one once its worker has stopped, if the store's
+   checkpoint is still its state, else the checkpoint), marks the Spiff timer task fired and refreshes only that task, and
    deletes the row and writes the checkpoint in one transaction, but only while the
    lease still holds (`release_timer`). A runtime whose lease lapsed rolls back and runs
    nothing. Then the worker runs the instance as usual.
@@ -633,6 +641,51 @@ sequence --trace` like any other.
 
 The scheduler logs `timer fire <event> due <due> instance <id>`, `timer claimed
 elsewhere <event> due <due>` at DEBUG, and `timer missed <event> N firing(s)`.
+
+## Shared channel and replicas (ADR-0038)
+
+[ADR-0038](../docs/adr/0038-shared-stream-channel.md): `Runtime.load` picks the
+live-update bus from the store's kind (`channels.bus_for(store)`). A PostgreSQL store,
+or the relational store of a `SplitStore`, gets a `PostgresChannelBus`; any other store
+gets the in-process `ChannelBus`. A `bus=` passed to the `Runtime` constructor is used
+as given, and the constructor's default is the in-process bus.
+
+`PostgresChannelBus(store, backlog=256, queue_size=1024, *, poll=0.5, max_backoff=10.0)`
+has `ChannelBus`'s API, so the worker and the routes do not change:
+
+- `publish` stores the frame and notifies every runtime on the store's schema
+  (`publish_frame`). It does not deliver locally itself: this runtime's listener
+  receives its own notification like any other, so each runtime delivers each frame
+  once.
+- A daemon thread holds one `LISTEN` connection and fans each notification out to the
+  local subscriptions of its `(channel, scope)`. A notification carrying only an id is
+  read back from `channel_frames`.
+- `subscribe` registers first, holding live frames while it reads the stored backlog.
+  It then queues the backlog and the held frames it did not already replay. A scope
+  whose close row is stored ends the iterator after the replay.
+- `close` stores the close row and notifies it, which ends every runtime's iterators of
+  the scope. The next `publish` reopens the scope.
+- `stop()` ends the listener (`Runtime.stop`).
+
+| Log line | When |
+|---|---|
+| `channel bus postgresql on <name> (<location>)` / `channel bus in-process (store kind <kind>)` | `Runtime.load` picked the bus |
+| `channel listen <name>` | the listener is listening (INFO) |
+| `channel reconnect <name> in <s>s: <error>` | the listener lost or could not open its connection, and retries with backoff from `poll` up to `max_backoff` (WARNING; `health()["reconnects"]` counts them) |
+| `channel dropped <id> (no channel_frames row)` | an id-only notification whose row the backlog bound or a close had already deleted (WARNING) |
+| `channel <name>: ignoring a malformed notification ...` | a payload that is not the bus's JSON (WARNING) |
+
+Frames published while a listener is down are not delivered live on that runtime. A
+client that reconnects its stream gets them from the backlog.
+
+`Runtime.instances` only caches the instances this runtime runs. A user-task completion
+and a timer wake load the store's checkpoint when the instance is not cached, or when
+the cached one no longer matches the checkpoint because another runtime advanced it
+(`_waiting_instance`). `Runtime.resume` always loads the checkpoint. Across runtimes,
+the `user_tasks` row is the claim that makes a task run once (`claim_user_task`).
+`complete_task`'s per-process lock only orders calls on one runtime. The tests in
+`tests/test_channel_shared.py` run two buses, and two runtimes, on one PostgreSQL
+schema.
 
 ## Environment
 
@@ -696,6 +749,11 @@ in the checkpointed workflow stay the record of a run: `seams sequence :event --
   assignees as well as identity ids, but still only permission presence and assignee. A
   full evaluator can be plugged in as a `PolicyEvaluator`.
 - One store per model. A model whose runtime containers connect to different stores fails at load.
+- Cross-runtime completion of two user tasks open at once on one instance (a parallel
+  gateway): the claim is per task, so two runtimes can each complete one from the same
+  checkpoint, and the later checkpoint wins (ADR-0038 section 3 covers one open task).
+- A retention time for `channel_frames` rows of scopes that are never closed (ADR-0038
+  open question).
 - SemPKM webhook signatures, other event types (`edge.changed`, `validation.completed`),
   replaying events missed while the runtime was down, and the acting user (ADR-0027
   section 11). `Runtime.write` and `Runtime.query` still call SemPKM on the event loop

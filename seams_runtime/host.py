@@ -15,8 +15,10 @@ app needs but no generated handler holds:
   defines one (it routes an operation that declares error statuses,
   ADR-0013): the declared problem+json response;
 - ``GET /healthz``: ``{"status": "ok", "model_hash": ..., "runtime_version": ...,
-  "store": {...}}``, the version being ``seams_runtime.__version__`` and the store
-  ``store_health(runtime)``;
+  "store": {...}, "channel": {...}}``, the version being
+  ``seams_runtime.__version__``, the store ``store_health(runtime)`` and the
+  channel the live-update bus's ``health()`` (ADR-0038: ``kind``
+  ``postgresql`` or ``in-process``);
 - every page of ``model.interfaces.served_pages()`` at its ifml:path,
   rendered by ``Runtime.render_page`` with the page's correlation-key query
   parameters: the landmark first, then each other pathed page holding no
@@ -28,7 +30,8 @@ app needs but no generated handler holds:
   ``application/json``; 401 without an identity;
 - a startup seed from the JSON file ``SEAMS_SEED`` names (``seed_store``);
 - the runtime's timer scheduler (ADR-0037), started at startup and stopped at
-  shutdown (``Runtime.start_scheduler``; nothing runs for a model without timers).
+  shutdown (``Runtime.start_scheduler``; nothing runs for a model without timers),
+  and the bus's listener stopped at shutdown (``Runtime.stop``).
 
 Nothing here names a model term: the page, its path and its blocks, and
 each task's form partial, come from the graph.
@@ -197,6 +200,7 @@ def build_app(routes_path) -> FastAPI:
             yield
         finally:
             await runtime.stop_scheduler()
+            runtime.stop()  # ADR-0038: the shared bus's listener
 
     app = FastAPI(title=runtime.model.label(page), lifespan=lifespan)
     app.state.module = module
@@ -223,6 +227,7 @@ def build_app(routes_path) -> FastAPI:
             "model_hash": runtime.model.hash,
             "runtime_version": __version__,
             "store": await run_in_threadpool(store_health, runtime),
+            "channel": runtime.bus.health(),
         }
 
     def page_route(served):

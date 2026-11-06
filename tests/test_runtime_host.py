@@ -168,6 +168,7 @@ def test_healthz(client):
             "container": "https://example.org/chat/message_db",
             "override": True,
         },
+        "channel": {"kind": "in-process"},
     }
 
 

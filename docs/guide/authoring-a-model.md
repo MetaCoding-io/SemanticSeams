@@ -780,8 +780,9 @@ element and the predicate for each break (`DomainShape`, `BoundedContextShape`,
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
 (`<https://w3id.org/seams/seam/1.4>`). `arch` 1.1 added domains and bounded contexts and
 `seam` 1.3 added `seam:owns` (ADR-0030); `seam` 1.4 lets `seam:lifecycle` name an
-`owl:Class` and a `state:Transition` `seam:publishesTo` a channel (ADR-0031). All are
-compatible widenings, so a model that declares `arch` 1.0 or an older `seam` loads unchanged. A model says which versions it is written for in
+`owl:Class` and a `state:Transition` `seam:publishesTo` a channel (ADR-0031); `arch` 1.2
+added context-map relationships (`arch:ContextRelationship`, ADR-0032). All are
+compatible widenings, so a model that declares an older `arch` or `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -791,7 +792,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.1> ,
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/seam/1.4> .
 }
 ```
@@ -864,7 +865,7 @@ versions:
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.1> ,
+        owl:imports <https://w3id.org/seams/arch/1.2> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/seam/1.4> .
 }

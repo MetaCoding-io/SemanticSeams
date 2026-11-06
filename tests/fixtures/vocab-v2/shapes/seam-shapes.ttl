@@ -212,6 +212,48 @@ seamsh:OwnsTargetShape a sh:NodeShape ;
     sh:message "seam:owns points at a seam:Model." .
 
 #################################################################
+# Context-map relationships (ADR-0032)
+#################################################################
+
+seamsh:ContextRelationshipShape a sh:NodeShape ;
+    sh:targetClass arch:ContextRelationship ;
+    sh:property [ sh:path arch:upstream ; sh:minCount 1 ; sh:maxCount 1 ; sh:class arch:BoundedContext ;
+        sh:message "An arch:ContextRelationship has exactly one arch:upstream, an arch:BoundedContext." ] ;
+    sh:property [ sh:path arch:downstream ; sh:minCount 1 ; sh:maxCount 1 ; sh:class arch:BoundedContext ;
+        sh:message "An arch:ContextRelationship has exactly one arch:downstream, an arch:BoundedContext." ] ;
+    sh:property [ sh:path arch:relationshipType ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( arch:CustomerSupplier arch:Conformist arch:AntiCorruptionLayer arch:PublishedLanguage arch:SharedKernel ) ;
+        sh:message "An arch:ContextRelationship has exactly one arch:relationshipType: arch:CustomerSupplier, arch:Conformist, arch:AntiCorruptionLayer, arch:PublishedLanguage or arch:SharedKernel." ] ;
+    sh:sparql [
+        sh:message "An arch:ContextRelationship's arch:upstream and arch:downstream are two different contexts." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path WHERE {
+                $this arch:upstream ?context ; arch:downstream ?context .
+                BIND (arch:downstream AS ?path)
+            }""" ;
+    ] ;
+    # One relationship per pair, in either direction: two facts about one pair
+    # would give the gate and seams diff two answers.
+    sh:sparql [
+        sh:message "Two contexts have at most one arch:ContextRelationship between them, in either direction." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                $this arch:upstream ?a ; arch:downstream ?b .
+                ?other a arch:ContextRelationship ; arch:upstream ?c ; arch:downstream ?d .
+                FILTER (?other != $this && ?a != ?b)
+                FILTER ((?a = ?c && ?b = ?d) || (?a = ?d && ?b = ?c))
+                BIND (arch:upstream AS ?path)
+            }""" ;
+    ] .
+
+seamsh:ContextRelationshipTermsShape a sh:NodeShape ;
+    sh:targetSubjectsOf arch:upstream , arch:downstream , arch:relationshipType ;
+    sh:class arch:ContextRelationship ;
+    sh:message "Only an arch:ContextRelationship has an arch:upstream, arch:downstream or arch:relationshipType." .
+
+#################################################################
 # UI <-> process
 #################################################################
 

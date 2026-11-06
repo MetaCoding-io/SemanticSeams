@@ -58,6 +58,7 @@ const decisions = [
   ["0029", "LLM-drafted generators", "0029-llm-drafted-generators"],
   ["0030", "Domains and bounded contexts", "0030-domains-and-bounded-contexts"],
   ["0031", "Lifecycle on the class", "0031-lifecycle-on-the-class"],
+  ["0032", "Context-map relationships", "0032-context-map-relationships"],
 ] as const;
 
 export default defineConfig({

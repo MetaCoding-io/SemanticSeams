@@ -4,8 +4,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/arch> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/arch/1.1> ;
-    owl:versionInfo "1.1" ;
+    owl:versionIRI <https://w3id.org/seams/arch/1.2> ;
+    owl:versionInfo "1.2" ;
     rdfs:label "SemanticSeams Architecture Vocabulary" ;
     rdfs:comment """A deliberately small C4-inspired vocabulary. Unlike C4 proper,
 the containment hierarchy is user-definable (LikeC4-style): arch:contains nests
@@ -49,6 +49,17 @@ arch:Core       a arch:DomainClassification ; rdfs:label "core" .
 arch:Supporting a arch:DomainClassification ; rdfs:label "supporting" .
 arch:Generic    a arch:DomainClassification ; rdfs:label "generic" .
 
+arch:ContextRelationship a rdfs:Class ;
+    rdfs:comment "A context-map relationship (ADR-0032): one arch:upstream context, one arch:downstream context and one arch:relationshipType. At most one per pair of contexts." .
+
+arch:RelationshipType a rdfs:Class ;
+    rdfs:comment "How the downstream context of an arch:ContextRelationship uses the upstream context's language." .
+arch:CustomerSupplier      a arch:RelationshipType ; rdfs:label "customer-supplier" .
+arch:Conformist            a arch:RelationshipType ; rdfs:label "conformist" .
+arch:AntiCorruptionLayer   a arch:RelationshipType ; rdfs:label "anti-corruption layer" .
+arch:PublishedLanguage     a arch:RelationshipType ; rdfs:label "published language" .
+arch:SharedKernel          a arch:RelationshipType ; rdfs:label "shared kernel" .
+
 #################################################################
 # Properties
 #################################################################
@@ -70,3 +81,14 @@ arch:description a rdf:Property ;
 
 arch:classification a rdf:Property ;
     rdfs:domain arch:Domain ; rdfs:range arch:DomainClassification .
+
+arch:upstream a rdf:Property ;
+    rdfs:domain arch:ContextRelationship ; rdfs:range arch:BoundedContext ;
+    rdfs:comment "The context whose language the downstream context depends on: a change to it can break the downstream." .
+
+arch:downstream a rdf:Property ;
+    rdfs:domain arch:ContextRelationship ; rdfs:range arch:BoundedContext ;
+    rdfs:comment "The context that reads, writes or subscribes to what the upstream context owns." .
+
+arch:relationshipType a rdf:Property ;
+    rdfs:domain arch:ContextRelationship ; rdfs:range arch:RelationshipType .

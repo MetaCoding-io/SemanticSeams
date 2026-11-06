@@ -138,10 +138,10 @@ def test_added_and_deprecated_terms_are_compatible(dirs):
 def test_a_removed_term_without_a_major_bump_fails(dirs):
     old, new = dirs
     _edit(new / "arch.ttl", lambda g: g.remove((ARCH.Person, None, None)))
-    _bump(new, "arch", "1.2")
+    _bump(new, "arch", "1.3")
     assert _kinds(diff_vocabularies(old, new)["arch"]) == [(BREAKING, "term-removed", str(ARCH.Person))]
     assert gate(old, new) == [
-        f"arch: 1 breaking change(s) without a major bump (1.1 -> 1.2): term-removed {ARCH.Person}"
+        f"arch: 1 breaking change(s) without a major bump (1.2 -> 1.3): term-removed {ARCH.Person}"
     ]
 
 

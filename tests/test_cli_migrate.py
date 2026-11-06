@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "vocab-v2"
 CHAPTER_01 = ROOT / "examples" / "expenses" / "chapter-01"
 SEAM_V2 = "https://w3id.org/seams/seam/2.0"
-ARCH_V1 = "https://w3id.org/seams/arch/1.1"
+ARCH_V1 = "https://w3id.org/seams/arch/1.2"
 # The checkpoints declare the shipped seam, 1.4.
 SEAM_V1_IMPORT = "<https://w3id.org/seams/seam/1.4>"
 

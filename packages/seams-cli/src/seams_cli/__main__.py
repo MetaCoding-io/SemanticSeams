@@ -1,5 +1,5 @@
 """Command line: ``seams generate|check|migrate|status|sequence|storm|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
-``seams generate|check|migrate|status|secrets|cml export PATH`` (PATH: a project or a model, see ``_fold_path``),
+``seams generate|check|migrate|status|secrets|cml export PATH``, ``seams cml import FILE [PATH]`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
 ``seams draft-generator NAME --reference FILE [--provider CMD] [--llm-model NAME] [--out DIR] [--force]``,
@@ -85,6 +85,19 @@ arch:ContextRelationship in its type's bracket form, named by the IRI's local
 name, then a bodiless ``BoundedContext`` per context, all sorted by IRI. With
 ``--out`` the CML goes to FILE, whose path is then printed. A relationship that
 is not fully stated, or whose type has no CML form, exits 2 and writes nothing.
+
+``seams cml import FILE [PATH]`` (ADR-0034 sections 3 to 5) adds the
+relationships of FILE's ContextMaps that the model can hold, as the four
+ADR-0032 facts each, through the seams_edit text writer, and prints
+``added <relationship>`` for each, then each written file's path. The IRI is
+the CML name, or ``<upstream>_to_<downstream>``, in the upstream context's
+namespace. It only adds facts, so importing a map the model already holds
+writes nothing. Each construct it cannot map (an OHS-only or role-less
+relationship, a partnership, an unused role, an unknown or shared context
+name, a pair the model relates otherwise, aggregates and other CML content)
+prints ``seams cml import: flag <construct>: <reason>`` to stderr and is
+skipped; the exit code stays 0. A file it cannot parse prints the line,
+exits 1 and writes nothing.
 
 ``seams diff OLD NEW [--json]`` (D052) compares two model versions, each a
 TriG file or a directory, and classifies every SHACL shape and operation
@@ -218,7 +231,9 @@ from seams_edit import PatchError
 from seams_gen import GeneratorError
 
 from .check import ADVISORY_KINDS, FILE_KINDS, check_project
+from .cml import CmlError
 from .cml import run_export as run_cml_export
+from .cml import run_import as run_cml_import
 from .context import render as render_context
 from .context import run_context
 from .context import to_json as context_json
@@ -338,6 +353,14 @@ def build_parser() -> argparse.ArgumentParser:
     _project_arguments(cml_export, path=True)
     cml_export.add_argument("--out", type=Path, metavar="FILE", help="write the CML to FILE instead of stdout")
     cml_export.set_defaults(run=_cml_export)
+    cml_import = cml_sub.add_parser(
+        "import",
+        help="add the context relationships of a CML file to the model, flagging what does not map",
+        description="Add the CML ContextMap relationships the model can hold as arch:ContextRelationships.",
+    )
+    cml_import.add_argument("file", type=Path, metavar="FILE", help="the CML file to read")
+    _project_arguments(cml_import, path=True)
+    cml_import.set_defaults(run=_cml_import)
     diff = sub.add_parser(
         "diff",
         help="classify shape and operation-contract changes between two models as compatible or breaking",
@@ -620,6 +643,21 @@ def _cml_export(args: argparse.Namespace) -> int:
         sys.stdout.write(text)
     else:
         print(_display(args.out.resolve()))
+    return 0
+
+
+def _cml_import(args: argparse.Namespace) -> int:
+    try:
+        result = run_cml_import(load_project(args.project), args.model, args.file)
+    except CmlError as err:
+        print(f"seams cml import: {_display(args.file.resolve())}: {err}", file=sys.stderr)
+        return EXIT_IO_ERROR
+    for construct, reason in result.flags:
+        print(f"seams cml import: flag {construct}: {reason}", file=sys.stderr)
+    for iri in result.added:
+        print(f"added {seams.local_name(iri)}")
+    for path in result.files:
+        print(_display(path))
     return 0
 
 

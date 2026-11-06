@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from rdflib import URIRef
+from rdflib import OWL, RDF, URIRef
+from rdflib.namespace import SH
 
 from ..errors import ResolutionError
 from ..namespaces import SEAM, STATE
@@ -41,15 +42,22 @@ class Lifecycle(Element):
 
     @property
     def shape(self) -> Shape | None:
-        """The shape that names it with seam:lifecycle."""
+        """The shape whose effective lifecycle it is."""
         return optional(self.shapes)
 
     @property
     def shapes(self) -> Many[Shape]:
-        """Every shape that names it with seam:lifecycle, by IRI (normally one)."""
+        """Every shape whose effective lifecycle it is (ADR-0031 section 2),
+        by IRI (normally one): the shapes that name it with seam:lifecycle
+        and the sh:NodeShapes whose sh:targetClass names it. A class that
+        names it is not itself one of them unless it is also a sh:NodeShape."""
         from .shapes import Shape
 
-        return self._many(Shape, self._subjects(SEAM.lifecycle), SEAM.lifecycle)
+        ds = self.views.ds
+        named = self._subjects(SEAM.lifecycle)
+        direct = [s for s in named if (s, RDF.type, OWL.Class) not in ds or (s, RDF.type, SH.NodeShape) in ds]
+        targeting = [s for cls in named for s in ds.subjects(SH.targetClass, cls) if (s, RDF.type, SH.NodeShape) in ds]
+        return self._many(Shape, self.views.iris([*direct, *targeting]), SEAM.lifecycle)
 
 
 @element_type(STATE.State)

@@ -4,8 +4,9 @@
 ``ReviewFinding`` (subject IRI, fact, message) per finding, sorted. A finding
 flags the model for review; it never refuses it (principle 5).
 
-- **Lifecycle labels copied into sh:in.** For each shape with a
-  seam:lifecycle, a sh:property whose sh:in list holds only literals equal to
+- **Lifecycle labels copied into sh:in.** For each shape with an effective
+  lifecycle (its own seam:lifecycle or its sh:targetClass's, ADR-0031), a
+  sh:property whose sh:in list holds only literals equal to
   the rdfs:labels of that lifecycle's states (state:hasState) restates the
   lifecycle, and the two can drift (principle 1). The subject is the shape,
   the fact the property's sh:path; the message names the lifecycle and the
@@ -37,7 +38,8 @@ from typing import TYPE_CHECKING
 from rdflib import OWL, RDF, RDFS, SH, Literal, URIRef
 from rdflib.term import Node
 
-from .namespaces import SEAM, STATE, local_name
+from .namespaces import STATE, local_name
+from .views.shapes import effective_lifecycles
 
 if TYPE_CHECKING:
     from rdflib import Dataset
@@ -96,7 +98,7 @@ def lifecycle_label_findings(model: Model) -> list[ReviewFinding]:
     ds = model.ds
     found: list[ReviewFinding] = []
     for shape in _shapes(ds):
-        for lifecycle in sorted(set(ds.objects(shape, SEAM.lifecycle)), key=str):
+        for lifecycle in effective_lifecycles(ds, shape):
             states: dict[str, Node] = {}
             for state in sorted(set(ds.objects(lifecycle, STATE.hasState)), key=str):
                 for label in ds.objects(state, RDFS.label):

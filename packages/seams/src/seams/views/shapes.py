@@ -307,10 +307,17 @@ class Shape(Element):
 
     @property
     def lifecycle(self) -> Lifecycle | None:
-        """The state machine it names with seam:lifecycle."""
+        """Its effective lifecycle (ADR-0031 section 2): the state machine it
+        names with seam:lifecycle, else the one its sh:targetClass names. A
+        shape that reaches more than one machine raises ``ResolutionError``."""
         from .lifecycles import Lifecycle
 
-        return optional(self._many(Lifecycle, self._objects(SEAM.lifecycle), SEAM.lifecycle))
+        machines = effective_lifecycles(self.views.ds, self.iri)
+        if len(machines) > 1:
+            found = ", ".join(self._compact(m) for m in machines)
+            detail = f"more than one effective lifecycle, its own or its sh:targetClass's: {found}"
+            raise ResolutionError(self.iri, SEAM.lifecycle, detail)
+        return optional(self._many(Lifecycle, machines, SEAM.lifecycle))
 
     @property
     def valid_examples(self) -> tuple[URIRef, ...]:
@@ -360,6 +367,16 @@ class Shape(Element):
         from .architecture import Container
 
         return self._many(Container, self._objects(SEAM.storedIn), SEAM.storedIn)
+
+
+def effective_lifecycles(ds: Dataset, shape: Node) -> list[URIRef]:
+    """The machines ``shape`` reaches by seam:lifecycle, directly or through
+    its sh:targetClass (ADR-0031 section 2), sorted and distinct. A
+    well-formed shape reaches at most one; the same machine reached both
+    ways counts once."""
+    direct = set(ds.objects(shape, SEAM.lifecycle))
+    via = {m for cls in ds.objects(shape, SH.targetClass) for m in ds.objects(cls, SEAM.lifecycle)}
+    return sorted({m for m in direct | via if isinstance(m, URIRef)}, key=str)
 
 
 def _wire(f: Field, value: Node) -> Literal | None:

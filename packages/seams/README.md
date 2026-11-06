@@ -24,6 +24,12 @@ the views (`model.architecture`, `interfaces`, `processes`, `decisions`,
 `model.architecture.domains()` and `contexts()` read the ADR-0030 domains and
 bounded contexts (`Domain`, `BoundedContext`: classification, owned models, the
 one ontology, and the containers that run a context).
+`Shape.lifecycle` is the shape's effective lifecycle (ADR-0031): the machine it
+names with `seam:lifecycle`, else the one its `sh:targetClass` names; a shape
+that reaches two raises `ResolutionError(shape, seam:lifecycle, ...)` listing
+both. `Lifecycle.shapes` is the shapes that name it plus the `sh:NodeShape`s
+whose `sh:targetClass` names it, by IRI. `ModelGraph.has_lifecycle`,
+`lifecycle_for` and `lifecycle_shape` read through these views.
 `model.sparql` and `model.question` run read-only SPARQL.
 
 ## Vocabulary versions
@@ -180,8 +186,8 @@ other entry is skipped, not guessed at. `seams check` reports them as
 `seams.review_findings(model)` runs the model review checks (backlog R1) and
 returns a sorted list of `ReviewFinding` (`subject`, `fact`, `message`). It
 flags four things: a `sh:in` list that copies the `rdfs:label`s of the shape's
-`seam:lifecycle` states (subject the shape, fact the `sh:path`, the message
-names the state IRIs to use), a `sh:class` that points at a `sh:NodeShape`, a
+lifecycle states, its own `seam:lifecycle` or its class's (subject the shape,
+fact the `sh:path`, the message names the state IRIs to use), a `sh:class` that points at a `sh:NodeShape`, a
 `sh:NodeShape` with no `sh:targetClass` that is not itself a class (fact
 `sh:targetClass`), and a `sh:path` IRI that no `rdf:Property`,
 `owl:ObjectProperty`, `owl:DatatypeProperty` or `owl:AnnotationProperty`

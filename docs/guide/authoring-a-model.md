@@ -681,6 +681,44 @@ category label must be usable as a JSON-LD term (not empty, not starting with `@
 `:`), and the target class's local name must not also be a field name; the generator
 refuses either with a `GeneratorError` naming the member or the shape.
 
+## Lifecycles on the class
+
+A lifecycle belongs to the thing, not to one view of it. With `seam` 1.4 in the
+[manifest graph](#vocabulary-versions), `seam:lifecycle` names an `owl:Class`, and every
+shape that targets the class gets the lifecycle
+([ADR-0031](/adr/0031-lifecycle-on-the-class)). Chapter 9 of the expense tutorial does
+this:
+
+```trig
+:Expense seam:lifecycle :expense_lifecycle .
+:Payment seam:lifecycle :payment_lifecycle .
+```
+
+- **Derivation.** A shape's lifecycle is its own `seam:lifecycle`, else that of its
+  `sh:targetClass`. `:ExpenseShape` targets `:Expense`, so its guards
+  (`seam:visibleWhen`, `seam:expectState`), its first state on write and its category
+  options all come from `:expense_lifecycle`. A lifecycle's shapes are those that name it
+  and those that target a class that names it.
+- **The shape form still works.** `:ExpenseShape seam:lifecycle :expense_lifecycle`
+  loads unchanged; the other chapters and the chat app keep it. Naming the same machine
+  on both the shape and its class counts once.
+- **At most one.** A shape that reaches two different lifecycles, directly or through its
+  class, fails `EffectiveLifecycleShape`, and the typed shape view raises
+  `ResolutionError(shape, seam:lifecycle)` listing both.
+
+A `state:Transition` is a domain event, identified by its IRI, and may
+`seam:publishesTo` a `comm:Channel`. The event's name is the transition's IRI or its
+`state:trigger`; do not copy a label onto the channel:
+
+```trig
+:t_approve seam:publishesTo :expense_events .
+:expense_events a comm:Channel ; rdfs:label "expense events" ;
+    seam:inModel :expense_interface .
+```
+
+The shapes accept the fact; the runtime does not yet emit the event when the transition
+fires (B3's follow-up in the [backlog](/backlog)).
+
 ## Domains and bounded contexts
 
 A domain groups systems and bounded contexts and says where effort goes; a bounded
@@ -727,9 +765,10 @@ element and the predicate for each break (`DomainShape`, `BoundedContextShape`,
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
-(`<https://w3id.org/seams/seam/1.3>`). `arch` 1.1 added domains and bounded contexts and
-`seam` 1.3 added `seam:owns` (ADR-0030); both are compatible widenings, so a model that
-declares `arch` 1.0 or `seam` 1.2 loads unchanged. A model says which versions it is written for in
+(`<https://w3id.org/seams/seam/1.4>`). `arch` 1.1 added domains and bounded contexts and
+`seam` 1.3 added `seam:owns` (ADR-0030); `seam` 1.4 lets `seam:lifecycle` name an
+`owl:Class` and a `state:Transition` `seam:publishesTo` a channel (ADR-0031). All are
+compatible widenings, so a model that declares `arch` 1.0 or an older `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
 ([ADR-0021](/adr/0021-vocabulary-versions)):
@@ -740,7 +779,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.1> ,
-                    <https://w3id.org/seams/seam/1.3> .
+                    <https://w3id.org/seams/seam/1.4> .
 }
 ```
 
@@ -814,7 +853,7 @@ versions:
     <urn:seams:graph:manifest> a owl:Ontology ;
         owl:imports <https://w3id.org/seams/arch/1.1> ,
                     <https://w3id.org/seams/ifml/1.0> ,
-                    <https://w3id.org/seams/seam/1.3> .
+                    <https://w3id.org/seams/seam/1.4> .
 }
 ```
 

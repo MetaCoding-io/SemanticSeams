@@ -512,7 +512,7 @@ Import its version in the manifest graph too:
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/proc/1.0> ,
-                    <https://w3id.org/seams/seam/1.3> ,
+                    <https://w3id.org/seams/seam/1.4> ,
                     <https://w3id.org/seams/state/1.0> ,
                     <https://w3id.org/seams/verify/1.1> .
 }
@@ -878,10 +878,10 @@ The screen parameter and the scenario that name the property move to `:paidOn` w
 
 Options come in lifecycle order, from the initial state, and the value a form sends is
 still the member's label. Older tools would misread this notation, so the model now
-imports the seam vocabulary at 1.2 or later (1.3 today); the manifest above already shows it:
+imports the seam vocabulary at 1.2 or later (1.4 today); the manifest above already shows it:
 
 ```turtle
-                    <https://w3id.org/seams/seam/1.3> ,
+                    <https://w3id.org/seams/seam/1.4> ,
 ```
 
 Run `seams generate --project examples/expenses/chapter-09` again. Every generated form,
@@ -889,6 +889,24 @@ route, stub and test is the same as before, apart from the model hash. The statu
 select still offers `draft` to `paid`, the approver still picks `approved` or `rejected`,
 and a payload with `"decision": "maybe"` is refused with the same 422. Rename a state
 now and its option is renamed with it. Add one and it joins the options in lifecycle order.
+
+### Put the lifecycles on the classes
+
+Since chapter 6 the expense's lifecycle has hung off `:ExpenseShape`, and since chapter 8
+the payment's off `:PaymentShape`. Now that the classes exist, the lifecycle can belong
+to the thing rather than to one shape of it
+([ADR-0031](../../adr/0031-lifecycle-on-the-class.md)). In the seams graph:
+
+```trig
+    :Expense seam:lifecycle :expense_lifecycle .
+    :Payment seam:lifecycle :payment_lifecycle .
+```
+
+`:ExpenseShape` targets `:Expense`, so its lifecycle now comes through
+`sh:targetClass`: the `awaiting_approval` guard, the first state on submit and the
+status options are unchanged, and so is every generated file apart from the model hash.
+A shape that reached two different lifecycles, one of its own and one through its class,
+would be refused by `seams check`.
 
 ## Serve the payloads as JSON-LD
 

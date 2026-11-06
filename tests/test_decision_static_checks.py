@@ -12,11 +12,12 @@ from pathlib import Path
 
 import pytest
 import seams
+from example_models import example_models
 from seams import DecisionFinding, decision_findings
 from seams.decisions_check import condition_findings, condition_names, table_findings, type_ref_findings
 
 ROOT = Path(__file__).resolve().parent.parent
-EXAMPLES = sorted((ROOT / "examples").rglob("*.trig"))
+EXAMPLES = example_models()
 CH09_DIR = ROOT / "examples/expenses/chapter-09"
 CHAT_DIR = ROOT / "examples/chat-app"
 
@@ -41,9 +42,9 @@ def ch09(tmp_path: Path, **edits: tuple[str, str]) -> seams.Model:
     return _copy(CH09_DIR, tmp_path, "expenses.trig", {k.replace("_", "."): v for k, v in edits.items()})
 
 
-@pytest.mark.parametrize("trig", EXAMPLES, ids=lambda p: str(p.relative_to(ROOT)))
-def test_every_example_yields_no_finding(trig: Path) -> None:
-    assert decision_findings(seams.load(trig)) == []
+@pytest.mark.parametrize("model", EXAMPLES, ids=lambda p: str(p.relative_to(ROOT)))
+def test_every_example_yields_no_finding(model: Path) -> None:
+    assert decision_findings(seams.load(model)) == []
 
 
 def test_the_example_conditions_are_checked_not_skipped() -> None:

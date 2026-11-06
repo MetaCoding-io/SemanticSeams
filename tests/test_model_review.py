@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import seams
+from example_models import example_models
 from seams import ReviewFinding, review_findings
 from seams.review_check import (
     lifecycle_label_findings,
@@ -245,8 +246,8 @@ def test_chapter_8_flags_both_copied_status_lists() -> None:
     ]
 
 
-@pytest.mark.parametrize("trig", sorted((ROOT / "examples").rglob("*.trig")), ids=lambda p: str(p.relative_to(ROOT)))
-def test_every_example_is_reviewed_without_raising(trig: Path) -> None:
-    findings = review_findings(seams.load(trig))
+@pytest.mark.parametrize("model", example_models(), ids=lambda p: str(p.relative_to(ROOT)))
+def test_every_example_is_reviewed_without_raising(model: Path) -> None:
+    findings = review_findings(seams.load(model))
     assert findings == sorted(findings)
     assert all(isinstance(f, ReviewFinding) for f in findings)

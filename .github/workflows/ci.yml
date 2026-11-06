@@ -55,6 +55,7 @@ jobs:
             examples/expenses/chapter-08
             examples/expenses/chapter-09
             examples/expenses/chapter-10
+            examples/expenses/chapter-11
 
   # On a pull request, writes a seams plan change plan to the job summary for each
   # project whose model changed against the base branch. A breaking change is
@@ -89,6 +90,7 @@ jobs:
             examples/expenses/chapter-08
             examples/expenses/chapter-09
             examples/expenses/chapter-10
+            examples/expenses/chapter-11
 
   # docs/tutorial.md end to end: build and start the stack from the generated
   # compose.development.yaml (gateway in stub mode), chat through the generated page and routes, then tear it down.

@@ -1,0 +1,249 @@
+# Expense approval tutorial, chapter 11: the finance context.
+#
+# Chapter 11 splits the model into two bounded contexts (ADR-0030), one file
+# each, loaded together as one dataset: seams.toml names this directory
+# (model = "."), so every *.trig file in it is part of the model.
+# expenses.trig holds the architecture, the expense context and the
+# approval process; this file holds the finance context: its ontology, the
+# payout process and decision, the payment lifecycle, the vendor review and
+# the finance console. The architecture model in expenses.trig declares the
+# two domains and the two contexts, and its seams graph, the one graph of
+# cross-model links, says what each context seam:owns. This file declares
+# model graphs only: the seams graph lives in one file, so the one write
+# path (seams_edit, ADR-0017) knows where each seams fact goes. Ownership
+# is a fact, not the file layout: moving a graph between the files changes
+# nothing the model says.
+#
+# :finance_ontology declares :Payment and :Vendor, which chapter 10's
+# :expense_ontology declared. Their IRIs do not change (ADR-0002); their
+# seam:inModel does. :expense_ontology owl:imports this ontology by its
+# version IRI, and seams check resolves the import in the dataset. The data
+# model's :PaymentShape and :VendorShape (in expenses.trig) target the
+# imported classes, which are read-only to the expense context.
+#
+# The storm of chapter 10 showed one write on the wrong side of the payouts
+# channel: the approval process's Pay Expense task wrote the payment. Here
+# the task is the first step of the payout process, completed on the finance
+# console's :payment_form, so a payment is written only from the finance
+# context, and the :payouts channel is the one line between the two.
+#
+# See docs/tutorials/expenses/ for the walkthrough.
+
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix gist:   <https://w3id.org/semanticarts/ns/ontology/gist/> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix ifml:   <https://w3id.org/seams/ifml#> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix state:  <https://w3id.org/seams/state#> .
+@prefix dec:    <https://w3id.org/seams/dec#> .
+@prefix :       <https://example.org/expenses/> .
+
+#################################################################
+# Ontology model graph (OWL, anchored in gist): the finance language
+#################################################################
+
+# The finance context's words (ADR-0030 section 4). The finance context
+# owns this ontology and moves its version IRI; the expense ontology imports
+# it by that IRI.
+<urn:seams:graph:model:finance_ontology> {
+
+    :finance_ontology a seam:Model , owl:Ontology ;
+        rdfs:label "Finance Ontology" ;
+        owl:versionIRI <https://example.org/expenses/finance_ontology/1.0> ;
+        owl:imports <https://w3id.org/semanticarts/ontology/gistCore14.0.0> .
+
+    # The company's transfer that reimburses an expense. gist: a transfer of funds.
+    :Payment a owl:Class ;
+        rdfs:subClassOf gist:Transaction ;
+        rdfs:label "Payment" ;
+        skos:definition "Money the company transfers to reimburse an expense." ;
+        seam:inModel :finance_ontology .
+
+    # A company that is paid for goods or services. gist: an organization.
+    :Vendor a owl:Class ;
+        rdfs:subClassOf gist:Organization ;
+        rdfs:label "Vendor" ;
+        skos:definition "A company the expenses are paid to, kept by finance in SemPKM." ;
+        seam:inModel :finance_ontology .
+}
+
+#################################################################
+# Second process model graph (BPMN): the payout
+#################################################################
+
+<urn:seams:graph:model:payout_bpmn> {
+
+    :payout_bpmn a seam:Model ; rdfs:label "Expense Payout (BPMN)" .
+
+    # The process starts from the channel. Finance pays the expense, then
+    # the process runs to its end. The gateway on "method" is in payout.bpmn
+    # only.
+    :payout_process a proc:Process ; rdfs:label "Expense Payout" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#payout_requested> a proc:MessageCatchEvent ;
+        rdfs:label "Payout Requested" ;
+        seam:inModel :payout_bpmn .
+
+    # Chapter 11: the payment task moved here from the approval process, so
+    # the payment is written only from the context that owns it.
+    <https://example.org/expenses/payout_bpmn#pay_expense> a proc:UserTask ;
+        rdfs:label "Pay Expense" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#schedule_payout> a proc:ServiceTask ;
+        rdfs:label "Schedule Payout" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#choose_payout> a proc:BusinessRuleTask ;
+        rdfs:label "Choose Payout" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#add_to_batch> a proc:ServiceTask ;
+        rdfs:label "Add to Batch" ;
+        seam:inModel :payout_bpmn .
+
+    <https://example.org/expenses/payout_bpmn#send_now> a proc:ServiceTask ;
+        rdfs:label "Send Now" ;
+        seam:inModel :payout_bpmn .
+}
+
+#################################################################
+# Third process model graph (BPMN): the vendor review
+#################################################################
+
+<urn:seams:graph:model:vendor_bpmn> {
+
+    :vendor_bpmn a seam:Model ; rdfs:label "Vendor Review (BPMN)" .
+
+    # Started by SemPKM, not by a person or another process: the message
+    # start event subscribes to the webhook channel (ADR-0027).
+    :vendor_review_process a proc:Process ; rdfs:label "Vendor Review" ;
+        seam:inModel :vendor_bpmn .
+
+    <https://example.org/expenses/vendor_bpmn#vendor_changed> a proc:MessageCatchEvent ;
+        rdfs:label "Vendor Changed" ;
+        seam:inModel :vendor_bpmn .
+
+    <https://example.org/expenses/vendor_bpmn#review_vendor> a proc:ServiceTask ;
+        rdfs:label "Review Vendor" ;
+        seam:inModel :vendor_bpmn .
+}
+
+#################################################################
+# Second lifecycle model graph (statechart): the payment
+#################################################################
+
+<urn:seams:graph:model:payment_lifecycle> {
+
+    # A payment is recorded when finance pays the expense. The payout
+    # process schedules it, then either adds it to the next batch or sends
+    # it at once.
+    :payment_lifecycle a state:StateMachine , seam:Model ;
+        rdfs:label "Payment Lifecycle" ;
+        state:initial :s_recorded ;
+        state:hasState :s_recorded , :s_scheduled , :s_batched , :s_sent ;
+        state:final :s_batched , :s_sent ;
+        state:hasTransition :t_schedule , :t_batch , :t_send .
+
+    :s_recorded  a state:State ; rdfs:label "recorded"  ; seam:inModel :payment_lifecycle .
+    :s_scheduled a state:State ; rdfs:label "scheduled" ; seam:inModel :payment_lifecycle .
+    :s_batched   a state:State ; rdfs:label "batched"   ; seam:inModel :payment_lifecycle .
+    :s_sent      a state:State ; rdfs:label "sent"      ; seam:inModel :payment_lifecycle .
+
+    :t_schedule a state:Transition ; state:from :s_recorded  ; state:to :s_scheduled ; state:trigger "schedule" ; seam:inModel :payment_lifecycle .
+    :t_batch    a state:Transition ; state:from :s_scheduled ; state:to :s_batched   ; state:trigger "batch"    ; seam:inModel :payment_lifecycle .
+    :t_send     a state:Transition ; state:from :s_scheduled ; state:to :s_sent      ; state:trigger "send"     ; seam:inModel :payment_lifecycle .
+}
+
+#################################################################
+# Second decision model graph (DMN): the payout method
+#################################################################
+
+<urn:seams:graph:model:payout_dmn> {
+
+    :payout_dmn a seam:Model , dec:DecisionModel ;
+        rdfs:label "Payout Method (DMN)" .
+
+    # The table in payout.dmn reads the expense's :amount and answers
+    # "batch" or "now" in its "Method" column, copied into the process
+    # variable "method" that the payout gateway reads.
+    :payout_method a dec:Decision ; rdfs:label "Choose Payout Method" ;
+        dec:payloadElement "payout_method" ;
+        dec:input [ a dec:InputBinding ; dec:variable "amount" ; dec:fromPath :amount ] ;
+        dec:output [ a dec:OutputBinding ; dec:variable "Method" ; dec:processVariable "method" ] ;
+        seam:inModel :payout_dmn .
+}
+
+#################################################################
+# Second interaction model graph (IFML): the finance console
+#################################################################
+
+<urn:seams:graph:model:finance_console> {
+
+    :finance_console a seam:Model , ifml:InteractionModel ;
+        rdfs:label "Finance Console" ;
+        ifml:contains :payouts_page , :payments_due_page .
+
+    # Finance's page. It holds no task form, so the generated app serves it
+    # as a page at its ifml:path, as it serves the landmark page.
+    :payouts_page a ifml:ViewContainer ; rdfs:label "Payouts" ;
+        ifml:path "/payouts" ;
+        ifml:title "Payouts"@en ;
+        ifml:contains :payment_list , :paid_expenses ;
+        seam:inModel :finance_console .
+
+    # Every payment and the state the payout process has left it in.
+    :payment_list a ifml:Details ; rdfs:label "Payments" ;
+        ifml:order 0 ;
+        seam:inModel :finance_console .
+
+    # The expenses, so finance can match a payment to what was claimed.
+    :paid_expenses a ifml:Details ; rdfs:label "Expenses" ;
+        ifml:order 1 ;
+        seam:inModel :finance_console .
+
+    # Finance's screen for paying approved expenses: the pay task is
+    # completed here, because the page ifml:contains :payment_form
+    # (ADR-0009). Like the approvals page, it is a task screen reached from
+    # the task inbox, not a page of its own.
+    :payments_due_page a ifml:ViewContainer ; rdfs:label "Payments Due" ;
+        ifml:path "/payments-due" ;
+        ifml:title "Payments due"@en ;
+        ifml:contains :payment_details , :payment_form ;
+        seam:inModel :finance_console .
+
+    # The payment of one expense, named by the correlation key.
+    :payment_details a ifml:Details ; rdfs:label "Payment" ;
+        ifml:order 0 ;
+        ifml:hasParameter :paid_expense ;
+        seam:inModel :finance_console .
+    :paid_expense a ifml:Parameter ; rdfs:label "expense" ;
+        seam:inModel :finance_console .
+
+    # Finance's form for paying an approved expense: it completes the
+    # payout process's :pay_expense task.
+    :payment_form a ifml:Form ; rdfs:label "Record Payment" ;
+        ifml:order 1 ;
+        ifml:hasEvent :submit_payment ;
+        ifml:hasParameter :reference_input , :paid_on_input ;
+        seam:inModel :finance_console .
+    :reference_input a ifml:Parameter ; rdfs:label "reference" ;
+        ifml:boundTo :reference ;
+        seam:inModel :finance_console .
+    :paid_on_input a ifml:Parameter ; rdfs:label "paid_on" ;
+        ifml:boundTo :paidOn ;
+        seam:inModel :finance_console .
+
+    :submit_payment a ifml:Event ; rdfs:label "Submit Payment" ;
+        ifml:trigger "submit" ;
+        seam:inModel :finance_console .
+
+    # Paying replaces the form with the recorded payment.
+    :payment_to_details a ifml:NavigationFlow ;
+        ifml:source :submit_payment ; ifml:target :payment_details ;
+        ifml:swap ifml:Replace ;
+        seam:inModel :finance_console .
+}

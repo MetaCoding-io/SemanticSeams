@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="vendor_bpmn_defs"
+                   targetNamespace="https://example.org/expenses/vendor_bpmn">
+  <bpmn:process id="vendor_review_process" name="Vendor Review" isExecutable="true">
+    <!-- A message start event: the graph says it seam:subscribesTo :vendor_changes,
+         a SemPKM webhook channel (ADR-0027). -->
+    <bpmn:startEvent id="vendor_changed" name="Vendor Changed">
+      <bpmn:outgoing>flow_to_review</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="vendor_changed_msg" />
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="review_vendor" name="Review Vendor">
+      <bpmn:incoming>flow_to_review</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="vendor_reviewed" name="Vendor Reviewed">
+      <bpmn:incoming>flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_to_review" sourceRef="vendor_changed" targetRef="review_vendor" />
+    <bpmn:sequenceFlow id="flow_to_end" sourceRef="review_vendor" targetRef="vendor_reviewed" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="diagram">
+    <bpmndi:BPMNPlane id="plane" bpmnElement="vendor_review_process">
+      <bpmndi:BPMNShape id="vendor_changed_di" bpmnElement="vendor_changed">
+        <dc:Bounds x="60" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="review_vendor_di" bpmnElement="review_vendor">
+        <dc:Bounds x="150" y="98" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="vendor_reviewed_di" bpmnElement="vendor_reviewed">
+        <dc:Bounds x="304" y="120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_review_di" bpmnElement="flow_to_review">
+        <di:waypoint x="96" y="138" />
+        <di:waypoint x="150" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_to_end_di" bpmnElement="flow_to_end">
+        <di:waypoint x="250" y="138" />
+        <di:waypoint x="304" y="138" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,7 +1,9 @@
 """Checkpoint tests for the expense approval tutorial (docs/tutorials/expenses/).
 
-Each examples/expenses/chapter-NN/expenses.trig is a cumulative copy of the
-model at the end of chapter NN (D026). Every checkpoint that exists is checked:
+Each examples/expenses/chapter-NN/ holds a cumulative copy of the model at
+the end of chapter NN (D026): its *.trig files, loaded together as one
+dataset (one file up to chapter 10; from chapter 11 one file per bounded
+context, ADR-0030). Every checkpoint that exists is checked:
 it parses, conforms to seam-shapes.ttl, keeps seam predicates in the seams
 graph, keeps every named graph of the chapter before it, and opens in the
 viewer at its C4 model with a conforming health panel. A new chapter directory
@@ -33,7 +35,7 @@ from viewer import app as viewer_app  # noqa: E402
 from viewer import validation  # noqa: E402
 
 EXPENSES = ROOT / "examples" / "expenses"
-CHAPTERS = sorted(p.parent for p in EXPENSES.glob("chapter-*/expenses.trig"))
+CHAPTERS = sorted({p.parent for p in EXPENSES.glob("chapter-*/*.trig")})
 CHAPTER_IDS = [p.name for p in CHAPTERS]
 
 SEAM = Namespace("https://w3id.org/seams/seam#")
@@ -51,13 +53,21 @@ CHAPTER_2_MISTAKE_TRIPLE = (EX.expense_data, SEAM.notation, SEAM.ShapeGraph)
 CHAPTER_2_MISTAKE_TEXT = ":expense_data seam:notation seam:ShapeGraph ."
 
 
+def model_path(chapter: Path) -> Path:
+    """What the viewer opens: the one TriG file, or the directory when the
+    checkpoint has several (the loader merges a directory's files)."""
+    trigs = sorted(chapter.glob("*.trig"))
+    return trigs[0] if len(trigs) == 1 else chapter
+
+
 def load_checkpoint(chapter: Path) -> rdflib.Dataset:
-    """The checkpoint plus the ontology in the default graph, as
-    validate_chat_app.load_chat_app_dataset loads the chat app."""
+    """Every TriG file of the checkpoint plus the ontology in the default
+    graph, as validate_chat_app.load_chat_app_dataset loads the chat app."""
     ds = rdflib.Dataset()
     for p in ONTOLOGY_FILES:
         ds.default_graph.parse(p, format="turtle")
-    ds.parse(chapter / "expenses.trig", format="trig")
+    for trig in sorted(chapter.glob("*.trig")):
+        ds.parse(trig, format="trig")
     return ds
 
 
@@ -107,7 +117,7 @@ def test_checkpoint_keeps_previous_chapters_graphs(chapter):
 
 @pytest.mark.parametrize("chapter", CHAPTERS, ids=CHAPTER_IDS)
 def test_checkpoint_opens_in_viewer(chapter, restore_viewer):
-    viewer_app.configure(chapter / "expenses.trig")
+    viewer_app.configure(model_path(chapter))
     client = TestClient(viewer_app.app)
     resp = client.get("/", follow_redirects=False)
     assert resp.status_code in (302, 307)

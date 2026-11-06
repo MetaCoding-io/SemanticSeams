@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="https://www.omg.org/spec/DMN/20191111/DI/"
+             id="payout_dmn_defs"
+             name="Payout Method"
+             namespace="https://example.org/expenses/payout_dmn">
+
+  <inputData id="payout_amount" name="Amount">
+    <variable id="payout_amount_var" name="Amount" typeRef="number" />
+  </inputData>
+
+  <decision id="payout_method" name="Choose Payout Method">
+    <variable id="payout_method_var" name="Method" typeRef="string" />
+    <informationRequirement id="ir_payout_amount">
+      <requiredInput href="#payout_amount" />
+    </informationRequirement>
+    <decisionTable id="method_table" hitPolicy="FIRST">
+      <input id="input_payout_amount" label="Amount">
+        <inputExpression id="input_payout_amount_expr" typeRef="number">
+          <text>amount</text>
+        </inputExpression>
+      </input>
+      <output id="output_method" label="Method" typeRef="string" />
+
+      <rule id="rule_batch">
+        <inputEntry id="rule_batch_amount"><text>&lt;= 500</text></inputEntry>
+        <outputEntry id="rule_batch_out"><text>"batch"</text></outputEntry>
+      </rule>
+      <rule id="rule_now">
+        <inputEntry id="rule_now_amount"><text>-</text></inputEntry>
+        <outputEntry id="rule_now_out"><text>"now"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="diagram">
+      <dmndi:DMNShape id="payout_method_di" dmnElementRef="payout_method">
+        <dc:Bounds x="260" y="100" width="160" height="80" />
+      </dmndi:DMNShape>
+      <dmndi:DMNShape id="payout_amount_di" dmnElementRef="payout_amount">
+        <dc:Bounds x="60" y="110" width="120" height="60" />
+      </dmndi:DMNShape>
+      <dmndi:DMNEdge id="ir_payout_amount_di" dmnElementRef="ir_payout_amount">
+        <di:waypoint x="180" y="140" />
+        <di:waypoint x="260" y="140" />
+      </dmndi:DMNEdge>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

@@ -75,7 +75,7 @@ def _assert_matches_committed(tmp_path: Path, written: set[Path], rel: Path) -> 
 
 def test_every_example_has_a_project_file():
     assert [str(p) for p in PROJECTS] == ["examples/chat-app"] + [
-        f"examples/expenses/chapter-{n:02d}" for n in range(1, 11)
+        f"examples/expenses/chapter-{n:02d}" for n in range(1, 12)
     ]
 
 

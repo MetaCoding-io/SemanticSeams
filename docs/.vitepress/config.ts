@@ -56,6 +56,7 @@ const decisions = [
   ["0027", "SemPKM webhooks", "0027-sempkm-webhook-channel"],
   ["0028", "Copilot suggestions", "0028-copilot-suggestions"],
   ["0029", "LLM-drafted generators", "0029-llm-drafted-generators"],
+  ["0030", "Domains and bounded contexts", "0030-domains-and-bounded-contexts"],
 ] as const;
 
 export default defineConfig({

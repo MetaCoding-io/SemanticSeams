@@ -172,7 +172,7 @@ strategic layer it lacks, a derived event-storm view, and DDD as the second prof
 
 | # | Item | Size | Depends on | Vocabulary impact | Status |
 |---|---|---|---|---|---|
-| B1 | **Domains and bounded contexts in `arch:`**: a domain that `arch:contains` systems, with a core, supporting or generic classification; a bounded context as the owner of an ontology and the named graphs that use it. Earns "core operations with no handler and no scenario" and the per-context questions below. [ADR-0022](adr/0022-ontology-notation.md) decided where the ontology lives (one per model, shared by import later) and left the context's ownership of a shared ontology to B1 | M | O1, K6; ADR first | a domain class with a classification, and a context boundary, in `arch:` | proposed |
+| B1 | **Domains and bounded contexts in `arch:`**: a domain that `arch:contains` systems, with a core, supporting or generic classification; a bounded context as the owner of an ontology and the named graphs that use it. Earns "core operations with no handler and no scenario" and the per-context questions below. [ADR-0022](adr/0022-ontology-notation.md) decided where the ontology lives (one per model, shared by import later) and left the context's ownership of a shared ontology to B1 | M | O1, K6; ADR first | a domain class with a classification, and a context boundary, in `arch:` | ADR accepted (M028/S02): [ADR-0030](adr/0030-domains-and-bounded-contexts.md); vocabulary in S03 |
 | B2 | **Context map facts and queries**: one relationship type per pair of contexts (customer-supplier, conformist, anti-corruption layer, published language, shared kernel); U8's shape diff scoped per downstream context; a gate for cross-context calls with no translating operation | M | B1, U8 | a relationship fact between contexts; no seam predicate | proposed |
 | B3 | **Lifecycle on the class, states as events**: `seam:lifecycle` targets the class once O2 lands, with a shape's lifecycle derived through `sh:targetClass`; a transition is a domain event with an IRI, publishable on a channel without a copied label | M | O1, O2 | widens `seam:lifecycle`'s subject | proposed |
 | B4 | **Derived event-storm view**: `seams storm <process>`, a timeline per process from the graph (actor, command, aggregate, transitions, decisions, channels, started processes, read models), with a golden test on the expense tutorial, then a viewer section; the bounded context canvas as a second derived view | S | none for the storm; B1 for the canvas | none | storm done (M028/S01): `seams storm` and the viewer's Storm section; the canvas waits for B1 |
@@ -597,7 +597,10 @@ UI work must not eat M3.*
       `suggest` and `draft-generator` name the LLM model with `[propose] model` or
       `--llm-model`, key their caches by it and, for propose, record it in the lock (X11).*
     - **M028, Event Storm and Bounded Contexts** (B4, B1, B3, E6): the storm view first,
-      then B1's ADR and vocabulary, lifecycle on the class, and chapter 11.
+      then B1's ADR and vocabulary, lifecycle on the class, and chapter 11. *B1's ADR
+      accepted, M028/S02: [ADR-0030](adr/0030-domains-and-bounded-contexts.md) makes domains
+      and bounded contexts `arch:` elements, a context `seam:owns` one ontology and its
+      models, and a shared ontology has one owner; the vocabulary is S03.*
     - **M029, Context Maps and the DDD Profile** (B2, B5, X7, X6). Depends on M028.
     - **M030, Time and Scale** (U10, A10): timer start events, then replicas with a
       shared stream channel.

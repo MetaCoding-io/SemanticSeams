@@ -202,6 +202,12 @@ tested in pytest, and the template only draws.
 
 ## Open questions
 
+*Amended, 2026-11-06 (M028/S02, backlog B1): [ADR-0030](./0030-domains-and-bounded-contexts.md)
+decides section 3's "later". An ontology is owned by exactly one `arch:BoundedContext`
+(`seam:owns`); other contexts reach it by `owl:imports` of its version IRI, resolved first
+against the ontology models in the same dataset, then `ontology/vendor/`. No ontology is
+co-owned; a shared kernel is one owner's ontology. The text above is unchanged.*
+
 - **gist upgrades.** Vendoring 14.1.0 beside 14.0.0 is compatible; a gist major that
   renames terms would need a migration in the user's ontology. Whether ADR-0021's
   migration layout applies to imports is open until it happens.

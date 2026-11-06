@@ -7,6 +7,14 @@ question on where the ontology lives it answers, and the
 [EventCatalog Levels note](2026-10-15-eventcatalog-levels.md), whose missing "Domain"
 level it names. Written against `main` at `6ca0913`.*
 
+*Revision, 2026-11-06: the first two open questions are answered by
+[ADR-0030](../adr/0030-domains-and-bounded-contexts.md) (M028/S02, B1). A bounded context is
+an `arch:` element, not a `seam:Model` grouping: it `seam:owns` exactly one `seam:Ontology`
+and the model graphs in its language, and an `arch:Domain` with a core, supporting or
+generic `arch:classification` contains it. One context per TriG file is a convention, not a
+rule; chapter 11 (E6) loads two files into one dataset. A shared ontology has one owning
+context, reached by `owl:imports`. The text below is unchanged.*
+
 ## The question
 
 Domain-driven design (DDD) has no notation of its own, so there is nothing to seam

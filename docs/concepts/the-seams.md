@@ -10,7 +10,7 @@ generated from [`ontology/seam.ttl`](../../ontology/seam.ttl).
 
 ## Four design rules
 
-1. **Few and generic beats many and precise.** Twenty-nine predicates. Precision lives
+1. **Few and generic beats many and precise.** Thirty-seven predicates. Precision lives
    in the layer vocabularies and in SHACL shapes over the seams, not in a growing list of
    specialised edges.
 2. **Every predicate must earn a cross-layer query.** If no question needs it, it does

@@ -173,6 +173,7 @@ export default defineConfig({
             collapsed: true,
             items: decisions.map(([n, title, slug]) => ({ text: `${n} · ${title}`, link: `/adr/${slug}` })),
           },
+          { text: "Research notes", link: "/project/research" },
           { text: "Status", link: `${PROJECT_PAGE}#status` },
           { text: "Publishing the site", link: "/project/publishing" },
         ],

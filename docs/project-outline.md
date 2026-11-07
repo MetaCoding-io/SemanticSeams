@@ -6,6 +6,19 @@
 
 *Status: concept / research phase — July 2026*
 
+> **Where it stands, 2026-11-07.** This outline is the July 2026 record and is kept as
+> written, apart from the notes marked as revisions. Since then the viewer completes the
+> descent and edits the model, the generators and the runtime build and run the
+> application from the graph, and the expense tutorial builds one in eleven chapters. The
+> [project page](https://metacoding-io.github.io/SemanticSeams/#status) summarises the
+> state, the [backlog](backlog.md) tracks it milestone by milestone, the
+> [decision records](adr/index.md) hold the thirty-eight decisions taken, and the
+> [research notes](project/research.md) hold the questions asked along the way. The "five
+> pillars" of §3 are now joined by domains and bounded contexts above the system
+> ([ADR-0030](adr/0030-domains-and-bounded-contexts.md)), and the "architecture method as
+> a profile" of §4 shipped first as a DDD profile ([ADR-0033](adr/0033-ddd-profile.md))
+> rather than IDesign.
+
 ---
 
 ## 1. Problem statement
@@ -124,8 +137,9 @@ Then, in order: editing (embed the modelers read-write), SHACL-driven form gener
 > for the design rationale. The namespaces (`example.org/ns/...`, the `ui:`
 > prefix), the "~15 predicates" count, and some domain notes are stale — the
 > authoritative, tested vocabulary lives in [`ontology/seam.ttl`](../ontology/seam.ttl)
-> (`https://w3id.org/seams/seam#`, currently 25 predicates, including
-> `seam:inModel` for membership and `seam:executes` for container→process),
+> (`https://w3id.org/seams/seam#`, currently 37 predicates in `seam` 1.6, including
+> `seam:inModel` for membership, `seam:executes` for container→process and
+> `seam:schedules` for the container that keeps a process's time),
 > with constraints in [`ontology/shapes/seam-shapes.ttl`](../ontology/shapes/seam-shapes.ttl).
 
 The bridging ontology's only job is to define the **seams** — the cross-layer predicates everything hangs off. Inside each layer we lean on existing vocabularies (SHACL, ODRL, Hydra, SCXML-ish states). The seams are where the novelty and the value live; the layers are mostly solved.

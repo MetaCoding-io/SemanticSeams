@@ -102,6 +102,8 @@ says which notation that model is in, and therefore which renderer to mount.
 over these three: given the node that was clicked, follow `detailedBy`, read the
 notation, mount the renderer, scope it to the target model's named graph.
 
+<Diagram name="descent" caption="The expense app's descent. Every arrow is one seam predicate in the seams graph; each box is an element in its own notation's named graph, rendered by that notation's own tool." />
+
 [ADR-0005](../../docs/adr/0005-navigation-resolution.md) is the decision that keeps that
 algorithm small. The original worry was that a viewer shell would become a growing switch
 statement over predicate types, with a special case for each join. The answer was to put

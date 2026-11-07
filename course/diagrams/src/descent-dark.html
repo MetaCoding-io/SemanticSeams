@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The descent: one graph, four notations</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --color-paper: #121a20; --color-ink: #e8ece9; --color-muted: #a3b0b8; --color-accent: #e8865c;
+            --font-sans: 'IBM Plex Sans', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-sans); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; color: var(--color-ink); margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 960px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Lesson 5</p>
+    <h1>The descent: one graph, four notations</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="descent-dark-title descent-dark-desc">
+        <title id="descent-dark-title">The descent: one graph, four notations</title>
+        <desc id="descent-dark-desc">An architecture diagram of the expense app's canonical descent: a C4 container presents an IFML page whose submit event triggers a BPMN process, which is decided by a DMN table and writes a SHACL shape that has a statechart lifecycle, every arrow a seam predicate.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a3b0b8"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#e8865c"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5fb9d3"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#121a20"/>
+        <line x1="208" y1="128" x2="288" y2="128" stroke="#a3b0b8" stroke-width="1" marker-end="url(#arrow)"/>
+        <rect x="225.0" y="108" width="46" height="12" rx="2" fill="#121a20"/>
+        <text x="248.0" y="117" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">PRESENTS</text>
+        <line x1="448" y1="128" x2="528" y2="128" stroke="#e8865c" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <rect x="465.0" y="108" width="46" height="12" rx="2" fill="#121a20"/>
+        <text x="488.0" y="117" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">TRIGGERS</text>
+        <line x1="688" y1="128" x2="768" y2="128" stroke="#a3b0b8" stroke-width="1" marker-end="url(#arrow)"/>
+        <rect x="700.0" y="108" width="56" height="12" rx="2" fill="#121a20"/>
+        <text x="728.0" y="117" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">DECIDED BY</text>
+        <line x1="608" y1="160" x2="608" y2="280" stroke="#a3b0b8" stroke-width="1" marker-end="url(#arrow)"/>
+        <rect x="616" y="214.0" width="36" height="12" rx="2" fill="#121a20"/>
+        <text x="634.0" y="223.0" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">WRITES</text>
+        <path d="M848,160 V304 Q848,312 840,312 H688" fill="none" stroke="#a3b0b8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+        <rect x="856" y="226" width="36" height="12" rx="2" fill="#121a20"/>
+        <text x="874" y="235" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">READS</text>
+        <line x1="608" y1="344" x2="608" y2="424" stroke="#a3b0b8" stroke-width="1" marker-end="url(#arrow)"/>
+        <rect x="616" y="378.0" width="51" height="12" rx="2" fill="#121a20"/>
+        <text x="641.5" y="387.0" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">LIFECYCLE</text>
+        <rect x="48" y="96" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="48" y="96" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="56" y="102" width="20" height="12" rx="2" fill="transparent" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="66.0" y="111" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">C4</text>
+        <text x="128.0" y="134" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Employee Portal</text>
+        <text x="128.0" y="149" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">arch:Container</text>
+        <rect x="288" y="96" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="288" y="96" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="296" y="102" width="32" height="12" rx="2" fill="transparent" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="312.0" y="111" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">IFML</text>
+        <text x="368.0" y="134" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Expenses Page</text>
+        <text x="368.0" y="149" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">ifml:ViewContainer · htmx</text>
+        <rect x="528" y="96" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="528" y="96" width="160" height="64" rx="6" fill="rgba(232,134,92,0.10)" stroke="#e8865c" stroke-width="1"/>
+        <rect x="536" y="102" width="32" height="12" rx="2" fill="transparent" stroke="#e8865c" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="552.0" y="111" fill="#e8865c" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">BPMN</text>
+        <text x="608.0" y="134" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Approval Process</text>
+        <text x="608.0" y="149" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">proc:Process · SpiffWorkflow</text>
+        <rect x="768" y="96" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="768" y="96" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="776" y="102" width="26" height="12" rx="2" fill="transparent" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="789.0" y="111" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">DMN</text>
+        <text x="848.0" y="134" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Route Approval</text>
+        <text x="848.0" y="149" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">dec:Decision · dmn-js</text>
+        <rect x="528" y="280" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="528" y="280" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="536" y="286" width="38" height="12" rx="2" fill="transparent" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="555.0" y="295" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">SHACL</text>
+        <text x="608.0" y="318" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Expense</text>
+        <text x="608.0" y="333" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">sh:NodeShape · pySHACL</text>
+        <rect x="528" y="424" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="528" y="424" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="536" y="430" width="38" height="12" rx="2" fill="transparent" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="555.0" y="439" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">STATE</text>
+        <text x="608.0" y="462" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Expense Lifecycle</text>
+        <text x="608.0" y="477" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">state:StateMachine</text>
+        <text x="768" y="376" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">THE BACKBONE</text>
+        <text x="768" y="396" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">Zooming in is one query:</text>
+        <text x="768" y="416" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">follow seam:detailedBy,</text>
+        <text x="768" y="436" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">read seam:notation,</text>
+        <text x="768" y="456" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">mount the renderer.</text>
+        <line x1="30" y1="560" x2="930" y2="560" stroke="rgba(232,236,233,0.12)" stroke-width="0.8"/>
+        <text x="30" y="576" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+        <line x1="120" y1="572" x2="152" y2="572" stroke="#a3b0b8" stroke-width="1" marker-end="url(#arrow)"/>
+        <text x="164" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">SEAM PREDICATE</text>
+        <line x1="279.6" y1="572" x2="311.6" y2="572" stroke="#e8865c" stroke-width="1" marker-end="url(#arrow-accent)"/>
+        <text x="323.6" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">THE CLICK (OPEN)</text>
+        <line x1="450.0" y1="572" x2="482.0" y2="572" stroke="#a3b0b8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+        <text x="494.0" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">READ ONLY</text>
+        <rect x="586.6" y="566" width="24" height="12" rx="2" fill="rgba(232,134,92,0.10)" stroke="#e8865c" stroke-width="1"/>
+        <text x="626.6" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">FOCAL</text>
+
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

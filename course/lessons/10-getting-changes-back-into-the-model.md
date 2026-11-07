@@ -61,6 +61,8 @@ accepted only if regeneration reproduces it. The note's benchmark found that thi
 for small edits and fails for reorganisations, so the project started it deliberately
 narrow.
 
+<Diagram name="round-trip" caption="Generation records its own trace and lock. An edited output line cites the trace, becomes a one-triple patch when exactly one literal covers the edit, and is applied through the write path only if regenerating with it gives the edited line back." />
+
 Just as important is what the note keeps out. Hand-written code lives outside generated
 files, behind a stub, so it never needs round-tripping; lesson 9 was about that. BPMN and
 DMN are already bidirectional, because the native XML is the source and a modeler edits

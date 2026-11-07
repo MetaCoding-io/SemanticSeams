@@ -125,6 +125,8 @@ statechart ran. The BPMN and the DMN ran. The class diagram, the sequence diagra
 data-flow diagram described something that ran, and were abandoned the moment the
 description cost more than it returned.
 
+<Diagram name="notations-timeline" caption="Seventy years of drawing software. A filled dot is a notation a machine ran; a hollow one was described and never executed. SysML v2, where views are queries, is the idea the project borrows." />
+
 That thesis has a corollary that the rest of this course rests on. If the models that
 survive are the ones with engines, then a project that wants one model of a whole
 application should not invent a new notation and a new engine. It should keep the surviving

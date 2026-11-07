@@ -44,6 +44,8 @@ model's content hash, and the runtime refuses to start against a different one. 
 XML stays free of vendor extensions. Generated files are disposable. And generation is
 deterministic.
 
+<Diagram name="interpret-generate" caption="The rule, per layer. Where an engine or a validator exists, the native model is interpreted and never regenerated; the interface and the deployment are generated as logic-free structure. One graph-literate worker spans the interpreted layers." />
+
 ### The execution boundary
 
 The project outline had already decided where the engine ends: the BPMN engine never

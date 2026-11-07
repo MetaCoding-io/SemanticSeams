@@ -39,6 +39,8 @@ MANAGER_APPROVE = (
 MANAGER_REJECT = (*HEAD, "notify_manager", "approve_expense", "decision_gateway", "record_rejection", "rejected_end")
 ESCALATE = (*HEAD, "notify_manager", "notify_failed_boundary", "finance_approve_expense", "decision_gateway")
 FINANCE = (*HEAD, "finance_approve_expense", "decision_gateway")
+# The PT48H overdue reminder on Approve Expense (ADR-0037) fires while the task stays open.
+REMINDED = (*HEAD, "notify_manager", "approve_expense", "overdue_reminder", "reminder_end")
 PAYOUT_HEAD = ("payout_requested", "schedule_payout", "choose_payout", "method_gateway")
 
 
@@ -57,6 +59,7 @@ def test_chapter_9_paths_and_the_scenarios_that_run_them(chapter9: seams.Model) 
         (AUTO, [EX + "auto_approved"]),
         (MANAGER_APPROVE, [EX + "manager_approved", EX + "paid_in_batch"]),
         (MANAGER_REJECT, [EX + "manager_rejected"]),
+        (REMINDED, [EX + "manager_reminded"]),
         ((*ESCALATE, "record_approval", "pay_expense", "approved_end"), [EX + "notify_failed_approved"]),
         ((*ESCALATE, "record_rejection", "rejected_end"), [EX + "notify_failed_rejected"]),
         ((*FINANCE, "record_approval", "pay_expense", "approved_end"), [EX + "finance_approved", EX + "paid_now"]),

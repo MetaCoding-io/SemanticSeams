@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="round-trip-title round-trip-desc" id="round-trip-root">
+        <title id="round-trip-title">Getting an edit back into the model</title>
+        <desc id="round-trip-desc">A diagram of the generation pipeline from model to output with its trace sidecar and lock, and the write-back path that turns an edited output line into a one-triple patch applied through the write path.</desc>
+        <defs>
+      <style>@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap');
+      #round-trip-root { --color-paper: #f4f1ea; --color-ink: #1d2a35; --color-muted: #5b6b78; --color-accent: #a64a24;
+            --font-sans: 'IBM Plex Sans', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+      #round-trip-root { font-family: var(--font-sans); color: var(--color-ink); }
+      #round-trip-root .diagram-container { width: 100%; overflow-x: auto; }
+      @media print {
+#round-trip-root .diagram-container { overflow-x: visible; }
+}</style>
+          <marker id="round-trip-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5b6b78"/></marker>
+          <marker id="round-trip-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a64a24"/></marker>
+          <marker id="round-trip-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1f6f8b"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f4f1ea"/>
+        <line x1="208" y1="128" x2="272" y2="128" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <rect x="224.5" y="108" width="31" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="240.0" y="117" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">READS</text>
+        <line x1="432" y1="128" x2="496" y2="128" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <rect x="451.0" y="108" width="26" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="464.0" y="117" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">VIEW</text>
+        <line x1="656" y1="128" x2="720" y2="128" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <rect x="675.0" y="108" width="26" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="688.0" y="117" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">TEXT</text>
+        <line x1="576" y1="160" x2="576" y2="240" stroke="#5b6b78" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#round-trip-arrow)"/>
+        <rect x="584" y="194.0" width="31" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="599.5" y="203.0" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">TRACE</text>
+        <line x1="656" y1="272" x2="720" y2="272" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <rect x="667.5" y="252" width="41" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="688.0" y="261" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">SOURCES</text>
+        <line x1="800" y1="160" x2="800" y2="240" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <rect x="808" y="194.0" width="36" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="826.0" y="203.0" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">SHA256</text>
+        <path d="M880,144 H904 Q912,144 912,152 V408 Q912,416 904,416 H880" fill="none" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <rect x="920" y="274" width="34" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="937" y="283" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">EDIT</text>
+        <path d="M720,408 H608 Q600,408 600,400 V304" fill="none" stroke="#5b6b78" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#round-trip-arrow)"/>
+        <rect x="640" y="382" width="34" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="657" y="391" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">CITES</text>
+        <line x1="720" y1="432" x2="432" y2="432" stroke="#a64a24" stroke-width="1.2" marker-end="url(#round-trip-arrow-accent)"/>
+        <rect x="545.5" y="412" width="61" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="576.0" y="421" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">ONE LITERAL</text>
+        <path d="M352,384 V208 Q352,200 344,200 H136 Q128,200 128,192 V160" fill="none" stroke="#a64a24" stroke-width="1.2" marker-end="url(#round-trip-arrow-accent)"/>
+        <rect x="200" y="176" width="56" height="12" rx="2" fill="#f4f1ea"/>
+        <text x="228" y="185" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">APPLY</text>
+        <rect x="48" y="96" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="48" y="96" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="56" y="102" width="32" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="72.0" y="111" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">TRIG</text>
+        <text x="128.0" y="134" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Model</text>
+        <text x="128.0" y="149" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">expenses.trig · named graphs</text>
+        <rect x="272" y="96" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="272" y="96" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="280" y="102" width="44" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="302.0" y="111" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">PYTHON</text>
+        <text x="352.0" y="134" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Extract</text>
+        <text x="352.0" y="149" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">facts → frozen view</text>
+        <rect x="496" y="96" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="496" y="96" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="504" y="102" width="38" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="523.0" y="111" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">JINJA</text>
+        <text x="576.0" y="134" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Render</text>
+        <text x="576.0" y="149" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">templates hold text</text>
+        <rect x="720" y="96" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="720" y="96" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="728" y="102" width="32" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="744.0" y="111" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">HTML</text>
+        <text x="800.0" y="134" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Output</text>
+        <text x="800.0" y="149" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">expenses_page.html</text>
+        <rect x="496" y="240" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="496" y="240" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="504" y="246" width="32" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="520.0" y="255" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">JSON</text>
+        <text x="576.0" y="278" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Trace sidecar</text>
+        <text x="576.0" y="293" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">line → template, terms</text>
+        <rect x="720" y="240" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="720" y="240" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="728" y="246" width="32" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="744.0" y="255" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">JSON</text>
+        <text x="800.0" y="278" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Lock</text>
+        <text x="800.0" y="293" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">seams.lock · hashes, sources</text>
+        <rect x="720" y="384" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="720" y="384" width="160" height="64" rx="6" fill="#f4f1ea" stroke="#5b6b78" stroke-width="1"/>
+        <rect x="728" y="390" width="44" height="12" rx="2" fill="none" stroke="#5b6b78" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="750.0" y="399" fill="#5b6b78" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">VIEWER</text>
+        <text x="800.0" y="422" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Edited line</text>
+        <text x="800.0" y="437" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">edit mode · generation view</text>
+        <rect x="272" y="384" width="160" height="64" rx="6" fill="#f4f1ea"/>
+        <rect x="272" y="384" width="160" height="64" rx="6" fill="rgba(166,74,36,0.08)" stroke="#a64a24" stroke-width="1"/>
+        <rect x="280" y="390" width="68" height="12" rx="2" fill="none" stroke="#a64a24" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="314.0" y="399" fill="#a64a24" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">SEAMS_EDIT</text>
+        <text x="352.0" y="422" fill="#1d2a35" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">One-triple patch</text>
+        <text x="352.0" y="437" fill="#5b6b78" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">text edited in place</text>
+        <text x="48" y="490" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">ACCEPTED ONLY IF</text>
+        <text x="48" y="510" fill="#1d2a35" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">regenerating with the patch gives back the edited line.</text>
+        <text x="48" y="530" fill="#1d2a35" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">No single literal, or a different line: refused, with the reason.</text>
+        <line x1="30" y1="560" x2="930" y2="560" stroke="rgba(29,42,53,0.12)" stroke-width="0.8"/>
+        <text x="30" y="576" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+        <line x1="120" y1="572" x2="152" y2="572" stroke="#5b6b78" stroke-width="1" marker-end="url(#round-trip-arrow)"/>
+        <text x="164" y="575" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">GENERATION</text>
+        <line x1="258.0" y1="572" x2="290.0" y2="572" stroke="#5b6b78" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#round-trip-arrow)"/>
+        <text x="302.0" y="575" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">TRACE</text>
+        <line x1="369.0" y1="572" x2="401.0" y2="572" stroke="#a64a24" stroke-width="1" marker-end="url(#round-trip-arrow-accent)"/>
+        <text x="413.0" y="575" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">WRITE-BACK</text>
+
+      </svg>

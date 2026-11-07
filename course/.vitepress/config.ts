@@ -80,12 +80,12 @@ export default defineConfig({
   cleanUrls: true,
   // Every internal link must resolve; only http://localhost links (the viewer, run locally) are exempt.
   ignoreDeadLinks: "localhostLinks",
-  srcExclude: ["README.md", "node_modules/**"],
+  srcExclude: ["README.md", "diagrams/README.md", "node_modules/**"],
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` }],
     ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
     ["link", { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" }],
-    ["link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" }],
+    ["link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" }],
   ],
   themeConfig: {
     logo: "/favicon.svg",

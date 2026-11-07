@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seventy years of drawing software</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --color-paper: #f4f1ea; --color-ink: #1d2a35; --color-muted: #5b6b78; --color-accent: #a64a24;
+            --font-sans: 'IBM Plex Sans', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-sans); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; color: var(--color-ink); margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 960px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Timeline · Lesson 1</p>
+    <h1>Seventy years of drawing software</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="notations-timeline-title notations-timeline-desc">
+        <title id="notations-timeline-title">Seventy years of drawing software</title>
+        <desc id="notations-timeline-desc">A timeline from 1947 to 2025 of the notations for drawing software, with the ones a machine executed filled in, the ones that stayed documentation hollow, and SysML v2's views-as-queries highlighted.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5b6b78"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a64a24"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1f6f8b"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f4f1ea"/>
+        <line x1="80" y1="272" x2="880" y2="272" stroke="#b9b0a0" stroke-width="1"/>
+        <line x1="128.78048780487805" y1="268" x2="128.78048780487805" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="128.78048780487805" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">1950</text>
+        <line x1="226.34146341463415" y1="268" x2="226.34146341463415" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="226.34146341463415" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">1960</text>
+        <line x1="323.9024390243902" y1="268" x2="323.9024390243902" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="323.9024390243902" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">1970</text>
+        <line x1="421.4634146341463" y1="268" x2="421.4634146341463" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="421.4634146341463" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">1980</text>
+        <line x1="519.0243902439024" y1="268" x2="519.0243902439024" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="519.0243902439024" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">1990</text>
+        <line x1="616.5853658536586" y1="268" x2="616.5853658536586" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="616.5853658536586" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">2000</text>
+        <line x1="714.1463414634146" y1="268" x2="714.1463414634146" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="714.1463414634146" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">2010</text>
+        <line x1="811.7073170731708" y1="268" x2="811.7073170731708" y2="276" stroke="#b9b0a0" stroke-width="1"/>
+        <text x="811.7073170731708" y="292" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">2020</text>
+        <line x1="99.51219512195122" y1="272" x2="99.51219512195122" y2="224" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="93.51219512195122" y="210" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="start">Flow diagrams</text>
+        <text x="93.51219512195122" y="222" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start">Goldstine, von Neumann</text>
+        <circle cx="99.51219512195122" cy="272" r="4" fill="#f4f1ea" stroke="#1d2a35" stroke-width="1"/>
+        <text x="99.51219512195122" y="306" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">1947</text>
+        <line x1="382.4390243902439" y1="272" x2="382.4390243902439" y2="316" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="382.4390243902439" y="326" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Entity-relationship</text>
+        <text x="382.4390243902439" y="338" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">Chen · the schema runs</text>
+        <circle cx="382.4390243902439" cy="272" r="4" fill="#1d2a35"/>
+        <text x="382.4390243902439" y="260" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">1976</text>
+        <line x1="489.7560975609756" y1="272" x2="489.7560975609756" y2="224" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="489.7560975609756" y="210" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Statecharts</text>
+        <text x="489.7560975609756" y="222" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">Harel · executable</text>
+        <circle cx="489.7560975609756" cy="272" r="4" fill="#1d2a35"/>
+        <text x="489.7560975609756" y="306" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">1987</text>
+        <line x1="587.3170731707316" y1="272" x2="587.3170731707316" y2="366" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="587.3170731707316" y="376" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">UML 1.1</text>
+        <text x="587.3170731707316" y="388" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">OMG · failed socially</text>
+        <circle cx="587.3170731707316" cy="272" r="4" fill="#f4f1ea" stroke="#1d2a35" stroke-width="1"/>
+        <text x="587.3170731707316" y="260" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">1997</text>
+        <line x1="626.3414634146342" y1="272" x2="626.3414634146342" y2="180" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="626.3414634146342" y="166" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">MDA</text>
+        <text x="626.3414634146342" y="178" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">OMG · PIM, PSM, XMI</text>
+        <circle cx="626.3414634146342" cy="272" r="4" fill="#f4f1ea" stroke="#1d2a35" stroke-width="1"/>
+        <text x="626.3414634146342" y="306" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">2001</text>
+        <line x1="723.9024390243902" y1="272" x2="723.9024390243902" y2="316" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="717.9024390243902" y="326" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="end">BPMN 2.0</text>
+        <text x="717.9024390243902" y="338" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="end">execution semantics</text>
+        <circle cx="723.9024390243902" cy="272" r="4" fill="#1d2a35"/>
+        <text x="723.9024390243902" y="260" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">2011</text>
+        <line x1="743.4146341463414" y1="272" x2="743.4146341463414" y2="224" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="743.4146341463414" y="210" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">IFML</text>
+        <text x="743.4146341463414" y="222" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">OMG · hooks never wired</text>
+        <circle cx="743.4146341463414" cy="272" r="4" fill="#f4f1ea" stroke="#1d2a35" stroke-width="1"/>
+        <text x="743.4146341463414" y="306" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">2013</text>
+        <line x1="762.9268292682926" y1="272" x2="762.9268292682926" y2="316" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="768.9268292682926" y="326" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="start">DMN 1.0</text>
+        <text x="768.9268292682926" y="338" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="start">decision tables</text>
+        <circle cx="762.9268292682926" cy="272" r="4" fill="#1d2a35"/>
+        <text x="762.9268292682926" y="260" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">2015</text>
+        <line x1="860.4878048780488" y1="272" x2="860.4878048780488" y2="180" stroke="rgba(29,42,53,0.12)" stroke-width="1"/>
+        <text x="866.4878048780488" y="166" fill="#1d2a35" font-size="11" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="end">SysML v2</text>
+        <text x="866.4878048780488" y="178" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="end">views are queries</text>
+        <circle cx="860.4878048780488" cy="272" r="6" fill="#a64a24"/>
+        <text x="860.4878048780488" y="306" fill="#5f6e7a" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">2025</text>
+        <text x="80" y="456" fill="#5f6e7a" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">THE THESIS</text>
+        <text x="80" y="476" fill="#1d2a35" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">The notations that survived had an engine. The rest became documentation.</text>
+        <line x1="30" y1="560" x2="930" y2="560" stroke="rgba(29,42,53,0.12)" stroke-width="0.8"/>
+        <text x="30" y="576" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+        <circle cx="136" cy="572" r="4" fill="#1d2a35"/>
+        <text x="164" y="575" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">A MACHINE RAN THE MODEL</text>
+        <circle cx="344.2" cy="572" r="4" fill="#f4f1ea" stroke="#1d2a35" stroke-width="1"/>
+        <text x="372.2" y="575" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">DESCRIBED, NEVER EXECUTED</text>
+        <circle cx="563.2" cy="572" r="6" fill="#a64a24"/>
+        <text x="591.2" y="575" fill="#5b6b78" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">VIEWS AS QUERIES</text>
+
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

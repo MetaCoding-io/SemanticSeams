@@ -25,6 +25,18 @@
 /* Screenshots: a hairline frame so a white capture does not dissolve into the page. */
 .vp-doc img[src*="/img/"] { border: 1px solid var(--vp-c-divider); border-radius: 6px; }
 
+/*
+ * Course diagrams (theme/diagram.ts): an inline SVG pair, light and dark, switched by the
+ * same .dark class VitePress toggles. The SVG keeps its drawn width and scrolls sideways
+ * in a narrow column rather than shrinking its labels below legibility.
+ */
+.course-diagram { margin: 24px 0; }
+.course-diagram > div { overflow-x: auto; border: 1px solid var(--vp-c-divider); border-radius: 6px; }
+.course-diagram svg { display: block; width: 100%; min-width: 960px; height: auto; }
+.course-diagram-dark, .dark .course-diagram-light { display: none; }
+.dark .course-diagram-dark { display: block; }
+.course-diagram figcaption { margin-top: 8px; font-size: 14px; line-height: 1.5; color: var(--vp-c-text-2); }
+
 /* The sidebar toggle: a tab on the sidebar's right edge, desktop only. */
 .sidebar-toggle { display: none; }
 

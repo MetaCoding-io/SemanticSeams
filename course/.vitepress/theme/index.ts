@@ -2,12 +2,15 @@
  * A copy of docs/.vitepress/theme/index.ts: the course site looks like the docs site.
  * Importing the docs theme across directories does not build (its `vue` import resolves
  * against docs/node_modules), so the two files are copied; keep them identical. The only
- * difference is the storage key for the sidebar toggle, so each site remembers its own.
+ * differences are the storage key for the sidebar toggle, so each site remembers its own,
+ * and the course's <Diagram> component (diagram.ts), registered in enhanceApp.
  */
 import DefaultTheme from "vitepress/theme";
 import { useSidebar } from "vitepress/theme";
 import { useRoute } from "vitepress";
 import { defineComponent, h, nextTick, onMounted, ref, watch } from "vue";
+import type { App } from "vue";
+import { Diagram } from "./diagram";
 import "./custom.css";
 
 const STORAGE_KEY = "semanticseams-course:sidebar-hidden";
@@ -74,4 +77,7 @@ export default {
   Layout: () => h(DefaultTheme.Layout, null, {
     "layout-bottom": () => [h(SidebarToggle), h(MermaidRenderer)],
   }),
+  enhanceApp({ app }: { app: App }) {
+    app.component("Diagram", Diagram);
+  },
 };

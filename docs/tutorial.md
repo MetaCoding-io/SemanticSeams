@@ -76,10 +76,11 @@ seams generate --project examples/chat-app
 ```
 
 It reads [`examples/chat-app/seams.toml`](../examples/chat-app/seams.toml), which names the
-three generators and their outputs: the FastAPI route module
+four generators and their outputs: the FastAPI route module
 (`examples/chat-app/generated/chat_api.py`), the htmx page and partials
-(`examples/chat-app/generated/templates/`) and one root compose file per environment the
-model declares: `compose.development.yaml` and `compose.production.yaml`
+(`examples/chat-app/generated/templates/`), the runtime image's Dockerfile beside the
+route module (`examples/chat-app/generated/chat_api.Dockerfile`) and one root compose
+file per environment the model declares: `compose.development.yaml` and `compose.production.yaml`
 ([ADR-0015](adr/0015-environments.md)). The
 [seams CLI reference](/reference/seams-cli) describes the file. To run a single generator,
 `python -m seams_gen <generator>` still works. It also rewrites
@@ -253,7 +254,7 @@ Edit the model and watch the app follow. For example, change the chat page's tit
         ifml:title "Chat"@en ;
 ```
 
-to `"My chat"@en`, then rerun the three generators from step 3 and restart with
+to `"My chat"@en`, then rerun `seams generate` from step 3 and restart with
 `docker compose -f compose.development.yaml up --build`. The browser tab title changes.
 
 If you skip regenerating, the app refuses to start. Every generated file records the

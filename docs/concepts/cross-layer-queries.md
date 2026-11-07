@@ -6,7 +6,7 @@ them, because no single tool holds both ends.
 
 ## The questions
 
-Four ship today as canned queries. Each leaves one variable free, the element you are
+Five ship today as canned queries. Each leaves one variable free, the element you are
 asking about, and the viewer binds it to whatever you are looking at.
 
 | Question | Why it matters |
@@ -15,13 +15,14 @@ asking about, and the viewer binds it to whatever you are looking at.
 | What breaks, containers, processes and data, if this deployment node goes away? | Impact analysis, and later drift detection between designed and deployed state |
 | Which process tasks may move an entity out of this state? | Lifecycle audit, and the inverse view of `seam:fires` |
 | Which screens can each role use to eventually write this data shape? | Access review: which roles can reach a write to this data, and from which screen |
+| Which screens must a person visit to finish this process, and which policy governs each? | Walkthrough review: the forms a process's user tasks are completed on ([ADR-0009](/adr/0009-human-tasks)), and who may complete each |
 
 The [query catalog](/reference/queries) shows each one in full, generated from
 [`docs/queries/`](../queries/).
 
 ### Coverage questions
 
-Three more ask what the model declares that nothing exercises
+Four more ask what the model declares that nothing exercises
 ([ADR-0014](/adr/0014-scenarios-and-derived-tests)'s scenarios and the tests derived
 from them):
 
@@ -30,13 +31,26 @@ from them):
 | Which transitions of this lifecycle does no process task fire? | a `state:StateMachine` | `docs/queries/coverage/unfired-transitions.rq` |
 | Which permissions of this policy get no party deny test? | an `odrl:Policy` | `docs/queries/coverage/policies-without-deny.rq` |
 | Which start-to-end paths through this process does no scenario exercise? | a `proc:Process` | `seams.coverage.unexercised_paths` |
+| Which operations of a core domain's contexts have neither a hand-written handler nor a scenario that reaches them? | an `arch:BoundedContext` | `docs/queries/coverage/core-operations-untested.rq` ([ADR-0030](/adr/0030-domains-and-bounded-contexts)) |
 
-The first two are SPARQL and return no rows when everything is covered, so `seams check`
-can run them as gates. The third cannot be SPARQL: sequence flows live only in the BPMN
+The SPARQL ones return no rows when everything is covered, so `seams check` can run
+them as gates. The path question cannot be SPARQL: sequence flows live only in the BPMN
 XML ([ADR-0007](/adr/0007-execution-strategy)), so `seams.coverage` walks
-them in Python and joins the paths with the scenarios. The viewer offers all three as
+them in Python and joins the paths with the scenarios. The viewer offers them as
 Questions, and [`seams coverage`](/reference/seams-cli#seams-coverage) prints them for a
 whole model.
+
+### Gate questions
+
+Two more are gates: queries that must return no rows, listed under `gates` in a project's
+`seams.toml` so that `seams check` fails on any row. `gates/ungoverned-writes.rq` lists each
+UI event that can write a data shape with no policy governing it.
+`gates/untranslated-cross-context-calls.rq` lists each element in one bounded context that
+reads or writes a shape another context owns, unless a context-map relationship or a
+translating operation allows it ([ADR-0032](/adr/0032-context-map-relationships)). A model
+attached to the DDD profile needs neither: the profile's rules restate them
+([ADR-0033](/adr/0033-ddd-profile)), and the expense tutorial's
+[chapter 11](/tutorials/expenses/11-bounded-contexts) shows both ways.
 
 ## How they work
 

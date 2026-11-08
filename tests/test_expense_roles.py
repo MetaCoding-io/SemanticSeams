@@ -145,7 +145,9 @@ def test_manager_approves_then_finance_pays(app):
     r = c.post("/expenses/e1/approval", data={"decision": "approved"}, headers=BOB)
     assert r.status_code == 200, r.text
     until(lambda: _open(runtime) == {"e1": "pay_expense"})
-    assert status(runtime, "e1") == "waiting" and _stored_status(runtime, "e1") == "approved"
+    # the per-element checkpoint opens the task before its final waiting one
+    until(lambda: status(runtime, "e1") == "waiting")
+    assert _stored_status(runtime, "e1") == "approved"
     assert _inbox(c, CAROL) == [("e1", PAY_TASK)]
     assert _inbox(c, BOB) == []
 
@@ -186,6 +188,8 @@ def test_an_invalid_payment_is_422_and_changes_nothing(app, data, paths):
     _submit(c, runtime, "e1", MID)
     c.post("/expenses/e1/approval", data={"decision": "approved"}, headers=BOB)
     until(lambda: _open(runtime) == {"e1": "pay_expense"})
+    # the per-element checkpoint opens the task before its final waiting one
+    until(lambda: status(runtime, "e1") == "waiting")
 
     r = c.post("/expenses/e1/payment", data=data, headers=CAROL)
     assert r.status_code == 422, r.text

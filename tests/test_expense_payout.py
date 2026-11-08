@@ -216,7 +216,8 @@ def test_an_unpaid_expense_starts_no_payout(app):
     _submit(c, runtime, "w1", "250.00")
     _approve(c, runtime, "w1")
     until(lambda: [t["bpmn_id"] for t in runtime.store.list_user_tasks()] == ["pay_expense"])
-    assert status(runtime, "w1") == "waiting"
+    # the per-element checkpoint opens the task before its final waiting one
+    until(lambda: status(runtime, "w1") == "waiting")
     assert instances(runtime, "w1", PAYOUT_PROCESS) == []
 
 

@@ -94,7 +94,9 @@ def test_two_implementations_name_the_operation(fresh: ModelGraph) -> None:
     assert (exc.value.subject, exc.value.predicate) == (str(CHAT.completion_op), str(SEAM.implementedBy))
 
 
-@pytest.mark.parametrize("node", [Literal("llm"), BNode()])
+# Explicit ids: a BNode's default id is random, so pytest-xdist workers would
+# collect different test names.
+@pytest.mark.parametrize("node", [Literal("llm"), BNode()], ids=["literal", "blank-node"])
 def test_an_implementation_that_is_not_an_iri_names_the_operation(fresh: ModelGraph, node) -> None:
     declare(fresh, CHAT.impl, COMM.LLMCompletion)
     fresh.ds.remove((CHAT.completion_op, SEAM.implementedBy, None, None))

@@ -212,7 +212,8 @@ def test_approving_finishes_the_instance(app, chapter):
             # the payout's per-element checkpoint opens the task before its final waiting one
             until(lambda: status(runtime, "e1", PAYOUT_PROCESS) == "waiting")
         else:
-            assert status(runtime, "e1") == "waiting"
+            # the per-element checkpoint opens the task before its final waiting one
+            until(lambda: status(runtime, "e1") == "waiting")
         r = c.post("/expenses/e1/payment", data=PAYMENT, headers=FINANCE)
         assert r.status_code == 200, r.text
         if pays_in_payout(chapter):

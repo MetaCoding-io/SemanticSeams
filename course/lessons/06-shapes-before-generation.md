@@ -47,6 +47,8 @@ lessons add two more readings without adding a line: the JSON-LD context the gen
 API serves is derived from the shape, and the package that teaches SemPKM about the data
 is written from the same shapes. One statement, read five ways, and never restated.
 
+<Diagram name="shapes-five-ways" caption="One shape, read five ways. The expense shape is the runtime's validation, the generated form, the operation contract, the JSON-LD context and the SemPKM package, with nothing restated. Below it, the shapes over the model itself drive the viewer's health badge, and a model that passes them must generate." />
+
 ### Rejecting, not inferring
 
 Lesson 2 drew the line between a vocabulary that infers and a shape that rejects, and

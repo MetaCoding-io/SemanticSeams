@@ -393,7 +393,118 @@ def roundtrip(t, slug):
     )
 
 
-DIAGRAMS = {"descent": descent, "interpret-generate": layers, "notations-timeline": timeline, "round-trip": roundtrip}
+# ---- 5. one shape, read five ways ------------------------------------------------
+def shapes(t, slug):
+    b = ""
+    sx, sw = 48, 192  # the shape
+    tx, tw = 352, 192  # the readings
+    trunk = 296
+    ys = [56, 136, 216, 296, 376]
+    mid = ys[2] + 32
+    # arrows first: one departure, a trunk, five branches
+    b += f'        <line x1="{sx + sw}" y1="{mid}" x2="{trunk}" y2="{mid}" stroke="{t["muted"]}" stroke-width="1"/>\n'
+    top, bottom = ys[0] + 32, ys[-1] + 32
+    b += f'        <path d="M{trunk},{mid} V{top + 8} Q{trunk},{top} {trunk + 8},{top} H{tx}" fill="none" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>\n'
+    b += f'        <path d="M{trunk},{mid} V{bottom - 8} Q{trunk},{bottom} {trunk + 8},{bottom} H{tx}" fill="none" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>\n'
+    for y in ys[1:-1]:
+        b += f'        <line x1="{trunk}" y1="{y + 32}" x2="{tx}" y2="{y + 32}" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>\n'
+    # the lower band: shapes over the model itself
+    ly = 476
+    b += hline(t, 240, 352, ly + 32, "EVERY PAGE LOAD")
+    b += hline(t, 544, 656, ly + 32, "PASSES, SO GENERATES", "accent")
+    # nodes
+    b += node(t, sx, ys[2], "ExpenseShape", "SHACL", "sh:NodeShape · four properties", w=sw, focal=True)
+    readings = [
+        ("Validation", "RUNTIME", "pySHACL in the worker · 422"),
+        ("Form", "HTMX", "sh:order · sh:in · ifml:boundTo"),
+        ("Contract", "API", "seam:acceptsShape · returnsShape"),
+        ("JSON-LD context", "API", "one context per shape"),
+        ("SemPKM package", "ADR-0026", "written from the same shapes"),
+    ]
+    for y, (name, tag, sub) in zip(ys, readings, strict=True):
+        b += node(t, tx, y, name, tag, sub, w=tw)
+    b += node(t, 48, ly, "seam-shapes.ttl", "SHACL", "rules over the model itself", w=192)
+    b += node(t, 352, ly, "Health badge", "VIEWER", "names the model and the rule", w=192)
+    b += node(t, 656, ly, "Generation", "SEAMS GEN", "every raise site has a parity case", w=192)
+    b += callout(
+        t,
+        600,
+        150,
+        "ONE STATEMENT",
+        ["Every rule the API enforced", "is a line of the shape.", "None of it is in the", "generated code."],
+    )
+    b += legend(
+        t,
+        568,
+        [("muted", "A READING OF THE SHAPE"), ("accent", "PRINCIPLE 5, THE PROMISE"), ("focal", "THE ONE SOURCE")],
+    )
+    return page(
+        slug,
+        "Data flow · Lesson 6",
+        "One shape, read five ways",
+        "A data-flow diagram: the expense shape is read as the runtime's validation, the generated form, the operation contract, the JSON-LD context and the SemPKM package, with nothing restated; below, the shapes over the model itself drive the viewer's health badge, and a model that passes them must generate.",
+        b,
+        t,
+    )
+
+
+# ---- 6. from facts to a running system -------------------------------------------
+def deploy(t, slug):
+    b = ""
+    # arrows first
+    b += hline(t, 208, 288, 192, "READS")
+    # generator fans to one compose file per environment
+    b += f"""        <path d="M448,180 H488 Q496,180 496,172 V112 Q496,104 504,104 H528" fill="none" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>
+        <path d="M448,204 H488 Q496,204 496,212 V272 Q496,280 504,280 H528" fill="none" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>
+"""
+    b += vline(t, 368, 224, 336, "RECORDS")
+    b += hline(t, 688, 768, 104, "COMPOSE UP")
+    b += vline(t, 848, 136, 248, "GET /healthz", "accent")
+    # lock to status: along y=368, up into the status box's left edge
+    b += f"""        <path d="M448,368 H732 Q740,368 740,360 V288 Q740,280 748,280 H768" fill="none" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>
+        <rect x="548" y="348" width="96" height="12" rx="2" fill="{t["paper"]}"/>
+        <text x="596" y="357" fill="{t["soft"]}" font-size="8" font-family="{MONO}" text-anchor="middle" letter-spacing="0.06em">HISTORY IN GIT</text>
+"""
+    # model to secrets: down, then along y=456
+    b += f"""        <path d="M128,224 V448 Q128,456 136,456 H528" fill="none" stroke="{t["muted"]}" stroke-width="1" marker-end="url(#arrow)"/>
+        <rect x="160" y="436" width="136" height="12" rx="2" fill="{t["paper"]}"/>
+        <text x="228" y="445" fill="{t["soft"]}" font-size="8" font-family="{MONO}" text-anchor="middle" letter-spacing="0.06em">THE KEYS production NAMES</text>
+"""
+    # nodes
+    b += node(t, 48, 160, "Model", "TRIG", "environments and overrides")
+    b += node(t, 288, 160, "Compose generator", "SEAMS GEN", "one file per environment")
+    b += node(t, 528, 72, "compose.development", "YAML", "local build · secret file")
+    b += node(t, 528, 248, "compose.production", "YAML", "published image · secret ref")
+    b += node(t, 288, 336, "seams.lock", "JSON", "versions and model hash")
+    b += node(t, 768, 72, "Running containers", "DOCKER", "answer with the model hash")
+    b += node(t, 768, 248, "seams status", "CLI", "current · behind · ahead", focal=True)
+    b += node(t, 528, 424, "seams secrets", "CLI", "file · .env · Docker secret")
+    b += callout(
+        t, 768, 420, "NEVER READS A VALUE", ["The model knows what", "production needs before", "production does."]
+    )
+    b += legend(
+        t,
+        568,
+        [("muted", "GENERATION AND CHECKS"), ("accent", "THE RUNNING SYSTEM, AGAINST THE LOCK"), ("focal", "FOCAL")],
+    )
+    return page(
+        slug,
+        "Architecture · Lesson 11",
+        "From facts to a running system",
+        "An architecture diagram: the model's environment facts feed the compose generator, which writes one compose file per environment and records the lock; Docker brings the development file up; seams status compares each running container's model hash with the lock's history, and seams secrets checks that the keys production names exist without reading a value.",
+        b,
+        t,
+    )
+
+
+DIAGRAMS = {
+    "descent": descent,
+    "interpret-generate": layers,
+    "notations-timeline": timeline,
+    "round-trip": roundtrip,
+    "shapes-five-ways": shapes,
+    "facts-to-running": deploy,
+}
 if __name__ == "__main__":
     for name, fn in DIAGRAMS.items():
         for skin, t in SKINS.items():

@@ -113,6 +113,8 @@ without ever reading a value. In the lab the production run reports two missing 
 with an error, which is the point: the model knows what production needs before production
 does.
 
+<Diagram name="facts-to-running" caption="From facts to a running system. The model's environment facts feed the compose generator, which writes one file per environment and records the lock. Docker brings the development file up; seams status compares each container's model hash with the lock's history, and seams secrets checks that the keys production names exist, without reading a value." />
+
 ### Where the data lives
 
 The storage decision belongs here too, because it is the model answering a question that

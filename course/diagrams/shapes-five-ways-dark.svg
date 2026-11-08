@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="shapes-five-ways-dark-title shapes-five-ways-dark-desc" id="shapes-five-ways-dark-root">
+        <title id="shapes-five-ways-dark-title">One shape, read five ways</title>
+        <desc id="shapes-five-ways-dark-desc">A data-flow diagram: the expense shape is read as the runtime's validation, the generated form, the operation contract, the JSON-LD context and the SemPKM package, with nothing restated; below, the shapes over the model itself drive the viewer's health badge, and a model that passes them must generate.</desc>
+        <defs>
+      <style>@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap');
+      #shapes-five-ways-dark-root { --color-paper: #121a20; --color-ink: #e8ece9; --color-muted: #a3b0b8; --color-accent: #e8865c;
+            --font-sans: 'IBM Plex Sans', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+      #shapes-five-ways-dark-root { font-family: var(--font-sans); color: var(--color-ink); }
+      #shapes-five-ways-dark-root .diagram-container { width: 100%; overflow-x: auto; }
+      @media print {
+#shapes-five-ways-dark-root .diagram-container { overflow-x: visible; }
+}</style>
+          <marker id="shapes-five-ways-dark-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a3b0b8"/></marker>
+          <marker id="shapes-five-ways-dark-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#e8865c"/></marker>
+          <marker id="shapes-five-ways-dark-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5fb9d3"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#121a20"/>
+        <line x1="240" y1="248" x2="296" y2="248" stroke="#a3b0b8" stroke-width="1"/>
+        <path d="M296,248 V96 Q296,88 304,88 H352" fill="none" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <path d="M296,248 V400 Q296,408 304,408 H352" fill="none" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <line x1="296" y1="168" x2="352" y2="168" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <line x1="296" y1="248" x2="352" y2="248" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <line x1="296" y1="328" x2="352" y2="328" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <line x1="240" y1="508" x2="352" y2="508" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <rect x="255.5" y="488" width="81" height="12" rx="2" fill="#121a20"/>
+        <text x="296.0" y="497" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">EVERY PAGE LOAD</text>
+        <line x1="544" y1="508" x2="656" y2="508" stroke="#e8865c" stroke-width="1.2" marker-end="url(#shapes-five-ways-dark-arrow-accent)"/>
+        <rect x="547.0" y="488" width="106" height="12" rx="2" fill="#121a20"/>
+        <text x="600.0" y="497" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">PASSES, SO GENERATES</text>
+        <rect x="48" y="216" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="48" y="216" width="192" height="64" rx="6" fill="rgba(232,134,92,0.10)" stroke="#e8865c" stroke-width="1"/>
+        <rect x="56" y="222" width="38" height="12" rx="2" fill="none" stroke="#e8865c" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="75.0" y="231" fill="#e8865c" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">SHACL</text>
+        <text x="144.0" y="254" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">ExpenseShape</text>
+        <text x="144.0" y="269" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">sh:NodeShape · four properties</text>
+        <rect x="352" y="56" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="352" y="56" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="360" y="62" width="50" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="385.0" y="71" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">RUNTIME</text>
+        <text x="448.0" y="94" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Validation</text>
+        <text x="448.0" y="109" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">pySHACL in the worker · 422</text>
+        <rect x="352" y="136" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="352" y="136" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="360" y="142" width="32" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="376.0" y="151" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">HTMX</text>
+        <text x="448.0" y="174" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Form</text>
+        <text x="448.0" y="189" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">sh:order · sh:in · ifml:boundTo</text>
+        <rect x="352" y="216" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="352" y="216" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="360" y="222" width="26" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="373.0" y="231" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">API</text>
+        <text x="448.0" y="254" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Contract</text>
+        <text x="448.0" y="269" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">seam:acceptsShape · returnsShape</text>
+        <rect x="352" y="296" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="352" y="296" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="360" y="302" width="26" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="373.0" y="311" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">API</text>
+        <text x="448.0" y="334" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">JSON-LD context</text>
+        <text x="448.0" y="349" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">one context per shape</text>
+        <rect x="352" y="376" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="352" y="376" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="360" y="382" width="56" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="388.0" y="391" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">ADR-0026</text>
+        <text x="448.0" y="414" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">SemPKM package</text>
+        <text x="448.0" y="429" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">written from the same shapes</text>
+        <rect x="48" y="476" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="48" y="476" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="56" y="482" width="38" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="75.0" y="491" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">SHACL</text>
+        <text x="144.0" y="514" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">seam-shapes.ttl</text>
+        <text x="144.0" y="529" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">rules over the model itself</text>
+        <rect x="352" y="476" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="352" y="476" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="360" y="482" width="44" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="382.0" y="491" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">VIEWER</text>
+        <text x="448.0" y="514" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Health badge</text>
+        <text x="448.0" y="529" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">names the model and the rule</text>
+        <rect x="656" y="476" width="192" height="64" rx="6" fill="#121a20"/>
+        <rect x="656" y="476" width="192" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="664" y="482" width="62" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="695.0" y="491" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">SEAMS GEN</text>
+        <text x="752.0" y="514" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Generation</text>
+        <text x="752.0" y="529" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">every raise site has a parity case</text>
+        <text x="600" y="150" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">ONE STATEMENT</text>
+        <text x="600" y="170" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">Every rule the API enforced</text>
+        <text x="600" y="190" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">is a line of the shape.</text>
+        <text x="600" y="210" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">None of it is in the</text>
+        <text x="600" y="230" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">generated code.</text>
+        <line x1="30" y1="560" x2="930" y2="560" stroke="rgba(232,236,233,0.12)" stroke-width="0.8"/>
+        <text x="30" y="576" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+        <line x1="120" y1="572" x2="152" y2="572" stroke="#a3b0b8" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow)"/>
+        <text x="164" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">A READING OF THE SHAPE</text>
+        <line x1="322.8" y1="572" x2="354.8" y2="572" stroke="#e8865c" stroke-width="1" marker-end="url(#shapes-five-ways-dark-arrow-accent)"/>
+        <text x="366.8" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">PRINCIPLE 5, THE PROMISE</text>
+        <rect x="540.4000000000001" y="566" width="24" height="12" rx="2" fill="rgba(232,134,92,0.10)" stroke="#e8865c" stroke-width="1"/>
+        <text x="580.4000000000001" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">THE ONE SOURCE</text>
+
+      </svg>

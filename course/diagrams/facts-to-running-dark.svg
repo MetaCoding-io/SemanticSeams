@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="facts-to-running-dark-title facts-to-running-dark-desc" id="facts-to-running-dark-root">
+        <title id="facts-to-running-dark-title">From facts to a running system</title>
+        <desc id="facts-to-running-dark-desc">An architecture diagram: the model's environment facts feed the compose generator, which writes one compose file per environment and records the lock; Docker brings the development file up; seams status compares each running container's model hash with the lock's history, and seams secrets checks that the keys production names exist without reading a value.</desc>
+        <defs>
+      <style>@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap');
+      #facts-to-running-dark-root { --color-paper: #121a20; --color-ink: #e8ece9; --color-muted: #a3b0b8; --color-accent: #e8865c;
+            --font-sans: 'IBM Plex Sans', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+      #facts-to-running-dark-root { font-family: var(--font-sans); color: var(--color-ink); }
+      #facts-to-running-dark-root .diagram-container { width: 100%; overflow-x: auto; }
+      @media print {
+#facts-to-running-dark-root .diagram-container { overflow-x: visible; }
+}</style>
+          <marker id="facts-to-running-dark-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a3b0b8"/></marker>
+          <marker id="facts-to-running-dark-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#e8865c"/></marker>
+          <marker id="facts-to-running-dark-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5fb9d3"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#121a20"/>
+        <line x1="208" y1="192" x2="288" y2="192" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <rect x="232.5" y="172" width="31" height="12" rx="2" fill="#121a20"/>
+        <text x="248.0" y="181" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">READS</text>
+        <path d="M448,180 H488 Q496,180 496,172 V112 Q496,104 504,104 H528" fill="none" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <path d="M448,204 H488 Q496,204 496,212 V272 Q496,280 504,280 H528" fill="none" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <line x1="368" y1="224" x2="368" y2="336" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <rect x="376" y="274.0" width="41" height="12" rx="2" fill="#121a20"/>
+        <text x="396.5" y="283.0" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">RECORDS</text>
+        <line x1="688" y1="104" x2="768" y2="104" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <rect x="700.0" y="84" width="56" height="12" rx="2" fill="#121a20"/>
+        <text x="728.0" y="93" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">COMPOSE UP</text>
+        <line x1="848" y1="136" x2="848" y2="248" stroke="#e8865c" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow-accent)"/>
+        <rect x="856" y="186.0" width="66" height="12" rx="2" fill="#121a20"/>
+        <text x="889.0" y="195.0" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">GET /healthz</text>
+        <path d="M448,368 H732 Q740,368 740,360 V288 Q740,280 748,280 H768" fill="none" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <rect x="548" y="348" width="96" height="12" rx="2" fill="#121a20"/>
+        <text x="596" y="357" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">HISTORY IN GIT</text>
+        <path d="M128,224 V448 Q128,456 136,456 H528" fill="none" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <rect x="160" y="436" width="136" height="12" rx="2" fill="#121a20"/>
+        <text x="228" y="445" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">THE KEYS production NAMES</text>
+        <rect x="48" y="160" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="48" y="160" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="56" y="166" width="32" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="72.0" y="175" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">TRIG</text>
+        <text x="128.0" y="198" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Model</text>
+        <text x="128.0" y="213" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">environments and overrides</text>
+        <rect x="288" y="160" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="288" y="160" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="296" y="166" width="62" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="327.0" y="175" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">SEAMS GEN</text>
+        <text x="368.0" y="198" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Compose generator</text>
+        <text x="368.0" y="213" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">one file per environment</text>
+        <rect x="528" y="72" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="528" y="72" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="536" y="78" width="32" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="552.0" y="87" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">YAML</text>
+        <text x="608.0" y="110" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">compose.development</text>
+        <text x="608.0" y="125" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">local build · secret file</text>
+        <rect x="528" y="248" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="528" y="248" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="536" y="254" width="32" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="552.0" y="263" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">YAML</text>
+        <text x="608.0" y="286" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">compose.production</text>
+        <text x="608.0" y="301" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">published image · secret ref</text>
+        <rect x="288" y="336" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="288" y="336" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="296" y="342" width="32" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="312.0" y="351" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">JSON</text>
+        <text x="368.0" y="374" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">seams.lock</text>
+        <text x="368.0" y="389" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">versions and model hash</text>
+        <rect x="768" y="72" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="768" y="72" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="776" y="78" width="44" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="798.0" y="87" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">DOCKER</text>
+        <text x="848.0" y="110" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">Running containers</text>
+        <text x="848.0" y="125" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">answer with the model hash</text>
+        <rect x="768" y="248" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="768" y="248" width="160" height="64" rx="6" fill="rgba(232,134,92,0.10)" stroke="#e8865c" stroke-width="1"/>
+        <rect x="776" y="254" width="26" height="12" rx="2" fill="none" stroke="#e8865c" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="789.0" y="263" fill="#e8865c" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">CLI</text>
+        <text x="848.0" y="286" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">seams status</text>
+        <text x="848.0" y="301" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">current · behind · ahead</text>
+        <rect x="528" y="424" width="160" height="64" rx="6" fill="#121a20"/>
+        <rect x="528" y="424" width="160" height="64" rx="6" fill="#121a20" stroke="#a3b0b8" stroke-width="1"/>
+        <rect x="536" y="430" width="26" height="12" rx="2" fill="none" stroke="#a3b0b8" stroke-opacity="0.4" stroke-width="0.8"/>
+        <text x="549.0" y="439" fill="#a3b0b8" fill-opacity="0.9" font-size="7" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" text-anchor="middle" letter-spacing="0.08em">CLI</text>
+        <text x="608.0" y="462" fill="#e8ece9" font-size="12" font-weight="600" font-family="'IBM Plex Sans', system-ui, sans-serif" text-anchor="middle">seams secrets</text>
+        <text x="608.0" y="477" fill="#a3b0b8" font-size="9" font-family="'IBM Plex Mono', ui-monospace, monospace" text-anchor="middle">file · .env · Docker secret</text>
+        <text x="768" y="420" fill="#8d9ba4" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">NEVER READS A VALUE</text>
+        <text x="768" y="440" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">The model knows what</text>
+        <text x="768" y="460" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">production needs before</text>
+        <text x="768" y="480" fill="#e8ece9" font-size="14" font-style="italic" font-family="'IBM Plex Sans', system-ui, sans-serif">production does.</text>
+        <line x1="30" y1="560" x2="930" y2="560" stroke="rgba(232,236,233,0.12)" stroke-width="0.8"/>
+        <text x="30" y="576" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" font-weight="500" letter-spacing="0.14em">LEGEND</text>
+        <line x1="120" y1="572" x2="152" y2="572" stroke="#a3b0b8" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow)"/>
+        <text x="164" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">GENERATION AND CHECKS</text>
+        <line x1="317.4" y1="572" x2="349.4" y2="572" stroke="#e8865c" stroke-width="1" marker-end="url(#facts-to-running-dark-arrow-accent)"/>
+        <text x="361.4" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">THE RUNNING SYSTEM, AGAINST THE LOCK</text>
+        <rect x="599.8" y="566" width="24" height="12" rx="2" fill="rgba(232,134,92,0.10)" stroke="#e8865c" stroke-width="1"/>
+        <text x="639.8" y="575" fill="#a3b0b8" font-size="8" font-family="'IBM Plex Mono', ui-monospace, monospace" letter-spacing="0.06em">FOCAL</text>
+
+      </svg>

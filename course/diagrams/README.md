@@ -8,8 +8,10 @@ and switched by the site's dark-mode class.
 |---|---|---|
 | `notations-timeline` | 1 | Timeline: the notations that had an engine, and the ones that did not |
 | `descent` | 5 | Architecture: the expense app's descent through four notations, one seam predicate per arrow |
+| `shapes-five-ways` | 6 | Data flow: one shape read as validation, form, contract, context and package; the shapes over the model itself below |
 | `interpret-generate` | 7 | Layer stack: which layers an engine interprets and which are generated |
 | `round-trip` | 10 | Architecture: generation, trace and lock, and the write-back of one literal |
+| `facts-to-running` | 11 | Architecture: environment facts to compose files and the lock, and the status and secrets checks against the running system |
 
 They are drawn with the [diagram-design](https://github.com/cathrynlavery/diagram-design)
 skill under its SemanticSeams profile (the project page's colours and IBM Plex; the

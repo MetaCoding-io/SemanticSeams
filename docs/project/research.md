@@ -15,6 +15,7 @@ Status is as of 2026-11-07. Item IDs are the backlog's.
 
 | Date | Note | The question | What came of it |
 |---|---|---|---|
+| 2026-11-10 | [The state defines the interface](../research/2026-11-10-state-defines-the-interface.md) | A post on agent harnesses says the operations on offer should follow the state, shown to the caller and enforced by one description. Does the graph hold that, and is it used? | It holds it and enforces it, but does not compute or show it. H1 to H5 proposed (added 2026-11-10): an affordances view, responses that carry their next steps, screen guards checked against the lifecycle, process paths walked against the lifecycle at check time, and a tool surface for agents derived from the model. |
 | 2026-11-03 | [A product review from the modelling side, and ten UI ideas](../research/2026-11-03-product-review-and-ui-ideas.md) | What has the project built, measured as a modelling product, what does a builder still miss, and which interface ideas would close the gap? | The engine is ahead of the dashboard. V1 to V10 proposed and not yet scheduled: fundamentals, sentence editing, a questions cockpit, the storm board as capture, a thread strip, a role lens, a scenario player, diff on canvas, runtime heat and layers focus. The note's one bet is V4 and V2 before more generator or vocabulary work. |
 | 2026-11-03 | [The domain vocabulary as the spec for coding agents](../research/2026-11-03-domain-vocabulary-as-spec.md) | Is the domain vocabulary the most important part of a spec for coding agents, and should it be an ontology? | Yes, and the project already holds it: the glossary an agent reads is a projection of the model, never its source. C6 (a glossary generator) and R4 (a spec-term check in `seams check`) proposed. |
 | 2026-11-02 | [SysML v2, read against the graph](../research/2026-11-02-sysml-v2.md) | Does SysML v2 offer diagrams to author here, can it be generated from the model, and does it cover ground the project has not thought about? | No diagrams to author: its views are queries plus renderings, as ours are. W1 to W5 proposed: a `sysml` generator, a `req:` requirements vocabulary, requirement coverage, a snapshot vocabulary for the as-observed graph, and a model API shaped like the Systems Modeling API. |
@@ -37,7 +38,7 @@ and levels for IFML (re-parked with a size threshold).
 
 ## The November notes
 
-The four most recent notes read the project against bodies of practice rather than
+The five most recent notes read the project against bodies of practice rather than
 proposing a feature, and only one of them has been built.
 
 **Domain-driven design** found that the expense tutorial was already a DDD model written
@@ -69,6 +70,14 @@ container, with a line-level trace behind each. The authoring experience is the 
 part: the viewer does not yet meet the brief's own RDF-invisibility principle, and nobody
 can start a model without writing TriG. Its ten UI ideas are backlog items V1 to V10, with
 the storm board as capture and sentence editing as the bet.
+
+**The state defines the interface** takes a post on agent harnesses as its source: the
+operations a caller may choose from should follow the state, and one description should
+both show them to the caller and enforce them. The graph holds that description three
+times, as the lifecycle, the process and the IFML model, and the runtime enforces it. It
+is never computed as one list, data responses do not carry it, and an illegal sequence is
+found when an instance fails rather than at check time. H1 to H5 are the note's items,
+ending in a tool surface for agents derived from the model.
 
 ## How a note is written
 

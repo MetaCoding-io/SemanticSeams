@@ -36,7 +36,7 @@ leaves the task STARTED; running the boundary (``is_error_boundary``,
 
 Timers (ADR-0037): Spiff fires a timer only when it is refreshed after its
 due time by the host's clock, so the runtime's injected clock decides instead.
-``set_due`` writes the due time into the WAITING task's ``event_value``,
+``hold`` presents each WAITING timer to Spiff as never due,
 ``fire`` marks the task fired and refreshes it (a non-cycle timer, or a timer
 start, goes READY), and ``fire_cycle`` lets a cycle boundary spawn its path
 once while it keeps waiting. ``start_timer`` readies a timer start event in
@@ -478,14 +478,17 @@ class Engine:
         return next((t for t in cls.waiting_timers(wf) if str(t.id) == task_id), None)
 
     @staticmethod
-    def set_due(task, due) -> None:
-        """Record the due time (a UTC datetime) as the task's Spiff ``event_value``."""
+    def hold(task) -> None:
+        """Present the WAITING timer task to Spiff as due at the end of time, so
+        no refresh fires it by the host's clock; the runtime keeps the real due
+        time (from the injected clock) and moves the task only by ``fire``."""
+        never = datetime.max.replace(tzinfo=UTC).isoformat()
         if isinstance(task.task_spec.event_definition, CycleTimerEventDefinition):
             value = dict(task._get_internal_data("event_value") or {"cycles": -1, "duration": 0.0})
-            value["next"] = due.isoformat()
+            value["next"] = never
             task._set_internal_data(event_value=value)
         else:
-            task._set_internal_data(event_value=due.isoformat())
+            task._set_internal_data(event_value=never)
 
     @staticmethod
     def fire(task) -> None:
@@ -496,14 +499,14 @@ class Engine:
     @classmethod
     def fire_cycle(cls, task, following) -> None:
         """Let a WAITING cycle boundary spawn its outgoing path once; it keeps
-        waiting, due next at ``following`` (None once the cycle is spent: it
-        never spawns again). Spiff spawns when ``next`` is past by the host's
+        waiting, held (the runtime arms it at ``following``, None once the
+        cycle is spent). Spiff spawns when ``next`` is past by the host's
         clock, so the claimed firing is presented as long past first."""
         value = dict(task._get_internal_data("event_value") or {"duration": 0.0})
         value.update(next=datetime.min.replace(tzinfo=UTC).isoformat(), cycles=-1)
         task._set_internal_data(event_value=value)
         task.task_spec._update(task)
-        cls.set_due(task, following if following is not None else datetime.max.replace(tzinfo=UTC))
+        cls.hold(task)
 
     @classmethod
     def start_timer(cls, wf: BpmnWorkflow, start_event: URIRef):
@@ -511,6 +514,9 @@ class Engine:
         ``start_event`` (``<BPMN model>#<bpmn id>``), leaving it READY for the
         worker. Returns its task; ``ResolutionError`` when it does not wait on a timer."""
         start_id = str(start_event).rsplit("#", 1)[-1]
+        for t in wf.get_tasks():
+            if cls.is_timer(t) and t.task_spec.bpmn_id == start_id:
+                cls.hold(t)  # before the internal start refreshes it by the host's clock
         for t in [t for t in wf.get_tasks(state=TaskState.READY) if t.task_spec.bpmn_id is None]:
             t.run()
         waiting = [t for t in cls.waiting_timers(wf) if t.task_spec.bpmn_id == start_id]

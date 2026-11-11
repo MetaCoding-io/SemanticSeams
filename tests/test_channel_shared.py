@@ -37,9 +37,11 @@ WAIT = 5.0
 @pytest.fixture
 def schema():
     """A fresh postgres schema name, dropped at teardown."""
+    # Resolve the URL at setup: a skip only at teardown would count each test twice.
+    url = postgres_url()
     name = f"seams_test_{uuid.uuid4().hex[:12]}"
     yield name
-    with psycopg.connect(postgres_url(), autocommit=True) as con:
+    with psycopg.connect(url, autocommit=True) as con:
         con.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(name)))
 
 

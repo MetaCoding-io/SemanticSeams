@@ -815,7 +815,7 @@ class Worker:
             at = timer.catch_due(self.clock.now())
             armed[task_id] = {"event": str(iri), "due": None if at is None else format_due(at)}
             if at is not None:
-                self.engine.set_due(task, at)
+                self.engine.hold(task)
                 log.info("instance %s waits on timer %s due %s", instance.id, iri, armed[task_id]["due"])
         return [
             {"event": v["event"], "due": v["due"], "task_id": k}

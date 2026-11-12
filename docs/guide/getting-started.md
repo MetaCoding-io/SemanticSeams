@@ -36,7 +36,8 @@ members. Each member declares its own dependencies in its `pyproject.toml`:
 | `viewer` | `semanticseams-viewer` | semanticseams, semanticseams-edit, semanticseams-cli, FastAPI, uvicorn, Jinja2, rdflib, pySHACL |
 | `packages/seams-cli` | `semanticseams-cli` | semanticseams, rdflib, Jinja2, PyYAML |
 
-The root `pyproject.toml` adds a `dev` group with pytest, PyYAML, httpx, ruff and pyright.
+The root `pyproject.toml` adds a `dev` group with pytest, pytest-xdist, pytest-split, PyYAML,
+httpx, ruff and pyright.
 If you prefer not to activate the environment, prefix any command with `uv run`, for
 example `uv run pytest`.
 
@@ -52,6 +53,9 @@ shapes reject deliberately broken seams, checks that every non-reserved seam pre
 used somewhere, asserts the exact rows of every [canned query](/reference/queries), and
 exercises the viewer's endpoints. CI runs the same command on every push and pull
 request.
+
+The suite is safe to run in parallel. `pytest -n auto` spreads it across every CPU with
+pytest-xdist and gives the same results as a serial run.
 
 The runtime's store tests run against embedded SQLite and against PostgreSQL. The
 PostgreSQL run needs a database URL in `SEAMS_TEST_POSTGRES_URL` and skips without one:

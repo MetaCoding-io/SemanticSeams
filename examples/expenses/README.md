@@ -260,13 +260,13 @@ Caddy passes through. Send them yourself (for example
 `curl -H 'X-Forwarded-User: alice' -H 'X-Forwarded-Groups: employee' ...`); a
 request without them is a 401. Keep the stack on localhost.
 
-CI's `acceptance` job runs `seams check` on chapter 8, so its committed
+CI's `seams-check` job runs `seams check` on chapter 8, so its committed
 compose files stay current. `tests/test_expense_e2e.py` runs chapter 9's
 development stack, which is chapter 8's plus the handlers mount (see below). `tests/test_expense_compose.py` checks that each
 chapter's committed compose files equal what the generator writes now, that
 the development file carries what the old override did, and that the
 production file stays production-shaped. `tests/test_expense_e2e.py` runs only with `SEAMS_E2E=1`
-(CI's `tutorial-e2e` job): it brings the stack up, and over `http://localhost:8080` an employee
+(CI's `e2e-expense` job): it brings the stack up, and over `http://localhost:8080` an employee
 submits, the manager approves through the generated form route, finance pays,
 and the test polls `/payouts` until the payout process has batched the
 payment and the expense is paid. The manager path also runs chapter 9's

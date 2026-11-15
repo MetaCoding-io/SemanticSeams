@@ -154,7 +154,7 @@ model's `verify:` scenarios, decision examples and shape examples, and every ODR
 permission per party, into pytest files under `generated/tests`
 ([ADR-0014](docs/adr/0014-scenarios-and-derived-tests.md)). The `smoke` generator writes one
 pytest per operation that calls it on its path against a running app (`SEAMS_SMOKE_BASE_URL`)
-and checks the answer against `seam:returnsShape`; CI's `tutorial-e2e` job runs chapter 9's
+and checks the answer against `seam:returnsShape`; CI's `e2e-expense` job runs chapter 9's
 against the compose stack. The `acceptance` generator writes pytest files that check
 hand-written handlers against the model: their types, results, legal transitions and
 decision branches. The `jsonld` generator writes a JSON-LD 1.1 context per shape with a

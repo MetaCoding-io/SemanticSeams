@@ -721,7 +721,7 @@ The rest are in [`docs/generation/sequences/expenses`](../../generation/sequence
 CI checks every step of this chapter. `tests/test_expense_payout.py` runs both processes
 in process on both payout paths, `tests/test_expense_compose.py` checks that the
 committed compose files are current and that the development file needs no override, `tests/test_expense_e2e.py` runs the same docker compose
-stack, with chapter 9's handler, in CI's `tutorial-e2e` job, and `tests/test_complexity.py` pins the measurement.
+stack, with chapter 9's handler, in CI's `e2e-expense` job, and `tests/test_complexity.py` pins the measurement.
 
 ## Checkpoint
 

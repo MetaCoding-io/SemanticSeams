@@ -51,11 +51,15 @@ The suite is the project's acceptance test. It parses every Turtle and TriG file
 validates both worked examples against the [seam shapes](/reference/shapes), proves the
 shapes reject deliberately broken seams, checks that every non-reserved seam predicate is
 used somewhere, asserts the exact rows of every [canned query](/reference/queries), and
-exercises the viewer's endpoints. CI runs the same command on every push and pull
-request.
+exercises the viewer's endpoints. CI runs it on every push and pull request.
 
 The suite is safe to run in parallel. `pytest -n auto` spreads it across every CPU with
-pytest-xdist and gives the same results as a serial run.
+pytest-xdist and gives the same results as a serial run. CI's `test` job splits it into
+four pytest-split groups (`-n auto --splits 4 --group N`), and the `collection-guard` job
+(`tests/ci/check_shards.py`) proves the four groups together collect exactly the serial
+suite. `seams check`, the two Docker end-to-end runs (`e2e-chat`, `e2e-expense`), the
+docs build, lint and type-check are separate jobs, and `ci-ok` is the one check that
+passes only when they all do.
 
 The runtime's store tests run against embedded SQLite and against PostgreSQL. The
 PostgreSQL run needs a database URL in `SEAMS_TEST_POSTGRES_URL` and skips without one:

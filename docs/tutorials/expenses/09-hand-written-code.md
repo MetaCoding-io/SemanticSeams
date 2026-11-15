@@ -478,7 +478,7 @@ docker compose -f examples/expenses/chapter-09/compose.development.yaml exec -T 
 ```
 
 The list now includes `https://example.org/expenses/NotificationShape` beside the
-expense. `tests/test_expense_e2e.py` runs this stack in CI's `tutorial-e2e` job and
+expense. `tests/test_expense_e2e.py` runs this stack in CI's `e2e-expense` job and
 waits for that row. Stop the stack with
 `docker compose -f examples/expenses/chapter-09/compose.development.yaml down -v`.
 
@@ -767,7 +767,7 @@ because `:expense_train` has no `:id` to fill the path. Once an example fills it
 operation whose policy refuses the identity is skipped too, and the reason names that
 policy, for example `:manager_approval_policy`. Without
 `SEAMS_SMOKE_BASE_URL` every test is skipped. `tests/test_expense_e2e.py` runs these tests
-against the stack in CI's `tutorial-e2e` job.
+against the stack in CI's `e2e-expense` job.
 
 ### Acceptance tests for your handler
 

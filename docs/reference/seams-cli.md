@@ -399,7 +399,7 @@ The composite action
 in its own log group, and fails after the last project if any exited non-zero
 (warnings print in the log but do not fail it). The
 CLI is not published, so `seams` must be on PATH before the action runs. This
-repository's acceptance job does:
+repository's `seams-check` job does:
 
 ```yaml
 - run: uv sync --locked --all-packages
@@ -1194,7 +1194,7 @@ ref, a failing `git diff` or an exit 2 from `seams plan` fails the step after ev
 project has run.
 
 This repository's `change-plan` job runs it on pull requests, with the same projects
-as the acceptance job. The checkout needs the base branch's history:
+as the `seams-check` job. The checkout needs the base branch's history:
 
 ```yaml
 - uses: actions/checkout@v4

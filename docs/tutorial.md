@@ -9,8 +9,8 @@ This is the quick-start track: a finished model, the pipeline end to end, in abo
 minutes. To write a model yourself, one layer per chapter, follow the other track,
 [Build an expense approval app](tutorials/expenses/index.md).
 
-The regeneration and Docker commands below are the ones CI runs: the `acceptance` job
-runs `seams check` and fails on any stale output, and the `tutorial-e2e` job brings the same stack
+The regeneration and Docker commands below are the ones CI runs: the `seams-check` job
+runs `seams check` and fails on any stale output, and the `e2e-chat` job brings the same stack
 up in stub mode and chats with it (`tests/test_tutorial_e2e.py`).
 
 ## 1. Prerequisites

@@ -164,6 +164,12 @@ its end and the BPMN ids in between, from
 [`seams.coverage`](/reference/seams-library) rather than SPARQL, since sequence flows
 live only in the BPMN XML.
 
+A data shape also asks **Which screens show this shape's personal data, to which
+roles?** It lists each screen whose components read the shape, with each field marked as
+personal data ([ADR-0039](/adr/0039-data-classification)) and its category, and the roles
+that can use the screen. An empty role means nothing on the screen is governed, so any
+signed-in identity sees it. A shape with no marked field gives no rows.
+
 **Sequences.** Beside Questions, links to the
 [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams)
 of the IFML events the view is about. An IFML model lists its events. The BPMN process

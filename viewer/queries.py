@@ -74,6 +74,16 @@ QUERIES: dict[str, CannedQuery] = {
         focusVariable="shape",
         focusType=SH.NodeShape,
     ),
+    "personal-data-screens-by-role": CannedQuery(
+        name="personal-data-screens-by-role",
+        label="Which screens show this shape's personal data, to which roles?",
+        question=(
+            "Which screens show the personal data fields of this data shape, with each field's category,"
+            " and which roles can use them?"
+        ),
+        focusVariable="shape",
+        focusType=SH.NodeShape,
+    ),
     "unfired-transitions": CannedQuery(
         name="unfired-transitions",
         label="Which transitions does nothing fire?",

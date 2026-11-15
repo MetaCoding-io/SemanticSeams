@@ -1,0 +1,46 @@
+# Which screens show personal data, to which roles?
+#
+# The data-care question of ADR-0039: every screen whose components read a
+# shape with a personal data field, with the field and its category.
+#
+# A field holds personal data when its sh:property node states
+# dpv:hasPersonalData with a category IRI (ADR-0039 section 1); ?property is
+# its sh:path and ?category the IRI, such as pd:Username. The screen is the
+# ifml:ViewContainer that ifml:contains a component that seam:reads ?shape.
+#
+# Role rule: ?role is an odrl:assignee of a permission in a policy that
+# governs an event on the screen's components, either directly
+# (seam:governedBy) or through the operation it submits to
+# (seam:submitsTo/seam:governedBy), the rule of
+# screens-by-role-writing-shape.rq; or that governs a user task one of the
+# screen's forms completes (seam:completedOn, ADR-0009). An unbound ?role
+# means nothing on the screen is governed: it is open to any authenticated
+# identity.
+#
+# Bind ?shape to a sh:NodeShape, or leave it unbound to list every screen
+# that shows personal data.
+
+PREFIX seam: <https://w3id.org/seams/seam#>
+PREFIX ifml: <https://w3id.org/seams/ifml#>
+PREFIX odrl: <http://www.w3.org/ns/odrl/2/>
+PREFIX sh:   <http://www.w3.org/ns/shacl#>
+PREFIX dpv:  <https://w3id.org/dpv#>
+
+SELECT DISTINCT ?role ?screen ?shape ?property ?category WHERE {
+  ?shape a sh:NodeShape ;
+         sh:property ?field .
+  ?field dpv:hasPersonalData ?category ;
+         sh:path ?property .
+  ?component seam:reads ?shape .
+  ?screen a ifml:ViewContainer ;
+          ifml:contains ?component .
+  OPTIONAL {
+    { ?screen ifml:contains/ifml:hasEvent ?event .
+      ?event (seam:governedBy | seam:submitsTo/seam:governedBy) ?policy . }
+    UNION
+    { ?screen ifml:contains ?form .
+      ?task seam:completedOn ?form ;
+            seam:governedBy ?policy . }
+    ?policy odrl:permission/odrl:assignee ?role .
+  }
+}

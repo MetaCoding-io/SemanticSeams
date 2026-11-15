@@ -91,7 +91,10 @@ components read a shape with an annotated field, with the field and its category
 role comes from the same `odrl:assignee` rule as `screens-by-role-writing-shape.rq`: an
 assignee of a permission in a policy that governs the screen's events or their
 operations, and unbound when nothing governs them (open to any authenticated identity).
-The query names no field.
+A screen is also governed by the policy of a user task one of its forms completes
+(`seam:completedOn`, ADR-0009): the expense approvals page has no governed event, and
+its manager and finance roles come only through its approval tasks. The query names no
+field.
 
 ## Alternatives considered
 

@@ -30,6 +30,7 @@ EXPECTED_NAMES = [
     "impact-of-node",
     "what-moves-state",
     "screens-by-role-writing-shape",
+    "personal-data-screens-by-role",
     "unfired-transitions",
     "policies-without-deny",
     "unexercised-paths",
@@ -117,7 +118,7 @@ def test_is_applicable_type_rules():
         for focus in (MESSAGE_SHAPE, DB01, S_COMPOSING)
     }
     assert applicability == {
-        MESSAGE_SHAPE: ["what-writes-shape", "screens-by-role-writing-shape"],
+        MESSAGE_SHAPE: ["what-writes-shape", "screens-by-role-writing-shape", "personal-data-screens-by-role"],
         DB01: ["impact-of-node"],
         S_COMPOSING: ["what-moves-state"],
     }
@@ -232,6 +233,7 @@ def test_fragment_shows_query_buttons_for_shape():
     assert 'id="query-catalog"' in html
     assert 'data-query-name="what-writes-shape"' in html
     assert 'data-query-name="screens-by-role-writing-shape"' in html
+    assert 'data-query-name="personal-data-screens-by-role"' in html
     assert 'hx-target="#query-results"' in html
     assert '<div id="query-results"></div>' in html
 
@@ -387,6 +389,45 @@ def test_execute_unexercised_paths_chapter_09():
     assert approval["resultCount"] == payout["resultCount"] == 1
     assert len(expected) == 2
     assert [r["end"] for r in approval["rows"] + payout["rows"]] == [str(p.end.iri) for p in expected]
+
+
+CHAPTER_11 = ROOT / "examples" / "expenses" / "chapter-11"
+
+
+def test_execute_personal_data_screens_by_role_chapter_11():
+    import seams
+    from rdflib import Namespace
+
+    sh = Namespace("http://www.w3.org/ns/shacl#")
+    dpv = Namespace("https://w3id.org/dpv#")
+    pd = Namespace("https://w3id.org/dpv/pd#")
+    model = seams.load(CHAPTER_11)
+    expense_shape = URIRef(EXPENSES + "ExpenseShape")
+    # As committed, the only marked field is the notification's recipient, which no screen reads.
+    before = queries.execute_query(model.ds, "personal-data-screens-by-role", str(expense_shape))
+    assert before["columns"] == ["role", "screen", "shape", "property", "category"]
+    assert before["rows"] == []
+    # Test-side fact: mark the expense's description as a name; the Question then answers by role.
+    data = model.ds.graph(URIRef("urn:seams:graph:model:expense_data"))
+    field = next(
+        f
+        for f in data.objects(expense_shape, sh.property)
+        if data.value(f, sh.path) == URIRef(EXPENSES + "description")
+    )
+    data.add((field, dpv.hasPersonalData, pd.Name))
+    result = queries.execute_query(model.ds, "personal-data-screens-by-role", str(expense_shape))
+    assert result["bindings"] == {"shape": str(expense_shape)}
+    assert sorted((r["role"], r["screen"]) for r in result["rows"]) == [
+        ("", EXPENSES + "payouts_page"),
+        (EXPENSES + "employee", EXPENSES + "expenses_page"),
+        (EXPENSES + "finance", EXPENSES + "approvals_page"),
+        (EXPENSES + "manager", EXPENSES + "approvals_page"),
+    ]
+    assert {(r["shape"], r["property"], r["category"]) for r in result["rows"]} == {
+        (str(expense_shape), EXPENSES + "description", str(pd.Name))
+    }
+    # Another shape's focus lists none of them.
+    assert queries.execute_query(model.ds, "personal-data-screens-by-role", EXPENSES + "PaymentShape")["rows"] == []
 
 
 def test_unexercised_paths_non_process_focus_is_empty():

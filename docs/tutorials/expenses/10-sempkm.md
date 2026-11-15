@@ -291,6 +291,10 @@ The data model gets a shape for it:
         seam:inModel :expense_data .
 ```
 
+The vendor's name carries no `dpv:hasPersonalData`, unlike chapter 9's notification
+recipient: a vendor is a company (`gist:Organization`), and a company's name is not
+personal data ([ADR-0039](/adr/0039-data-classification)).
+
 The channel is new. Its transport, `comm:SemPKMWebhook`, says that SemPKM publishes on it.
 `comm:eventName` names the SemPKM event it listens to, `seam:acceptsShape` names the
 objects whose changes count, and `comm:path` is where the API receives them:

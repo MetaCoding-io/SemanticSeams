@@ -71,13 +71,26 @@ any other, in the data graph beside `ExpenseShape`:
 
 ```trig
     # The message the notify handler composes for the manager: who it is
-    # for and what it says. It is computed, never entered.
+    # for and what it says. It is computed, never entered. The recipient is
+    # the identity id of the person told, so it is personal data (ADR-0039):
+    # DPV's pd:Username, the id a person has in a system.
     :NotificationShape a sh:NodeShape ; rdfs:label "Notification" ;
         sh:property [ sh:path :recipient ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:order 0 ] ;
+                      sh:order 0 ; dpv:hasPersonalData pd:Username ] ;
         sh:property [ sh:path :message ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
                       sh:order 1 ] ;
         seam:inModel :expense_data .
+```
+
+The recipient names a person, so its property shape says so with W3C DPV's
+`dpv:hasPersonalData` and a category from DPV's personal data list
+([ADR-0039](/adr/0039-data-classification)). Nothing is generated from it: the seam shapes
+check that the category is an IRI, and the viewer's Questions use it to find the screens
+that show personal data. Add the two prefixes beside the others:
+
+```trig
+@prefix dpv:    <https://w3id.org/dpv#> .
+@prefix pd:     <https://w3id.org/dpv/pd#> .
 ```
 
 Its rows live where the others do, so add it to the storage facts of chapter 8:

@@ -39,9 +39,9 @@ A field holds personal data when its `sh:property` node states `dpv:hasPersonalD
 with the IRI of a personal data category:
 
 ```trig
-:VendorShape a sh:NodeShape ;
-    sh:property [ sh:path :name ; sh:datatype xsd:string ; sh:maxCount 1 ;
-                  dpv:hasPersonalData pd:Name ] .
+:NotificationShape a sh:NodeShape ;
+    sh:property [ sh:path :recipient ; sh:datatype xsd:string ; sh:maxCount 1 ;
+                  dpv:hasPersonalData pd:Username ] .
 ```
 
 - **The subject is the property shape**, not the node shape and not the RDF property.
@@ -116,6 +116,9 @@ The query names no field.
 - The authoring guide documents the annotation ("Personal data").
 - The expense tutorial chapters mark their personal fields (M031/S01/T02), which moves
   their model hashes and regenerates their outputs; generated code does not change.
+  From chapter 9 the notification's `:recipient` is `pd:Username`. The vendor's
+  `:name` is not marked: `:Vendor` is a `gist:Organization`, and a company's name is
+  not personal data (section 1).
 - The viewer's Questions gain the personal-data screens question (M031/S01/T03).
 
 ## Open questions

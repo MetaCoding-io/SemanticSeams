@@ -92,6 +92,8 @@
 @prefix dec:    <https://w3id.org/seams/dec#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix verify: <https://w3id.org/seams/verify#> .
+@prefix dpv:    <https://w3id.org/dpv#> .
+@prefix pd:     <https://w3id.org/dpv/pd#> .
 @prefix :       <https://example.org/expenses/> .
 
 #################################################################
@@ -246,10 +248,12 @@
         seam:inModel :expense_data .
 
     # The message the notify handler composes for the manager: who it is
-    # for and what it says. It is computed, never entered.
+    # for and what it says. It is computed, never entered. The recipient is
+    # the identity id of the person told, so it is personal data (ADR-0039):
+    # DPV's pd:Username, the id a person has in a system.
     :NotificationShape a sh:NodeShape ; rdfs:label "Notification" ;
         sh:property [ sh:path :recipient ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
-                      sh:order 0 ] ;
+                      sh:order 0 ; dpv:hasPersonalData pd:Username ] ;
         sh:property [ sh:path :message ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ;
                       sh:order 1 ] ;
         seam:inModel :expense_data .

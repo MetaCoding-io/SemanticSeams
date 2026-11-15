@@ -183,11 +183,23 @@ jobs:
       - run: uv sync --locked --all-packages
       - run: uv run pyright
 
+  # Proves the test matrix's pytest-split shards together collect exactly the
+  # serial suite: nothing dropped, nothing run twice.
+  collection-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-packages
+      - run: uv run python tests/ci/check_shards.py
+
   # The one required check: fails if any job failed, was cancelled, or (except
   # change-plan, which only runs on pull requests) did not succeed.
   ci-ok:
     if: always()
-    needs: [test, seams-check, change-plan, e2e-chat, e2e-expense, docs, lint, typecheck]
+    needs: [test, collection-guard, seams-check, change-plan, e2e-chat, e2e-expense, docs, lint, typecheck]
     runs-on: ubuntu-latest
     steps:
       - shell: bash

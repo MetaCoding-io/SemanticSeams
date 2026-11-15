@@ -14,7 +14,9 @@ seams.coverage, because sequence flows live only in the BPMN XML
 The observed questions (M032/S01, ADR-0042) ask seams.observed_question over
 the model and an as-observed graph of recorded runs (OBSERVED_ANSWERS). They
 apply only when the viewer has observations (SEAMS_OBSERVED, viewer.app);
-without them is_applicable says no and no button is shown.
+without them is_applicable says no and no button is shown. latency-budgets
+(M032/S02, ADR-0043) is one of them: seams.budget_results checks every
+nfr:LatencyBudget of the model against the recorded steps' durations.
 """
 
 from __future__ import annotations
@@ -137,6 +139,18 @@ QUERIES: dict[str, CannedQuery] = {
         source=None,
         observed=True,
     ),
+    "latency-budgets": CannedQuery(
+        name="latency-budgets",
+        label="Which latency budgets do the recorded runs meet?",
+        question=(
+            "Is each latency budget of the model met, missed or unobserved at its percentile"
+            " by the recorded steps' durations?"
+        ),
+        focusVariable="process",
+        focusType=PROC.Process,
+        source=None,
+        observed=True,
+    ),
 }
 
 
@@ -198,9 +212,32 @@ def _observed_conformance(model: seams.Model, observed: Graph, focus: URIRef) ->
     return columns, sorted(rows, key=lambda r: (r["run"], int(r["index"]), r["reason"], r["reached"]))
 
 
+def _latency_budgets(model: seams.Model, observed: Graph, focus: URIRef) -> tuple[list[str], list[dict[str, str]]]:
+    """Every nfr:LatencyBudget of the model with its verdict, in seams.budget_results order
+    (element, then budget). The answer is the same for any focus: an operation's budget
+    belongs to no one process. ``observed_ms`` is "" when unobserved. A malformed budget
+    raises seams.ResolutionError naming it."""
+    del focus
+    columns = ["budget", "element", "max_ms", "percentile", "observed_ms", "samples", "verdict"]
+    rows = [
+        {
+            "budget": str(r.budget),
+            "element": str(r.element),
+            "max_ms": str(r.max_ms),
+            "percentile": str(r.percentile),
+            "observed_ms": "" if r.observed_ms is None else str(r.observed_ms),
+            "samples": str(r.samples),
+            "verdict": r.verdict,
+        }
+        for r in seams.budget_results(model, observed)
+    ]
+    return columns, rows
+
+
 OBSERVED_ANSWERS: dict[str, Callable[[seams.Model, Graph, URIRef], tuple[list[str], list[dict[str, str]]]]] = {
     "dead-model": _dead_model,
     "observed-conformance": _observed_conformance,
+    "latency-budgets": _latency_budgets,
 }
 
 

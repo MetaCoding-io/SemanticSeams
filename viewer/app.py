@@ -1138,7 +1138,11 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
         raise HTTPException(status_code=404, detail=f"canned query {query_name} needs recorded runs: {why}")
     # Non-applicable or unknown focus IRIs are not errors: an empty result set
     # (resultCount 0) is meaningful feedback, so execute unconditionally.
-    result = canned_queries.execute_query(get_graph(), query_name, focus, model=get_model(), observed=observed)
+    try:
+        result = canned_queries.execute_query(get_graph(), query_name, focus, model=get_model(), observed=observed)
+    except seams.ResolutionError as err:
+        # A model fact the answer needs is malformed (e.g. a latency budget, ADR-0043).
+        raise HTTPException(status_code=422, detail=f"canned query {query_name}: {err}") from err
     wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
     if not wants_html:
         return JSONResponse(result)

@@ -73,13 +73,19 @@ without ``--trace`` is a usage error.
 (M032/S01, ADR-0042) loads recorded runs as an as-observed graph and prints
 the ``dead-model`` answer, ``dead-model <node> <process>`` per flow node no run
 reached, then the ``conformance`` answer, ``conformance <run> <index> <reason>
-<reached or ->`` per step the model does not explain, each sorted, and a count
-summary on stderr; ``--json`` prints both with the graph IRI and counts. PATH
+<reached or ->`` per step the model does not explain, each sorted, then
+(M032/S02, ADR-0043) ``budget <budget> <element> <max ms> <percentile>
+<observed ms or -> <samples> <met|missed|unobserved>`` per nfr:LatencyBudget,
+sorted by element then budget, and a count summary on stderr; ``--json``
+prints all three (``budgets``, ``observed_ms`` null when unobserved) with the
+graph IRI and counts. Only span files carry durations, so a budget measured
+from trace rows alone is unobserved. PATH
 is the first positional only when it is a directory, a seams.toml or a .trig
 (``_fold_observed``); each RUN is read as for ``sequence --trace``, and each
 ``--spans`` file is an OTLP JSON span export. The graph never enters the model
-or its hash; nothing is written. Findings keep the exit code 0; an unknown
-instance, a malformed trace, row or span file, or a run given twice exits 2
+or its hash; nothing is written. Findings, missed budgets included, keep the
+exit code 0, as for every audit command; an unknown instance, a malformed
+trace, row or span file, a malformed budget, or a run given twice exits 2
 naming it; no RUN and no ``--spans`` is a usage error.
 
 ``seams storm <name> [--out FILE]`` (M028/S01, backlog B4) prints the derived
@@ -349,8 +355,14 @@ def build_parser() -> argparse.ArgumentParser:
     sequence.set_defaults(run=_sequence)
     observed = sub.add_parser(
         "observed",
-        help="list the model elements recorded runs never reached and the steps the model does not explain",
-        description="Load recorded runs as an as-observed graph (ADR-0042) and ask dead-model and conformance.",
+        help=(
+            "list the model elements recorded runs never reached, the steps the model does not explain"
+            " and whether each latency budget is met"
+        ),
+        description=(
+            "Load recorded runs as an as-observed graph (ADR-0042), ask dead-model and conformance, and check"
+            " every nfr:LatencyBudget against the spans' durations: met, missed or unobserved (ADR-0043)."
+        ),
     )
     observed.add_argument(
         "sources",
@@ -376,7 +388,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="an OTLP JSON (or JSON lines) span export with seams.* attributes; repeatable",
     )
-    observed.add_argument("--json", action="store_true", help="print the graph IRI, counts and answers as JSON")
+    observed.add_argument(
+        "--json", action="store_true", help="print the graph IRI, counts, answers and budgets as JSON"
+    )
     observed.set_defaults(run=_observed)
     storm = sub.add_parser(
         "storm",

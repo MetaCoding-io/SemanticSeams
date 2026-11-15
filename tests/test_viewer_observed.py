@@ -2,7 +2,8 @@
 
 SEAMS_OBSERVED names recorded runs (trace JSON files, OTLP span files, runtime
 SQLite stores); viewer.app loads them once as an as-observed graph and offers
-"dead-model" and "observed-conformance" on a proc:Process. Without them the
+"dead-model", "observed-conformance" and "latency-budgets" (M032/S02,
+ADR-0043) on a proc:Process. Without them the
 questions do not apply: no button, no catalog entry, a 404 naming why.
 """
 
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 from pathlib import Path
 from urllib.parse import quote
@@ -17,6 +19,7 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
+from seams_runtime.telemetry import element_attributes
 from viewer import app as viewer_app
 from viewer import queries, validation
 
@@ -63,7 +66,7 @@ def _url(name: str, focus: str) -> str:
 
 def _buttons(client: TestClient) -> list[str]:
     html = client.get(f"/view/{quote(CHAT_BPMN, safe='')}", headers=HX).text
-    return [q for q in ("dead-model", "observed-conformance") if f'data-query-name="{q}"' in html]
+    return [q for q in queries.OBSERVED_ANSWERS if f'data-query-name="{q}"' in html]
 
 
 # --- without observations ----------------------------------------------------
@@ -92,9 +95,9 @@ def test_execute_query_refuses_an_observed_question_without_observations():
 
 def test_a_partial_run_leaves_the_unreached_nodes_dead(monkeypatch, tmp_path):
     client = _open(monkeypatch, _trace(tmp_path, "partial.json", ROWS[:3], "p"))
-    assert _buttons(client) == ["dead-model", "observed-conformance"]
+    assert _buttons(client) == ["dead-model", "observed-conformance", "latency-budgets"]
     names = [entry["name"] for entry in client.get("/queries").json()]
-    assert names[-2:] == ["dead-model", "observed-conformance"]
+    assert names[-3:] == ["dead-model", "observed-conformance", "latency-budgets"]
     body = client.get(_url("dead-model", PROCESS)).json()
     assert body["columns"] == ["node", "process"]
     assert body["bindings"] == {"process": PROCESS}
@@ -252,3 +255,103 @@ def test_the_same_run_twice_is_refused(monkeypatch, tmp_path):
     a = _trace(tmp_path, "a.json", ROWS, "same")
     b = _trace(tmp_path, "b.json", ROWS, "same")
     assert "is given twice" in _refused(_open(monkeypatch, a, b))
+
+
+# --- latency budgets (M032/S02, ADR-0043) -------------------------------------
+
+OP = CHAT + "send_message_op"
+NODE = BPMN + "invoke_llm"
+BUDGETS = """
+@prefix nfr: <https://w3id.org/seams/nfr#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+<urn:seams:graph:model:chat_architecture> {
+    <https://example.org/chat/send_message_fast> a nfr:LatencyBudget ;
+        nfr:budgetOf <https://example.org/chat/send_message_op> ; nfr:maxMilliseconds "2"^^xsd:decimal .
+}
+<urn:seams:graph:model:chat_bpmn> {
+    <https://example.org/chat/llm_p50> a nfr:LatencyBudget ;
+        nfr:budgetOf <https://example.org/chat/chat_bpmn#invoke_llm> ;
+        nfr:maxMilliseconds "%s"^^xsd:decimal ; nfr:percentile "50"^^xsd:decimal .
+}
+"""
+
+
+def _budgeted(tmp_path: Path, node_bound: str = "5") -> None:
+    """Point the viewer at a scratch chat model declaring an operation and a flow-node budget."""
+    project = tmp_path / "chat"
+    shutil.copytree(ROOT / "examples" / "chat-app", project, ignore=shutil.ignore_patterns("generated"))
+    trig = project / "chat-app.trig"
+    trig.write_text(trig.read_text(encoding="utf-8") + BUDGETS % node_bound, encoding="utf-8")
+    viewer_app.configure(trig)
+
+
+def _timed_spans(tmp_path: Path, millis: list[int]) -> Path:
+    """An OTLP span file of ROWS, span i lasting millis[i] ms."""
+    spans = [
+        {
+            "spanId": f"s{i:02d}",
+            "startTimeUnixNano": str(100 + i),
+            "endTimeUnixNano": str(100 + i + ms * 1_000_000),
+            "attributes": [
+                {"key": k, "value": {"stringValue": v}}
+                for k, v in {
+                    "seams.instance.id": "timed",
+                    "seams.process.iri": PROCESS,
+                    **element_attributes(r),
+                }.items()
+            ],
+        }
+        for i, (r, ms) in enumerate(zip(ROWS, millis, strict=True))
+    ]
+    path = tmp_path / "timed.json"
+    path.write_text(json.dumps({"resourceSpans": [{"scopeSpans": [{"spans": spans}]}]}), encoding="utf-8")
+    return path
+
+
+def test_latency_budgets_render_met_and_missed_rows(monkeypatch, tmp_path):
+    _budgeted(tmp_path)
+    client = _open(monkeypatch, _timed_spans(tmp_path, [1, 4, 1, 3, 1, 1, 1]))
+    body = client.get(_url("latency-budgets", PROCESS)).json()
+    assert body["columns"] == ["budget", "element", "max_ms", "percentile", "observed_ms", "samples", "verdict"]
+    assert body["rows"] == [
+        {
+            "budget": CHAT + "llm_p50",
+            "element": NODE,
+            "max_ms": "5",
+            "percentile": "50",
+            "observed_ms": "3",
+            "samples": "1",
+            "verdict": "met",
+        },
+        {
+            "budget": CHAT + "send_message_fast",
+            "element": OP,
+            "max_ms": "2",
+            "percentile": "100",
+            "observed_ms": "4",
+            "samples": "1",
+            "verdict": "missed",
+        },
+    ]
+    html = client.get(_url("latency-budgets", PROCESS), headers=HX).text
+    assert "Which latency budgets do the recorded runs meet?" in html
+    assert "met" in html and "missed" in html
+
+
+def test_latency_budgets_from_trace_rows_are_unobserved(monkeypatch, tmp_path):
+    _budgeted(tmp_path)
+    rows = _open(monkeypatch, TRACE).get(_url("latency-budgets", PROCESS)).json()["rows"]
+    assert [(r["verdict"], r["observed_ms"], r["samples"]) for r in rows] == [("unobserved", "", "0")] * 2
+
+
+def test_the_chat_model_has_no_budgets(monkeypatch):
+    assert _open(monkeypatch, TRACE).get(_url("latency-budgets", PROCESS)).json()["rows"] == []
+
+
+def test_a_malformed_budget_is_named(monkeypatch, tmp_path):
+    _budgeted(tmp_path, node_bound="0")
+    resp = _open(monkeypatch, TRACE).get(_url("latency-budgets", PROCESS))
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert detail.startswith("canned query latency-budgets: ")
+    assert CHAT + "llm_p50" in detail and "nfr:maxMilliseconds" in detail

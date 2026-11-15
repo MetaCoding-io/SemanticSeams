@@ -907,19 +907,22 @@ seams observed examples/chat-app --spans spans.json --json
 | `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
 | `--db PATH` | `SEAMS_DB`, else `<project root>/seams.sqlite` | The runtime's SQLite store to read instance ids from. |
 | `--spans FILE` | none | An OTLP JSON (or JSON lines) span export whose element spans carry `seams.*` attributes. Repeatable. |
-| `--json` | off | Print the graph IRI, the run and step counts and both answers as JSON. |
+| `--json` | off | Print the graph IRI, the run and step counts, both answers and the budgets as JSON. |
 
 `seams observed` loads recorded runs as an as-observed graph
-([ADR-0042](/adr/0042-as-observed-graph)) and asks two questions of the model
-and the graph together. At least one RUN or `--spans` is needed. The graph is
+([ADR-0042](/adr/0042-as-observed-graph)), asks two questions of the model
+and the graph together, and checks the model's latency budgets against the
+recorded durations ([ADR-0043](/adr/0043-latency-budgets)). At least one RUN or `--spans` is needed. The graph is
 never added to the model and never enters its hash; nothing is written.
 
-The text output is one line per answer row, `dead-model` lines first, each
-section sorted:
+The text output is one line per answer row, `dead-model` lines first, then
+one `budget` line per `nfr:LatencyBudget`, each section sorted (budgets by
+element, then budget IRI):
 
 ```
 dead-model <node> <process>
 conformance <run> <index> <reason> <reached or ->
+budget <budget> <element> <max ms> <percentile> <observed ms or -> <samples> <met|missed|unobserved>
 ```
 
 A `dead-model` line is a BPMN flow node of the model's processes that no
@@ -929,24 +932,36 @@ explain: `unknown-element` (it reached an element the model has no flow node
 for), `unmapped` (its row or span named no element) or `unknown-process` (its
 run names a process the model does not declare). A run is shown by its
 instance id; a trace file whose instance result names none is shown by the
-RUN argument as given. stderr gets one summary line:
+RUN argument as given.
+
+A `budget` line is met when the budget's nearest-rank percentile of the
+measured durations is at most its bound, missed when it is over, and
+unobserved when no step measured it. An operation's budget is measured by the
+steps that invoked it, a flow node's by the steps that reached it. Only span
+files carry durations (`endTimeUnixNano - startTimeUnixNano`); trace rows
+carry none, so a budget checked against trace files alone is unobserved. See
+[Authoring a model](/guide/authoring-a-model#latency-budgets) for how to
+declare one. stderr gets one summary line:
 
 ```
 $ seams observed examples/chat-app tests/fixtures/traces/chat_send_message.json
-seams observed: 1 run(s), 7 step(s): 0 unreached node(s), 0 unexplained step(s)
+seams observed: 1 run(s), 7 step(s): 0 unreached node(s), 0 unexplained step(s), 0 of 0 budget(s) missed
 ```
 
-Findings are an audit, so the exit code stays 0. With `--json` the answers are
-lists of objects keyed by the query variables (`node`, `process`; `run`,
-`index`, `step`, `reached`, `reason`), with sorted keys.
+Findings are an audit, so the exit code stays 0, a missed budget included.
+With `--json` the answers are lists of objects keyed by the query variables
+(`node`, `process`; `run`, `index`, `step`, `reached`, `reason`), and
+`budgets` a list of objects keyed `budget`, `element`, `max_ms`,
+`percentile`, `observed_ms` (null when unobserved), `samples` and `verdict`,
+all values strings, with sorted keys.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | Both answers were printed, with or without findings. |
+| 0 | Both answers and the budgets were printed, with or without findings or missed budgets. |
 | 1 | A span file could not be read. |
-| 2 | The project file is missing or malformed, the model cannot be loaded, an instance is not in the store, a trace or span file is malformed, a row holds a value of the wrong type, or a run is given twice; or no RUN and no `--spans` (usage). |
+| 2 | The project file is missing or malformed, the model cannot be loaded, an instance is not in the store, a trace or span file is malformed, a row holds a value of the wrong type, a latency budget is malformed (no or several `nfr:budgetOf` or `nfr:maxMilliseconds`, a bound or percentile out of range), or a run is given twice; or no RUN and no `--spans` (usage). |
 
 Errors print to stderr as `seams observed: <message>`, naming the run, row or span.
 

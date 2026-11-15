@@ -623,6 +623,45 @@ something on that path. Put `coverage = ["paths"]` and
 the two `docs/queries/coverage/` gates in `seams.toml` to make `seams check` fail on a
 gap.
 
+### Latency budgets
+
+A latency budget says how long one element may take
+([ADR-0043](/adr/0043-latency-budgets)). It is an `nfr:LatencyBudget` with exactly one
+`nfr:budgetOf` (the element's IRI), exactly one `nfr:maxMilliseconds` (a number greater
+than 0) and at most one `nfr:percentile` (greater than 0 and at most 100; absent means
+100, the slowest run). Put it in the model graph that declares the element: the BPMN
+model's graph for a flow node, the architecture graph for a `hydra:Operation`. It is a
+model fact, so it enters the model's hash.
+
+```turtle
+@prefix nfr: <https://w3id.org/seams/nfr#> .
+
+<urn:seams:graph:model:expense_architecture> {
+    :approve_budget a nfr:LatencyBudget ;
+        nfr:budgetOf :approve_expense_op ;
+        nfr:maxMilliseconds 300 ;
+        nfr:percentile 95 .
+}
+
+<urn:seams:graph:model:approval_bpmn> {
+    :route_budget a nfr:LatencyBudget ;
+        nfr:budgetOf <https://example.org/expenses/approval_bpmn#route_expense> ;
+        nfr:maxMilliseconds 50 .
+}
+```
+
+An operation's budget is measured by every step that invoked it, a flow node's by every
+step that reached it. The shapes check each budget's facts (see
+[Validate it](#validate-it)), not that the element exists: a budget of an element no
+step measured is reported `unobserved`. To check budgets, record runs as OTLP spans (the
+runtime's `otel` extra) and run
+[`seams observed`](/reference/seams-cli#seams-observed) with `--spans`, or open the
+viewer with `SEAMS_OBSERVED` and ask **Which latency budgets do the recorded runs
+meet?** ([Recorded runs](/guide/the-viewer#recorded-runs)). Each budget is `met` when
+the nearest-rank percentile of its durations is at most the bound, `missed` when it is
+over, and `unobserved` with no samples. Trace rows carry no times, so trace files alone
+leave every budget `unobserved`.
+
 ## An ontology model
 
 The shapes say what one form, list or request carries. An ontology model says what the

@@ -113,7 +113,7 @@ def test_change_plan_job_runs_on_pull_requests_with_full_history():
 def test_change_plan_projects_match_the_seams_check_projects():
     jobs = _jobs()
     planned = _projects(jobs["change-plan"]["steps"], "./.github/actions/seams-plan")
-    checked = _projects(jobs["acceptance"]["steps"], "./.github/actions/seams-check")
+    checked = _projects(jobs["seams-check"]["steps"], "./.github/actions/seams-check")
     assert planned == checked
     assert planned
 

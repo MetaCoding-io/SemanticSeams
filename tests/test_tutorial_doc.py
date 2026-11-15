@@ -34,7 +34,7 @@ def _ci_steps() -> dict:
 
 
 def _checked_projects() -> list[str]:
-    step = _ci_steps()[("acceptance", "Generated outputs are current")]
+    step = _ci_steps()[("seams-check", "Generated outputs are current")]
     assert step["uses"] == "./.github/actions/seams-check", step
     return [ln.strip() for ln in step["with"]["projects"].splitlines() if ln.strip()]
 
@@ -71,7 +71,7 @@ def test_tutorial_shows_the_store_checks_the_e2e_test_runs():
 
 
 def test_ci_runs_the_tutorial_e2e_job():
-    step = _ci_steps()[("tutorial-e2e", "SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py")]
+    step = _ci_steps()[("e2e-chat", "SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py")]
     assert step["run"] == "SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py"
     e2e = (ROOT / "tests" / "test_tutorial_e2e.py").read_text()
     assert '"up", "-d", "--build", "--wait"' in e2e and '"down", "-v"' in e2e

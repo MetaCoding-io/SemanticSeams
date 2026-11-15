@@ -6,8 +6,13 @@ on:
   pull_request:
 
 jobs:
-  acceptance:
+  # The suite in four pytest-split groups, each run in parallel with pytest-xdist.
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
     # The runtime store contract tests run against both backends: SQLite in a temp
     # file, PostgreSQL in this service. SEAMS_REQUIRE_POSTGRES turns a missing or
     # unreachable server into a failure instead of a skip.
@@ -34,7 +39,16 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --all-packages
-      - run: uv run pytest -q
+      - run: uv run pytest -q -n auto --splits 4 --group ${{ matrix.group }}
+
+  seams-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-packages
       # The generated code, the compose.<environment>.yaml files and each seams.lock are
       # committed (ADR-0015: no hand-written compose override remains); seams check
       # fails on a stale, missing, hand-edited or orphaned output, a SHACL violation or a
@@ -59,8 +73,8 @@ jobs:
 
   # On a pull request, writes a seams plan change plan to the job summary for each
   # project whose model changed against the base branch. A breaking change is
-  # reported, not failed; seams check in the acceptance job is the gate.
-  # tests/test_ci_change_plan.py checks the projects list matches the acceptance job's.
+  # reported, not failed; seams check in the seams-check job is the gate.
+  # tests/test_ci_change_plan.py checks the projects list matches the seams-check job's.
   change-plan:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -94,9 +108,9 @@ jobs:
 
   # docs/tutorial.md end to end: build and start the stack from the generated
   # compose.development.yaml (gateway in stub mode), chat through the generated page and routes, then tear it down.
-  # test_expense_e2e.py does the same for the expense app (chapter 9) and also runs
+  # e2e-expense: test_expense_e2e.py does the same for the expense app (chapter 9) and also runs
   # its generated smoke tests (generated/smoke) against the live stack.
-  tutorial-e2e:
+  e2e-chat:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -104,9 +118,19 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --all-packages
-      # Puts the synced venv first on PATH, so the test steps below run its pytest.
+      # Puts the synced venv first on PATH, so the test step below runs its pytest.
       - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - run: SEAMS_E2E=1 pytest -q tests/test_tutorial_e2e.py
+
+  e2e-expense:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-packages
+      - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - run: SEAMS_E2E=1 pytest -q tests/test_expense_e2e.py
 
   # Builds the docs site and the course site the way the Pages deploy does. Fails on a
@@ -158,3 +182,21 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --all-packages
       - run: uv run pyright
+
+  # The one required check: fails if any job failed, was cancelled, or (except
+  # change-plan, which only runs on pull requests) did not succeed.
+  ci-ok:
+    if: always()
+    needs: [test, seams-check, change-plan, e2e-chat, e2e-expense, docs, lint, typecheck]
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -e '
+            to_entries
+            | all(.value.result as $r
+                  | ($r != "failure" and $r != "cancelled")
+                    and (.key == "change-plan" or $r == "success"))
+          '

@@ -52,10 +52,10 @@ def test_no_step_script_interpolates_inputs():
     assert step["env"]["INPUT_PROJECTS"] == "${{ inputs.projects }}"
 
 
-def test_ci_acceptance_job_uses_the_action_and_no_longer_regenerates():
+def test_ci_seams_check_job_uses_the_action_and_no_longer_regenerates():
     text = CI.read_text()
     assert not re.search(r"^\s*seams generate", text, re.M)
-    steps = yaml.safe_load(text)["jobs"]["acceptance"]["steps"]
+    steps = yaml.safe_load(text)["jobs"]["seams-check"]["steps"]
     uses = [s.get("uses") for s in steps]
     assert "./.github/actions/seams-check" in uses
     # seams must be on PATH before the action runs.

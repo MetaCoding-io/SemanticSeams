@@ -66,7 +66,13 @@ def test_every_python_job_installs_with_uv_from_the_lock(path):
 def test_the_python_job_detector_sees_every_ci_job():
     # Guards the check above: if _runs_python missed a job, it would silently pass.
     jobs = _jobs(ROOT / ".github" / "workflows" / "ci.yml")
-    assert {name for name, job in jobs.items() if _runs_python(job)} == set(jobs)
+    python_jobs = {name for name, job in jobs.items() if _runs_python(job)}
+    # ci-ok only aggregates the other jobs' results; it is the one job without Python.
+    assert set(jobs) - python_jobs == {"ci-ok"}
+    ci_ok = jobs["ci-ok"]
+    assert set(ci_ok["needs"]) == python_jobs
+    assert ci_ok["if"] == "always()"
+    assert not _uses(ci_ok)
 
 
 def test_ci_has_lint_and_typecheck_jobs():

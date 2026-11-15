@@ -19,11 +19,15 @@ reminder (ADR-0037) keeps its real PT48H duration: once an expense waits on the
 manager, the test recreates expense_api with SEAMS_CLOCK_OFFSET set through a
 compose override file it writes (decision D065; the generated compose never
 writes it), then sees the scheduler fire the reminder while Approve Expense
-stays open for the manager. On any failure the
+stays open for the manager. Last, every run the module started is read from
+the store's workflow_state checkpoints and loaded as an as-observed graph
+(ADR-0042): the dead-model answer lists the flow nodes no run reached and
+conformance finds no step the model does not explain. On any failure the
 module prints ``docker compose logs``; teardown
 always runs ``docker compose down -v`` and checks no container is left.
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -34,6 +38,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+import seams
 import yaml
 from seams_cli.__main__ import main as seams_main
 
@@ -59,6 +64,12 @@ REMINDED = "https://example.org/expenses/approval_bpmn#reminder_end"
 APPROVE = "https://example.org/expenses/approval_bpmn#approve_expense"
 # Past the reminder's PT48H, so a catch armed before the restart is due after it (D065).
 CLOCK_OFFSET = "PT49H"
+# Each recorded run's instance id and trace rows (P005: data.seams.trace of the checkpoint),
+# as one JSON array; json_agg is NULL when the table is empty.
+RUNS_SQL = (
+    "SELECT coalesce(json_agg(json_build_object('instance', instance_id, "
+    "'trace', state::json->'data'->'seams'->'trace') ORDER BY instance_id), '[]') FROM workflow_state"
+)
 
 EXPENSE = {"description": "Train to Leeds", "date": "2026-10-01"}
 PAYMENT = {"reference": "PAY-0042", "paid_on": "2026-10-05"}
@@ -316,3 +327,27 @@ def test_the_overdue_reminder_fires_and_the_task_stays_open(stack, tmp_path):
     assert _until_rows(open_task, lambda rows: rows == [APPROVE], "Approve Expense did not stay open") == [APPROVE]
     r = _post_when_open(stack, f"/expenses/{key}/approval", {"decision": "approved"}, BOB)
     assert r.status_code == 200, r.text
+
+
+def test_the_recorded_runs_load_as_an_observed_graph(stack):
+    """Runs last, after every other test has started its runs. The model's hash
+    does not move, the reached elements are not dead, and nothing is unexplained."""
+    out = _psql(RUNS_SQL)
+    assert out.returncode == 0, out
+    recorded = json.loads(out.stdout)
+    assert recorded, "the store holds no workflow_state rows"
+    runs = [seams.ObservedRun(r["instance"], r["trace"] or []) for r in recorded]
+    reached = {str(row["iri"]) for run in runs for row in run.rows if "iri" in row}
+    assert APPROVE in reached, sorted(reached)
+
+    model = seams.load(APP / "expenses.trig")
+    before = model.hash
+    graph = seams.observed_graph(runs)
+    dead = [str(row["node"]) for row in seams.observed_question(model, graph, "dead-model")]
+    conformance = seams.observed_question(model, graph, "conformance")
+    assert model.hash == before
+
+    assert dead, "every flow node was reached; the dead-model answer should not be empty"
+    assert dead == sorted(dead), dead
+    assert not reached & set(dead), sorted(reached & set(dead))
+    assert conformance == [], conformance

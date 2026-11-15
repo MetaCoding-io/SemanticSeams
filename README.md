@@ -217,6 +217,12 @@ and runs more than one replica on a live-update bus that follows the store kind
 ([ADR-0038](docs/adr/0038-shared-stream-channel.md)): the chat app's compose files run three
 chat API replicas, and CI proves it end to end. See [`seams_runtime/README.md`](seams_runtime/README.md).
 
+What the runs did is a question too ([ADR-0042](docs/adr/0042-as-observed-graph.md)). The
+worker's trace rows, or an OTLP span export, load as an as-observed named graph that sits
+beside the model and never enters its hash, and `seams observed` and the viewer's Questions
+ask it which flow nodes no recorded run reached and which steps the model does not explain.
+CI asks both of the chapter 9 stack's runs.
+
 ## The viewer
 
 A navigable, notation-switching browser over the model, read-only unless `SEAMS_EDIT=1`
@@ -234,8 +240,9 @@ directory into memory through the `seams` library.
 ## Roadmap
 
 The [backlog](docs/backlog.md) is the plan. M031 (data classification, external
-systems and stored-data migrations from the shape diff) is done. Next in line are M032
-and M033: the worker's trace rows as an as-observed named graph with SLOs checked against it; and
+systems and stored-data migrations from the shape diff) is done, and M032 has started: the
+worker's trace rows load as an as-observed named graph (S01). Next in line are SLOs checked
+against those observations, the rest of M032, and M033's
 interchange exports (Structurizr DSL, LikeC4, PlantUML), rationale links and an
 event-storm import. Proposed from the November research notes and not yet scheduled: ten
 interface ideas from a product review (a storm board as the blank page and sentence

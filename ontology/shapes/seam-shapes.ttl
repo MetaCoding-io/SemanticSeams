@@ -14,6 +14,7 @@
 @prefix deploy: <https://w3id.org/seams/deploy#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix verify: <https://w3id.org/seams/verify#> .
+@prefix nfr:    <https://w3id.org/seams/nfr#> .
 @prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
 @prefix dpv:    <https://w3id.org/dpv#> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
@@ -40,6 +41,7 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "proc" ; sh:namespace "https://w3id.org/seams/proc#"^^xsd:anyURI ] ,
                [ sh:prefix "dec" ; sh:namespace "https://w3id.org/seams/dec#"^^xsd:anyURI ] ,
                [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
+               [ sh:prefix "nfr" ; sh:namespace "https://w3id.org/seams/nfr#"^^xsd:anyURI ] ,
                [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] ,
                [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] ,
                [ sh:prefix "dpv" ; sh:namespace "https://w3id.org/dpv#"^^xsd:anyURI ] ,
@@ -2143,3 +2145,43 @@ seamsh:PersonalDataPlacementShape a sh:NodeShape ;
                 BIND (dpv:hasPersonalData AS ?path)
             }""" ;
     ] .
+
+#################################################################
+# Latency budgets (ADR-0043)
+#################################################################
+# A budget bounds one model element's observed duration at one percentile. Each
+# check is a new shape, so a model with no budget is unaffected; budget results
+# read only budgets that pass them. The element itself is not checked against
+# the graph: a BPMN flow node a seam does not name has no triples (ADR-0007),
+# so a budget of an element no run measured is reported unobserved instead.
+
+seamsh:LatencyBudgetShape a sh:NodeShape ;
+    sh:targetClass nfr:LatencyBudget ;
+    sh:targetSubjectsOf nfr:budgetOf , nfr:maxMilliseconds , nfr:percentile ;
+    sh:class nfr:LatencyBudget ;
+    sh:nodeKind sh:IRI ;
+    sh:property [ sh:path nfr:budgetOf ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "A nfr:LatencyBudget has exactly one nfr:budgetOf, the IRI of the BPMN flow node or hydra:Operation it bounds (ADR-0043)." ] ;
+    sh:property [ sh:path nfr:maxMilliseconds ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:or ( [ sh:datatype xsd:decimal ] [ sh:datatype xsd:integer ] ) ;
+        sh:minExclusive 0 ;
+        sh:message "A nfr:LatencyBudget has exactly one nfr:maxMilliseconds, a number greater than 0 (ADR-0043)." ] ;
+    sh:property [ sh:path nfr:percentile ; sh:maxCount 1 ;
+        sh:or ( [ sh:datatype xsd:decimal ] [ sh:datatype xsd:integer ] ) ;
+        sh:minExclusive 0 ; sh:maxInclusive 100 ;
+        sh:message "A nfr:LatencyBudget has at most one nfr:percentile, a number greater than 0 and at most 100; absent means 100 (ADR-0043)." ] ;
+    sh:sparql [
+        sh:message "{$this}: another nfr:LatencyBudget bounds {?value} at the same nfr:percentile; an element has at most one budget per percentile (ADR-0043)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value WHERE {
+                $this nfr:budgetOf ?value .
+                ?other nfr:budgetOf ?value .
+                FILTER (?other != $this)
+                OPTIONAL { $this nfr:percentile ?mine }
+                OPTIONAL { ?other nfr:percentile ?theirs }
+                FILTER (COALESCE(?mine, 100) = COALESCE(?theirs, 100))
+                BIND (nfr:budgetOf AS ?path)
+            }""" ;
+    ] ;
+    sh:message "Only a nfr:LatencyBudget carries nfr:budgetOf, nfr:maxMilliseconds or nfr:percentile, and a budget is an IRI (ADR-0043)." .

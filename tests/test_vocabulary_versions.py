@@ -3,7 +3,7 @@
 Every vocabulary in ontology/ carries owl:versionIRI <https://w3id.org/seams/<name>/1.0>,
 except seam at 1.6 (ADR-0022 added the seam:Ontology notation, ADR-0023 the shape notation,
 ADR-0030 seam:owns, ADR-0031 the class lifecycle, ADR-0035 seam:aggregateMember, ADR-0037
-seam:schedules), proc at 1.1 (ADR-0037 timer events) and arch at 1.1 (ADR-0030 domains and bounded contexts).
+seam:schedules), proc at 1.1 (ADR-0037 timer events), obs at 1.1 (ADR-0043 obs:duration) and arch at 1.1 (ADR-0030 domains and bounded contexts).
 A model declares the versions it targets as owl:imports in <urn:seams:graph:manifest>;
 no declaration means 1.0. ``seams.load`` refuses a model newer than the tool and migrates
 an older one in memory with ontology/migrations/<name>/<from>-to-<to>.ru.
@@ -94,8 +94,8 @@ def refused(err: pytest.ExceptionInfo[ResolutionError]) -> str:
 
 # seam 1.1 adds the seam:Ontology notation (ADR-0022), 1.2 the shape notation of
 # ADR-0023 (sh:name, categories, sh:node flattening), 1.3 seam:owns (ADR-0030) and
-# 1.4 the class lifecycle and publishing transitions (ADR-0031), 1.5 seam:aggregateMember (ADR-0035), 1.6 seam:schedules (ADR-0037); proc 1.1 adds the timer events (ADR-0037); arch 1.1 adds domains and bounded contexts (ADR-0030) 1.2 context-map relationships (ADR-0032) and 1.3 arch:external (ADR-0040): compatible widenings.
-SHIPPED = {"arch": (1, 3), "proc": (1, 1), "seam": (1, 6), "verify": (1, 1)}
+# 1.4 the class lifecycle and publishing transitions (ADR-0031), 1.5 seam:aggregateMember (ADR-0035), 1.6 seam:schedules (ADR-0037); proc 1.1 adds the timer events (ADR-0037); arch 1.1 adds domains and bounded contexts (ADR-0030) 1.2 context-map relationships (ADR-0032) and 1.3 arch:external (ADR-0040); obs 1.1 adds obs:duration (ADR-0043): compatible widenings.
+SHIPPED = {"arch": (1, 3), "obs": (1, 1), "proc": (1, 1), "seam": (1, 6), "verify": (1, 1)}
 
 
 def test_every_shipped_vocabulary_is_at_its_release() -> None:

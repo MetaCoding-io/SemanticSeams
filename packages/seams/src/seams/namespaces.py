@@ -16,6 +16,7 @@ IFML = Namespace("https://w3id.org/seams/ifml#")
 ARCH = Namespace("https://w3id.org/seams/arch#")
 DASH = Namespace("http://datashapes.org/dash#")
 VERIFY = Namespace("https://w3id.org/seams/verify#")
+NFR = Namespace("https://w3id.org/seams/nfr#")
 OBS = Namespace("https://w3id.org/seams/obs#")
 GIST = Namespace("https://w3id.org/semanticarts/ns/ontology/gist/")
 

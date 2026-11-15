@@ -112,7 +112,23 @@ from .graph import (
     dmn_input_types,
 )
 from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_dir, model_hash, payload_path
-from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, OBS, ODRL, PROC, SEAM, STATE, VERIFY, local_name
+from .namespaces import (
+    ARCH,
+    COMM,
+    DASH,
+    DEC,
+    DEPLOY,
+    HYDRA,
+    IFML,
+    NFR,
+    OBS,
+    ODRL,
+    PROC,
+    SEAM,
+    STATE,
+    VERIFY,
+    local_name,
+)
 from .observed import (
     OBSERVED_QUESTIONS,
     ObservedRun,
@@ -259,6 +275,7 @@ __all__ = [
     "MigrationStep",
     "Model",
     "ModelGraph",
+    "NFR",
     "OBS",
     "OBSERVED_QUESTIONS",
     "ODRL",

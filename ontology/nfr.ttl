@@ -1,0 +1,53 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix nfr:    <https://w3id.org/seams/nfr#> .
+
+<https://w3id.org/seams/nfr> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/nfr/1.0> ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "SemanticSeams Non-Functional Requirements Vocabulary" ;
+    rdfs:comment """Non-functional requirements a model states about its own elements and
+checks against what the runtime was seen to do (ADR-0043). A latency budget bounds how
+long a model element may take: a BPMN flow node, by its ADR-0002 IRI, or a
+hydra:Operation. Budgets are model facts, written in a model's named graph (the BPMN
+model's for a flow node, the architecture model's for an operation), never in the seams
+graph; the as-observed graph of ADR-0042 supplies the durations they are
+checked against, and a budget is reported met, missed or unobserved.""" .
+
+#################################################################
+# Latency budgets
+#################################################################
+
+nfr:LatencyBudget a rdfs:Class ;
+    rdfs:label "Latency budget" ;
+    rdfs:comment """An upper bound on how long one model element may take, at one
+percentile of its observed durations. It is met when the nearest-rank percentile of the
+obs:duration of the steps that measured the element is at most nfr:maxMilliseconds,
+missed when it is above, and unobserved when no step measured the element with a
+duration (trace rows carry none).""" .
+
+nfr:budgetOf a rdf:Property ;
+    rdfs:label "budget of" ;
+    rdfs:domain nfr:LatencyBudget ;
+    rdfs:comment """The IRI of the element the budget bounds: a BPMN flow node (its BPMN
+model's IRI, '#', the node id, ADR-0002), measured by the steps whose obs:reached it is,
+or a hydra:Operation, measured by the steps whose obs:invokes it is. Exactly one per
+budget.""" .
+
+nfr:maxMilliseconds a rdf:Property ;
+    rdfs:label "max milliseconds" ;
+    rdfs:domain nfr:LatencyBudget ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment """The bound, in milliseconds, a number greater than 0. The percentile of
+the observed durations may equal it and still meet the budget. Exactly one per budget.""" .
+
+nfr:percentile a rdf:Property ;
+    rdfs:label "percentile" ;
+    rdfs:domain nfr:LatencyBudget ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment """Which percentile of the observed durations the bound applies to, a
+number greater than 0 and at most 100, taken by nearest rank: the duration at position
+ceil(p / 100 * n) of the n durations sorted ascending. Absent means 100, the slowest
+observation. At most one per budget.""" .

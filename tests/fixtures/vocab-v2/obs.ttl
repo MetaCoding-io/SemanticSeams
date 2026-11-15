@@ -6,8 +6,8 @@
 @prefix obs:    <https://w3id.org/seams/obs#> .
 
 <https://w3id.org/seams/obs> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/obs/1.0> ;
-    owl:versionInfo "1.0" ;
+    owl:versionIRI <https://w3id.org/seams/obs/1.1> ;
+    owl:versionInfo "1.1" ;
     rdfs:label "SemanticSeams Observation Vocabulary" ;
     rdfs:comment """What the runtime was seen to do, as opposed to what the model says it
 should do (ADR-0042). A run is one process instance the worker executed; a step is one
@@ -19,7 +19,10 @@ Every triple that uses these terms lives in an as-observed named graph,
 of the model's graphs, is never written into a model file and never enters the model
 hash: a model describes the application, its observations describe one deployment's
 history. The two questions it answers, which model elements no run reached and which
-steps reached no element of the model, join it with the model at query time.""" .
+steps reached no element of the model, join it with the model at query time.
+
+Version 1.1 adds obs:duration, the step timing that latency budgets are checked against
+(ADR-0043): a compatible widening.""" .
 
 #################################################################
 # Runs
@@ -93,6 +96,15 @@ obs:bpmnId a rdf:Property ;
     rdfs:domain obs:Step ;
     rdfs:range xsd:string ;
     rdfs:comment "The element's BPMN id: the row's ``task``, or ``bpmn.id`` on the span." .
+
+obs:duration a rdf:Property ;
+    rdfs:label "duration" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment """How long the step took, in milliseconds, as an xsd:decimal: the span's
+``endTimeUnixNano`` minus its ``startTimeUnixNano``, divided by 1,000,000 (ADR-0043). Only
+spans carry it; a trace row has no times, so a step read from trace rows states no
+obs:duration. Latency budgets (nfr:LatencyBudget) are checked against it.""" .
 
 obs:status a rdf:Property ;
     rdfs:label "status" ;

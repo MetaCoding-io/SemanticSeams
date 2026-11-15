@@ -186,7 +186,8 @@ viewer's Questions panel ask them; neither writes the graph anywhere.
 
 ## Open questions
 
-- **Timing and latency** (X2): which span times to carry, and as what datatype.
+- **Timing and latency** (X2): answered by ADR-0043 (`obs:duration`, see the revision
+  notes).
 - **Several deployments.** One graph per load; comparing two deployments' observations
   is a later question.
 - **Processes started by a channel** (ADR-0010): a run started by a publish is its own
@@ -194,4 +195,8 @@ viewer's Questions panel ask them; neither writes the graph anywhere.
 
 ## Revision notes
 
-None yet.
+- **2026-11-15 (M032/S02, [ADR-0043](./0043-latency-budgets.md)):** the timing open
+  question is answered. `obs` moves to 1.1 with `obs:duration`: an element span's
+  `endTimeUnixNano` minus its `startTimeUnixNano`, in milliseconds, as an `xsd:decimal`.
+  Trace rows have no times, so their steps carry none, and no start or end time is
+  recorded. Latency budgets (`nfr:LatencyBudget`, a model fact) are checked against it.

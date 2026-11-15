@@ -69,6 +69,7 @@ const decisions = [
   ["0040", "External systems and webhooks", "0040-external-systems-and-webhooks"],
   ["0041", "Stored-data migrations", "0041-stored-data-migrations"],
   ["0042", "The as-observed graph", "0042-as-observed-graph"],
+  ["0043", "Latency budgets", "0043-latency-budgets"],
 ] as const;
 
 export default defineConfig({

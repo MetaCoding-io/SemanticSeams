@@ -688,7 +688,10 @@ UI work must not eat M3.*
       reminder fires once in the compose run and shows in the as-designed sequence.
       S03 done: ADR-0038, the shared channel, store-backed resume and the lifted
       compose cap, and the tutorial end-to-end run proves three chat API replicas.*
-    - **M031, Data Care** (X3, X4, X5): classification, external systems, migrations.
+    - **M031, Data Care** (X3, X4, X5): classification, external systems, migrations. *S01
+      done: [ADR-0039](adr/0039-data-classification.md); a field's property shape states
+      DPV `dpv:hasPersonalData` with a category, and the bundled question
+      `personal-data-screens-by-role.rq` lists the screens showing it, by role.*
     - **M032, Observed Behaviour** (X1, X2). Depends on M030, since the observations
       should come from more than one replica.
     - **M033, Interchange** (X9, X8, X12). Depends on M028.

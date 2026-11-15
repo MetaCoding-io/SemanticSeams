@@ -21,7 +21,10 @@ Only the row keys of ADR-0042's table are carried (``iri``, ``task``,
 ``channel`` of ``published``/``streamed`` and ``error.code``/``error.status``);
 the rest are payload values or derivable from the model. A row may also hold
 ``channel`` directly: a span says which channel, not whether the element
-published or streamed. A row with no ``iri`` is kept as an unmapped step.
+published or streamed. A row may hold ``duration``, the step's milliseconds
+(ADR-0043): ``spans_to_runs`` sets it from an element span's
+``endTimeUnixNano - startTimeUnixNano``, the worker's trace rows carry none,
+and ``observed_graph`` writes it as an ``xsd:decimal`` ``obs:duration``. A row with no ``iri`` is kept as an unmapped step.
 Malformed input raises ``ResolutionError`` naming the row or span; nothing
 is returned.
 
@@ -31,6 +34,12 @@ graphs and ``graph``, with the model's BPMN flow nodes as the element
 universe; ``model.ds`` is not mutated. ``dead-model`` lists the flow nodes no
 step reached (``?node ?process``), ``conformance`` the steps the model does not
 explain (``?run ?index ?step ?reached ?reason``).
+
+``budget_results(model, graph)`` checks every ``nfr:LatencyBudget`` in the
+model's graphs against the ``obs:duration`` of the steps that measured its
+element (``obs:invokes`` for a ``hydra:Operation``, ``obs:reached`` for a flow
+node) at its nearest-rank percentile, and reports each one met, missed or
+unobserved (ADR-0043 section 3).
 """
 
 from __future__ import annotations
@@ -40,6 +49,7 @@ import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from importlib import resources
 from typing import TYPE_CHECKING, cast
 from urllib.parse import quote
@@ -51,7 +61,7 @@ from rdflib.query import ResultRow
 from rdflib.term import Node
 
 from .errors import ResolutionError
-from .namespaces import OBS
+from .namespaces import HYDRA, NFR, OBS
 from .sparql import PREFIXES, Row
 
 if TYPE_CHECKING:
@@ -103,6 +113,11 @@ _SPAN_KEYS = {
 _SPAN_ERROR_KEYS = {"seams.error.code": "code", "seams.error.status": "status"}
 _RUN_ATTRIBUTES = ("seams.instance.id", "seams.process.iri", "seams.correlation_key")
 
+_DECIMAL = re.compile(r"[0-9]+(\.[0-9]+)?")
+_NANOS_PER_MS = Decimal(1_000_000)
+#: The percentile a budget with no ``nfr:percentile`` applies to (ADR-0043 section 1).
+_DEFAULT_PERCENTILE = Decimal(100)
+
 _IRI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:[^\s<>\"{}|\\^`]+")
 _UNIVERSE = re.compile(r"VALUES \(\?process \?node\) \{ \}")
 
@@ -143,6 +158,22 @@ def _string(value: object, where: str, key: str) -> str:
     if not isinstance(value, str):
         raise ResolutionError(where, key, f"expected a string, got {value!r}")
     return value
+
+
+def _decimal_text(value: Decimal) -> str:
+    """``value`` as a plain decimal string with no exponent or trailing zeros."""
+    text = format(value.normalize(), "f")
+    return text if "." not in text else text.rstrip("0").rstrip(".")
+
+
+def _duration(value: object, where: str) -> str:
+    """A row's ``duration``: a non-negative number of milliseconds, as its canonical decimal text."""
+    if isinstance(value, bool) or not isinstance(value, (int, Decimal, str)):
+        raise ResolutionError(where, "duration", f"expected a non-negative decimal, got {value!r}")
+    text = str(value)
+    if not _DECIMAL.fullmatch(text):
+        raise ResolutionError(where, "duration", f"expected a non-negative decimal, got {value!r}")
+    return _decimal_text(Decimal(text))
 
 
 def _step(row: object, where: str) -> _Carried:
@@ -188,6 +219,8 @@ def _step(row: object, where: str) -> _Carried:
             carried["status"] = _iri(err["status"], where, "error.status")
         if carried:
             step["error"] = carried
+    if raw.get("duration") is not None:
+        step["duration"] = _duration(raw["duration"], where)
     return step
 
 
@@ -255,6 +288,8 @@ def observed_graph(runs: Iterable[ObservedRun | tuple[str, Sequence[Mapping[str,
                 graph.add((node, OBS.errorCode, Literal(error["code"])))
             if "status" in error:
                 graph.add((node, OBS.errorStatus, URIRef(error["status"])))
+            if "duration" in step:
+                graph.add((node, OBS.duration, Literal(cast(str, step["duration"]), datatype=XSD.decimal)))
     return graph
 
 
@@ -328,6 +363,22 @@ def _start(span: Mapping[str, object], where: str) -> int:
     return int(value)
 
 
+def _span_duration(span: Mapping[str, object], where: str) -> str | None:
+    """The element span's milliseconds, ``(end - start) / 1e6`` (ADR-0043 section 3), or
+    None when the span has no ``endTimeUnixNano``."""
+    end = span.get("endTimeUnixNano")
+    if end is None:
+        return None
+    if isinstance(end, bool) or not isinstance(end, (int, str)) or not str(end).isdigit():
+        raise ResolutionError(where, "endTimeUnixNano", f"expected a non-negative integer, got {end!r}")
+    if span.get("startTimeUnixNano") is None:
+        raise ResolutionError(where, "startTimeUnixNano", "a span with an endTimeUnixNano must have a start")
+    start = _start(span, where)
+    if int(end) < start:
+        raise ResolutionError(where, "endTimeUnixNano", f"{int(end)} is before startTimeUnixNano {start}")
+    return _decimal_text(Decimal(int(end) - start) / _NANOS_PER_MS)
+
+
 def spans_to_runs(otlp_json: object) -> list[ObservedRun]:
     """The runs in an OTLP/JSON span export (ADR-0042 section 3), sorted by
     instance id: ``otlp_json`` is an export request (a dict with
@@ -340,7 +391,10 @@ def spans_to_runs(otlp_json: object) -> list[ObservedRun]:
     ``seams.correlation_key``. A document that is not OTLP JSON, an element
     span with no ``seams.instance.id``, a non-string mapped attribute or
     spans of one run naming two processes raise ``ResolutionError`` naming
-    the span."""
+    the span. An element span with an ``endTimeUnixNano`` gives its step a
+    ``duration`` in milliseconds; an end before the start, or a time that is
+    not a non-negative integer, raises ``ResolutionError(span,
+    "endTimeUnixNano", ...)``."""
     spans: dict[str, list[tuple[int, str, _Carried]]] = {}
     facts: dict[str, dict[str, tuple[str, str]]] = {}
     for r, request in enumerate(_requests(otlp_json)):
@@ -369,6 +423,9 @@ def spans_to_runs(otlp_json: object) -> list[ObservedRun]:
                     error = {k: v for a, k in _SPAN_ERROR_KEYS.items() if (v := _attr_string(attrs, a, where))}
                     if error:
                         row["error"] = error
+                    duration = _span_duration(span, where)
+                    if duration is not None:
+                        row["duration"] = duration
                     run_facts = facts.setdefault(instance, {})
                     for attr in _RUN_ATTRIBUTES[1:]:
                         value = _attr_string(attrs, attr, where)
@@ -423,3 +480,98 @@ def observed_question(model: Model, graph: Graph, name: str) -> list[Row]:
         if isinstance(row, ResultRow):
             out.append({str(k): cast(Node, v) for k, v in row.asdict().items()})
     return out
+
+
+# --- latency budgets (ADR-0043) --------------------------------------------
+
+#: The verdicts of a ``BudgetResult``.
+BUDGET_VERDICTS = ("met", "missed", "unobserved")
+
+
+@dataclass(frozen=True)
+class BudgetResult:
+    """One ``nfr:LatencyBudget`` checked against an as-observed graph: the
+    budget and its element, the bound and percentile, the observed
+    nearest-rank value (None when unobserved), the number of samples and the
+    verdict (``met``, ``missed`` or ``unobserved``)."""
+
+    budget: URIRef
+    element: URIRef
+    max_ms: Decimal
+    percentile: Decimal
+    observed_ms: Decimal | None
+    samples: int
+    verdict: str
+
+
+def _one(model: Model, budget: URIRef, predicate: URIRef, name: str, *, required: bool) -> Node | None:
+    values = sorted({o for g in model.ds.graphs() for o in g.objects(budget, predicate)}, key=str)
+    if len(values) > 1:
+        raise ResolutionError(str(budget), name, f"has {len(values)} values; a budget has at most one")
+    if not values:
+        if required:
+            raise ResolutionError(str(budget), name, "a latency budget must have one")
+        return None
+    return values[0]
+
+
+def _number(value: Node, budget: URIRef, name: str) -> Decimal:
+    if not isinstance(value, Literal):
+        raise ResolutionError(str(budget), name, f"expected a number, got {value.n3()}")
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ResolutionError(str(budget), name, f"expected a number, got {value.n3()}") from exc
+    if not number.is_finite():
+        raise ResolutionError(str(budget), name, f"expected a finite number, got {value.n3()}")
+    return number
+
+
+def _nearest_rank(samples: Sequence[Decimal], percentile: Decimal) -> Decimal:
+    """The nearest-rank ``percentile`` of ``samples``: the value at 1-based
+    position ``ceil(p / 100 * n)`` of the sorted samples."""
+    ordered = sorted(samples)
+    rank = int((percentile * len(ordered) / 100).to_integral_value(rounding=ROUND_CEILING))
+    return ordered[max(rank, 1) - 1]
+
+
+def budget_results(model: Model, graph: Graph) -> list[BudgetResult]:
+    """Every ``nfr:LatencyBudget`` in ``model``'s graphs checked against the
+    as-observed ``graph`` (ADR-0043 section 3), sorted by element then budget
+    IRI. A budget of a ``hydra:Operation`` is measured by the steps whose
+    ``obs:invokes`` it is, any other by the steps whose ``obs:reached`` it is;
+    steps with no ``obs:duration`` are not samples. Neither ``model.ds`` nor
+    ``graph`` changes. A budget with no or several ``nfr:budgetOf`` or
+    ``nfr:maxMilliseconds``, several ``nfr:percentile``, a non-IRI element or
+    a bound or percentile out of range raises ``ResolutionError`` naming the
+    budget and the predicate."""
+    budgets = sorted(
+        {s for g in model.ds.graphs() for s in g.subjects(RDF.type, NFR.LatencyBudget) if isinstance(s, URIRef)},
+        key=str,
+    )
+    operations = {s for g in model.ds.graphs() for s in g.subjects(RDF.type, HYDRA.Operation)}
+    results: list[BudgetResult] = []
+    for budget in budgets:
+        element = _one(model, budget, NFR.budgetOf, "nfr:budgetOf", required=True)
+        if not isinstance(element, URIRef):
+            raise ResolutionError(str(budget), "nfr:budgetOf", f"expected an element IRI, got {element!r}")
+        bound_node = cast(Node, _one(model, budget, NFR.maxMilliseconds, "nfr:maxMilliseconds", required=True))
+        bound = _number(bound_node, budget, "nfr:maxMilliseconds")
+        if bound <= 0:
+            raise ResolutionError(str(budget), "nfr:maxMilliseconds", f"must be greater than 0, got {bound}")
+        found = _one(model, budget, NFR.percentile, "nfr:percentile", required=False)
+        percentile = _DEFAULT_PERCENTILE if found is None else _number(found, budget, "nfr:percentile")
+        if not 0 < percentile <= 100:
+            raise ResolutionError(str(budget), "nfr:percentile", f"must be in (0, 100], got {percentile}")
+        measured_by = OBS.invokes if element in operations else OBS.reached
+        samples: list[Decimal] = []
+        for step in graph.subjects(measured_by, element):
+            for duration in graph.objects(step, OBS.duration):
+                samples.append(_number(duration, budget, "obs:duration"))
+        if not samples:
+            observed, verdict = None, "unobserved"
+        else:
+            observed = _nearest_rank(samples, percentile)
+            verdict = "met" if observed <= bound else "missed"
+        results.append(BudgetResult(budget, element, bound, percentile, observed, len(samples), verdict))
+    return sorted(results, key=lambda r: (str(r.element), str(r.budget)))

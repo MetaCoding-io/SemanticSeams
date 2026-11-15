@@ -71,7 +71,7 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `ResolutionError(subject, predicate, detail="")`, also a `LookupError`,
   raised when a graph hop is missing.
 - Namespaces: `SEAM`, `COMM`, `DEC`, `PROC`, `STATE`, `HYDRA`, `ODRL`,
-  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), `VERIFY` (ADR-0014 scenarios and examples), `OBS` (ADR-0042 as-observed runs), plus `local_name(iri)`.
+  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), `VERIFY` (ADR-0014 scenarios and examples), `OBS` (ADR-0042 as-observed runs), `NFR` (ADR-0043 latency budgets), plus `local_name(iri)`.
 - `ModelGraph(path, dataset=None, *, ontology_dir=None, check_versions=True,
   check_imports=True)` (and `ModelGraph.load(path)`) is a `Model`, taking the
   same load options, plus the one-of-each resolvers the runtime and the generators share, such as
@@ -649,12 +649,22 @@ to a model file and never enters `Model.hash`.
   give the same bytes.
 - `spans_to_runs(otlp_json)` reads an OTLP/JSON span export (a dict, a list,
   or JSON or JSON-lines text) into `ObservedRun`s, one per
-  `seams.instance.id`, steps ordered by start time then span id.
+  `seams.instance.id`, steps ordered by start time then span id. An element
+  span with an `endTimeUnixNano` gives its step an `obs:duration`
+  (`xsd:decimal` milliseconds, ADR-0043); trace rows carry none.
 - `observed_question(model, graph, name)` asks one of `OBSERVED_QUESTIONS`
   over a read-only union of the model and `graph`: `dead-model` (the BPMN flow
   nodes no step reached, `?node ?process`) or `conformance` (the steps the
   model does not explain, `?run ?index ?step ?reached ?reason`, the reason
   `unmapped`, `unknown-element` or `unknown-process`).
+- `budget_results(model, graph)` checks every `nfr:LatencyBudget` in the
+  model's graphs (ADR-0043) and returns a frozen `BudgetResult(budget,
+  element, max_ms, percentile, observed_ms, samples, verdict)` per budget,
+  sorted by element then budget. The samples are the `obs:duration`s of the
+  steps whose `obs:invokes` (a `hydra:Operation`) or `obs:reached` (a flow
+  node) is the element; `observed_ms` is their nearest-rank percentile
+  (`percentile` defaults to 100) and `verdict` one of `BUDGET_VERDICTS`:
+  `met`, `missed`, or `unobserved` (no samples, `observed_ms` None).
 
 ```python
 graph = seams.observed_graph([("run-1", result["trace"])])
@@ -663,7 +673,10 @@ seams.observed_question(model, graph, "dead-model")
 ```
 
 Malformed input raises `ResolutionError` naming the row (`run <id> row <n>`)
-or span (`span <spanId> (<name>)`) and the key.
+or span (`span <spanId> (<name>)`) and the key; a span whose `endTimeUnixNano`
+is before its start or not an integer is refused naming `endTimeUnixNano`. A
+budget the shapes would refuse raises `ResolutionError(budget, predicate,
+detail)`.
 
 ## Decision checks
 

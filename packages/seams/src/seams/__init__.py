@@ -36,7 +36,10 @@ model for review; it never refuses it.
 from ``ObservedRun``s or (run id, trace rows) pairs, ``spans_to_runs`` from
 an OTLP JSON span export, and ``observed_question(model, graph, name)`` asks
 ``dead-model`` (flow nodes no run reached) or ``conformance`` (steps the
-model does not explain) over a read-only union.
+model does not explain) over a read-only union. ``budget_results(model,
+graph)`` checks the model's ``nfr:LatencyBudget``s against the steps'
+``obs:duration`` (ADR-0043) and returns sorted ``BudgetResult``s, each met,
+missed or unobserved.
 
 ``seams.context`` assembles the context of a service task (backlog C3):
 ``context_for(model, task)`` returns a ``Manifest`` of hashed
@@ -130,8 +133,11 @@ from .namespaces import (
     local_name,
 )
 from .observed import (
+    BUDGET_VERDICTS,
     OBSERVED_QUESTIONS,
+    BudgetResult,
     ObservedRun,
+    budget_results,
     observed_graph,
     observed_ntriples,
     observed_question,
@@ -223,8 +229,10 @@ __all__ = [
     "Aggregate",
     "Architecture",
     "Artifact",
+    "BUDGET_VERDICTS",
     "Binding",
     "BoundedContext",
+    "BudgetResult",
     "Build",
     "COMM",
     "Channel",
@@ -335,6 +343,7 @@ __all__ = [
     "WEBHOOK_EVENT_TYPES",
     "WebhookChannel",
     "bpmn_start_event_ids",
+    "budget_results",
     "check_imports",
     "check_versions",
     "condition_findings",

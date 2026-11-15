@@ -284,7 +284,11 @@ seams.observed_question(model, graph, "conformance")   # [{"run", "index", "step
   `startTimeUnixNano` then `spanId`, and mapped back to row keys, so a span file
   and the trace of the same run give the same steps. `seams.channel` becomes a
   row's `channel`, since a span does not say whether the element published or
-  streamed.
+  streamed. An element span with an `endTimeUnixNano` gives its row a
+  `duration`, `(endTimeUnixNano - startTimeUnixNano) / 1e6` milliseconds as
+  decimal text, which `observed_graph` writes as an `xsd:decimal`
+  `obs:duration` (ADR-0043). The worker's trace rows carry no times, so a graph
+  read from them has no durations.
 - `observed_question(model, graph, name)` asks one of `OBSERVED_QUESTIONS`
   (`queries/observed/<name>.rq`) over a read-only union of the model's graphs and
   `graph`. BPMN flow nodes live in the XML (ADR-0007), so every flow node of every
@@ -292,12 +296,35 @@ seams.observed_question(model, graph, "conformance")   # [{"run", "index", "step
   its element universe. `dead-model` lists the nodes no step reached, sorted by
   node; `conformance` lists the steps the model does not explain, by run and
   index, with a `reason` of `unmapped`, `unknown-element` or `unknown-process`.
+- `budget_results(model, graph)` checks every `nfr:LatencyBudget`
+  (`ontology/nfr.ttl`, ADR-0043) in the model's graphs against `graph` and
+  returns a frozen `BudgetResult(budget, element, max_ms, percentile,
+  observed_ms, samples, verdict)` per budget, sorted by element then budget IRI.
+  The samples are the `obs:duration`s of the steps that measured the element:
+  those whose `obs:invokes` it is for a `hydra:Operation`, whose `obs:reached`
+  it is otherwise. `observed_ms` is their nearest-rank percentile (the value at
+  position `ceil(p / 100 * n)` of the sorted samples; `percentile` defaults to
+  100), and `verdict` is one of `BUDGET_VERDICTS`: `met` (at most `max_ms`),
+  `missed`, or `unobserved` with `observed_ms` None when there are no samples.
+  The numbers are `Decimal`s. Neither `model.ds` nor `graph` changes.
+
+```python
+graph = seams.observed_graph(seams.spans_to_runs(open("spans.json").read()))
+for r in seams.budget_results(model, graph):
+    print(r.element, r.percentile, r.max_ms, r.observed_ms, r.verdict)
+```
 
 Malformed input (a row that is not an object, a value of the wrong JSON type, a
 run given twice, an element span with no `seams.instance.id`, spans of one run
-naming two processes, a document that is not OTLP JSON) raises
+naming two processes, a document that is not OTLP JSON, a span whose
+`endTimeUnixNano` is before its start or not an integer, a row `duration` that is
+not a non-negative decimal) raises
 `ResolutionError` naming the row (`run <id> row <n>`) or span
-(`span <spanId> (<name>)`) and the key; nothing is returned.
+(`span <spanId> (<name>)`) and the key; nothing is returned. `budget_results`
+refuses a budget with no or several `nfr:budgetOf` or `nfr:maxMilliseconds`,
+several `nfr:percentile`, a non-IRI element, a bound that is not above 0 or a
+percentile outside (0, 100] with `ResolutionError(budget, predicate, detail)`;
+the seam shapes refuse the same models first.
 
 ## Context assembly
 

@@ -355,7 +355,14 @@ CURIEs. Either argument may be a git `REF:PATH` when the text before the colon
 is not an existing path; `resolve` extracts it with `git archive` into a
 temporary directory. The plan goes to stdout or to `--output FILE`. Exit codes
 and the stderr summary are `seams diff`'s; a failing git or an unknown ref exits
-2 with a message naming the ref. See
+2 with a message naming the ref. For each breaking `data`-scope change of a
+shape OLD stores or writes, `migrations.py` (`migrations`, ADR-0041) adds a
+`## Stored-data migrations` section: one `sql` block per relational store kind
+(SQLite, PostgreSQL) and shape over `entities.data`, for a removed property or
+a required one with a `sh:defaultValue`, then `Refused:` for every other
+breaking stored change and any SemPKM-stored shape. Each refusal is also printed
+on stderr as `seams plan: refused <shape> <path> (<kind>): <reason>` and exits
+1; nothing runs the SQL. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-plan).
 
 ## seams coverage

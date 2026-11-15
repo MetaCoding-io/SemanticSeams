@@ -1207,6 +1207,45 @@ seams plan main:expenses.trig expenses.trig --output CHANGES.md
 
 It exits like `seams diff`. See the [seams CLI reference](/reference/seams-cli#seams-plan).
 
+### Migrations in the change plan
+
+When a breaking change touches a shape the old model stores or writes, the plan says
+what to do with the rows already stored, in a "Stored-data migrations" section after
+the compatible changes ([ADR-0041](/adr/0041-stored-data-migrations)). There are two
+mechanical cases, and each gets one SQL statement for SQLite and one for PostgreSQL over
+the JSON `data` column of the `entities` table:
+
+- **A removed property**: the field's key is dropped from every row of the shape.
+- **A new required property** (`sh:minCount` above 0) **with a `sh:defaultValue`**: the
+  key is set to the default on every row that lacks it.
+
+````markdown
+## Stored-data migrations
+
+### sqlite :ItemShape
+
+```sql
+UPDATE entities SET data = json_remove(data, '$."note"') WHERE shape = 'https://example.org/ItemShape';
+```
+````
+
+So when you add a required field to a shape that already has data, give it a
+`sh:defaultValue` for the old rows. The plan refuses every other breaking stored change:
+a required property with no default, a removed shape, a changed `sh:datatype` or
+`sh:class`, a tighter count, and any change to a shape `seam:storedIn` a SemPKM store,
+whose data SQL cannot reach. Each refusal is listed under `Refused:` in the section and
+printed on stderr, naming the shape, the path and the reason. Going back from expenses
+chapter 9 to chapter 8 removes the stored `:NotificationShape`:
+
+```
+seams plan: 4 breaking, 0 compatible
+seams plan: refused :NotificationShape - (shape-removed): the shape is removed: its rows have no shape to conform to, and deleting them is not mechanical
+```
+
+A refusal is breaking, so `seams plan` exits 1, and a deploy must not go ahead while a
+refusal line is present. Nothing runs the SQL for you: stop the old runtime, run the
+block for the store kind you deploy in one transaction, then start the new one.
+
 ## What a task depends on: seams context
 
 Before you write or review the code behind a service task, list the model facts that

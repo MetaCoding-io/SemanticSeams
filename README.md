@@ -144,7 +144,11 @@ flagging on stderr what does not map.
 `seams diff OLD NEW` classifies each shape and operation-contract change between two
 model versions as compatible or breaking, and exits 1 when any change is breaking.
 `seams plan OLD NEW` turns those changes and the elements each layer adds and removes into
-a Markdown change plan (release notes), between paths or git `REF:PATH` specs; on a pull
+a Markdown change plan (release notes), between paths or git `REF:PATH` specs. For a
+breaking change to a stored shape, the plan carries the SQLite and PostgreSQL SQL that
+rewrites the stored rows (a removed field, or a required one with a `sh:defaultValue`),
+or refuses, naming the shape, path and reason on stderr and exiting 1
+([ADR-0041](docs/adr/0041-stored-data-migrations.md)); on a pull
 request that changes a model, CI's `change-plan` job posts it to the job summary through
 the composite action in `.github/actions/seams-plan`. `seams coverage` lists, by IRI, the
 BPMN paths no scenario runs, the transitions nothing fires and the permissions without a
@@ -228,9 +232,9 @@ directory into memory through the `seams` library.
 
 ## Roadmap
 
-The [backlog](docs/backlog.md) is the plan. Next in line are M031 to M033: data
-classification, external systems and stored-data migrations from the shape diff; the
-worker's trace rows as an as-observed named graph with SLOs checked against it; and
+The [backlog](docs/backlog.md) is the plan. M031 (data classification, external
+systems and stored-data migrations from the shape diff) is done. Next in line are M032
+and M033: the worker's trace rows as an as-observed named graph with SLOs checked against it; and
 interchange exports (Structurizr DSL, LikeC4, PlantUML), rationale links and an
 event-storm import. Proposed from the November research notes and not yet scheduled: ten
 interface ideas from a product review (a storm board as the blank page and sentence

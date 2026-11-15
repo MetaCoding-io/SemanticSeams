@@ -1168,6 +1168,17 @@ Added:
 - :approval_bpmn#notify_manager
 ```
 
+When a breaking change in the `data` scope touches a shape OLD stores or writes, a
+`## Stored-data migrations` section follows `## Compatible changes`
+([ADR-0041](/adr/0041-stored-data-migrations)): a `### <kind> <shape>` heading and a
+fenced `sql` block for each relational store kind (`postgresql`, `sqlite`) and shape,
+over `entities.data`, for a removed property (drop its key) or a new required property
+with a `sh:defaultValue` (set it on the rows that lack it); then `Refused:` with one
+`refused <shape> <path> (<kind>): <reason>` bullet for every other breaking stored
+change and every change to a SemPKM-stored shape. Each refusal is also printed on stderr
+as `seams plan: refused ...`, after the summary line. The section is left out when it
+would be empty. Nothing runs the SQL.
+
 The output is deterministic, so it can be committed as release notes.
 
 ### Exit codes
@@ -1175,7 +1186,7 @@ The output is deterministic, so it can be committed as release notes.
 | Code | Meaning |
 |---|---|
 | 0 | No change is breaking. |
-| 1 | At least one change is breaking; `seams plan: N breaking, M compatible` goes to stderr. The plan is still written. |
+| 1 | At least one change is breaking; `seams plan: N breaking, M compatible` goes to stderr, then one `seams plan: refused ...` line per refused migration, the deploy refusal. The plan is still written. |
 | 2 | A model is missing or cannot be loaded, or git cannot extract a `REF:PATH` (an unknown ref, a path absent at the ref, or no repository). |
 
 Errors print to stderr as `seams plan: <message>`; a git error names the ref.

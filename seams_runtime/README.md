@@ -179,6 +179,14 @@ fact fails at load with `ResolutionError` naming the subject and predicate, even
 the override. The INFO load line names the kind, the declared store, container, key
 and the redacted `location`; the URL itself is never logged.
 
+The runtime never migrates stored data on start. When a model change breaks a stored
+shape, `seams plan OLD NEW` writes the SQL for both relational kinds over the
+`entities` table's `data` column (SQLite `json_remove`/`json_set` on the TEXT JSON,
+PostgreSQL operators on the `jsonb`), keyed by field name as `put_entity` stores it, or
+refuses the change, and any change to a SemPKM-stored shape, on stderr with exit 1
+([ADR-0041](../docs/adr/0041-stored-data-migrations.md)). The operator runs the block
+for the deployed kind between stopping the old runtime and starting the new one.
+
 ### A SemPKM store (ADR-0025)
 
 When the plan has a `deploy:SemPKM` store (`plan.sempkm`), the backend chosen above

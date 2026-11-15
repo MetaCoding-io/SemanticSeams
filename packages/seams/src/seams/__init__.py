@@ -31,6 +31,13 @@ sh:class pointing at a sh:NodeShape, shapes without sh:targetClass and
 sh:path IRIs nothing declares a property. A ``ReviewFinding`` flags the
 model for review; it never refuses it.
 
+``seams.observed`` loads recorded runs as an as-observed named graph
+(ADR-0042), kept outside the model and its hash: ``observed_graph(runs)``
+from ``ObservedRun``s or (run id, trace rows) pairs, ``spans_to_runs`` from
+an OTLP JSON span export, and ``observed_question(model, graph, name)`` asks
+``dead-model`` (flow nodes no run reached) or ``conformance`` (steps the
+model does not explain) over a read-only union.
+
 ``seams.context`` assembles the context of a service task (backlog C3):
 ``context_for(model, task)`` returns a ``Manifest`` of hashed
 ``ContextItem``s (the model facts and native file fragments its code
@@ -105,7 +112,15 @@ from .graph import (
     dmn_input_types,
 )
 from .loader import DEFAULT_ONTOLOGY_DIR, Model, load, model_dir, model_hash, payload_path
-from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, ODRL, PROC, SEAM, STATE, VERIFY, local_name
+from .namespaces import ARCH, COMM, DASH, DEC, DEPLOY, HYDRA, IFML, OBS, ODRL, PROC, SEAM, STATE, VERIFY, local_name
+from .observed import (
+    OBSERVED_QUESTIONS,
+    ObservedRun,
+    observed_graph,
+    observed_ntriples,
+    observed_question,
+    spans_to_runs,
+)
 from .ontologies import (
     VENDOR_DIR,
     DatasetOntology,
@@ -244,7 +259,10 @@ __all__ = [
     "MigrationStep",
     "Model",
     "ModelGraph",
+    "OBS",
+    "OBSERVED_QUESTIONS",
     "ODRL",
+    "ObservedRun",
     "Ontology",
     "OntologyClass",
     "Operation",
@@ -318,6 +336,9 @@ __all__ = [
     "local_name",
     "model_dir",
     "model_hash",
+    "observed_graph",
+    "observed_ntriples",
+    "observed_question",
     "parse_dmn",
     "payload_path",
     "policies_without_deny",
@@ -326,6 +347,7 @@ __all__ = [
     "resolve_profile",
     "review_findings",
     "shipped_versions",
+    "spans_to_runs",
     "table_findings",
     "type_ref_findings",
     "unexercised_paths",

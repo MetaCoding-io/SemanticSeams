@@ -1,0 +1,50 @@
+# Observed: which recorded steps does the model not explain?
+#
+# ADR-0042 section 4. Asked by seams.observed_question(model, graph, "conformance")
+# over a union of the model's graphs and one as-observed graph, built for the query
+# and discarded. observed_question fills each empty VALUES block below with one
+# (?process ?node) pair per flow node of every proc:Process (BPMN flow nodes live in
+# the BPMN XML, ADR-0007, so the graph does not list them).
+#
+# Each row is one obs:Step of an obs:Run with a ?reason:
+#   "unmapped"        the step has no obs:reached (its row or span named no element);
+#   "unknown-element" its obs:reached is not a flow node of the model;
+#   "unknown-process" its run's obs:process is not a proc:Process of the model.
+# A step can appear once per reason. No rows means every recorded step reached an
+# element the model declares.
+
+PREFIX obs:  <https://w3id.org/seams/obs#>
+PREFIX proc: <https://w3id.org/seams/proc#>
+
+SELECT ?run ?index ?step ?reached ?reason WHERE {
+  {
+    ?run a obs:Run ;
+        obs:step ?step .
+    ?step obs:index ?index .
+    FILTER NOT EXISTS { ?step obs:reached ?any }
+    BIND("unmapped" AS ?reason)
+  }
+  UNION
+  {
+    ?run a obs:Run ;
+        obs:step ?step .
+    ?step obs:index ?index ;
+        obs:reached ?reached .
+    FILTER NOT EXISTS {
+      VALUES (?process ?node) { }
+      FILTER(?node = ?reached)
+    }
+    BIND("unknown-element" AS ?reason)
+  }
+  UNION
+  {
+    ?run a obs:Run ;
+        obs:process ?observed ;
+        obs:step ?step .
+    ?step obs:index ?index .
+    OPTIONAL { ?step obs:reached ?reached }
+    FILTER NOT EXISTS { ?observed a proc:Process }
+    BIND("unknown-process" AS ?reason)
+  }
+}
+ORDER BY ?run ?index ?reason

@@ -71,7 +71,7 @@ model.payloads()  # [("chat_process.bpmn", Path(...)), ("routing.dmn", Path(...)
   `ResolutionError(subject, predicate, detail="")`, also a `LookupError`,
   raised when a graph hop is missing.
 - Namespaces: `SEAM`, `COMM`, `DEC`, `PROC`, `STATE`, `HYDRA`, `ODRL`,
-  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), `VERIFY` (ADR-0014 scenarios and examples), plus `local_name(iri)`.
+  `DEPLOY`, `IFML`, `ARCH`, `DASH` (`dash:` editors), `VERIFY` (ADR-0014 scenarios and examples), `OBS` (ADR-0042 as-observed runs), plus `local_name(iri)`.
 - `ModelGraph(path, dataset=None, *, ontology_dir=None, check_versions=True,
   check_imports=True)` (and `ModelGraph.load(path)`) is a `Model`, taking the
   same load options, plus the one-of-each resolvers the runtime and the generators share, such as
@@ -629,6 +629,41 @@ the two notify-failed escalations (`:notify_failed_approved` and
 `:notify_failed_rejected` fail `:notify_manager_op`) and both payout paths
 (`:paid_in_batch` and `:paid_now` expect the payment's final state). Both
 SPARQL reports are empty too.
+
+## Observed runs
+
+`seams.observed` (ADR-0042) loads recorded runs as an as-observed named graph
+in the `obs:` vocabulary and asks two questions of it alongside the model. The
+graph is kept outside the model: it is not added to `model.ds`, never written
+to a model file and never enters `Model.hash`.
+
+- `ObservedRun(instance, rows, process=None, correlation_key=None)`: one
+  recorded process instance, its worker trace rows in order.
+- `observed_graph(runs)` builds the graph from `ObservedRun`s or
+  `(run id, rows)` pairs: an `obs:Run` per run
+  (`urn:seams:observed:run:<instance>`) and an `obs:Step` per row
+  (`...:step:<n>`, with `obs:index` and the row keys ADR-0042 carries). Its IRI
+  is `urn:seams:observed:<sha256>` of the canonical input, so the same runs in
+  any order give the same graph.
+- `observed_ntriples(graph)` serialises it as sorted N-Triples: the same runs
+  give the same bytes.
+- `spans_to_runs(otlp_json)` reads an OTLP/JSON span export (a dict, a list,
+  or JSON or JSON-lines text) into `ObservedRun`s, one per
+  `seams.instance.id`, steps ordered by start time then span id.
+- `observed_question(model, graph, name)` asks one of `OBSERVED_QUESTIONS`
+  over a read-only union of the model and `graph`: `dead-model` (the BPMN flow
+  nodes no step reached, `?node ?process`) or `conformance` (the steps the
+  model does not explain, `?run ?index ?step ?reached ?reason`, the reason
+  `unmapped`, `unknown-element` or `unknown-process`).
+
+```python
+graph = seams.observed_graph([("run-1", result["trace"])])
+seams.observed_question(model, graph, "dead-model")
+# [] when the run reached every flow node
+```
+
+Malformed input raises `ResolutionError` naming the row (`run <id> row <n>`)
+or span (`span <spanId> (<name>)`) and the key.
 
 ## Decision checks
 

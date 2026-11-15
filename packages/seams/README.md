@@ -250,6 +250,55 @@ lists the operations of a context in an `arch:Core` domain that no
 `comm:PythonHandler` implements and no `verify:Scenario` reaches, through the
 process it starts or the user task it completes.
 
+## Observed runs
+
+`seams.observed` (ADR-0042) loads what the worker was seen to do as an
+as-observed named graph in the `obs:` vocabulary (`ontology/obs.ttl`), and asks
+two questions of it alongside the model. The graph is never one of the model's
+graphs: it is not added to `model.ds`, never written into a model file and never
+enters `Model.hash`.
+
+```python
+import json
+import seams
+
+model = seams.load("examples/chat-app/chat-app.trig")
+result = json.load(open("result.json"))           # an instance result with a trace
+graph = seams.observed_graph([(result["instance"], result["trace"])])
+seams.observed_question(model, graph, "dead-model")    # [{"node": ..., "process": ...}, ...]
+seams.observed_question(model, graph, "conformance")   # [{"run", "index", "step", "reached", "reason"}, ...]
+```
+
+- `observed_graph(runs)` takes `ObservedRun(instance, rows, process=None,
+  correlation_key=None)`s or `(run id, rows)` pairs, the rows being worker trace
+  rows (as `seams_gen.sequence.read_trace` reads them). Each run is an `obs:Run`
+  (`urn:seams:observed:run:<instance>`, percent-encoded) and each row an
+  `obs:Step` (`...:step:<n>`) with `obs:index` and the carried keys of the
+  ADR's table; payload values (`outputs`, `writes`, `tokens`, ...) are dropped. A
+  row with no `iri` is kept as an unmapped step. The graph's IRI is
+  `urn:seams:observed:<sha256>` of the canonical input, so the same runs in any
+  order give the same IRI, and `observed_ntriples(graph)` gives the same bytes.
+- `spans_to_runs(otlp_json)` reads an OTLP/JSON span export (a dict, a list of
+  them, or their JSON or JSON-lines text): element spans (with `bpmn.id` or
+  `seams.element.iri`) are grouped by `seams.instance.id`, ordered by
+  `startTimeUnixNano` then `spanId`, and mapped back to row keys, so a span file
+  and the trace of the same run give the same steps. `seams.channel` becomes a
+  row's `channel`, since a span does not say whether the element published or
+  streamed.
+- `observed_question(model, graph, name)` asks one of `OBSERVED_QUESTIONS`
+  (`queries/observed/<name>.rq`) over a read-only union of the model's graphs and
+  `graph`. BPMN flow nodes live in the XML (ADR-0007), so every flow node of every
+  `proc:Process` fills the query's empty `VALUES (?process ?node) { }` block as
+  its element universe. `dead-model` lists the nodes no step reached, sorted by
+  node; `conformance` lists the steps the model does not explain, by run and
+  index, with a `reason` of `unmapped`, `unknown-element` or `unknown-process`.
+
+Malformed input (a row that is not an object, a value of the wrong JSON type, a
+run given twice, an element span with no `seams.instance.id`, spans of one run
+naming two processes, a document that is not OTLP JSON) raises
+`ResolutionError` naming the row (`run <id> row <n>`) or span
+(`span <spanId> (<name>)`) and the key; nothing is returned.
+
 ## Context assembly
 
 `seams.context_for(model, task)` (backlog C3, `context.py`) gathers the model

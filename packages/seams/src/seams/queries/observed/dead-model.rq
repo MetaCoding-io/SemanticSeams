@@ -1,0 +1,21 @@
+# Observed: which flow nodes of the model's processes did no recorded run reach?
+#
+# ADR-0042 section 4. Asked by seams.observed_question(model, graph, "dead-model")
+# over a union of the model's graphs and one as-observed graph, built for the query
+# and discarded. BPMN flow nodes live in the BPMN XML (ADR-0007), so the element
+# universe is not in the graph: observed_question fills the empty VALUES block below
+# with one (?process ?node) pair per flow node of every proc:Process, the node by its
+# ADR-0002 IRI (the BPMN model's IRI, '#', the node id). Left empty, the query
+# returns no rows.
+#
+# Each row is a node no obs:Step obs:reached, with its process. A process none of
+# whose nodes any step reached is reported whole, as its nodes. The answer says what
+# these runs never exercised, not that the element is wrong.
+
+PREFIX obs: <https://w3id.org/seams/obs#>
+
+SELECT ?node ?process WHERE {
+  VALUES (?process ?node) { }
+  FILTER NOT EXISTS { ?step obs:reached ?node }
+}
+ORDER BY ?node ?process

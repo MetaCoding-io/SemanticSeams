@@ -219,6 +219,19 @@ hand-written specs are checked against the model's terms.*
 | C6 | **Glossary generator**: the domain vocabulary as one markdown file for coding agents, from the ontology and shapes: per class and property its label, definition, gist anchor, the shapes that target it, its lifecycle and the processes, operations and screens that touch it, each with its IRI; traced and listed in `seams.toml`. Sits beside C3 in M022 | S | O1, O2, ADR-0016, ADR-0019 | none | proposed |
 | R4 | **Spec-term check**: terms in hand-written markdown in the model directory (`CLAUDE.md`, specs, READMEs) that match no label or local name in the model, and model classes and shapes no document mentions, reported by `seams check` alongside R1's checks | S | R1 | none | proposed |
 
+*Added 2026-11-10 from the [state defines the interface note](research/2026-11-10-state-defines-the-interface.md):
+the operations a caller may choose from depend on the entity's state, the process position
+and the identity. The graph holds those facts and the runtime enforces them, but nothing
+computes the list or shows it to a caller.*
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| H1 | **Affordances view**: one answer to "what may happen next". In the `seams` library, for a shape and a lifecycle state: the transitions leaving it, the tasks that `seam:fires` them, the operations and forms that reach those tasks and the policies on each. In the runtime, the same joined with the entity's current status, the instance's open tasks and the identity; `runtime.user_tasks` becomes one case of it | S | none | none | proposed |
+| H2 | **Responses that carry their next steps**: a JSON response for an entity lists the operations H1 allows on it now for the caller, in Hydra's terms; the smoke tests check that an operation the response does not offer is refused. The ADR decides body or `Link` headers, and how it sits with ADR-0024's context link | M | H1; ADR first | none if Hydra's terms serve | proposed |
+| H3 | **Screen guards checked against the lifecycle**: a review finding in `seams check` for a component whose event leads to a task that fires a transition and which is visible in a state other than that transition's `state:from`; deriving the guard comes after the check | S | R1 | none | proposed |
+| H4 | **Process paths walked against the lifecycle at check time**: for each BPMN path, track the state the fired transitions leave the entity in and report a path that fires a transition from a state it cannot be in, so the fault is found by `seams check` and not by a failed instance. The finding states its limits (channel-started processes, error boundaries). Per-state handler types are not planned while this check exists | M | U5, U7 | none | proposed |
+| H5 | **Tool surface for agents, derived from the model**: an MCP server over a running application, one tool per operation with its input schema from `seam:acceptsShape`, the tools offered for an entity taken from H1, calls dispatched through the runtime so the lifecycle guard and policies apply. The ADR decides an agent's identity in ODRL terms and generated server or generic one | L | H1, H2; ADR first | none expected | proposed |
+
 ## From the research notes, triaged 2026-11-05
 
 *Added after M026. Each row is a gap one of the research notes names that had no

@@ -234,8 +234,8 @@ worker's trace rows as an as-observed named graph with SLOs checked against it; 
 interchange exports (Structurizr DSL, LikeC4, PlantUML), rationale links and an
 event-storm import. Proposed from the November research notes and not yet scheduled: ten
 interface ideas from a product review (a storm board as the blank page and sentence
-editing first), a SysML v2 export with a `req:` vocabulary for requirement, satisfy and verify links, and a glossary generator
-for coding agents.
+editing first), a SysML v2 export with a `req:` vocabulary for requirement, satisfy and verify links, a glossary generator
+for coding agents, and the operations an entity's state allows, computed once, carried in responses and offered to agents as tools.
 
 ## Status
 

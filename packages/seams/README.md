@@ -24,6 +24,14 @@ the views (`model.architecture`, `interfaces`, `processes`, `decisions`,
 `model.architecture.domains()` and `contexts()` read the ADR-0030 domains and
 bounded contexts (`Domain`, `BoundedContext`: classification, owned models, the
 one ontology, and the containers that run a context).
+`model.architecture.external_systems()`, `own_systems()` and
+`external_containers()` read the ADR-0040 external systems: `System.external` is
+True when the system states `arch:external true`, `Container.external_system`
+and `Container.external` derive from the system that `arch:contains` it, and
+`Operation.external` and `Channel.external` are True when an external container
+`seam:exposes` them. A malformed marker raises
+`ResolutionError(system, arch:external)`, and a container held by an external
+system and another raises `ResolutionError(container, arch:contains)`.
 `Shape.lifecycle` is the shape's effective lifecycle (ADR-0031): the machine it
 names with `seam:lifecycle`, else the one its `sh:targetClass` names; a shape
 that reaches two raises `ResolutionError(shape, seam:lifecycle, ...)` listing

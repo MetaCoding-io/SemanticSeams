@@ -164,6 +164,9 @@ its end and the BPMN ids in between, from
 [`seams.coverage`](/reference/seams-library) rather than SPARQL, since sequence flows
 live only in the BPMN XML.
 
+With recorded runs, a BPMN view also asks two questions of what the app did
+([ADR-0042](/adr/0042-as-observed-graph)); see [Recorded runs](#recorded-runs).
+
 A data shape also asks **Which screens show this shape's personal data, to which
 roles?** It lists each screen whose components read the shape, with each field marked as
 personal data ([ADR-0039](/adr/0039-data-classification)) and its category, and the roles
@@ -305,6 +308,38 @@ no profile has no rules to check. A store file that is missing or is not a seams
 store, a profile that does not resolve, or a stored entity its shape contract refuses
 is shown as an error naming it, not a page failure. Add `format=json` for `state`,
 `store`, `profile`, `error`, `count` and `findings` as JSON.
+
+## Recorded runs
+
+`SEAMS_OBSERVED` names recorded runs, as paths separated by `:` (`;` on Windows): a
+trace JSON file (an instance result with its `trace`, or a bare list of trace rows), an
+OTLP JSON span export (an object with `resourceSpans`), or a runtime SQLite store, of
+which every instance in `workflow_state` is read. The viewer loads them once, at start,
+as one as-observed graph ([ADR-0042](/adr/0042-as-observed-graph)), the same graph
+[`seams observed`](/reference/seams-cli#seams-observed) builds. The graph is never one of the model's
+graphs, so the model, its hash and every other view are unchanged.
+
+```sh
+SEAMS_MODEL=examples/expenses/chapter-09 SEAMS_OBSERVED=/tmp/run-1.json:/tmp/seams.sqlite \
+  uv run uvicorn viewer.app:app --port 8000
+```
+
+A BPMN view then offers, for its process:
+
+- **Which nodes did no recorded run reach?** (`dead-model`): the process's flow nodes
+  no recorded step reached, sorted by node IRI. It says what these runs never
+  exercised, not that the element is wrong.
+- **Which recorded steps does the model not explain?** (`observed-conformance`): every
+  recorded step that names no element (`unmapped`), reached an element the model does
+  not declare (`unknown-element`), or ran a process the model does not declare
+  (`unknown-process`), by run, step index and reason. A trace row names no process, so
+  the answer is the same from any process.
+
+Without `SEAMS_OBSERVED` neither question applies: no button, no catalog entry, and
+`/queries/dead-model/…` is a 404 saying `SEAMS_OBSERVED is not set`. A source that is
+missing, is neither JSON nor a SQLite store, holds a malformed row or span, or repeats a
+run is logged at start and named in that 404 instead; the rest of the viewer works.
+Restart the viewer to read new runs.
 
 ## How a click is resolved
 
@@ -593,7 +628,7 @@ the diagram comes back drawn and clickable.
 |---|---|
 | `/view/{iri}?path=…` | The page for an element. `path` carries the breadcrumb trail. Add `format=json`, or send `Accept: application/json`, for the [view response contract](/adr/0004-view-response-contract) as JSON. |
 | `/queries` | The canned-query catalog as JSON. |
-| `/queries/{name}/{focus_iri}` | One query's rows for one focus element. |
+| `/queries/{name}/{focus_iri}` | One query's rows for one focus element. The [observed questions](#recorded-runs) are a 404 without `SEAMS_OBSERVED`. |
 | `/sequence/{event_iri}` | The [derived sequence diagrams](/concepts/diagrams-are-views#derived-sequence-diagrams) of one IFML event as JSON: per diagram its `name`, `path`, `gaps` and `mermaid` text. Add `format=html` for the drawn fragment. Anything that is not an `ifml:Event` is a 404. |
 | `/storm/{process_iri}` | The [derived event storm](/concepts/diagrams-are-views#derived-event-storm) of one process, or of the process an IFML event `seam:triggers`, as JSON: `process`, `label`, `steps` (each with its `index`, `iri`, `name` and `entries`), `readModels`, `gaps` and the `markdown` timeline. Add `format=html` for the fragment. Anything that is neither is a 404 naming it. |
 | `/layers` | [Layer mode](#layer-mode): the six layers as stacked planes with the seams between them. Add `format=json`, or send `Accept: application/json`, for `layers`, `seams` and `warnings` as JSON. |

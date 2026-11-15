@@ -7,16 +7,19 @@ together (default examples/chat-app/chat-app.trig); its payload files must sit
 in the model's base directory. The root view is the model's single C4
 seam:Model, or SEAMS_VIEWER_ROOT when set. The load is behind get_model() and
 get_graph() so a Fuseki-backed store can drop in later without touching routes
-or resolution logic.
+or resolution logic. SEAMS_OBSERVED names recorded runs (ADR-0042), loaded once
+by get_observed(); with them the observed Questions apply.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import sqlite3
 import time
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, closing
 from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, quote, unquote, urlsplit
@@ -25,7 +28,7 @@ import seams
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from rdflib import OWL, RDF, RDFS, BNode, Dataset, Namespace, URIRef
+from rdflib import OWL, RDF, RDFS, BNode, Dataset, Graph, Namespace, URIRef
 from rdflib.namespace import SH
 from rdflib.term import IdentifiedNode, Node
 from starlette.routing import BaseRoute
@@ -33,7 +36,7 @@ from starlette.routing import BaseRoute
 import seams_edit
 from seams_edit.patch import term_text
 from seams_gen import GeneratorError, storm
-from seams_gen.sequence import derive, render
+from seams_gen.sequence import derive, read_trace, render
 from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, structural, validation, writeback
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
@@ -55,6 +58,10 @@ EDIT_ENV = "SEAMS_EDIT"
 # ADR-0036: the data-health view reads the SQLite store at SEAMS_VIEWER_STORE,
 # read-only; without it the view says no store is configured.
 STORE_ENV = "SEAMS_VIEWER_STORE"
+# ADR-0042: the recorded runs the observed Questions are asked of, as paths
+# separated by os.pathsep: trace JSON files, OTLP JSON span files or runtime
+# SQLite stores. Without it those Questions do not apply.
+OBSERVED_ENV = "SEAMS_OBSERVED"
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "examples" / "chat-app" / "chat-app.trig"
 
 
@@ -134,6 +141,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         f"from {MODEL_ENV}" if os.environ.get(MODEL_ENV) else "default",
         root_iri(),
     )
+    get_observed()
     yield
 
 
@@ -147,6 +155,11 @@ _root_iri: str | None = None
 # model, or the ResolutionError facts that stopped it (then no profile applies).
 _profile: Profile | None = None
 _profile_error: dict | None = None
+# ADR-0042: the as-observed graph of SEAMS_OBSERVED, loaded once; or the facts
+# that stopped the load. _observed_loaded tells "not loaded yet" from "none".
+_observed: Graph | None = None
+_observed_error: str | None = None
+_observed_loaded = False
 
 
 def configure(path: Path) -> None:
@@ -159,6 +172,7 @@ def configure(path: Path) -> None:
     _model = None
     _root_iri = None
     _profile = _profile_error = None
+    reset_observed()
     validation._clear_cache()
     _undo_stack.clear()
     mount_edit_routes()
@@ -971,6 +985,85 @@ def layers_endpoint(request: Request):
     return templates.TemplateResponse(request, "page.html", ctx)
 
 
+def _store_instances(store: Path) -> list[str]:
+    """Every instance id in a runtime SQLite store's workflow_state, sorted."""
+    try:
+        with closing(sqlite3.connect(store.resolve().as_uri() + "?mode=ro", uri=True)) as con:
+            found = con.execute("SELECT instance_id FROM workflow_state").fetchall()
+    except sqlite3.Error as exc:
+        raise GeneratorError(str(store), "observed", f"cannot read workflow_state: {exc}") from exc
+    return sorted(str(row[0]) for row in found)
+
+
+def _observed_runs(source: Path) -> list[seams.ObservedRun]:
+    """The recorded runs of one SEAMS_OBSERVED entry: every instance of a SQLite
+    store, the spans of an OTLP JSON export (a ``resourceSpans`` object), else
+    the trace of a trace JSON file (read_trace, the file's name as the run id
+    when it names no instance)."""
+    if not source.is_file():
+        raise GeneratorError(str(source), "observed", f"no such file (from {OBSERVED_ENV})")
+    with source.open("rb") as handle:
+        if handle.read(16) == b"SQLite format 3\x00":
+            runs = []
+            for instance in _store_instances(source):
+                run, rows = read_trace(instance, source)
+                runs.append(seams.ObservedRun(run or instance, rows))
+            return runs
+    text = source.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except ValueError as exc:
+        raise GeneratorError(str(source), "observed", f"is neither a SQLite store nor JSON: {exc}") from exc
+    if isinstance(data, dict) and "resourceSpans" in data:
+        return seams.spans_to_runs(text)
+    run, rows = read_trace(source)
+    return [seams.ObservedRun(run if run is not None else source.name, rows)]
+
+
+def load_observed(value: str) -> Graph | None:
+    """The as-observed graph of the SEAMS_OBSERVED value, or None when it names
+    no source. GeneratorError or ResolutionError naming the source that failed."""
+    sources = [Path(part) for part in value.split(os.pathsep) if part]
+    if not sources:
+        return None
+    runs = [run for source in sources for run in _observed_runs(source)]
+    return seams.observed_graph(runs)
+
+
+def get_observed() -> Graph | None:
+    """The as-observed graph of SEAMS_OBSERVED (ADR-0042), loaded on first use and
+    kept; None when unset or when the load failed, the failure kept in
+    observed_error() and logged once. The model's graphs and hash never change."""
+    global _observed, _observed_error, _observed_loaded
+    if not _observed_loaded:
+        _observed_loaded = True
+        try:
+            _observed = load_observed(os.environ.get(OBSERVED_ENV, ""))
+        except (GeneratorError, seams.ResolutionError) as err:
+            _observed = None
+            _observed_error = str(err)
+            logger.warning("observations not loaded (%s): %s", OBSERVED_ENV, err)
+        else:
+            if _observed is not None:
+                runs = len(set(_observed.subjects(RDF.type, seams.OBS.Run)))
+                logger.info("viewer observations %s: %d run(s)", _observed.identifier, runs)
+    return _observed
+
+
+def observed_error() -> str | None:
+    """Why SEAMS_OBSERVED did not load, or None."""
+    get_observed()
+    return _observed_error
+
+
+def reset_observed() -> None:
+    """Forget the loaded observations so the next get_observed() reads SEAMS_OBSERVED again."""
+    global _observed, _observed_error, _observed_loaded
+    _observed = None
+    _observed_error = None
+    _observed_loaded = False
+
+
 def store_path_from_env() -> Path | None:
     """SEAMS_VIEWER_STORE when set and non-empty, else None (no store configured)."""
     value = os.environ.get(STORE_ENV)
@@ -1017,6 +1110,7 @@ def queries_catalog() -> JSONResponse:
                 "focusType": str(q.focusType),
             }
             for q in canned_queries.QUERIES.values()
+            if not q.observed or get_observed() is not None
         ]
     )
 
@@ -1038,9 +1132,13 @@ def query_endpoint(request: Request, query_name: str, focus_iri: str):
     focus = unquote(focus_iri)
     if query_name not in canned_queries.QUERIES:
         raise HTTPException(status_code=404, detail=f"unknown canned query: {query_name}")
+    observed = get_observed()
+    if canned_queries.QUERIES[query_name].observed and observed is None:
+        why = observed_error() or f"{OBSERVED_ENV} is not set"
+        raise HTTPException(status_code=404, detail=f"canned query {query_name} needs recorded runs: {why}")
     # Non-applicable or unknown focus IRIs are not errors: an empty result set
     # (resultCount 0) is meaningful feedback, so execute unconditionally.
-    result = canned_queries.execute_query(get_graph(), query_name, focus, model=get_model())
+    result = canned_queries.execute_query(get_graph(), query_name, focus, model=get_model(), observed=observed)
     wants_html = request.headers.get("hx-request") == "true" or request.query_params.get("format") == "html"
     if not wants_html:
         return JSONResponse(result)
@@ -1196,6 +1294,7 @@ def applicable_queries(focus: str) -> list[dict]:
     questions would otherwise never get a button; theirs name the element.
     """
     graph = get_graph()
+    observed = get_observed()
     subjects = [focus]
     if is_model(focus):
         subjects += sorted(str(s) for s in set(graph.subjects(SEAM.detailedBy, URIRef(focus))) if str(s) != focus)
@@ -1207,7 +1306,7 @@ def applicable_queries(focus: str) -> list[dict]:
         }
         for subject in subjects
         for q in canned_queries.QUERIES.values()
-        if canned_queries.is_applicable(graph, subject, q)
+        if canned_queries.is_applicable(graph, subject, q, observed)
     ]
 
 

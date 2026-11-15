@@ -37,8 +37,12 @@ EXPECTED_NAMES = [
 ]
 
 
+# Asked of recorded runs (M032/S01): in the catalog only with SEAMS_OBSERVED.
+OBSERVED_NAMES = ["dead-model", "observed-conformance"]
+
+
 def test_catalog_lists_every_query():
-    assert list(queries.QUERIES) == EXPECTED_NAMES
+    assert list(queries.QUERIES) == EXPECTED_NAMES + OBSERVED_NAMES
     for name, q in queries.QUERIES.items():
         assert q.name == name
         assert q.label

@@ -63,6 +63,9 @@ runs:
 seams observed examples/chat-app tests/fixtures/traces/chat_send_message.json
 ```
 
+The viewer asks them of the runs named by `SEAMS_OBSERVED`, as two Questions on a BPMN
+view ([Recorded runs](/guide/the-viewer#recorded-runs)).
+
 ### Gate questions
 
 Two more are gates: queries that must return no rows, listed under `gates` in a project's

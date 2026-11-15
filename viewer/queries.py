@@ -10,6 +10,11 @@ The coverage questions (M015/S04, D054) join the same catalog. Two are the
 coverage/*.rq bundle queries; unexercised-paths is answered by
 seams.coverage, because sequence flows live only in the BPMN XML
 (ADR-0007), and its rows take the same columns/rows shape as a SPARQL result.
+
+The observed questions (M032/S01, ADR-0042) ask seams.observed_question over
+the model and an as-observed graph of recorded runs (OBSERVED_ANSWERS). They
+apply only when the viewer has observations (SEAMS_OBSERVED, viewer.app);
+without them is_applicable says no and no button is shown.
 """
 
 from __future__ import annotations
@@ -19,7 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import seams
-from rdflib import RDF, Namespace, URIRef
+from rdflib import RDF, Graph, Namespace, URIRef
 from rdflib.namespace import ODRL2, SH
 
 ARCH = Namespace("https://w3id.org/seams/arch#")
@@ -41,6 +46,9 @@ class CannedQuery:
     # The seams bundle question that answers it ("" means its own name), or
     # None when Python answers it (PYTHON_ANSWERS).
     source: str | None = ""
+    # True when it is asked of the model and the recorded runs (OBSERVED_ANSWERS),
+    # so it applies only when the viewer has observations.
+    observed: bool = False
 
 
 QUERIES: dict[str, CannedQuery] = {
@@ -108,6 +116,27 @@ QUERIES: dict[str, CannedQuery] = {
         focusType=PROC.Process,
         source=None,
     ),
+    "dead-model": CannedQuery(
+        name="dead-model",
+        label="Which nodes did no recorded run reach?",
+        question="Which flow nodes of this process did no recorded run reach?",
+        focusVariable="process",
+        focusType=PROC.Process,
+        source=None,
+        observed=True,
+    ),
+    "observed-conformance": CannedQuery(
+        name="observed-conformance",
+        label="Which recorded steps does the model not explain?",
+        question=(
+            "Which steps of the recorded runs reached no element of the model, named no element,"
+            " or ran a process the model does not declare?"
+        ),
+        focusVariable="process",
+        focusType=PROC.Process,
+        source=None,
+        observed=True,
+    ),
 }
 
 
@@ -131,6 +160,50 @@ PYTHON_ANSWERS: dict[str, Callable[[seams.Model, URIRef], tuple[list[str], list[
 }
 
 
+def _cell(observed: Graph, name: str, value: object) -> str:
+    """A run is shown by its instance id, every other value as its text."""
+    if name == "run":
+        instance = observed.value(URIRef(str(value)), seams.OBS.instance)
+        if instance is not None:
+            return str(instance)
+    return "" if value is None else str(value)
+
+
+def _dead_model(model: seams.Model, observed: Graph, focus: URIRef) -> tuple[list[str], list[dict[str, str]]]:
+    """The flow nodes of the focused process no recorded step reached, by node IRI.
+
+    A focus that is not a proc:Process of the model gives no rows.
+    """
+    columns = ["node", "process"]
+    rows = [
+        {"node": str(r["node"]), "process": str(r["process"])}
+        for r in seams.observed_question(model, observed, "dead-model")
+        if r["process"] == focus
+    ]
+    return columns, sorted(rows, key=lambda r: r["node"])
+
+
+def _observed_conformance(model: seams.Model, observed: Graph, focus: URIRef) -> tuple[list[str], list[dict[str, str]]]:
+    """Every recorded step the model does not explain, sorted by run, index and reason.
+
+    The answer is the same for any focus: a step that reached no element of the
+    model belongs to none of its processes, and a trace row names no process.
+    """
+    del focus
+    columns = ["run", "index", "reached", "reason"]
+    rows = [
+        {c: _cell(observed, c, r.get(c)) for c in columns}
+        for r in seams.observed_question(model, observed, "conformance")
+    ]
+    return columns, sorted(rows, key=lambda r: (r["run"], int(r["index"]), r["reason"], r["reached"]))
+
+
+OBSERVED_ANSWERS: dict[str, Callable[[seams.Model, Graph, URIRef], tuple[list[str], list[dict[str, str]]]]] = {
+    "dead-model": _dead_model,
+    "observed-conformance": _observed_conformance,
+}
+
+
 def load_query(name: str) -> str:
     """Return the SPARQL text for a catalog query.
 
@@ -142,33 +215,46 @@ def load_query(name: str) -> str:
         raise KeyError(f"unknown canned query: {name!r}")
     source = QUERIES[name].source
     if source is None:
-        raise KeyError(f"canned query {name!r} is answered by seams.coverage, not SPARQL")
+        raise KeyError(f"canned query {name!r} is answered in Python (seams.coverage or seams.observed), not SPARQL")
     return seams.load_question(source or name)
 
 
-def is_applicable(graph, focus_iri: str, query: CannedQuery) -> bool:
+def is_applicable(graph, focus_iri: str, query: CannedQuery, observed: Graph | None = None) -> bool:
     """Whether a query's focus binding makes sense for this element.
 
-    Explicit instance-level rdf:type check only — no RDFS/OWL inference, so
+    An observed question needs the ``observed`` graph; without it, never. Explicit instance-level rdf:type check only — no RDFS/OWL inference, so
     subclasses of the focus type are missed. False negatives are acceptable
     v1 behavior (a button not shown, never a broken one).
     """
+    if query.observed and observed is None:
+        return False
     return (URIRef(focus_iri), RDF.type, query.focusType) in graph
 
 
-def execute_query(graph, query_name: str, focus_iri: str, model: seams.Model | None = None) -> dict:
+def execute_query(
+    graph, query_name: str, focus_iri: str, model: seams.Model | None = None, observed: Graph | None = None
+) -> dict:
     """Run a canned query with the focus element bound, returning a JSON-able dict.
 
     The focus IRI reaches the query only through initBindings as a URIRef —
     never interpolated into the query string. A Python-answered query
-    (PYTHON_ANSWERS) needs the loaded ``model`` that ``graph`` belongs to.
+    (PYTHON_ANSWERS) needs the loaded ``model`` that ``graph`` belongs to, an
+    observed one (OBSERVED_ANSWERS) the model and the ``observed`` graph.
     """
     query = QUERIES[query_name]
     focus = URIRef(focus_iri)
     start = time.perf_counter()
     rows = []
     truncated = False
-    if query.source is None:
+    if query.observed:
+        if model is None or observed is None:
+            raise ValueError(
+                f"canned query {query_name!r} is asked of recorded runs and needs the model and observations"
+            )
+        columns, answer = OBSERVED_ANSWERS[query_name](model, observed, focus)
+        truncated = len(answer) > MAX_ROWS
+        rows = answer[:MAX_ROWS]
+    elif query.source is None:
         if model is None:
             raise ValueError(f"canned query {query_name!r} is answered by seams.coverage and needs the loaded model")
         columns, answer = PYTHON_ANSWERS[query_name](model, focus)

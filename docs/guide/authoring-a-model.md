@@ -954,6 +954,40 @@ gates = [
 ]
 ```
 
+### External systems
+
+A system someone else builds and runs, such as a third-party API, is still an
+`arch:System` in the architecture model, marked `arch:external true`
+([ADR-0040](/adr/0040-external-systems-and-webhooks)). It needs `arch` 1.3:
+
+```trig
+<urn:seams:graph:model:expense_architecture> {
+    :sempkm a arch:System ; rdfs:label "SemPKM" ;
+        arch:external true ;
+        arch:contains :expense_pkm .
+    :expense_pkm a arch:Container ; rdfs:label "Expense Knowledge Store" ;
+        deploy:storeKind deploy:SemPKM .
+}
+```
+
+- **State it once, on the system, and only as `true`.** Leaving it out says the system
+  is the model's own. Its containers, and the operations and channels they
+  `seam:exposes`, are external because the system is; nothing is stated on them.
+- **The model neither builds nor runs it.** An external container keeps its label,
+  `arch:technology`, `deploy:storeKind`, `arch:dependsOn` and `seam:exposes`, but no
+  `deploy:artifact`, port, volume, healthcheck, configuration, override, placement,
+  proxy or `deploy:dependsOn`, and it `seam:executes`, `seam:presents`,
+  `seam:schedules` and `seam:deployedTo` nothing. No other system contains it.
+- **Reach it with a URL you state.** A binding that `deploy:connectsTo` or
+  `deploy:authenticatesTo` an external container carries a `deploy:value` or a secret.
+  A `deploy:serviceOf` binding and a `deploy:dependsOn` cannot name one: it has no
+  compose service.
+- **An inbound webhook** is a channel a container of the model `seam:exposes`, whose
+  sender is an external container; ADR-0027's SemPKM channel is one case.
+
+`ExternalMarkerShape`, `ExternalContainmentShape`, `ExternalContainerShape` and
+`ExternalReachShape` name the element and the predicate for each break.
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
@@ -963,7 +997,7 @@ Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.M
 added context-map relationships (`arch:ContextRelationship`, ADR-0032); `seam` 1.5 adds
 `seam:aggregateMember`, the shapes an aggregate commits together (ADR-0035); `seam` 1.6
 adds `seam:schedules` and `proc` 1.1 adds `proc:TimerStartEvent` and `proc:TimerCatchEvent`
-(ADR-0037). All are compatible widenings, so a model that declares an older `arch`,
+(ADR-0037); `arch` 1.3 adds `arch:external` (ADR-0040). All are compatible widenings, so a model that declares an older `arch`,
 `proc` or `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
@@ -974,7 +1008,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.2> ,
+        owl:imports <https://w3id.org/seams/arch/1.3> ,
                     <https://w3id.org/seams/seam/1.6> .
 }
 ```
@@ -1047,7 +1081,7 @@ versions:
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.2> ,
+        owl:imports <https://w3id.org/seams/arch/1.3> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/seam/1.6> .
 }

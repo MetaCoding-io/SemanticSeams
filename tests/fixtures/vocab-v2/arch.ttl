@@ -1,11 +1,12 @@
 @prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/arch> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/arch/1.2> ;
-    owl:versionInfo "1.2" ;
+    owl:versionIRI <https://w3id.org/seams/arch/1.3> ;
+    owl:versionInfo "1.3" ;
     rdfs:label "SemanticSeams Architecture Vocabulary" ;
     rdfs:comment """A deliberately small C4-inspired vocabulary. Unlike C4 proper,
 the containment hierarchy is user-definable (LikeC4-style): arch:contains nests
@@ -78,6 +79,11 @@ arch:technology a rdf:Property ;
 
 arch:description a rdf:Property ;
     rdfs:domain arch:Element .
+
+arch:external a rdf:Property ;
+    rdfs:label "external" ;
+    rdfs:domain arch:System ; rdfs:range xsd:boolean ;
+    rdfs:comment "Stated once and only as true: the model neither builds nor runs the system (ADR-0040). Its containers and the operations and channels they seam:exposes are external by derivation; generators emit no service, image or code for them, and impact queries stop at the system. Absent means the system is the model's own." .
 
 arch:classification a rdf:Property ;
     rdfs:domain arch:Domain ; rdfs:range arch:DomainClassification .

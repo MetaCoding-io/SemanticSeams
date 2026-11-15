@@ -258,6 +258,88 @@ seamsh:ContextRelationshipTermsShape a sh:NodeShape ;
     sh:message "Only an arch:ContextRelationship has an arch:upstream, arch:downstream or arch:relationshipType." .
 
 #################################################################
+# External systems (ADR-0040)
+#################################################################
+
+# arch:external is stated once, only as true, and only on an arch:System: false
+# would be a second way to say "the model's own", which is what leaving it out says.
+seamsh:ExternalMarkerShape a sh:NodeShape ;
+    sh:targetSubjectsOf arch:external ;
+    sh:property [ sh:path arch:external ; sh:maxCount 1 ; sh:in ( true ) ;
+        sh:message "arch:external is stated at most once, and only as true." ] ;
+    sh:sparql [
+        sh:message "Only an arch:System is arch:external." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path WHERE {
+                FILTER NOT EXISTS { $this a arch:System }
+                BIND (arch:external AS ?path)
+            }""" ;
+    ] .
+
+seamsh:ExternalContainmentShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "A container of an external arch:System is arch:contains'ed by no other arch:System." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                ?external a arch:System ; arch:external true ; arch:contains $this .
+                ?other a arch:System ; arch:contains $this .
+                FILTER (?other != ?external)
+                BIND (arch:contains AS ?path)
+            }""" ;
+    ] .
+
+# The model neither builds nor runs an external container, so it carries none of
+# the facts a generator would turn into a service, an image or code. Its label,
+# arch:technology, deploy:storeKind, arch:dependsOn and seam:exposes stay.
+seamsh:ExternalContainerShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "A container of an external arch:System carries no deploy:artifact, deploy:override, deploy:port, deploy:volume, deploy:healthcheck, deploy:configuration, deploy:placement, deploy:proxies or deploy:dependsOn, and seam:executes, seam:presents, seam:schedules and seam:deployedTo nothing: the model neither builds nor runs it." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                ?external a arch:System ; arch:external true ; arch:contains $this .
+                $this ?path ?value .
+                FILTER (?path IN (
+                    deploy:artifact, deploy:override, deploy:port, deploy:volume, deploy:healthcheck,
+                    deploy:configuration, deploy:placement, deploy:proxies, deploy:dependsOn,
+                    seam:executes, seam:presents, seam:schedules, seam:deployedTo
+                ))
+            }""" ;
+    ] .
+
+# The model's own containers reach an external one through bindings that carry
+# its URL (deploy:value or a secret); a compose service name and a compose
+# depends_on would name a service that does not exist.
+seamsh:ExternalReachShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "No container deploy:dependsOn a container of an external arch:System: it has no service to start first." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                FILTER NOT EXISTS { ?own arch:external true ; arch:contains $this }
+                $this deploy:dependsOn ?target .
+                ?external a arch:System ; arch:external true ; arch:contains ?target .
+                BIND (deploy:dependsOn AS ?path)
+            }""" ;
+    ] ;
+    sh:sparql [
+        sh:message "No binding is a deploy:serviceOf a container of an external arch:System: it has no service to take a URL from, so the binding carries the URL in a deploy:value or a secret." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                FILTER NOT EXISTS { ?own arch:external true ; arch:contains $this }
+                $this (deploy:configuration|deploy:override/deploy:configuration)/deploy:binding/deploy:serviceOf ?target .
+                ?external a arch:System ; arch:external true ; arch:contains ?target .
+                BIND (deploy:serviceOf AS ?path)
+            }""" ;
+    ] .
+
+#################################################################
 # UI <-> process
 #################################################################
 

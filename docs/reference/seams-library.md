@@ -248,7 +248,9 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
   `deployment_nodes()`, `environments()` and `serving_containers()` (each
   container that `seam:executes` a process or `seam:exposes` an operation an
   `ifml:Event` `seam:submitsTo`: the ones that serve routes and hold process
-  state).
+  state), and for external systems ([ADR-0040](/adr/0040-external-systems-and-webhooks))
+  `external_systems()`, `own_systems()` (the systems the model builds and runs)
+  and `external_containers()`.
   - `Domain` ([ADR-0030](/adr/0030-domains-and-bounded-contexts)) has
     `classification` (the `arch:Core`, `arch:Supporting` or `arch:Generic`
     IRI; none, several or a literal raise
@@ -264,7 +266,15 @@ model.processes.element("choose_payout").only().decided_by.decision_id  # "payou
     `arch:Container` that `seam:presents` an owned model or `seam:executes` a
     process in one. A model that declares no context has empty `domains()`
     and `contexts()`.
-  - `System.containers` (the `arch:Container`s it `arch:contains`).
+  - `System.containers` (the `arch:Container`s it `arch:contains`) and
+    `System.external` (True when it states `arch:external true`; a second
+    value or any value but `true` raises `ResolutionError(system, arch:external)`).
+  - `Container.external_system` is the external `System` that contains it, or
+    None, and `Container.external` says whether there is one: derived from the
+    containing system, never stated on the container. A container of an
+    external system that another system also contains raises
+    `ResolutionError(container, arch:contains)`. `Operation.external` and
+    `Channel.external` are True when an external container `seam:exposes` them.
   - `Container` has `technology`, `exposes` and `consumes` (a
     `Many[Operation | Channel]`), `executes`, `schedules`, `deployed_to`, `depends_on`
     (C4 `arch:dependsOn`) and `systems`. `service_bindings` is a read-only

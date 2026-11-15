@@ -10,7 +10,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from rdflib import RDF, RDFS, Graph, URIRef
+from rdflib import RDF, RDFS, Graph, Literal, URIRef
 from rdflib.term import Node
 
 from ..errors import ResolutionError
@@ -131,7 +131,21 @@ class BoundedContext(Element):
 @element_type(ARCH.System)
 @dataclass(frozen=True, eq=False)
 class System(Element):
-    """An arch:System."""
+    """An arch:System: the model's own, or an external one (ADR-0040)."""
+
+    @property
+    def external(self) -> bool:
+        """True when it states ``arch:external true``: the model neither builds
+        nor runs it (ADR-0040 section 1). Absent means the model's own; a second
+        value, ``false`` or any other literal raises
+        ``ResolutionError(system, arch:external)``."""
+        values = self._values(ARCH.external)
+        if not values:
+            return False
+        if values != [Literal(True)]:
+            found = ", ".join(sorted(v.n3() for v in values))
+            raise ResolutionError(self.iri, ARCH.external, f"expected it once and only as true, found {found}")
+        return True
 
     @property
     def containers(self) -> Many[Container]:
@@ -303,6 +317,27 @@ class Container(Element):
         ds = self.views.ds
         iris = [s for s in self._subjects(ARCH.contains) if (s, RDF.type, ARCH.System) in ds]
         return self._many(System, iris, ARCH.contains)
+
+    @property
+    def external_system(self) -> System | None:
+        """The external arch:System that arch:contains it (ADR-0040 section 2),
+        or None for a container of the model. An external system and any other
+        system containing it raise ``ResolutionError(container, arch:contains)``."""
+        systems = self.systems
+        external = [s for s in systems if s.external]
+        if not external:
+            return None
+        if len(systems) > 1:
+            found = ", ".join(str(s.iri) for s in systems)
+            detail = f"a container of an external arch:System is contained by no other system, found {found}"
+            raise ResolutionError(self.iri, ARCH.contains, detail)
+        return external[0]
+
+    @property
+    def external(self) -> bool:
+        """True when an external arch:System contains it: derived, never stated
+        on the container (ADR-0040 section 2). Errors as ``external_system``."""
+        return self.external_system is not None
 
     # ── deploy: facts. Ports, volumes and bindings are blank nodes, so every
     # error names the container and the predicate.
@@ -615,8 +650,22 @@ class Architecture:
     def systems(self) -> Many[System]:
         return self._views.all(System, ARCH.System)
 
+    def external_systems(self) -> Many[System]:
+        """Every arch:System that is arch:external (ADR-0040), by IRI."""
+        return self.systems().where(lambda s: s.external)
+
+    def own_systems(self) -> Many[System]:
+        """Every arch:System that is not arch:external: the ones the model
+        builds and runs (ADR-0040 section 3), by IRI."""
+        return self.systems().where(lambda s: not s.external)
+
     def containers(self) -> Many[Container]:
         return self._views.all(Container, ARCH.Container)
+
+    def external_containers(self) -> Many[Container]:
+        """Every arch:Container an external arch:System contains (ADR-0040
+        section 2), by IRI."""
+        return self.containers().where(lambda c: c.external)
 
     def serving_containers(self) -> Many[Container]:
         """The arch:Containers that serve routes and hold process state (D026):

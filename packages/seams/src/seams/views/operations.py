@@ -69,6 +69,14 @@ class _Endpoint(Element):
         return self._many(Container, self._subjects(SEAM.exposes), SEAM.exposes)
 
     @property
+    def external(self) -> bool:
+        """True when a container of an external arch:System seam:exposes it: an
+        endpoint of a third party's API (ADR-0040 section 2). Derived from the
+        exposing container's system, never stated on the endpoint; errors as
+        ``Container.external_system``."""
+        return any(c.external for c in self.exposed_by)
+
+    @property
     def consumed_by(self) -> Many[Container]:
         """The containers that seam:consume it."""
         from .architecture import Container

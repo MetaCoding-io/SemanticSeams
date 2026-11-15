@@ -33,6 +33,7 @@ ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
             comm.ttl        — communication: channels, transports and error codes (Hydra fills the rest)
             deploy.ttl      — deployment: artifact/config/placement, store kinds and bindings; desired-state half of a GitOps loop
             verify.ttl      — scenarios, decision examples and shape examples that become derived tests (ADR-0014)
+            obs.ttl         — observed runs and steps, used only in as-observed graphs outside the model (ADR-0042)
             migrations/     — one SPARQL Update file per major vocabulary step (ADR-0021)
   shapes/   seam-shapes.ttl — SHACL constraints on the seams themselves (the project's own methodology, applied to itself)
   vendor/   gistCore14.0.0.ttl — the pinned gist upper ontology a seam:Ontology model imports (ADR-0022; CC BY 4.0)

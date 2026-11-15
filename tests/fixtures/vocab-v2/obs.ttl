@@ -1,0 +1,173 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix proc:   <https://w3id.org/seams/proc#> .
+@prefix obs:    <https://w3id.org/seams/obs#> .
+
+<https://w3id.org/seams/obs> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/seams/obs/1.0> ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "SemanticSeams Observation Vocabulary" ;
+    rdfs:comment """What the runtime was seen to do, as opposed to what the model says it
+should do (ADR-0042). A run is one process instance the worker executed; a step is one
+row of its trace, or one element span exported over OpenTelemetry, and names the model
+element it reached by its IRI (ADR-0002).
+
+Every triple that uses these terms lives in an as-observed named graph,
+<urn:seams:observed:<hex>>, built when recorded runs are loaded. That graph is never one
+of the model's graphs, is never written into a model file and never enters the model
+hash: a model describes the application, its observations describe one deployment's
+history. The two questions it answers, which model elements no run reached and which
+steps reached no element of the model, join it with the model at query time.""" .
+
+#################################################################
+# Runs
+#################################################################
+
+obs:Run a rdfs:Class ;
+    rdfs:label "Run" ;
+    rdfs:comment """One process instance the worker executed, identified by its instance
+id. A resumed instance, or one continued after a user task, is the same run: its steps
+follow on from the ones already recorded.""" .
+
+obs:instance a rdf:Property ;
+    rdfs:label "instance" ;
+    rdfs:domain obs:Run ;
+    rdfs:range xsd:string ;
+    rdfs:comment """The run's instance id: the ``instance`` of the worker's instance
+result, the instance id a trace was read from in the runtime's store, or
+``seams.instance.id`` on a span. A trace file holding a bare list of rows has no id of
+its own, and the run is named by the source it was read from.""" .
+
+obs:process a rdf:Property ;
+    rdfs:label "process" ;
+    rdfs:domain obs:Run ;
+    rdfs:range proc:Process ;
+    rdfs:comment """The process the run executed, as ``seams.process.iri`` on its spans.
+A trace row does not carry it, so a run read from trace rows states no obs:process; the
+questions find the process from the elements its steps reached.""" .
+
+obs:correlationKey a rdf:Property ;
+    rdfs:label "correlation key" ;
+    rdfs:domain obs:Run ;
+    rdfs:range xsd:string ;
+    rdfs:comment """The run's correlation key: ``correlation_key`` of the instance result,
+or ``seams.correlation_key`` on a span. Absent when the source has none.""" .
+
+obs:step a rdf:Property ;
+    rdfs:label "step" ;
+    rdfs:domain obs:Run ;
+    rdfs:range obs:Step ;
+    rdfs:comment "One step of the run. The steps are ordered by their obs:index." .
+
+#################################################################
+# Steps
+#################################################################
+
+obs:Step a rdfs:Class ;
+    rdfs:label "Step" ;
+    rdfs:comment """One BPMN element the run reached: one trace row, or one element span
+(a span with ``bpmn.id`` or ``seams.element.iri``). The other spans the runtime exports
+(instance, aggregate commit, data health, timer claim and fire) are not steps.""" .
+
+obs:index a rdf:Property ;
+    rdfs:label "index" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:integer ;
+    rdfs:comment """The step's position in its run, from 0: its row's position in the
+trace, or, for spans, its position when the run's element spans are sorted by start time
+and then by span id.""" .
+
+obs:reached a rdf:Property ;
+    rdfs:label "reached" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment """The IRI of the element the step reached: the row's ``iri``, or
+``seams.element.iri`` on the span. It is the model's IRI for a BPMN flow node (its BPMN
+model's IRI with the node's id as fragment, ADR-0002), whether or not a seam lifts the node
+into the model's graphs. A step with no obs:reached is unmapped, and the conformance
+question reports it.""" .
+
+obs:bpmnId a rdf:Property ;
+    rdfs:label "BPMN id" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The element's BPMN id: the row's ``task``, or ``bpmn.id`` on the span." .
+
+obs:status a rdf:Property ;
+    rdfs:label "status" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The lifecycle state the step moved its entity to: the row's ``status``, or ``seams.status``." .
+
+obs:fires a rdf:Property ;
+    rdfs:label "fires" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "The state:Transition the step fired: the row's ``fires``, or ``seams.fires``." .
+
+obs:decision a rdf:Property ;
+    rdfs:label "decision" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "The DMN decision the step evaluated: the row's ``decision``, or ``seams.decision``." .
+
+obs:invokes a rdf:Property ;
+    rdfs:label "invokes" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "The hydra:Operation the step invoked: the row's ``invokes``, or ``seams.invokes``." .
+
+obs:container a rdf:Property ;
+    rdfs:label "container" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "The arch:Container the operation ran in: the row's ``container``, or ``seams.container``." .
+
+obs:implementation a rdf:Property ;
+    rdfs:label "implementation" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment """How the operation was implemented: the ADR-0012 kind, or "runtime";
+the row's ``implementation``, or ``seams.implementation``.""" .
+
+obs:handler a rdf:Property ;
+    rdfs:label "handler" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment "A Python handler's dotted path: the row's ``handler``, or ``seams.handler``." .
+
+obs:by a rdf:Property ;
+    rdfs:label "by" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Who completed the user task: the row's ``by``, or ``seams.by``." .
+
+obs:channel a rdf:Property ;
+    rdfs:label "channel" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment """The channel the step published or streamed to: the ``channel`` of the
+row's ``published`` or ``streamed``, or ``seams.channel``.""" .
+
+obs:boundary a rdf:Property ;
+    rdfs:label "boundary" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "The error boundary event a declared error was routed to (ADR-0013): the row's ``boundary``, or ``seams.boundary``." .
+
+obs:caught a rdf:Property ;
+    rdfs:label "caught" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "On a boundary step, the error it caught: the row's ``caught``, or ``seams.caught``." .
+
+obs:timer a rdf:Property ;
+    rdfs:label "timer" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment "When the timer the step fired was due (ADR-0037): the row's ``timer``, or ``seams.timer.due``." .
+
+obs:errorCode a rdf:Property ;
+    rdfs:label "error code" ;
+    rdfs:domain obs:Step ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The comm:errorCode of the declared error the step raised: the row's ``error.code``, or ``seams.error.code``." .
+
+obs:errorStatus a rdf:Property ;
+    rdfs:label "error status" ;
+    rdfs:domain obs:Step ;
+    rdfs:comment "The hydra:Status of the declared error the step raised: the row's ``error.status``, or ``seams.error.status``." .

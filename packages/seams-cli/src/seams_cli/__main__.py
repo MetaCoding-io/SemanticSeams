@@ -114,7 +114,11 @@ each layer adds and removes, as CURIEs. OLD and NEW are model paths or git
 ``REF:PATH`` specs, extracted with ``git archive``. The plan goes to stdout,
 or to FILE, whose path is then printed. Exit codes and the stderr summary
 (``seams plan: N breaking, M compatible``) are diff's; an unknown ref or a
-failing git exits 2.
+failing git exits 2. For breaking changes to stored shapes the plan holds a
+"Stored-data migrations" section (ADR-0041): SQL per store kind and shape, and
+the refusals, each also printed on stderr after the summary as ``seams plan:
+refused <shape> <path> (<kind>): <reason>``. A refusal is the deploy refusal
+and exits 1.
 
 ``seams coverage [MODEL | --project PATH] [--json]`` (D054) lists what the
 model declares that nothing exercises: each BPMN path no verify:Scenario runs
@@ -244,8 +248,9 @@ from .draft_generator import DraftGeneratorError, draft_generator
 from .generate import apply, generate_project
 from .lockfile import locate
 from .migrate import migrate
+from .migrations import Refusal, migrations
 from .new_generator import NewGeneratorError, new_generator
-from .plan import render, resolve
+from .plan import refusal_line, render, resolve
 from .project import PROJECT_FILE, ProjectError, load_project, resolve_model
 from .propose import ProposeError, propose
 from .secrets import EXAMPLE, example_environment, render_example, run_secrets
@@ -693,8 +698,11 @@ def _plan(args: argparse.Namespace) -> int:
         args.output.write_text(text, encoding="utf-8")
         print(_display(args.output.resolve()))
     counts = to_json(changes)["counts"]
-    if counts[BREAKING]:
+    refusals = [r for r in migrations(old, new, changes) if isinstance(r, Refusal)]
+    if counts[BREAKING] or refusals:
         print(f"seams plan: {counts[BREAKING]} breaking, {counts[COMPATIBLE]} compatible", file=sys.stderr)
+        for refusal in refusals:
+            print(f"seams plan: {refusal_line(refusal, new, old)}", file=sys.stderr)
         return 1
     return 0
 

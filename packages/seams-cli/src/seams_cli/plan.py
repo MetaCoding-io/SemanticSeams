@@ -9,6 +9,13 @@ elements, the interaction models with their pages, components, events and
 flows, the architecture's systems, containers, deployment nodes and
 environments). The output is deterministic.
 
+When ``seams_cli.migrations`` (ADR-0041) finds breaking changes to stored
+shapes, a "Stored-data migrations" section follows the compatible changes: a
+fenced ``sql`` block per store kind and shape, its statements in the sorted
+order, and then the refusals, each as ``refused <shape> <path> (<kind>):
+<reason>`` (``refusal_line``) with CURIEs. With no migration and no refusal the
+section is left out.
+
 ``resolve(spec, workdir)`` turns a model argument into a path. ``REF:PATH``,
 where the part before the colon is not an existing path, is a git ref and a
 path in it: ``git archive`` extracts PATH at REF into ``workdir``. A failing
@@ -27,6 +34,7 @@ from typing import NamedTuple
 import seams
 
 from .diff import BREAKING, COMPATIBLE, Change, shorten
+from .migrations import Migration, Refusal, migrations
 from .project import ProjectError
 
 LAYERS = (
@@ -114,6 +122,27 @@ def _bullets(lines: list[str]) -> list[str]:
     return [f"- {line}" for line in lines] or ["None"]
 
 
+def refusal_line(refusal: Refusal, new: seams.Model, old: seams.Model) -> str:
+    """``refused <shape> <path> (<kind>): <reason>``, with CURIEs where NEW or OLD binds a prefix."""
+    return f"refused {shorten(f'{refusal.shape} {refusal.path}', new, old)} ({refusal.kind}): {shorten(refusal.reason, new, old)}"
+
+
+def _migration_section(old: seams.Model, new: seams.Model, records: list[Migration | Refusal]) -> list[str]:
+    if not records:
+        return []
+    blocks: dict[tuple[str, str], list[str]] = {}
+    for record in records:
+        if isinstance(record, Migration):
+            blocks.setdefault((record.kind, record.shape), []).append(record.sql)
+    refusals = [refusal_line(r, new, old) for r in records if isinstance(r, Refusal)]
+    out = ["## Stored-data migrations", ""]
+    for (kind, shape), statements in sorted(blocks.items()):
+        out += [f"### {kind} {shorten(shape, new, old)}", "", "```sql", *statements, "```", ""]
+    if refusals:
+        out += ["Refused:", "", *_bullets(refusals), ""]
+    return out
+
+
 def render(old: seams.Model, new: seams.Model, changes: Iterable[Change]) -> str:
     """The Markdown change plan from OLD to NEW for ``seams diff``'s ``changes``."""
     ordered = sorted(changes, key=lambda c: (c.subject, c.kind, c.detail, c.verdict))
@@ -127,6 +156,7 @@ def render(old: seams.Model, new: seams.Model, changes: Iterable[Change]) -> str
 
     out = ["# Change plan", "", "## Breaking changes", "", *_bullets(described(BREAKING)), ""]
     out += ["## Compatible changes", "", *_bullets(described(COMPATIBLE)), ""]
+    out += _migration_section(old, new, migrations(old, new, ordered))
     out += ["## Elements by layer", ""]
     layers = [(layer, change) for layer, change in layer_changes(old, new).items() if change.added or change.removed]
     if not layers:

@@ -66,10 +66,103 @@ def test_backwards_plan_is_breaking_and_writes_output(tmp_path, capsys):
     assert main(["plan", str(CH09), str(CH08), "--output", str(target)]) == 1
     out = capsys.readouterr()
     assert out.out.strip() == str(target)
-    assert out.err.strip() == "seams plan: 4 breaking, 0 compatible"
+    summary, *refused = out.err.strip().splitlines()
+    assert summary == "seams plan: 4 breaking, 0 compatible"
+    # ADR-0041: the stored NotificationShape cannot be removed mechanically, so it is refused after the summary.
+    assert refused == [
+        "seams plan: refused :NotificationShape - (shape-removed): the shape is removed: its rows have no "
+        "shape to conform to, and deleting them is not mechanical"
+    ]
     text = target.read_text()
     assert "- shape-removed :NotificationShape\n" in text
     assert "### Shapes\n\nRemoved:\n\n- :NotificationShape\n" in text
+    assert "## Stored-data migrations\n\nRefused:\n\n- refused :NotificationShape - (shape-removed): " in text
+
+
+PREFIXES = """\
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix seam:   <https://w3id.org/seams/seam#> .
+@prefix arch:   <https://w3id.org/seams/arch#> .
+@prefix deploy: <https://w3id.org/seams/deploy#> .
+@prefix :       <https://example.org/m/> .
+"""
+STORES = ":db a arch:Container ; deploy:storeKind deploy:SQLite .\n:pkm a arch:Container ; deploy:storeKind deploy:SemPKM .\n"
+NAME = "sh:property [ sh:path :name ; sh:datatype xsd:string ; sh:minCount 1 ; sh:maxCount 1 ]"
+NOTE = "sh:property [ sh:path :note ; sh:datatype xsd:string ; sh:maxCount 1 ]"
+COUNT = "sh:property [ sh:path :count ; sh:datatype xsd:integer ; sh:minCount 1{} ]"
+
+
+def _stored(*props: str, store: str = ":db") -> str:
+    body = " ;\n    ".join((":ItemShape a sh:NodeShape", f"seam:storedIn {store}", *props))
+    return PREFIXES + "<urn:seams:graph:shapes> {\n" + body + " .\n" + STORES + "}\n"
+
+
+def _write(tmp_path: Path, old: str, new: str) -> tuple[Path, Path]:
+    (tmp_path / "old.trig").write_text(old, encoding="utf-8")
+    (tmp_path / "new.trig").write_text(new, encoding="utf-8")
+    return tmp_path / "old.trig", tmp_path / "new.trig"
+
+
+def test_stored_changes_get_a_sql_block_per_kind_and_shape(tmp_path, capsys):
+    old, new = _write(tmp_path, _stored(NAME, NOTE), _stored(NAME, COUNT.format(" ; sh:defaultValue 0")))
+    assert main(["plan", str(old), str(new)]) == 1
+    out = capsys.readouterr()
+    assert out.err == "seams plan: 2 breaking, 0 compatible\n", "no refusal line"
+    text = out.out
+    headings = [line for line in text.splitlines() if line.startswith("#")]
+    assert headings[:5] == [
+        "# Change plan",
+        "## Breaking changes",
+        "## Compatible changes",
+        "## Stored-data migrations",
+        "### postgresql :ItemShape",
+    ]
+    assert "### sqlite :ItemShape" in headings
+    shape = "'https://example.org/m/ItemShape'"
+    assert (
+        "### sqlite :ItemShape\n\n```sql\n"
+        f"UPDATE entities SET data = json_set(data, '$.\"count\"', json('0')) WHERE shape = {shape} "
+        "AND json_type(data, '$.\"count\"') IS NULL;\n"
+        f"UPDATE entities SET data = json_remove(data, '$.\"note\"') WHERE shape = {shape};\n```\n"
+    ) in text
+    assert f"UPDATE entities SET data = data - 'note' WHERE shape = {shape};" in text
+    assert "Refused:" not in text
+    assert text.index("## Stored-data migrations") < text.index("## Elements by layer")
+    assert main(["plan", str(old), str(new)]) == 1
+    assert capsys.readouterr().out == text, "deterministic"
+
+
+def test_refusals_name_shape_and_path_in_the_plan_and_on_stderr(tmp_path, capsys):
+    old, new = _write(tmp_path, _stored(NAME), _stored(NAME, COUNT.format("")))
+    assert main(["plan", str(old), str(new)]) == 1
+    out = capsys.readouterr()
+    line = "refused :ItemShape :count (property-added): no sh:defaultValue to fill the rows that lack it"
+    assert out.err.splitlines() == ["seams plan: 1 breaking, 0 compatible", f"seams plan: {line}"]
+    assert f"## Stored-data migrations\n\nRefused:\n\n- {line}\n" in out.out
+    assert "```sql" not in out.out
+
+
+def test_sempkm_store_is_refused_with_no_sql(tmp_path, capsys):
+    old, new = _write(tmp_path, _stored(NAME, NOTE, store=":pkm"), _stored(NAME, store=":pkm"))
+    assert main(["plan", str(old), str(new)]) == 1
+    err = capsys.readouterr().err.splitlines()
+    assert err[1:] == [
+        "seams plan: refused :ItemShape :note (property-removed): stored in the SemPKM store :pkm; "
+        "SemPKM data is not rewritten by SQL"
+    ]
+
+
+def test_unstored_shape_has_no_migration_section(tmp_path, capsys):
+    old, new = _write(
+        tmp_path,
+        _stored(NAME, NOTE).replace("seam:storedIn :db ;", ""),
+        _stored(NAME).replace("seam:storedIn :db ;", ""),
+    )
+    assert main(["plan", str(old), str(new)]) == 1
+    out = capsys.readouterr()
+    assert "## Stored-data migrations" not in out.out
+    assert out.err == "seams plan: 1 breaking, 0 compatible\n"
 
 
 def _git(repo: Path, *args: str) -> None:

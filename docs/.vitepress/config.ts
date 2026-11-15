@@ -67,6 +67,7 @@ const decisions = [
   ["0038", "Shared stream channel and replicas", "0038-shared-stream-channel"],
   ["0039", "Data classification", "0039-data-classification"],
   ["0040", "External systems and webhooks", "0040-external-systems-and-webhooks"],
+  ["0041", "Stored-data migrations", "0041-stored-data-migrations"],
 ] as const;
 
 export default defineConfig({

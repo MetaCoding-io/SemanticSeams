@@ -65,6 +65,7 @@ const decisions = [
   ["0036", "Cross-aggregate invariants", "0036-cross-aggregate-invariants"],
   ["0037", "Timers and scheduling", "0037-timers-and-scheduling"],
   ["0038", "Shared stream channel and replicas", "0038-shared-stream-channel"],
+  ["0039", "Data classification", "0039-data-classification"],
 ] as const;
 
 export default defineConfig({

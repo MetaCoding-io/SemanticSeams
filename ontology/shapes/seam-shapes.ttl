@@ -15,6 +15,7 @@
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix verify: <https://w3id.org/seams/verify#> .
 @prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix dpv:    <https://w3id.org/dpv#> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
 
 <https://w3id.org/seams/shapes> a owl:Ontology ;
@@ -41,6 +42,7 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "verify" ; sh:namespace "https://w3id.org/seams/verify#"^^xsd:anyURI ] ,
                [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] ,
                [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] ,
+               [ sh:prefix "dpv" ; sh:namespace "https://w3id.org/dpv#"^^xsd:anyURI ] ,
                [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ] .
 
 #################################################################
@@ -1997,5 +1999,41 @@ seamsh:FlattenedFieldShape a sh:NodeShape ;
                 ?p sh:path ?path ; sh:node ?value ; sh:datatype ?datatype .
                 OPTIONAL { ?p sh:name ?name }
                 BIND (COALESCE(?name, ?path) AS ?field)
+            }""" ;
+    ] .
+
+#################################################################
+# Data classification (ADR-0039)
+#################################################################
+# A field holds personal data when its property shape states dpv:hasPersonalData
+# with a category IRI, such as pd:EmailAddress from the W3C DPV personal data
+# extension. Both checks are new shapes, so a model without the annotation is
+# unaffected; the personal-data screens query reads only annotations that pass them.
+
+seamsh:PersonalDataCategoryShape a sh:NodeShape ;
+    sh:targetClass sh:NodeShape ;
+    sh:sparql [
+        sh:message "{$this}: field {?field} has dpv:hasPersonalData {?value}, which is not an IRI; the personal data category is an IRI, such as a DPV pd: concept (ADR-0039)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value ?field WHERE {
+                $this sh:property ?p .
+                ?p sh:path ?fieldPath ; dpv:hasPersonalData ?value .
+                FILTER (!isIRI(?value))
+                OPTIONAL { ?p sh:name ?name }
+                BIND (COALESCE(?name, ?fieldPath) AS ?field)
+                BIND (dpv:hasPersonalData AS ?path)
+            }""" ;
+    ] .
+
+seamsh:PersonalDataPlacementShape a sh:NodeShape ;
+    sh:targetSubjectsOf dpv:hasPersonalData ;
+    sh:sparql [
+        sh:message "{$this} has dpv:hasPersonalData but is not the sh:property of a shape; the annotation goes on the property shape of the field that holds the personal data (ADR-0039)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path WHERE {
+                FILTER NOT EXISTS { ?shape sh:property $this . $this sh:path ?fieldPath }
+                BIND (dpv:hasPersonalData AS ?path)
             }""" ;
     ] .

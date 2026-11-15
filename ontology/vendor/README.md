@@ -16,3 +16,11 @@ release, add its file beside the old one and its row here.
 gist is © Semantic Arts, licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), as the ontology header's
 `gist:license` states. It is not covered by this repository's Apache-2.0 licence.
+
+## Not vendored
+
+A model may use a third-party term without importing its ontology. The W3C Data
+Privacy Vocabulary's `dpv:hasPersonalData` and its `pd:` categories annotate personal
+fields ([ADR-0039](../../docs/adr/0039-data-classification.md)), but nothing imports DPV
+or reads its labels, so no DPV file is vendored. Vendor its release here, with a row
+above, when a change needs its labels or class hierarchy.

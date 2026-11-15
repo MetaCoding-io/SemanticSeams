@@ -764,6 +764,35 @@ category label must be usable as a JSON-LD term (not empty, not starting with `@
 `:`), and the target class's local name must not also be a field name; the generator
 refuses either with a `GeneratorError` naming the member or the shape.
 
+### Personal data
+
+A field that holds personal data says so on its property shape, with the W3C Data
+Privacy Vocabulary's `dpv:hasPersonalData` and a category IRI
+([ADR-0039](/adr/0039-data-classification)). The categories are DPV's personal data
+extension, `pd:` (`pd:Name`, `pd:EmailAddress`, `pd:TelephoneNumber` and so on), or a
+category your ontology model declares when DPV has none:
+
+```trig
+@prefix dpv: <https://w3id.org/dpv#> .
+@prefix pd:  <https://w3id.org/dpv/pd#> .
+
+:VendorShape a sh:NodeShape ; rdfs:label "Vendor" ;
+    # A vendor here is a person paid for out-of-pocket costs, so the name identifies them.
+    sh:property [ sh:path :name ; sh:datatype xsd:string ; sh:maxCount 1 ;
+                  dpv:hasPersonalData pd:Name ] ;
+    seam:inModel :expense_data .
+```
+
+- The annotation goes on the `sh:property` node, not on the shape or the RDF property:
+  the same property can be personal in one shape and not in another. A field that holds
+  two kinds of personal data states both.
+- The value is an IRI. `seams check` and the viewer's health panel report a string such
+  as `"email address"`, naming the shape, the field and `dpv:hasPersonalData`, and they
+  report the annotation anywhere but on a property shape with an `sh:path`.
+- It needs no vocabulary version and no import: DPV is not loaded, and nothing in the
+  generated application changes. Backlog X3 adds a bundled query and a viewer Question
+  that read it to list, per role, the screens that show annotated fields.
+
 ## Lifecycles on the class
 
 A lifecycle belongs to the thing, not to one view of it. With `seam` 1.4 in the

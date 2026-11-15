@@ -34,7 +34,8 @@ uv sync --locked --all-packages
 git config core.hooksPath .githooks   # once per clone: refuses commits with conflict markers
 uv run ruff check && uv run ruff format --check
 uv run pyright
-uv run pytest -q
+uv run pytest -q -n auto            # fast parallel run; serial `uv run pytest -q` stays valid
+# refresh CI shard balance after adding many tests: uv run pytest -q --store-durations
 # docs changes:
 cd docs && uv run npm run build
 # runtime, generator or compose changes (needs Docker):

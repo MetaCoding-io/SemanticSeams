@@ -179,7 +179,20 @@ Run what CI runs, for the parts you touched:
 uv run ruff check
 uv run ruff format --check
 uv run pyright
-uv run pytest -q
+uv run pytest -q -n auto
+```
+
+`uv run pytest -q -n auto` runs the suite in parallel with pytest-xdist; the serial
+`uv run pytest -q` stays valid and gives the same result, only slower.
+
+CI splits the suite into 4 groups with pytest-split, balanced by the committed
+`.test_durations` file, and a collection guard (`tests/ci/check_shards.py`) fails the
+run if the groups do not cover every collected test exactly once. When you add or
+remove many tests, or the groups drift out of balance, refresh the durations and
+commit the file:
+
+```sh
+uv run pytest -q --store-durations
 ```
 
 When you touch a generator, a template or `examples/chat-app/chat-app.trig`, regenerate

@@ -293,7 +293,8 @@ seamsh:ExternalContainmentShape a sh:NodeShape ;
 
 # The model neither builds nor runs an external container, so it carries none of
 # the facts a generator would turn into a service, an image or code. Its label,
-# arch:technology, deploy:storeKind, arch:dependsOn and seam:exposes stay.
+# arch:technology, deploy:storeKind, arch:dependsOn inside its own system and
+# seam:exposes stay.
 seamsh:ExternalContainerShape a sh:NodeShape ;
     sh:targetClass arch:Container ;
     sh:sparql [
@@ -308,6 +309,29 @@ seamsh:ExternalContainerShape a sh:NodeShape ;
                     deploy:configuration, deploy:placement, deploy:proxies, deploy:dependsOn,
                     seam:executes, seam:presents, seam:schedules, seam:deployedTo
                 ))
+            }""" ;
+    ] .
+
+# What the third party depends on is not the model's to say (ADR-0040 sections 2
+# and 4): an external container arch:dependsOn only containers of its own system
+# and seam:consumes nothing. So no dependency path from the model's elements to a
+# node passes through one, and impact-of-node.rq needs no boundary clause.
+seamsh:ExternalBoundaryShape a sh:NodeShape ;
+    sh:targetClass arch:Container ;
+    sh:sparql [
+        sh:message "A container of an external arch:System arch:dependsOn only containers of its own system and seam:consumes nothing: what the third party depends on is not the model's to say." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT DISTINCT $this ?path WHERE {
+                ?external a arch:System ; arch:external true ; arch:contains $this .
+                {
+                    $this arch:dependsOn ?target .
+                    FILTER NOT EXISTS { ?external arch:contains ?target }
+                    BIND (arch:dependsOn AS ?path)
+                } UNION {
+                    $this seam:consumes ?consumed .
+                    BIND (seam:consumes AS ?path)
+                }
             }""" ;
     ] .
 

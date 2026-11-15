@@ -18,55 +18,45 @@ starts a process in the app, through a webhook channel
 
 ## The store and its triplestore
 
-SemPKM is two services: its API, and the RDF4J triplestore that holds its data. Declare
-both in the architecture graph and add them to `:expense_system`'s `arch:contains`. The
-API container's `deploy:storeKind` is what makes it a store:
+SemPKM is two services: its API, and the RDF4J triplestore that holds its data. Neither
+is yours. SemPKM is a separate product with its own releases and its own deployment, so
+the model says so: both containers belong to a system of their own, `:sempkm`, which is
+`arch:external true` ([ADR-0040](/adr/0040-external-systems-and-webhooks)). An external
+system is still an `arch:System` in the architecture graph. The model names it, so its
+bindings and shapes can point at it, but it neither builds nor runs it:
+
+```trig
+    # SemPKM (ADR-0040): a system the model talks to but neither builds nor
+    # runs. Its containers are external because it is; their facts are only
+    # the ones the model's own containers need to reach them.
+    :sempkm a arch:System ; rdfs:label "SemPKM" ;
+        arch:external true ;
+        arch:technology "SemPKM" ;
+        arch:contains :expense_pkm , :expense_triplestore ;
+        seam:inModel :expense_architecture .
+```
+
+The store container's `deploy:storeKind` is what makes it a store. Its containers keep
+only the facts the model's own containers need: a label, the technology, the store kind
+and the dependency inside SemPKM. The shapes refuse an image, a port, a volume, a
+healthcheck or a deployment node on a container of an external system, since the model
+does not run it:
 
 ```trig
     :expense_pkm a arch:Container ; rdfs:label "Expense Knowledge Store" ;
         arch:technology "SemPKM" ;
         deploy:storeKind deploy:SemPKM ;
         arch:dependsOn :expense_triplestore ;
-        deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/metacoding-io/sempkm-api" ;
-                          deploy:version "1.0.0" ] ;
-        deploy:configuration [ a deploy:Configuration ;
-                               deploy:binding [ deploy:key "TRIPLESTORE_URL" ;
-                                                deploy:value "http://expense_triplestore:8080/rdf4j-server" ] ;
-                               deploy:binding [ deploy:key "REPOSITORY_ID" ;
-                                                deploy:value "expenses" ] ;
-                               deploy:binding [ deploy:key "BASE_NAMESPACE" ;
-                                                deploy:value "https://example.org/expenses/data/" ] ] ;
-        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
-        deploy:volume [ a deploy:Volume ;
-                        deploy:volumeName "expense_pkm_data" ;
-                        deploy:mountPath "/app/data" ] ;
-        deploy:dependsOn :expense_triplestore ;
-        deploy:healthcheck [ a deploy:Healthcheck ;
-                             deploy:probe "curl -f http://localhost:8000/api/health" ;
-                             deploy:interval "10s" ] ;
         seam:inModel :expense_architecture .
-```
 
-```trig
     :expense_triplestore a arch:Container ; rdfs:label "Expense Triplestore" ;
         arch:technology "RDF4J" ;
-        deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "eclipse/rdf4j-workbench" ;
-                          deploy:version "5.0.1" ] ;
-        deploy:port [ a deploy:Port ; deploy:containerPort 8080 ] ;
-        deploy:volume [ a deploy:Volume ;
-                        deploy:volumeName "expense_triplestore_data" ;
-                        deploy:mountPath "/var/rdf4j" ] ;
-        deploy:healthcheck [ a deploy:Healthcheck ;
-                             deploy:probe "curl -f http://localhost:8080/rdf4j-server/protocol" ;
-                             deploy:interval "10s" ] ;
         seam:inModel :expense_architecture .
 ```
 
-SemPKM keeps the key it signs sessions with on its data volume, so it needs no secret of
-its own. If your registry holds SemPKM's API image under another name, change
-`deploy:reference` and regenerate. Nothing else names it.
+`:expense_system` still contains only the portal, the API and the PostgreSQL store. The
+C4 views show two systems: Expense Approval, whose API depends on SemPKM's store, and
+SemPKM, marked as external.
 
 ## Two bindings on the API
 
@@ -78,8 +68,11 @@ binding that carries a plain `deploy:value`. Add both to `:expense_api`'s config
 ```trig
                                # SemPKM (ADR-0025): its URL, and the service
                                # token that deploy:authenticatesTo it, a secret.
+                               # SemPKM is external (ADR-0040), so the URL is
+                               # the deployment the operator runs, not a
+                               # compose service.
                                deploy:binding [ deploy:key "SEMPKM_URL" ;
-                                                deploy:value "http://expense_pkm:8000" ;
+                                                deploy:value "https://sempkm.example.org" ;
                                                 deploy:connectsTo :expense_pkm ] ;
                                deploy:binding [ deploy:key "SEMPKM_TOKEN" ;
                                                 deploy:secretRef <https://secrets.example.org/expenses/prod/sempkm-token> ;
@@ -95,8 +88,11 @@ In development the token comes from a file, as the connection string does:
                                  deploy:authenticatesTo :expense_pkm ] ] ] ;
 ```
 
-Also add `:expense_pkm` to the API's `arch:dependsOn` and `deploy:dependsOn`, so the API
-starts after SemPKM is healthy.
+The URL is a `deploy:value`, the address of the SemPKM you run, and not a
+`deploy:serviceOf` binding: a service URL is derived from a compose service, and an
+external container has none. Add `:expense_pkm` to the API's `arch:dependsOn`, which is
+what the C4 views draw. Do not add it to `deploy:dependsOn`: that would be a compose
+`depends_on` naming a service that does not exist, and the shapes refuse it.
 
 ## Move the expenses
 
@@ -126,11 +122,16 @@ seams check --project examples/expenses/chapter-10
 ```
 
 The route module and templates are chapter 9's, apart from the model hash. The compose
-files gain two services, `expense_pkm` and `expense_triplestore`, built from their own
-facts: images, ports, volumes and healthchecks. The API's `SEMPKM_URL` becomes an
-environment entry. `SEMPKM_TOKEN` becomes a secret mounted as `SEMPKM_TOKEN_FILE`, an
-external secret in production and the local file in development. The generator knows
-nothing about SemPKM. It writes what the model says.
+files keep chapter 9's three services: the generator writes no service, volume or
+healthcheck for a container of an external system. The API's `SEMPKM_URL` becomes an
+environment entry, which in development a host can override with its own `SEMPKM_URL`.
+`SEMPKM_TOKEN` becomes a secret mounted as `SEMPKM_TOKEN_FILE`, an external secret in
+production and the local file in development. The generator knows nothing about SemPKM.
+It writes what the model says.
+
+`impact-of-node.rq` treats SemPKM the same way. A walk that reaches a container of an
+external system lists the system once and stops there, and an external container is
+deployed to no node, so `:db01` now lists only what depends on `:expense_db`.
 
 ## Teach SemPKM the expense
 
@@ -174,11 +175,12 @@ and properties keep the model's IRIs, because they are the types and properties 
 expenses the runtime writes.
 
 To install it, copy the directory where SemPKM can read it and, as SemPKM's owner, call
-`POST /api/models/install` with its path:
+`POST /api/models/install` with its path. SemPKM runs from its own project, not from
+this chapter's compose files, so copy the package into its API container by that
+container's name:
 
 ```sh
-docker compose -f examples/expenses/chapter-10/compose.development.yaml \
-  cp examples/expenses/chapter-10/generated/mental-model expense_pkm:/tmp/mental-model
+docker cp examples/expenses/chapter-10/generated/mental-model <sempkm-api-container>:/tmp/mental-model
 ```
 
 ```json
@@ -190,19 +192,22 @@ appears among its types, with a form and the views.
 
 ## Run it
 
-You need a SemPKM and a PostgreSQL. To run the whole stack, start it from the
-generated compose file:
+You need a SemPKM and a PostgreSQL. The model does not run SemPKM, so start it first
+from its own checkout (`docker compose up` there serves its API on
+`http://localhost:8001`). Then start the app's stack from the generated compose file,
+pointing `SEMPKM_URL` at that SemPKM as the API container sees it:
 
 ```sh
-docker compose -f examples/expenses/chapter-10/compose.development.yaml up --build
+SEMPKM_URL=http://host.docker.internal:8001 \
+  docker compose -f examples/expenses/chapter-10/compose.development.yaml up --build
 ```
 
-The API reads its SemPKM token from `docker/local-secrets/expense_sempkm_token`, which the
+On Linux, `host.docker.internal` needs Docker's host-gateway mapping. Otherwise use your
+host's address on the Docker bridge. The API reads its SemPKM token from `docker/local-secrets/expense_sempkm_token`, which the
 repository does not hold: a token belongs to one SemPKM. Save a key from that SemPKM
 there before the API starts, or set `SEMPKM_TOKEN_FILE` to another file.
 
-To run the host in process instead, start SemPKM from its own checkout
-(`docker compose up` there serves its API on `http://localhost:8001`). In SemPKM's
+To run the host in process instead, start SemPKM the same way. In SemPKM's
 **Settings**, under **API Keys**, generate a key and save it to a file. The runtime
 needs the scopes `commands:execute` (to write) and `sparql:read` (to read). Then point
 the host at SemPKM and at a PostgreSQL:
@@ -389,9 +394,11 @@ diff examples/expenses/chapter-09/expenses.trig examples/expenses/chapter-10/exp
 ```
 
 `tests/test_expense_sempkm.py` checks this chapter. It runs `seams check`, resolves the
-store plan (expenses and vendors in `:expense_pkm`, everything else in `:expense_db`), and checks the
-SemPKM services in both compose files. It checks that the committed Mental Model is a fresh
-render of the model and, with `SEAMS_E2E=1`, installs it into the chapter's SemPKM. It also serves the committed route module against
+store plan (expenses and vendors in `:expense_pkm`, everything else in `:expense_db`), checks that
+`:sempkm` is the one external system and that neither compose file has a SemPKM service. It checks
+that the committed Mental Model is a fresh render of the model and, with `SEAMS_E2E=1`, installs it
+into a SemPKM started from `tests/fixtures/sempkm/compose.yaml`, which stands in for SemPKM's own
+deployment. It also serves the committed route module against
 a fake SemPKM that applies commands and answers SPARQL the way SemPKM does. In that run,
 a submitted expense is stored and read back under its minted IRI, approving it patches
 its status, an invalid expense sends nothing, and a SemPKM outage is a 503 naming the

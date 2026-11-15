@@ -1,14 +1,14 @@
 {
   "lockfile_version": 1,
   "model": "chat-app.trig",
-  "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+  "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
   "outputs": [
     {
       "generator": "compose",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "../../compose.development.yaml",
-      "sha256": "45835ab7c767c10ca66d33e2e7d8a386b7c4a6b95ae0ee1d25ac46685c480b3b",
+      "sha256": "c1cee9d506c7c0a00e3557453a78dd2081789713ce02c88658c7c06bf92cc676",
       "sources": [
         "https://example.org/chat/chat_api",
         "https://example.org/chat/chat_system",
@@ -22,7 +22,7 @@
     {
       "generator": "compose",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "../../compose.development.yaml.trace.json",
       "sha256": "b0c400e2c23fac0db359b1a1e6d60041e84dc14d7111edcd43afb3ce89f163c2",
       "sources": [
@@ -38,9 +38,9 @@
     {
       "generator": "compose",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "../../compose.production.yaml",
-      "sha256": "be2430a0c515d16c964a023f1a00cc09499de4db59c98e102d37b651b58a7741",
+      "sha256": "a0b4bcfe523008ed053855eb5e13417216c970f9460cfa81cb942bd4589352e3",
       "sources": [
         "https://example.org/chat/app01",
         "https://example.org/chat/chat_api",
@@ -57,7 +57,7 @@
     {
       "generator": "compose",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "../../compose.production.yaml.trace.json",
       "sha256": "5141b94c743573b5ab18a3a7fcaa172ea731374089d5146d057a836be5f317d5",
       "sources": [
@@ -76,9 +76,9 @@
     {
       "generator": "dockerfile",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/chat_api.Dockerfile",
-      "sha256": "e5f54ff9ae1916dc505cb3982e145a721d323d37ae4971d2f106fd13dd38b0e3",
+      "sha256": "8953e2735c5eef23cdf5acf9494c054ef68c95e87ab68323bbe8c6b27eb0171b",
       "sources": [
         "https://example.org/chat/chat_api"
       ]
@@ -86,7 +86,7 @@
     {
       "generator": "dockerfile",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/chat_api.Dockerfile.trace.json",
       "sha256": "ab4f0b103a28752e7e8fe29beddba234933159ed458513eeb15d873d2929f3c3",
       "sources": [
@@ -96,9 +96,9 @@
     {
       "generator": "fastapi",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/chat_api.py",
-      "sha256": "b05b28d9ba8211dc5085d32ac9d070b699a5244dc3f9d51462683d5195e86cac",
+      "sha256": "90f7fa9b58314d00139bab76f18677aed5e9212a584bdd83d110239f47111f63",
       "sources": [
         "https://example.org/chat/ConversationShape",
         "https://example.org/chat/MessageShape",
@@ -122,7 +122,7 @@
     {
       "generator": "fastapi",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/chat_api.py.trace.json",
       "sha256": "0276f546d58a2f7f5474c63704e26268160ed509d048074448df295aaef4242a",
       "sources": [
@@ -148,9 +148,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/chat_page.html",
-      "sha256": "d5fafbdb8174d0a39ed37b584b04772ccaf149b3a26240a6a5433408e8f3dbc7",
+      "sha256": "7717f9a651aaca95e30eea319a39ccc53a5b50e318e6c797fb9ad743ec893aa5",
       "sources": [
         "https://example.org/chat/ConversationShape",
         "https://example.org/chat/MessageShape",
@@ -184,7 +184,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/chat_page.html.trace.json",
       "sha256": "3d43104ab718a654625d60f51ce7088a2aab2f5ec5832b5e26d27b7f17a178d7",
       "sources": [
@@ -220,9 +220,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/conversation_list.html",
-      "sha256": "6d9e52c00d9fc22c7284e63b1bf6d9ecdaa9416901a4b3803bf78bdef737decc",
+      "sha256": "c194d2a517719f56e781665598d0c2b87c66971bf214aeede62d67f97140fb78",
       "sources": [
         "https://example.org/chat/ConversationShape",
         "https://example.org/chat/chat_ifml",
@@ -242,7 +242,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/conversation_list.html.trace.json",
       "sha256": "0e4f84240107011a836c1035e06c383676737b26a5c80445daccf5e2332b82d1",
       "sources": [
@@ -264,9 +264,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/message_thread.html",
-      "sha256": "547c6409c49022f5ba0de5b999d901d42f8de86d30f1653706af02488ece8e74",
+      "sha256": "4f6dfc603f670cf2a67637f50836d697fa5a46988938bc016a87ccfa2ee2c686",
       "sources": [
         "https://example.org/chat/MessageShape",
         "https://example.org/chat/chat_bpmn#invoke_llm",
@@ -286,7 +286,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/message_thread.html.trace.json",
       "sha256": "2671f2bce20ba03414d8406d74786103db15ec0d954bea8ada5f9568980aa972",
       "sources": [
@@ -308,9 +308,9 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/message_thread_item.html",
-      "sha256": "e45435a7f5b1556e50ce65717a52767cb9c390adfe68bf72aa1e9f7bbc5112c0",
+      "sha256": "683c11cf398a3a947177219ca25cc2e692e158a61f901b9d76970d9c465e463f",
       "sources": [
         "https://example.org/chat/MessageShape",
         "https://example.org/chat/chat_ifml",
@@ -329,7 +329,7 @@
     {
       "generator": "htmx",
       "generator_version": "0.1.0",
-      "model_hash": "sha256:fbf120bc3b1c088005f4406784af46ff279a6824e40483b6eeb9c9552f2473dd",
+      "model_hash": "sha256:f6c410080a09bac82d169ba6fb0a49dbdb520d051653c021f29538c7797f80f4",
       "path": "generated/templates/message_thread_item.html.trace.json",
       "sha256": "be78d0eed0a1763933c3c677036b25a3b53dda140978d5234058a0007b45c26b",
       "sources": [

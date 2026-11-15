@@ -60,6 +60,15 @@ tasks, through decisions and operation invocations and any asynchronous hop thro
 channel, to whatever `seam:writes` the shape. `seam:inModel` is what lets the path step
 from a process down into its tasks.
 
+The impact question walks dependencies outward from the containers deployed to a node,
+and it never leaves the model. A system the model neither builds nor runs is an
+`arch:System` with `arch:external true`
+([ADR-0040](/adr/0040-external-systems-and-webhooks)): SemPKM in the expense tutorial's
+[chapter 10](/tutorials/expenses/10-sempkm). Its containers are deployed to no node, so
+they never start a walk. They depend only on each other and consume nothing of the
+model, which the shapes check, so no walk passes through one either. What the third
+party depends on is not the model's to report.
+
 Adding a question is adding a `.rq` file with a free focus variable and a line in the
 catalog's table; the viewer offers it on every element of the focus type.
 

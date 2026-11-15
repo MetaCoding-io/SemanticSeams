@@ -247,3 +247,19 @@ change is compatible under ADR-0021.
   external is left until a model needs it.
 - **Other inbound senders.** Each needs its own transport and ADR (section 5); none is
   planned.
+
+## Revision notes
+
+- 2026-11-15 (S02/T03 follow-up): section 4's second rule, "it stops a walk and is
+  reported as the system", is replaced by a shape. Section 2 already keeps an external
+  container's `arch:dependsOn` inside its own system and gives it no `seam:consumes`.
+  Those are the only two edges that could lead a walk out of an external container to a
+  container of the model, since it executes nothing and is not a shape.
+  `seamsh:ExternalBoundaryShape` now refuses both, on the container, with the path
+  `arch:dependsOn` or `seam:consumes`. So no dependency path from the model's elements to
+  a node passes through an external container, and `impact-of-node.rq` walks as before
+  ADR-0040, with no boundary clause. A SPARQL property path cannot exclude intermediate
+  nodes, so a boundary clause in the query had to drop every element that a path
+  through an external container also reached, even one that depended on the node
+  directly. The shape makes the result exact. Its consequence for chapters 10 and 11 is
+  that SemPKM is not listed among what `:db01` takes down: nothing of it runs there.

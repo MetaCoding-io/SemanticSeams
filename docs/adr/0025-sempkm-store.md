@@ -315,3 +315,15 @@ warning, after the facts above resolve.
 - Models with no store, or with a SQLite or PostgreSQL store, are unchanged.
 - The domain data of a SemPKM-stored shape can be browsed and queried in SemPKM by
   people and other apps, while the runtime keeps owning process state and authorization.
+
+## Revision notes
+
+- 2026-11-15 (M031/S02, [ADR-0040](./0040-external-systems-and-webhooks.md)): a
+  `deploy:SemPKM` store may be a container of an `arch:external true` system, which is
+  how tutorial chapters 10 and 11 now model SemPKM. Section 10's services are then not
+  written: the compose generator emits no service, volume or healthcheck for a container
+  of an external system, does not pull one in through a binding or the store's
+  `arch:dependsOn`, and the store's URL binding is a `deploy:value` (or a secret) naming
+  the SemPKM the operator runs. A SemPKM store the model's own system contains still
+  gets its services as section 10 says. Resolution (sections 1 to 9 and 11) is
+  unchanged: the runtime reaches an external store through the same bindings.

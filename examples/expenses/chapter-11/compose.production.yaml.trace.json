@@ -320,25 +320,27 @@
     {
       "line": 31,
       "templates": [
-        "compose.yaml.j2:41"
+        "compose.yaml.j2:46"
       ],
       "terms": [
-        "https://example.org/expenses/expense_pkm"
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
       ]
     },
     {
       "line": 32,
       "templates": [
-        "compose.yaml.j2:42"
+        "compose.yaml.j2:48"
       ],
       "terms": [
-        "https://example.org/expenses/expense_pkm"
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
       ]
     },
     {
       "line": 33,
       "templates": [
-        "compose.yaml.j2:46"
+        "compose.yaml.j2:48"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -378,7 +380,7 @@
     {
       "line": 37,
       "templates": [
-        "compose.yaml.j2:48"
+        "compose.yaml.j2:52"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -388,7 +390,7 @@
     {
       "line": 38,
       "templates": [
-        "compose.yaml.j2:48"
+        "compose.yaml.j2:54"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -398,7 +400,7 @@
     {
       "line": 39,
       "templates": [
-        "compose.yaml.j2:52"
+        "compose.yaml.j2:54"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -408,7 +410,7 @@
     {
       "line": 40,
       "templates": [
-        "compose.yaml.j2:54"
+        "compose.yaml.j2:58"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -418,7 +420,7 @@
     {
       "line": 41,
       "templates": [
-        "compose.yaml.j2:54"
+        "compose.yaml.j2:60"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -428,7 +430,7 @@
     {
       "line": 42,
       "templates": [
-        "compose.yaml.j2:58"
+        "compose.yaml.j2:60"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -498,7 +500,7 @@
     {
       "line": 49,
       "templates": [
-        "compose.yaml.j2:60"
+        "compose.yaml.j2:64"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -508,26 +510,6 @@
     {
       "line": 50,
       "templates": [
-        "compose.yaml.j2:60"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 51,
-      "templates": [
-        "compose.yaml.j2:64"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 52,
-      "templates": [
         "compose.yaml.j2:65"
       ],
       "terms": [
@@ -540,7 +522,7 @@
       ]
     },
     {
-      "line": 53,
+      "line": 51,
       "templates": [
         "compose.yaml.j2:66"
       ],
@@ -554,9 +536,29 @@
       ]
     },
     {
-      "line": 54,
+      "line": 52,
       "templates": [
         "compose.yaml.j2:67"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
+      ]
+    },
+    {
+      "line": 53,
+      "templates": [
+        "compose.yaml.j2:68"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
+      ]
+    },
+    {
+      "line": 54,
+      "templates": [
+        "compose.yaml.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -566,7 +568,7 @@
     {
       "line": 55,
       "templates": [
-        "compose.yaml.j2:68"
+        "compose.yaml.j2:72"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -576,7 +578,7 @@
     {
       "line": 56,
       "templates": [
-        "compose.yaml.j2:69"
+        "compose.yaml.j2:77"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -586,26 +588,6 @@
     {
       "line": 57,
       "templates": [
-        "compose.yaml.j2:72"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 58,
-      "templates": [
-        "compose.yaml.j2:77"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 59,
-      "templates": [
         "compose.yaml.j2:78"
       ],
       "terms": [
@@ -614,7 +596,7 @@
       ]
     },
     {
-      "line": 60,
+      "line": 58,
       "templates": [
         "compose.yaml.j2:79"
       ],
@@ -628,7 +610,7 @@
       ]
     },
     {
-      "line": 61,
+      "line": 59,
       "templates": [
         "compose.yaml.j2:13"
       ],
@@ -639,7 +621,7 @@
       ]
     },
     {
-      "line": 62,
+      "line": 60,
       "templates": [
         "compose.yaml.j2:14"
       ],
@@ -650,9 +632,29 @@
       ]
     },
     {
-      "line": 63,
+      "line": 61,
       "templates": [
         "compose.yaml.j2:46"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
+      ]
+    },
+    {
+      "line": 62,
+      "templates": [
+        "compose.yaml.j2:48"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
+      ]
+    },
+    {
+      "line": 63,
+      "templates": [
+        "compose.yaml.j2:48"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -662,7 +664,7 @@
     {
       "line": 64,
       "templates": [
-        "compose.yaml.j2:48"
+        "compose.yaml.j2:52"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -672,7 +674,7 @@
     {
       "line": 65,
       "templates": [
-        "compose.yaml.j2:48"
+        "compose.yaml.j2:54"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -682,7 +684,7 @@
     {
       "line": 66,
       "templates": [
-        "compose.yaml.j2:52"
+        "compose.yaml.j2:58"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -692,7 +694,7 @@
     {
       "line": 67,
       "templates": [
-        "compose.yaml.j2:54"
+        "compose.yaml.j2:60"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -702,7 +704,7 @@
     {
       "line": 68,
       "templates": [
-        "compose.yaml.j2:58"
+        "compose.yaml.j2:64"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -712,26 +714,6 @@
     {
       "line": 69,
       "templates": [
-        "compose.yaml.j2:60"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 70,
-      "templates": [
-        "compose.yaml.j2:64"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 71,
-      "templates": [
         "compose.yaml.j2:65"
       ],
       "terms": [
@@ -741,7 +723,7 @@
       ]
     },
     {
-      "line": 72,
+      "line": 70,
       "templates": [
         "compose.yaml.j2:66"
       ],
@@ -752,9 +734,29 @@
       ]
     },
     {
-      "line": 73,
+      "line": 71,
       "templates": [
         "compose.yaml.j2:67"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
+      ]
+    },
+    {
+      "line": 72,
+      "templates": [
+        "compose.yaml.j2:68"
+      ],
+      "terms": [
+        "https://example.org/expenses/expense_system",
+        "https://example.org/expenses/production"
+      ]
+    },
+    {
+      "line": 73,
+      "templates": [
+        "compose.yaml.j2:69"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -764,7 +766,7 @@
     {
       "line": 74,
       "templates": [
-        "compose.yaml.j2:68"
+        "compose.yaml.j2:72"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -774,7 +776,7 @@
     {
       "line": 75,
       "templates": [
-        "compose.yaml.j2:69"
+        "compose.yaml.j2:77"
       ],
       "terms": [
         "https://example.org/expenses/expense_system",
@@ -784,26 +786,6 @@
     {
       "line": 76,
       "templates": [
-        "compose.yaml.j2:72"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 77,
-      "templates": [
-        "compose.yaml.j2:77"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 78,
-      "templates": [
         "compose.yaml.j2:78"
       ],
       "terms": [
@@ -812,7 +794,7 @@
       ]
     },
     {
-      "line": 79,
+      "line": 77,
       "templates": [
         "compose.yaml.j2:79"
       ],
@@ -823,405 +805,7 @@
       ]
     },
     {
-      "line": 80,
-      "templates": [
-        "compose.yaml.j2:13"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_pkm",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 81,
-      "templates": [
-        "compose.yaml.j2:14"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_pkm",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 82,
-      "templates": [
-        "compose.yaml.j2:33"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 83,
-      "templates": [
-        "compose.yaml.j2:35"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 84,
-      "templates": [
-        "compose.yaml.j2:39"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 85,
-      "templates": [
-        "compose.yaml.j2:41"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 86,
-      "templates": [
-        "compose.yaml.j2:42"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 87,
-      "templates": [
-        "compose.yaml.j2:46"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 88,
-      "templates": [
-        "compose.yaml.j2:48"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 89,
-      "templates": [
-        "compose.yaml.j2:48"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 90,
-      "templates": [
-        "compose.yaml.j2:48"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 91,
-      "templates": [
-        "compose.yaml.j2:58"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 92,
-      "templates": [
-        "compose.yaml.j2:60"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 93,
-      "templates": [
-        "compose.yaml.j2:64"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 94,
-      "templates": [
-        "compose.yaml.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_pkm",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 95,
-      "templates": [
-        "compose.yaml.j2:66"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_pkm",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 96,
-      "templates": [
-        "compose.yaml.j2:67"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 97,
-      "templates": [
-        "compose.yaml.j2:68"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 98,
-      "templates": [
-        "compose.yaml.j2:69"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 99,
-      "templates": [
-        "compose.yaml.j2:72"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 100,
-      "templates": [
-        "compose.yaml.j2:77"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 101,
-      "templates": [
-        "compose.yaml.j2:78"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 102,
-      "templates": [
-        "compose.yaml.j2:79"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_pkm",
-        "https://example.org/expenses/expense_system"
-      ]
-    },
-    {
-      "line": 103,
-      "templates": [
-        "compose.yaml.j2:13"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 104,
-      "templates": [
-        "compose.yaml.j2:14"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 105,
-      "templates": [
-        "compose.yaml.j2:33"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 106,
-      "templates": [
-        "compose.yaml.j2:35"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 107,
-      "templates": [
-        "compose.yaml.j2:58"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 108,
-      "templates": [
-        "compose.yaml.j2:60"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 109,
-      "templates": [
-        "compose.yaml.j2:64"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 110,
-      "templates": [
-        "compose.yaml.j2:65"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 111,
-      "templates": [
-        "compose.yaml.j2:66"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 112,
-      "templates": [
-        "compose.yaml.j2:67"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 113,
-      "templates": [
-        "compose.yaml.j2:68"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 114,
-      "templates": [
-        "compose.yaml.j2:69"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 115,
-      "templates": [
-        "compose.yaml.j2:72"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 116,
-      "templates": [
-        "compose.yaml.j2:77"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 117,
-      "templates": [
-        "compose.yaml.j2:78"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 118,
-      "templates": [
-        "compose.yaml.j2:79"
-      ],
-      "terms": [
-        "https://example.org/expenses/db01",
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/expense_triplestore"
-      ]
-    },
-    {
-      "line": 119,
+      "line": 78,
       "templates": [
         "compose.yaml.j2:84"
       ],
@@ -1231,7 +815,7 @@
       ]
     },
     {
-      "line": 120,
+      "line": 79,
       "templates": [
         "compose.yaml.j2:86"
       ],
@@ -1241,7 +825,7 @@
       ]
     },
     {
-      "line": 121,
+      "line": 80,
       "templates": [
         "compose.yaml.j2:90"
       ],
@@ -1251,7 +835,7 @@
       ]
     },
     {
-      "line": 122,
+      "line": 81,
       "templates": [
         "compose.yaml.j2:91"
       ],
@@ -1261,7 +845,7 @@
       ]
     },
     {
-      "line": 123,
+      "line": 82,
       "templates": [
         "compose.yaml.j2:86"
       ],
@@ -1271,7 +855,7 @@
       ]
     },
     {
-      "line": 124,
+      "line": 83,
       "templates": [
         "compose.yaml.j2:90"
       ],
@@ -1281,7 +865,7 @@
       ]
     },
     {
-      "line": 125,
+      "line": 84,
       "templates": [
         "compose.yaml.j2:91"
       ],
@@ -1291,7 +875,7 @@
       ]
     },
     {
-      "line": 126,
+      "line": 85,
       "templates": [
         "compose.yaml.j2:86"
       ],
@@ -1301,7 +885,7 @@
       ]
     },
     {
-      "line": 127,
+      "line": 86,
       "templates": [
         "compose.yaml.j2:90"
       ],
@@ -1311,7 +895,7 @@
       ]
     },
     {
-      "line": 128,
+      "line": 87,
       "templates": [
         "compose.yaml.j2:91"
       ],
@@ -1321,7 +905,7 @@
       ]
     },
     {
-      "line": 129,
+      "line": 88,
       "templates": [
         "compose.yaml.j2:96"
       ],
@@ -1331,27 +915,7 @@
       ]
     },
     {
-      "line": 130,
-      "templates": [
-        "compose.yaml.j2:98"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 131,
-      "templates": [
-        "compose.yaml.j2:98"
-      ],
-      "terms": [
-        "https://example.org/expenses/expense_system",
-        "https://example.org/expenses/production"
-      ]
-    },
-    {
-      "line": 132,
+      "line": 89,
       "templates": [
         "compose.yaml.j2:98"
       ],

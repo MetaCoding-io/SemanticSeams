@@ -1,0 +1,43 @@
+# A SemPKM for the live mental-model install test (tests/test_expense_sempkm.py).
+#
+# SemPKM is an external system of the expense model (ADR-0040): the model names
+# its store and triplestore but neither builds nor runs them, so the chapter's
+# generated compose files have no SemPKM service. This hand-written file stands
+# in for SemPKM's own deployment, as a developer would run it from SemPKM's
+# project. It is a test fixture, not a generated output.
+name: seams-sempkm-e2e
+services:
+  sempkm:
+    image: ghcr.io/metacoding-io/sempkm-api:1.0.0
+    expose:
+      - "8000"
+    depends_on:
+      triplestore:
+        condition: service_healthy
+    environment:
+      BASE_NAMESPACE: https://example.org/expenses/data/
+      REPOSITORY_ID: expenses
+      TRIPLESTORE_URL: http://triplestore:8080/rdf4j-server
+    volumes:
+      - sempkm_data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+  triplestore:
+    image: eclipse/rdf4j-workbench:5.0.1
+    expose:
+      - "8080"
+    volumes:
+      - triplestore_data:/var/rdf4j
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/rdf4j-server/protocol"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+volumes:
+  sempkm_data: {}
+  triplestore_data: {}

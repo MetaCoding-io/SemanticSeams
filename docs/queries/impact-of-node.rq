@@ -8,6 +8,11 @@
 #   - ^seam:executes               : a process depends on the container that runs it
 #   - seam:storedIn                : a data shape depends on the store holding its rows
 #
+# An external system (ADR-0040) is never on the walk: its containers are
+# seam:deployedTo no node, arch:dependsOn only each other and seam:consumes
+# nothing (seamsh:ExternalBoundaryShape), so nothing the model runs depends on a
+# node through one.
+#
 # Bind ?node to an arch:DeploymentNode.
 
 PREFIX seam: <https://w3id.org/seams/seam#>

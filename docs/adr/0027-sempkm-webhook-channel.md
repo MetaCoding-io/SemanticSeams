@@ -371,3 +371,18 @@ hard-coded around.
 - Models with no webhook channel are unchanged.
 - **Limit:** a change made in SemPKM while the runtime is down never starts its process
   (section 11).
+
+## Revision notes
+
+- 2026-11-15 (M031/S02, backlog X4 and O6): restated under
+  [ADR-0040](./0040-external-systems-and-webhooks.md), whose section 5 makes this ADR
+  one case of a general inbound-webhook convention. `comm:SemPKMWebhook` is an inbound
+  transport: no process `seam:publishesTo` the channel. The receiving container of the
+  model `seam:exposes` the channel at its `comm:path`. The sender is still the
+  `deploy:SemPKM` store that the accepted shape is `seam:storedIn` (section 2, the single
+  source of that fact), and that store is now a container of an `arch:external true`
+  system: in tutorial chapters 10 and 11, `:expense_pkm` and `:expense_triplestore`
+  moved from `:expense_system` into the external `:sempkm`, so the compose files run no
+  SemPKM service and the API's `SEMPKM_URL` names the SemPKM the operator runs. The
+  route, payload handling, idempotence, authenticity, run-time failures and resolution
+  errors above are unchanged.

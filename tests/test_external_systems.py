@@ -17,7 +17,7 @@ from pathlib import Path
 import pyshacl
 import pytest
 import seams
-from rdflib import RDF, RDFS, Dataset, Graph, Literal, Namespace
+from rdflib import RDF, RDFS, Dataset, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import SH
 from seams import ARCH, SEAM, ResolutionError
 
@@ -370,3 +370,163 @@ def test_an_external_container_in_a_second_system_names_the_container(tmp_path: 
         "a container of an external arch:System is contained by no other system, "
         f"found {EX.expense_system}, {EX.sempkm}"
     )
+
+
+# ── generators and impact (ADR-0040 sections 3 and 4, S02/T03) ─────────────────
+#
+# Chapter 10 of the expense tutorial models SemPKM as the external :sempkm. The
+# generator cases mutate a copy of its dataset in memory and assert, through
+# seams_gen.testing.assert_shapes_catch, that the compose generator and the shapes
+# refuse the same fact on the same subject (principle 5).
+
+CHAPTER_10 = ROOT / "examples" / "expenses" / "chapter-10" / "expenses.trig"
+ARCH_GRAPH = "urn:seams:graph:model:expense_architecture"
+
+
+def _compose_all(model: seams.Model) -> list:
+    from seams_gen.compose import environments, extract_compose
+
+    return [extract_compose(model, model.path.parent, env) for env in environments(model)]
+
+
+def _chapter_10() -> Dataset:
+    ds = Dataset(default_union=True)
+    ds.parse(str(CHAPTER_10), format="trig")
+    return ds
+
+
+def test_compose_writes_no_service_for_an_external_container() -> None:
+    from seams_gen.compose import environments, extract_compose
+
+    model = seams.ModelGraph(CHAPTER_10)
+    for env in environments(model):
+        compose = extract_compose(model, model.path.parent, env)
+        assert [s.name for s in compose.services] == ["employee_portal", "expense_api", "expense_db"]
+        assert compose.volumes == ("expense_db_data",)
+        # the project is the one system that is not external
+        assert (compose.project, compose.origins) == ("expense_system", (str(EX.expense_system),))
+        assert all(str(EX.sempkm) not in s.origins for s in compose.services)
+        (api,) = (s for s in compose.services if s.name == "expense_api")
+        assert [d.name for d in api.depends_on] == ["expense_db"]
+
+
+def test_compose_refuses_two_systems_the_model_runs() -> None:
+    from seams_gen import GeneratorError
+    from seams_gen.compose import environments, extract_compose
+
+    ds = _chapter_10()
+    ds.graph(URIRef(ARCH_GRAPH)).remove((EX.sempkm, ARCH.external, Literal(True)))
+    model = seams.ModelGraph(CHAPTER_10, dataset=ds)
+    with pytest.raises(GeneratorError) as raised:
+        extract_compose(model, model.path.parent, environments(model)[0])
+    assert raised.value.predicate == str(ARCH.contains)
+    assert "expected one arch:System that is not arch:external, found 2" in str(raised.value)
+
+
+def test_compose_and_shapes_refuse_a_depends_on_an_external_container() -> None:
+    from seams_gen.testing import assert_shapes_catch
+
+    ds = _chapter_10()
+    ds.graph(URIRef(ARCH_GRAPH)).add((EX.expense_api, DEPLOY.dependsOn, EX.expense_pkm))
+    assert_shapes_catch(
+        _compose_all,
+        ds,
+        subject=EX.expense_api,
+        predicate=DEPLOY.dependsOn,
+        focus=EX.expense_api,
+        path=DEPLOY.dependsOn,
+        match=f"{EX.expense_pkm} is a container of the arch:external system {EX.sempkm}",
+        model_path=CHAPTER_10,
+    )
+
+
+def test_compose_and_shapes_refuse_a_service_url_of_an_external_container() -> None:
+    from seams_gen.testing import assert_shapes_catch
+
+    ds = _chapter_10()
+    g = ds.graph(URIRef(ARCH_GRAPH))
+    (binding,) = g.subjects(DEPLOY.key, Literal("SEMPKM_URL"))
+    g.remove((binding, DEPLOY.value, None))
+    g.add((binding, DEPLOY.serviceOf, EX.expense_pkm))
+    assert_shapes_catch(
+        _compose_all,
+        ds,
+        subject=EX.expense_api,
+        predicate=DEPLOY.serviceOf,
+        focus=EX.expense_api,
+        path=DEPLOY.serviceOf,
+        match="'SEMPKM_URL': " + f"{EX.expense_pkm} is a container of the arch:external system {EX.sempkm}",
+        model_path=CHAPTER_10,
+    )
+
+
+def test_an_external_container_never_serves_routes(tmp_path: Path) -> None:
+    # A UI event that submits to the external store's operation calls the third
+    # party; it makes no container of the model, and no external one, serving.
+    ui = """
+    :ui a ifml:InteractionModel .
+    :send a ifml:Event ; rdfs:label "send" .
+"""
+    text = (
+        dataset(seams_graph=SEAMS + "\n    :send seam:submitsTo :pkm_command .\n").replace(
+            "@prefix :", "@prefix ifml:   <https://w3id.org/seams/ifml#> .\n@prefix :"
+        )
+        + f"\n<urn:seams:graph:model:expense_ifml> {{{ui}}}\n"
+    )
+    model = load(tmp_path, text)
+    pkm_command = model.operations.by_iri(EX.pkm_command)
+    assert [str(e.iri) for e in pkm_command.submitted_by] == [str(EX.send)]
+    assert list(model.architecture.serving_containers()) == []
+
+
+BOUNDARY = (
+    "A container of an external arch:System arch:dependsOn only containers of its own system and "
+    "seam:consumes nothing: what the third party depends on is not the model's to say."
+)
+
+IMPACT = """
+    :expense_db a arch:Container ; rdfs:label "Expense Store" ;
+        deploy:storeKind deploy:PostgreSQL .
+    :expense_system arch:contains :expense_db .
+    :db01 a arch:DeploymentNode ; rdfs:label "db01" .
+"""
+
+IMPACT_SEAMS = """
+    :expense_db seam:deployedTo :db01 .
+    :expense_api seam:consumes :pkm_command .
+    :ExpenseShape seam:storedIn :expense_pkm .
+    :ApprovalShape seam:storedIn :expense_db .
+"""
+
+
+def test_an_external_container_depends_on_nothing_outside_its_system() -> None:
+    trig = dataset(extra=IMPACT + "    :expense_triplestore arch:dependsOn :expense_db .\n")
+    assert external_findings(trig) == {("expense_triplestore", "dependsOn", "ExternalBoundaryShape")}
+    assert BOUNDARY in messages(trig)
+
+
+def test_an_external_container_consumes_nothing() -> None:
+    trig = dataset(seams_graph=SEAMS + "    :expense_pkm seam:consumes :object_changed .\n")
+    assert external_findings(trig) == {("expense_pkm", "consumes", "ExternalBoundaryShape")}
+    assert BOUNDARY in messages(trig)
+
+
+def test_an_external_container_depends_on_its_own_system() -> None:
+    # :expense_pkm arch:dependsOn :expense_triplestore inside :sempkm (EXTERNAL).
+    assert external_findings(dataset(extra=IMPACT, seams_graph=SEAMS + IMPACT_SEAMS)) == set()
+
+
+def test_impact_never_walks_into_an_external_system(tmp_path: Path) -> None:
+    # The API consumes SemPKM's command and depends on its store, and a shape is stored
+    # there, but none of them depends on :db01: the walk only reaches what the model runs.
+    trig = dataset(extra=IMPACT, seams_graph=SEAMS + IMPACT_SEAMS)
+    assert external_findings(trig) == set()
+    rows = load(tmp_path, trig).question("impact-of-node", node=":db01")
+    assert sorted(str(r["impacted"]) for r in rows) == sorted([str(EX.ApprovalShape), str(EX.expense_db)])
+
+
+def test_chapter_10_db01_impact_lists_no_external_container() -> None:
+    rows = seams.load(CHAPTER_10).question("impact-of-node", node=":db01")
+    impacted = {str(r["impacted"]) for r in rows}
+    assert str(EX.expense_db) in impacted
+    assert not impacted & {str(EX.expense_pkm), str(EX.expense_triplestore), str(EX.ExpenseShape)}

@@ -121,7 +121,7 @@ process https://example.org/expenses/approval_process sha256:611720521c2a7bae1a0
 <https://example.org/expenses/expense> <http://www.w3.org/2000/01/rdf-schema#label> "expense" .
 ```
 
-shape https://example.org/expenses/NotificationShape sha256:b87126d4e05adc2da9c7182bc84375c6860a0e6063b4dfb0c8c93d7ca854874e
+shape https://example.org/expenses/NotificationShape sha256:ad24c0aeaff2bd97731911d5b428f9a3677931debae9c70f2e1f736e7da54b3c
 ```DATA shape
 <https://example.org/expenses/NotificationShape> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/shacl#NodeShape> .
 <https://example.org/expenses/NotificationShape> <http://www.w3.org/2000/01/rdf-schema#label> "Notification" .
@@ -137,6 +137,7 @@ _:cb8cf603db71351dea3334870d64ce1b0fc9599dc8210c80da286c4555f2ba54bc <http://www
 _:cb8cf603db71351dea3334870d64ce1b0fc9599dc8210c80da286c4555f2ba54bc <http://www.w3.org/ns/shacl#minCount> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 _:cb8cf603db71351dea3334870d64ce1b0fc9599dc8210c80da286c4555f2ba54bc <http://www.w3.org/ns/shacl#order> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
 _:cb8cf603db71351dea3334870d64ce1b0fc9599dc8210c80da286c4555f2ba54bc <http://www.w3.org/ns/shacl#path> <https://example.org/expenses/recipient> .
+_:cb8cf603db71351dea3334870d64ce1b0fc9599dc8210c80da286c4555f2ba54bc <https://w3id.org/dpv#hasPersonalData> <https://w3id.org/dpv/pd#Username> .
 ```
 
 task https://example.org/expenses/approval_bpmn#notify_manager sha256:594ecd04aaa4ccecbf96f511a9f4485a48f0db6e48312882e09bd665226cffdd

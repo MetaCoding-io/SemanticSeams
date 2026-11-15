@@ -250,9 +250,12 @@ def _resolve_environment(model: Model, environment) -> Environment:
 def extract_compose(model: Model, base_dir, environment) -> ComposeModel:
     """The compose model of ``environment`` (an ``Environment``, its IRI or its local name)."""
     env = _resolve_environment(model, environment)
-    systems = model.architecture.systems()
+    with view_errors():
+        systems = model.architecture.own_systems()
     if len(systems) != 1:
-        raise GeneratorError(model.subject, ARCH.contains, f"expected one arch:System, found {len(systems)}")
+        raise GeneratorError(
+            model.subject, ARCH.contains, f"expected one arch:System that is not arch:external, found {len(systems)}"
+        )
     system = systems[0]
     containers = system.containers
     if not containers:
@@ -309,7 +312,9 @@ def _sempkm_containers(containers, environment: Environment) -> dict[Container, 
     arch:dependsOn (its triplestore, its frontend). Each maps to the IRIs
     that bring it in, its further trace origins. Their images, ports,
     volumes and healthchecks are their own model facts, so a missing
-    deploy:artifact raises as for any container."""
+    deploy:artifact raises as for any container. A container of an
+    arch:external system (ADR-0040 section 3) is never brought in: the
+    model does not run it."""
     contained = set(containers)
     stores: dict[Container, set[str]] = {}
     with view_errors():
@@ -322,10 +327,12 @@ def _sempkm_containers(containers, environment: Environment) -> dict[Container, 
                         stores.setdefault(store, set()).add(str(c.iri))
         added: dict[Container, set[str]] = {}
         for store, reached_by in stores.items():
+            if store.external:
+                continue
             if store not in contained:
                 added.setdefault(store, set()).update(reached_by)
             for target in store.depends_on:
-                if target not in contained:
+                if target not in contained and not target.external:
                     added.setdefault(target, set()).add(str(store.iri))
     return {c: frozenset(origins) for c, origins in added.items()}
 
@@ -378,6 +385,20 @@ def _runs_handlers(model: Model, executing) -> bool:
     return False
 
 
+def _outside(target: Container, what: str) -> str:
+    """Why ``target`` cannot be ``what``: it is not a service of the compose
+    file, either a container of an arch:external system (ADR-0040 section 3:
+    the model does not run it, so it has no service) or of no system."""
+    with view_errors():
+        system = target.external_system
+    if system is not None:
+        return (
+            f"{target.iri} is a container of the arch:external system {system.iri}, which has no compose "
+            f"service, so it cannot be {what}; bind its URL with deploy:value or a secret (ADR-0040)"
+        )
+    return f"{target.iri} is not a container of the arch:System"
+
+
 def _single_port(c: Container, what: str) -> int:
     with view_errors():
         ports = c.ports
@@ -411,7 +432,7 @@ def _service(
     depends_on = []
     for target in depends:
         if target not in ctx.services:
-            raise GeneratorError(c.iri, DEPLOY.dependsOn, f"{target.iri} is not a container of the arch:System")
+            raise GeneratorError(c.iri, DEPLOY.dependsOn, _outside(target, "a compose depends_on"))
         condition = "service_healthy" if target in ctx.healthy else "service_started"
         depends_on.append(Dependency(local_name(target.iri), condition, iri=str(target.iri)))
 
@@ -557,9 +578,10 @@ def _bindings(
         else:
             target = b.service_of
             if target is None or target not in ctx.services:
-                raise GeneratorError(
-                    c.iri, DEPLOY.serviceOf, f"binding {key!r} needs one deploy:serviceOf container of the arch:System"
-                )
+                detail = f"binding {key!r} needs one deploy:serviceOf container of the arch:System"
+                if target is not None:
+                    detail = f"binding {key!r}: {_outside(target, 'a service URL')}"
+                raise GeneratorError(c.iri, DEPLOY.serviceOf, detail)
             with view_errors():
                 ports = target.ports
             if len(ports) != 1:

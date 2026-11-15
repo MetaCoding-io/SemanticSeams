@@ -11,7 +11,7 @@ an older one in memory with ontology/migrations/<name>/<from>-to-<to>.ru.
 Every shipped vocabulary is at major 1, so the older and newer paths run against the
 fixture tree tests/fixtures/vocab-v2 (D060): seam at 2.0, whose 1-to-2.ru renames
 seam:inModel to seam:partOfModel, loaded over the real expense chapter-01 checkpoint,
-which declares seam 1.6 and arch 1.2. Tests that need a model written before S02, with
+which declares seam 1.6 and arch 1.3. Tests that need a model written before S02, with
 no declaration, take the checkpoint with its manifest graph removed.
 """
 
@@ -35,7 +35,7 @@ SEAM_V1 = URIRef("https://w3id.org/seams/seam/1.0")
 # What the checkpoints declare: the shipped seam.
 SEAM_V1_6 = URIRef("https://w3id.org/seams/seam/1.6")
 SEAM_V2 = URIRef("https://w3id.org/seams/seam/2.0")
-ARCH_V1 = "https://w3id.org/seams/arch/1.2"
+ARCH_V1 = "https://w3id.org/seams/arch/1.3"
 EXAMPLES = sorted(
     [ROOT / "examples" / "chat-app" / "chat-app.trig", ROOT / "examples" / "checkout.trig"]
     + list((ROOT / "examples" / "expenses").glob("chapter-*/expenses.trig"))
@@ -94,8 +94,8 @@ def refused(err: pytest.ExceptionInfo[ResolutionError]) -> str:
 
 # seam 1.1 adds the seam:Ontology notation (ADR-0022), 1.2 the shape notation of
 # ADR-0023 (sh:name, categories, sh:node flattening), 1.3 seam:owns (ADR-0030) and
-# 1.4 the class lifecycle and publishing transitions (ADR-0031), 1.5 seam:aggregateMember (ADR-0035), 1.6 seam:schedules (ADR-0037); proc 1.1 adds the timer events (ADR-0037); arch 1.1 adds domains and bounded contexts (ADR-0030) and 1.2 context-map relationships (ADR-0032): compatible widenings.
-SHIPPED = {"arch": (1, 2), "proc": (1, 1), "seam": (1, 6), "verify": (1, 1)}
+# 1.4 the class lifecycle and publishing transitions (ADR-0031), 1.5 seam:aggregateMember (ADR-0035), 1.6 seam:schedules (ADR-0037); proc 1.1 adds the timer events (ADR-0037); arch 1.1 adds domains and bounded contexts (ADR-0030) 1.2 context-map relationships (ADR-0032) and 1.3 arch:external (ADR-0040): compatible widenings.
+SHIPPED = {"arch": (1, 3), "proc": (1, 1), "seam": (1, 6), "verify": (1, 1)}
 
 
 def test_every_shipped_vocabulary_is_at_its_release() -> None:
@@ -251,8 +251,8 @@ def test_a_newer_model_is_refused(tmp_path: Path, declared: str, tool: str) -> N
 
 def test_a_newer_minor_than_the_shipped_vocabulary_is_refused(tmp_path: Path) -> None:
     with pytest.raises(ResolutionError) as err:
-        seams.load(chapter_01(tmp_path, "https://w3id.org/seams/arch/1.3"))
-    assert refused(err) == "targets arch 1.3; this tool supports arch up to 1.2"
+        seams.load(chapter_01(tmp_path, "https://w3id.org/seams/arch/1.4"))
+    assert refused(err) == "targets arch 1.4; this tool supports arch up to 1.3"
 
 
 @pytest.mark.parametrize(

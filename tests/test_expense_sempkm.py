@@ -13,8 +13,10 @@ store injected in place of the declared PostgreSQL.
 
 The chapter also writes the SemPKM Mental Model of its ontology (M024/S03,
 ADR-0026) to generated/mental-model. The committed package must equal a fresh
-render, and with SEAMS_E2E=1 the chapter's own compose stack installs it into
-its SemPKM through ``POST /api/models/install``.
+render, and with SEAMS_E2E=1 it installs into a live SemPKM through ``POST
+/api/models/install``. SemPKM is an external system (ADR-0040): the chapter's
+compose files run no SemPKM, so that SemPKM comes from
+tests/fixtures/sempkm/compose.yaml, standing in for SemPKM's own deployment.
 
 A change made in SemPKM starts a process (M024/S04, ADR-0027): the chapter's
 :vendor_changes channel is a comm:SemPKMWebhook channel, and the
@@ -80,27 +82,32 @@ def test_expenses_and_vendors_resolve_to_the_sempkm_store_and_the_rest_to_postgr
     assert plan.sempkm.shapes == (URIRef(EX + "ExpenseShape"), URIRef(EX + "VendorShape"))
 
 
+def test_sempkm_is_an_external_system_of_the_architecture():
+    arch = Model(TRIG).architecture
+    (external,) = arch.external_systems()
+    assert external.iri == URIRef(EX + "sempkm")
+    assert sorted(str(c.iri) for c in arch.external_containers()) == [EX + "expense_pkm", EX + "expense_triplestore"]
+    assert [str(s.iri) for s in arch.own_systems()] == [EX + "expense_system"]
+
+
 @pytest.mark.parametrize("environment", ["development", "production"])
-def test_compose_runs_sempkm_and_its_triplestore_from_the_model(environment):
+def test_compose_runs_no_sempkm_service_since_sempkm_is_external(environment):
     compose = yaml.safe_load((CHAPTER / f"compose.{environment}.yaml").read_text(encoding="utf-8"))
     services = compose["services"]
-    assert sorted(services) == ["employee_portal", "expense_api", "expense_db", "expense_pkm", "expense_triplestore"]
-    pkm, triplestore, api = services["expense_pkm"], services["expense_triplestore"], services["expense_api"]
-    assert pkm["image"] == "ghcr.io/metacoding-io/sempkm-api:1.0.0"
-    assert pkm["depends_on"] == {"expense_triplestore": {"condition": "service_healthy"}}
-    assert pkm["volumes"] == ["expense_pkm_data:/app/data"] and "/api/health" in " ".join(pkm["healthcheck"]["test"])
-    assert triplestore["image"] == "eclipse/rdf4j-workbench:5.0.1"
-    assert triplestore["volumes"] == ["expense_triplestore_data:/var/rdf4j"]
-    # the API starts after both stores; the URL is an entry, the token a secret file
-    assert set(api["depends_on"]) == {"expense_db", "expense_pkm"}
+    # ADR-0040 section 3: no service, volume or depends_on for an external container
+    assert sorted(services) == ["employee_portal", "expense_api", "expense_db"]
+    assert sorted(compose["volumes"]) == ["expense_db_data"]
+    api = services["expense_api"]
+    # the API starts after its own store only; the URL is an entry, the token a secret file
+    assert set(api["depends_on"]) == {"expense_db"}
     assert api["environment"]["SEMPKM_TOKEN_FILE"] == "/run/secrets/sempkm_token"
     assert "SEMPKM_TOKEN" not in api["environment"] and "sempkm_token" in api["secrets"]
     secret = compose["secrets"]["sempkm_token"]
     if environment == "production":
-        assert api["environment"]["SEMPKM_URL"] == "http://expense_pkm:8000"
+        assert api["environment"]["SEMPKM_URL"] == "https://sempkm.example.org"
         assert secret == {"name": "expenses-prod-sempkm-token", "external": True}
     else:
-        assert api["environment"]["SEMPKM_URL"] == "${SEMPKM_URL:-http://expense_pkm:8000}"
+        assert api["environment"]["SEMPKM_URL"] == "${SEMPKM_URL:-https://sempkm.example.org}"
         assert secret == {"file": "${SEMPKM_TOKEN_FILE:-../../../docker/local-secrets/expense_sempkm_token}"}
 
 
@@ -377,11 +384,13 @@ def test_seams_lock_records_the_mental_model_from_the_ontology():
 
 
 # With SEAMS_E2E=1 nothing skips: a missing docker CLI or a SemPKM that does not
-# come up healthy is a failure. Only expense_pkm and its triplestore start; the
-# package is copied into the container, because SemPKM installs a directory on
+# come up healthy is a failure. SemPKM and its triplestore start from
+# tests/fixtures/sempkm/compose.yaml, since the chapter's own compose files run
+# no SemPKM (ADR-0040); the package is copied into the container, because SemPKM installs a directory on
 # its own filesystem. Install needs an owner session, which claiming the fresh
 # instance with its setup token (data/.setup-token in the container) gives.
-PROJECT = yaml.safe_load((CHAPTER / "compose.development.yaml").read_text(encoding="utf-8"))["name"]
+SEMPKM_COMPOSE = ROOT / "tests" / "fixtures" / "sempkm" / "compose.yaml"
+PROJECT = yaml.safe_load(SEMPKM_COMPOSE.read_text(encoding="utf-8"))["name"]
 IN_CONTAINER = "/tmp/mental-model"
 INSTALL = """
 import json, sys, urllib.error, urllib.request
@@ -403,7 +412,7 @@ print(json.dumps({"setup": setup, "install": install, "listed": listed}))
 
 
 def _compose(*args, timeout=120, check=True) -> subprocess.CompletedProcess:
-    files = ["-f", str(CHAPTER / "compose.development.yaml")]
+    files = ["-f", str(SEMPKM_COMPOSE)]
     return subprocess.run(
         ["docker", "compose", "-p", PROJECT, *files, *args],
         cwd=ROOT,
@@ -419,11 +428,11 @@ def test_the_chapters_sempkm_installs_the_mental_model():
     if shutil.which("docker") is None:
         pytest.fail("SEAMS_E2E=1 but the docker CLI is not on PATH")
     try:
-        up = _compose("up", "-d", "--wait", "expense_pkm", timeout=300, check=False)
-        logs = _compose("logs", "--no-color", "expense_pkm", check=False).stdout
+        up = _compose("up", "-d", "--wait", "sempkm", timeout=300, check=False)
+        logs = _compose("logs", "--no-color", "sempkm", check=False).stdout
         assert up.returncode == 0, f"docker compose up failed:\n{up.stdout}\n{up.stderr}\n{logs}"
-        _compose("cp", str(MENTAL_MODEL), f"expense_pkm:{IN_CONTAINER}")
-        run = _compose("exec", "-T", "expense_pkm", "python", "-c", INSTALL, IN_CONTAINER, check=False)
+        _compose("cp", str(MENTAL_MODEL), f"sempkm:{IN_CONTAINER}")
+        run = _compose("exec", "-T", "sempkm", "python", "-c", INSTALL, IN_CONTAINER, check=False)
         assert run.returncode == 0, f"{run.stdout}\n{run.stderr}"
         answer = json.loads(run.stdout.strip().splitlines()[-1])
         assert answer["setup"][0] == 200, answer["setup"]

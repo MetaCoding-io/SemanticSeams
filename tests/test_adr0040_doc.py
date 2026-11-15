@@ -149,5 +149,19 @@ def test_adr_is_in_adr_index() -> None:
 def test_backlog_notes_the_adr() -> None:
     backlog = (ROOT / "docs" / "backlog.md").read_text(encoding="utf-8")
     row = next(line for line in backlog.splitlines() if line.startswith("| X4 |"))
-    assert "[ADR-0040](adr/0040-external-systems-and-webhooks.md) accepted (M031/S02)" in row
-    assert "in progress (M031/S02)" in row
+    assert "done (M031/S02): decided in [ADR-0040](adr/0040-external-systems-and-webhooks.md)" in row
+
+
+def test_adr_0027_is_restated_under_the_convention() -> None:
+    # S02/T03: ADR-0027 carries a revision note naming ADR-0040 and the move of
+    # chapter 10's SemPKM containers into the external :sempkm.
+    text = (ROOT / "docs" / "adr" / "0027-sempkm-webhook-channel.md").read_text(encoding="utf-8")
+    notes = text.split("\n## Revision notes\n", 1)[1]
+    assert "[ADR-0040](./0040-external-systems-and-webhooks.md)" in notes
+    assert "`arch:external true`" in notes and "`:sempkm`" in notes
+
+
+def test_revision_note_replaces_the_walk_stop_with_a_shape(text: str) -> None:
+    notes = _flat(text.split("\n## Revision notes\n", 1)[1])
+    assert "`seamsh:ExternalBoundaryShape`" in notes
+    assert "`impact-of-node.rq` walks as before ADR-0040, with no boundary clause" in notes

@@ -93,14 +93,15 @@ examples/expenses/
                              chapter 8's compose files plus the read-only handlers mount on the API
                              (approval.dmn, payout.bpmn, payout.dmn and seed.json are unchanged)
   chapter-10/expenses.trig   expenses in SemPKM: chapter 9 plus :expense_pkm (deploy:storeKind
-                             deploy:SemPKM) and the :expense_triplestore it dependsOn, the API's
+                             deploy:SemPKM) and the :expense_triplestore it dependsOn, both in
+                             the arch:external :sempkm system (ADR-0040), the API's
                              SEMPKM_URL binding that connectsTo it and its secret SEMPKM_TOKEN
                              binding that authenticatesTo it, and :ExpenseShape seam:storedIn
                              :expense_pkm (ADR-0025); the other shapes stay in expense_db
   chapter-10/generated/      chapter 9's route module and templates (only the model hash differs)
   chapter-10/compose.development.yaml, chapter-10/compose.production.yaml
-                             chapter 9's compose files plus the expense_pkm and expense_triplestore
-                             services, SEMPKM_URL on the API and the sempkm_token secret (from
+                             chapter 9's compose files plus SEMPKM_URL on the API and the
+                             sempkm_token secret; no SemPKM service, since SemPKM is external (from
                              docker/local-secrets/expense_sempkm_token in development)
                              (payloads, handlers and seed.json are chapter 9's)
   chapter-11/expenses.trig   two bounded contexts (ADR-0030): the architecture, its two arch:Domain
@@ -198,7 +199,8 @@ reached from 6 models, 115 seam edges), pinned by `tests/test_complexity.py`.
 
 For chapter 10, `tests/test_expense_sempkm.py` runs `seams check` on the
 checkpoint, resolves its store plan (`:ExpenseShape` in `:expense_pkm`, the
-rest in `:expense_db`) and checks the SemPKM services in both compose files.
+rest in `:expense_db`) and checks that neither compose file runs SemPKM, an
+external system.
 It serves the committed route module with a fake SemPKM behind
 `httpx.MockTransport` that applies commands and answers SPARQL as SemPKM does,
 and temp SQLite for the relational half. A submitted expense is one SemPKM

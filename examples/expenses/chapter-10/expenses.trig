@@ -12,10 +12,13 @@
 # SPARQL. SemPKM mints each expense's IRI, which becomes its id. Approvals,
 # payments, notifications and the process state stay in PostgreSQL.
 #
-# The compose generator writes SemPKM's services from these containers' own
-# facts (images, ports, volumes, healthchecks); it hard-codes nothing about
-# SemPKM. The URL binding becomes an environment entry and the token a
-# secret, as for PostgreSQL.
+# SemPKM is someone else's product (ADR-0040): the store and its triplestore
+# are containers of :sempkm, an arch:System that is arch:external true. The
+# model names them so that its bindings and shapes can point at them, but it
+# neither builds nor runs them, so the compose generator writes no service for
+# either and the API's SEMPKM_URL is the address of the SemPKM the operator
+# runs. The URL binding becomes an environment entry and the token a secret,
+# as for PostgreSQL.
 #
 # A change made in SemPKM can start a process too (ADR-0027). Vendors are
 # people's data: finance adds and edits them in SemPKM, and no process writes
@@ -133,10 +136,18 @@
     :expense_architecture a seam:Model ;
         rdfs:label "Expense Architecture" .
 
-    # The system and the five containers it is built from.
+    # The system and the three containers it is built from.
     :expense_system a arch:System ; rdfs:label "Expense Approval" ;
-        arch:contains :employee_portal , :expense_api , :expense_db , :expense_pkm ,
-            :expense_triplestore ;
+        arch:contains :employee_portal , :expense_api , :expense_db ;
+        seam:inModel :expense_architecture .
+
+    # SemPKM (ADR-0040): a system the model talks to but neither builds nor
+    # runs. Its containers are external because it is; their facts are only
+    # the ones the model's own containers need to reach them.
+    :sempkm a arch:System ; rdfs:label "SemPKM" ;
+        arch:external true ;
+        arch:technology "SemPKM" ;
+        arch:contains :expense_pkm , :expense_triplestore ;
         seam:inModel :expense_architecture .
 
     # Deploy facts: the image each container runs, its ports and start
@@ -173,15 +184,18 @@
                                                 deploy:connectsTo :expense_db ] ;
                                # SemPKM (ADR-0025): its URL, and the service
                                # token that deploy:authenticatesTo it, a secret.
+                               # SemPKM is external (ADR-0040), so the URL is
+                               # the deployment the operator runs, not a
+                               # compose service.
                                deploy:binding [ deploy:key "SEMPKM_URL" ;
-                                                deploy:value "http://expense_pkm:8000" ;
+                                                deploy:value "https://sempkm.example.org" ;
                                                 deploy:connectsTo :expense_pkm ] ;
                                deploy:binding [ deploy:key "SEMPKM_TOKEN" ;
                                                 deploy:secretRef <https://secrets.example.org/expenses/prod/sempkm-token> ;
                                                 deploy:secretName "expenses-prod-sempkm-token" ;
                                                 deploy:authenticatesTo :expense_pkm ] ] ;
         deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
-        deploy:dependsOn :expense_db , :expense_pkm ;
+        deploy:dependsOn :expense_db ;
         deploy:placement [ a deploy:PlacementPolicy ;
                            deploy:targetEnvironment :production ] ;
         # Development (ADR-0015): build the runtime image from this checkout
@@ -232,45 +246,17 @@
         seam:inModel :expense_architecture .
 
     # Where the expenses live (ADR-0025): SemPKM's API, a store of kind
-    # deploy:SemPKM, and the triplestore it keeps its data in, each with its
-    # own image, volume and healthcheck. SemPKM keeps its signing key on its
-    # data volume, so it needs no secret of its own.
+    # deploy:SemPKM, and the triplestore it keeps its data in. Both are
+    # containers of the external :sempkm (ADR-0040): no image, port, volume
+    # or healthcheck, since SemPKM's own project deploys them.
     :expense_pkm a arch:Container ; rdfs:label "Expense Knowledge Store" ;
         arch:technology "SemPKM" ;
         deploy:storeKind deploy:SemPKM ;
         arch:dependsOn :expense_triplestore ;
-        deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "ghcr.io/metacoding-io/sempkm-api" ;
-                          deploy:version "1.0.0" ] ;
-        deploy:configuration [ a deploy:Configuration ;
-                               deploy:binding [ deploy:key "TRIPLESTORE_URL" ;
-                                                deploy:value "http://expense_triplestore:8080/rdf4j-server" ] ;
-                               deploy:binding [ deploy:key "REPOSITORY_ID" ;
-                                                deploy:value "expenses" ] ;
-                               deploy:binding [ deploy:key "BASE_NAMESPACE" ;
-                                                deploy:value "https://example.org/expenses/data/" ] ] ;
-        deploy:port [ a deploy:Port ; deploy:containerPort 8000 ] ;
-        deploy:volume [ a deploy:Volume ;
-                        deploy:volumeName "expense_pkm_data" ;
-                        deploy:mountPath "/app/data" ] ;
-        deploy:dependsOn :expense_triplestore ;
-        deploy:healthcheck [ a deploy:Healthcheck ;
-                             deploy:probe "curl -f http://localhost:8000/api/health" ;
-                             deploy:interval "10s" ] ;
         seam:inModel :expense_architecture .
 
     :expense_triplestore a arch:Container ; rdfs:label "Expense Triplestore" ;
         arch:technology "RDF4J" ;
-        deploy:artifact [ a deploy:Artifact ;
-                          deploy:reference "eclipse/rdf4j-workbench" ;
-                          deploy:version "5.0.1" ] ;
-        deploy:port [ a deploy:Port ; deploy:containerPort 8080 ] ;
-        deploy:volume [ a deploy:Volume ;
-                        deploy:volumeName "expense_triplestore_data" ;
-                        deploy:mountPath "/var/rdf4j" ] ;
-        deploy:healthcheck [ a deploy:Healthcheck ;
-                             deploy:probe "curl -f http://localhost:8080/rdf4j-server/protocol" ;
-                             deploy:interval "10s" ] ;
         seam:inModel :expense_architecture .
 
     # Two environments (ADR-0015). Production has a node for each container
@@ -887,8 +873,6 @@
         seam:executes :approval_process , :payout_process , :vendor_review_process ;
         seam:deployedTo :app01 .
     :expense_db seam:deployedTo :db01 .
-    :expense_pkm seam:deployedTo :db01 .
-    :expense_triplestore seam:deployedTo :db01 .
 
     # Data to architecture (ADR-0011): where each shape's rows live.
     # Chapter 10: expenses live in SemPKM; the rest stays in PostgreSQL.
@@ -1321,7 +1305,7 @@
 
     # One owl:imports per vocabulary the model uses (ADR-0021).
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.2> ,
+        owl:imports <https://w3id.org/seams/arch/1.3> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,

@@ -112,7 +112,7 @@ def _compose(trig: Path, out: Path) -> Sources:
     for env in environments(model):
         extract_compose(model, out, env)  # the generator's checks: one system with containers
         with view_errors():
-            system = model.architecture.systems()[0]
+            system = model.architecture.own_systems()[0]
             containers = [c.iri for c in system.containers]
         found[compose_file_name(env)] = _iris(model, [env.iri, system.iri, *containers])
     return found

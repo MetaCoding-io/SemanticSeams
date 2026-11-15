@@ -672,15 +672,19 @@ class Architecture:
         each one that seam:executes a proc:Process or seam:exposes a
         hydra:Operation some ifml:Event seam:submitsTo, by IRI. An operation
         only a task seam:invokes (the chat app's :completion_op) does not make
-        its container serving."""
+        its container serving, and neither is a container of an arch:external
+        system (ADR-0040 section 3): the model writes no code for it."""
         from .operations import Operation
 
         model = self._views.model
         processes, operations = model.processes, model.operations
         return self.containers().where(
             lambda c: (
-                any(p in processes for p in c.executes)
-                or any(isinstance(e, Operation) and e in operations and e.submitted_by for e in c.exposes)
+                not c.external
+                and (
+                    any(p in processes for p in c.executes)
+                    or any(isinstance(e, Operation) and e in operations and e.submitted_by for e in c.exposes)
+                )
             )
         )
 

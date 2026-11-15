@@ -61,6 +61,9 @@ suite. `seams check`, the two Docker end-to-end runs (`e2e-chat`, `e2e-expense`)
 docs build, lint and type-check are separate jobs, and `ci-ok` is the one check that
 passes only when they all do.
 
+The groups are balanced by the committed `.test_durations` file. When you add or remove
+many tests, refresh it with `uv run pytest -q --store-durations` and commit the result.
+
 The runtime's store tests run against embedded SQLite and against PostgreSQL. The
 PostgreSQL run needs a database URL in `SEAMS_TEST_POSTGRES_URL` and skips without one:
 

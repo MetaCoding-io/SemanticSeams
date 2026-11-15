@@ -222,7 +222,9 @@ What the runs did is a question too ([ADR-0042](docs/adr/0042-as-observed-graph.
 worker's trace rows, or an OTLP span export, load as an as-observed named graph that sits
 beside the model and never enters its hash, and `seams observed` and the viewer's Questions
 ask it which flow nodes no recorded run reached and which steps the model does not explain.
-CI asks both of the chapter 9 stack's runs.
+CI asks both of the chapter 9 stack's runs. Latency budgets declared on operations and flow
+nodes ([ADR-0043](docs/adr/0043-latency-budgets.md)) are checked against the spans' durations
+and reported met, missed or unobserved.
 
 ## The viewer
 
@@ -241,9 +243,9 @@ directory into memory through the `seams` library.
 ## Roadmap
 
 The [backlog](docs/backlog.md) is the plan. M031 (data classification, external
-systems and stored-data migrations from the shape diff) is done, and M032 has started: the
-worker's trace rows load as an as-observed named graph (S01). Next in line are SLOs checked
-against those observations, the rest of M032, and M033's
+systems and stored-data migrations from the shape diff) is done, and so is M032: the
+worker's trace rows load as an as-observed named graph (S01), and latency budgets are checked
+against those observations (S02). Next in line are M033's
 interchange exports (Structurizr DSL, LikeC4, PlantUML), rationale links and an
 event-storm import. Proposed from the November research notes and not yet scheduled: ten
 interface ideas from a product review (a storm board as the blank page and sentence

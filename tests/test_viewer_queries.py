@@ -37,8 +37,8 @@ EXPECTED_NAMES = [
 ]
 
 
-# Asked of recorded runs (M032/S01): in the catalog only with SEAMS_OBSERVED.
-OBSERVED_NAMES = ["dead-model", "observed-conformance"]
+# Asked of recorded runs (M032/S01, S02): in the catalog only with SEAMS_OBSERVED.
+OBSERVED_NAMES = ["dead-model", "observed-conformance", "latency-budgets"]
 
 
 def test_catalog_lists_every_query():

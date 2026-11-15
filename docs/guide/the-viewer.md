@@ -334,8 +334,16 @@ A BPMN view then offers, for its process:
   not declare (`unknown-element`), or ran a process the model does not declare
   (`unknown-process`), by run, step index and reason. A trace row names no process, so
   the answer is the same from any process.
+- **Which latency budgets do the recorded runs meet?** (`latency-budgets`): every
+  `nfr:LatencyBudget` of the model ([ADR-0043](/adr/0043-latency-budgets)) with its
+  bound, percentile, the observed nearest-rank duration in milliseconds, the number of
+  samples and its verdict, `met`, `missed` or `unobserved`, sorted by element then
+  budget. Only span exports carry durations, so trace files leave every budget
+  `unobserved`. An operation's budget belongs to no one process, so the answer is the
+  same from any process. A malformed budget is a 422 naming it and the predicate. See
+  [Authoring a model](/guide/authoring-a-model#latency-budgets) to declare one.
 
-Without `SEAMS_OBSERVED` neither question applies: no button, no catalog entry, and
+Without `SEAMS_OBSERVED` none of these questions applies: no button, no catalog entry, and
 `/queries/dead-model/…` is a 404 saying `SEAMS_OBSERVED is not set`. A source that is
 missing, is neither JSON nor a SQLite store, holds a malformed row or span, or repeats a
 run is logged at start and named in that 404 instead; the rest of the viewer works.

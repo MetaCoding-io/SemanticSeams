@@ -6,7 +6,8 @@ generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams migrate`
 writes the vocabulary migrations a model needs into its files; `seams sequence`
 derives an event's sequence diagrams; `seams storm` prints a process's derived
-event-storm timeline; `seams cml` moves the context map to and from Context
+event-storm timeline; `seams observed` lists what recorded runs never reached and
+the steps the model does not explain; `seams cml` moves the context map to and from Context
 Mapper DSL; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
 `seams plan` writes those changes and the elements each layer adds and removes
@@ -889,6 +890,65 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 | 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or NAME is no process and no event that triggers exactly one. |
 
 Errors print to stderr as `seams storm: <message>`, naming the argument.
+
+## seams observed
+
+```sh
+seams observed examples/chat-app tests/fixtures/traces/chat_send_message.json
+seams observed examples/expenses/chapter-09 3f2a9c1e --db seams.sqlite
+seams observed examples/chat-app --spans spans.json --json
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `PATH` | none | Optional, first: a directory, a `seams.toml` or a `.trig` file, taken as `--project` or `--model`. Any other first argument is a RUN. |
+| `RUN...` | none | Each a trace JSON file (an instance result or a bare list of rows), or an instance id in the `--db` store, as for `seams sequence --trace`. |
+| `--project PATH` | `.` | A `seams.toml` file, or a directory holding one. |
+| `--model PATH` | none | The model (`.trig`); overrides the project file and `SEAMS_MODEL`. |
+| `--db PATH` | `SEAMS_DB`, else `<project root>/seams.sqlite` | The runtime's SQLite store to read instance ids from. |
+| `--spans FILE` | none | An OTLP JSON (or JSON lines) span export whose element spans carry `seams.*` attributes. Repeatable. |
+| `--json` | off | Print the graph IRI, the run and step counts and both answers as JSON. |
+
+`seams observed` loads recorded runs as an as-observed graph
+([ADR-0042](/adr/0042-as-observed-graph)) and asks two questions of the model
+and the graph together. At least one RUN or `--spans` is needed. The graph is
+never added to the model and never enters its hash; nothing is written.
+
+The text output is one line per answer row, `dead-model` lines first, each
+section sorted:
+
+```
+dead-model <node> <process>
+conformance <run> <index> <reason> <reached or ->
+```
+
+A `dead-model` line is a BPMN flow node of the model's processes that no
+recorded step reached: what these runs never exercised, not proof that the
+element is wrong. A `conformance` line is a recorded step the model does not
+explain: `unknown-element` (it reached an element the model has no flow node
+for), `unmapped` (its row or span named no element) or `unknown-process` (its
+run names a process the model does not declare). A run is shown by its
+instance id; a trace file whose instance result names none is shown by the
+RUN argument as given. stderr gets one summary line:
+
+```
+$ seams observed examples/chat-app tests/fixtures/traces/chat_send_message.json
+seams observed: 1 run(s), 7 step(s): 0 unreached node(s), 0 unexplained step(s)
+```
+
+Findings are an audit, so the exit code stays 0. With `--json` the answers are
+lists of objects keyed by the query variables (`node`, `process`; `run`,
+`index`, `step`, `reached`, `reason`), with sorted keys.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Both answers were printed, with or without findings. |
+| 1 | A span file could not be read. |
+| 2 | The project file is missing or malformed, the model cannot be loaded, an instance is not in the store, a trace or span file is malformed, a row holds a value of the wrong type, or a run is given twice; or no RUN and no `--spans` (usage). |
+
+Errors print to stderr as `seams observed: <message>`, naming the run, row or span.
 
 ## seams cml
 

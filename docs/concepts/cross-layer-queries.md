@@ -40,6 +40,29 @@ them in Python and joins the paths with the scenarios. The viewer offers them as
 Questions, and [`seams coverage`](/reference/seams-cli#seams-coverage) prints them for a
 whole model.
 
+### Observed questions
+
+Two more are asked of the model and of what actually ran
+([ADR-0042](/adr/0042-as-observed-graph)). Recorded runs, the worker's trace rows or an
+OTLP span export, load as an as-observed graph of `obs:Run` and `obs:Step` facts. It is
+kept outside the model's graphs and its hash, and is queried in a read-only union with
+them:
+
+| Question | Answered by |
+|---|---|
+| Which flow nodes of the model's processes did no recorded run reach? | `seams/queries/observed/dead-model.rq` |
+| Which recorded steps does the model not explain: an unknown element, no element, or an unknown process? | `seams/queries/observed/conformance.rq` |
+
+Flow nodes live in the BPMN XML ([ADR-0007](/adr/0007-execution-strategy)), so
+`seams.observed_question` passes them to both queries as bindings. A dead node is one
+these runs never exercised, not proof that the element is wrong.
+[`seams observed`](/reference/seams-cli#seams-observed) prints both answers for a set of
+runs:
+
+```sh
+seams observed examples/chat-app tests/fixtures/traces/chat_send_message.json
+```
+
 ### Gate questions
 
 Two more are gates: queries that must return no rows, listed under `gates` in a project's

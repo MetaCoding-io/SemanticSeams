@@ -1,4 +1,5 @@
 """Command line: ``seams generate|check|migrate|status|sequence|storm|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
+``seams observed [PATH] RUN... [--spans FILE]``,
 ``seams generate|check|migrate|status|secrets|cml export PATH``, ``seams cml import FILE [PATH]`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
@@ -67,6 +68,19 @@ the worker's trace rows: RUN is a trace JSON file or an instance id in the
 runtime's SQLite store (``--db PATH``, default SEAMS_DB, else
 ``<project root>/seams.sqlite``). A missing instance exits 2; ``--db``
 without ``--trace`` is a usage error.
+
+``seams observed [PATH] RUN... [--db PATH] [--spans FILE] [--json]``
+(M032/S01, ADR-0042) loads recorded runs as an as-observed graph and prints
+the ``dead-model`` answer, ``dead-model <node> <process>`` per flow node no run
+reached, then the ``conformance`` answer, ``conformance <run> <index> <reason>
+<reached or ->`` per step the model does not explain, each sorted, and a count
+summary on stderr; ``--json`` prints both with the graph IRI and counts. PATH
+is the first positional only when it is a directory, a seams.toml or a .trig
+(``_fold_observed``); each RUN is read as for ``sequence --trace``, and each
+``--spans`` file is an OTLP JSON span export. The graph never enters the model
+or its hash; nothing is written. Findings keep the exit code 0; an unknown
+instance, a malformed trace, row or span file, or a run given twice exits 2
+naming it; no RUN and no ``--spans`` is a usage error.
 
 ``seams storm <name> [--out FILE]`` (M028/S01, backlog B4) prints the derived
 event-storm timeline of a process as Markdown: its actors, commands,
@@ -250,6 +264,7 @@ from .lockfile import locate
 from .migrate import migrate
 from .migrations import Refusal, migrations
 from .new_generator import NewGeneratorError, new_generator
+from .observed import run_observed
 from .plan import refusal_line, render, resolve
 from .project import PROJECT_FILE, ProjectError, load_project, resolve_model
 from .propose import ProposeError, propose
@@ -332,6 +347,37 @@ def build_parser() -> argparse.ArgumentParser:
         "--db", type=Path, help="the runtime's SQLite store (default: SEAMS_DB, else <project>/seams.sqlite)"
     )
     sequence.set_defaults(run=_sequence)
+    observed = sub.add_parser(
+        "observed",
+        help="list the model elements recorded runs never reached and the steps the model does not explain",
+        description="Load recorded runs as an as-observed graph (ADR-0042) and ask dead-model and conformance.",
+    )
+    observed.add_argument(
+        "sources",
+        nargs="*",
+        metavar="[PATH] RUN",
+        help=(
+            "PATH (optional, first): a directory, seams.toml or .trig, as --project or --model; "
+            "then each RUN: a trace JSON file or an instance id in the --db store"
+        ),
+    )
+    observed.add_argument(
+        "--project", type=Path, default=None, help="seams.toml or a directory holding one (default: .)"
+    )
+    observed.add_argument("--model", type=Path, help="the model (.trig); overrides the project file and SEAMS_MODEL")
+    observed.add_argument(
+        "--db", type=Path, help="the runtime's SQLite store (default: SEAMS_DB, else <project>/seams.sqlite)"
+    )
+    observed.add_argument(
+        "--spans",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="an OTLP JSON (or JSON lines) span export with seams.* attributes; repeatable",
+    )
+    observed.add_argument("--json", action="store_true", help="print the graph IRI, counts and answers as JSON")
+    observed.set_defaults(run=_observed)
     storm = sub.add_parser(
         "storm",
         help="print the derived event-storm timeline of a process as Markdown",
@@ -519,6 +565,24 @@ def _fold_path(parser: argparse.ArgumentParser, args: argparse.Namespace) -> Non
         args.project = Path(".")
 
 
+def _fold_observed(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Split ``seams observed``'s positionals into PATH and RUNs.
+
+    The first is PATH when it is a directory, a seams.toml or a .trig file
+    (then folded as ``_fold_path`` does); every other one is a RUN, so a trace
+    file or an instance id is never taken for the project. At least one RUN or
+    ``--spans`` is needed.
+    """
+    sources: list[str] = list(args.sources)
+    first = Path(sources[0]) if sources else None
+    is_path = first is not None and (first.is_dir() or first.name == PROJECT_FILE or first.suffix == ".trig")
+    args.path = first if is_path else None
+    args.runs = sources[1:] if is_path else sources
+    _fold_path(parser, args)
+    if not args.runs and not args.spans:
+        parser.error("observed: give at least one RUN or --spans FILE")
+
+
 def _display(path: Path) -> str:
     try:
         return str(path.relative_to(Path.cwd().resolve()))
@@ -627,6 +691,17 @@ def _sequence(args: argparse.Namespace) -> int:
         print(f"seams sequence: gap {name}: {gap}", file=sys.stderr)
     for path in paths:
         print(_display(path.resolve()))
+    return 0
+
+
+def _observed(args: argparse.Namespace) -> int:
+    found = run_observed(load_project(args.project), args.model, args.runs, args.spans, args.db)
+    if args.json:
+        print(json.dumps(found.to_json(), indent=2, sort_keys=True))
+    else:
+        for line in found.lines():
+            print(line)
+    print(f"seams observed: {found.summary()}", file=sys.stderr)
     return 0
 
 
@@ -849,7 +924,9 @@ def _new_generator(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if hasattr(args, "path"):
+    if args.command == "observed":
+        _fold_observed(parser, args)
+    elif hasattr(args, "path"):
         _fold_path(parser, args)
     if args.command == "sequence" and args.db is not None and args.trace is None:
         parser.error("sequence: --db needs --trace")

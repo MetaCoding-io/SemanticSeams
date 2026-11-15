@@ -406,6 +406,31 @@ never read. It exits 0 on success, 1 when the task is unknown, is not a
 stderr), and 2 on a project error or a model that cannot be loaded. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-context).
 
+## seams observed
+
+```sh
+seams observed examples/chat-app tests/fixtures/traces/chat_send_message.json
+seams observed examples/expenses/chapter-09 <instance id> --db seams.sqlite
+seams observed examples/chat-app --spans spans.json --json
+```
+
+It loads recorded runs as an as-observed graph (ADR-0042, `observed.py`,
+`run_observed`, over `seams.observed_graph` and `seams.observed_question`) and
+prints the `dead-model` answer (each flow node no run reached, as
+`dead-model <node> <process>`) then the `conformance` answer (each step the
+model does not explain, as `conformance <run> <index> <reason> <reached or ->`),
+each sorted, and a count summary on stderr; `--json` prints both with the graph
+IRI and counts. The first positional is PATH only when it is a directory, a
+`seams.toml` or a `.trig`; every other positional is a RUN, read as for
+`seams sequence --trace` (`seams_gen.sequence.read_trace`, `--db` defaulting to
+`SEAMS_DB`, else `<project root>/seams.sqlite`). `--spans FILE` (repeatable)
+adds the runs of an OTLP JSON span export. The graph never enters the model or
+its hash, and nothing is written. Findings keep the exit code 0; an unknown
+instance, a malformed trace, row or span file, or a run given twice exits 2
+naming it; an unreadable span file exits 1; no RUN and no `--spans` is a usage
+error. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-observed).
+
 ## seams cml
 
 ```sh

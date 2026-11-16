@@ -64,6 +64,26 @@ out = "generated/acceptance"
 name = "jsonld"
 out = "generated/contexts"
 
+# A Structurizr DSL workspace (ADR-0044): people, systems, containers and
+# their relationships, with a system-context and a container view per system.
+# What the model lacks is written as comment lines.
+[[generators]]
+name = "structurizr"
+out = "generated/exports/structurizr"
+
+# The same C4 extract as a LikeC4 model (ADR-0044), containers nested under
+# their system, with an index view and one view per system.
+[[generators]]
+name = "likec4"
+out = "generated/exports/likec4"
+
+# PlantUML beside the Mermaid sequence and storm views (ADR-0044): one
+# sequence/<file>.puml per triggering event and one storm/<process>.puml per
+# process, with gaps as ' gap: comment lines.
+[[generators]]
+name = "plantuml"
+out = "generated/exports/plantuml"
+
 # Chapter 10's mentalmodel generator is not listed: a SemPKM Mental Model
 # (ADR-0026) is written for one seam:Ontology model, and this dataset has
 # two, :expense_ontology and :finance_ontology.

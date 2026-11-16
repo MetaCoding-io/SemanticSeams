@@ -43,7 +43,7 @@ examples/   checkout.ttl    — worked example exercising every non-reserved sea
             expenses/       — the expense tutorial's checkpoint model per chapter (chapter-01 to chapter-11), each checked in CI
 packages/   seams/          — the read-only `seams` model library (rdflib + lxml only): loader, typed views per layer, BPMN flow walks and DMN tables (lxml), SPARQL helpers, model hash, payloads, and ModelGraph (the resolver facade over the views)
             seams-cli/      — the `seams` command (generate, check, migrate, status, secrets, sequence, storm, cml, diff, plan, coverage, context, propose, suggest, draft-generator, new-generator) and the built-in generators' entry points
-seams_gen/  the generators (htmx, fastapi, dockerfile, compose, tests, smoke, acceptance, jsonld, mentalmodel, ifmledit), the generator protocol and the public test kit (ADR-0016), the line-level tracer (ADR-0019), handler stubs, and the derived sequence, storm and complexity views
+seams_gen/  the generators (htmx, fastapi, dockerfile, compose, tests, smoke, acceptance, jsonld, mentalmodel, ifmledit, structurizr, likec4, plantuml), the generator protocol and the public test kit (ADR-0016), the line-level tracer (ADR-0019), handler stubs, and the derived sequence, storm and complexity views
 seams_runtime/ the execution side: a graph-literate worker over SpiffWorkflow, stores chosen from the model (SQLite, PostgreSQL, SemPKM), policies, user tasks, channels, error boundaries, timers, aggregates, data health and a live-update bus that follows the store kind
 seams_gateway/ the LLM gateway the chat app calls, with a built-in stub so no API key is needed
 seams_edit/ the model's one write path (ADR-0017): quad patches applied by editing the TriG text in place, so comments and layout survive, BPMN/DMN payload saves and id renames, with undo
@@ -170,7 +170,12 @@ member IRI, and the generated API serves it at `GET /contexts/<shape>.jsonld` wi
 payloads as RDF ([ADR-0024](docs/adr/0024-json-ld-context.md)). The `mentalmodel` generator
 writes a SemPKM Mental Model from the ontology model, the target-classed shapes and the IFML
 lists and details views, which SemPKM installs as its forms and tables
-([ADR-0026](docs/adr/0026-mental-model.md)). The
+([ADR-0026](docs/adr/0026-mental-model.md)). The `structurizr` and `likec4` generators
+export the model's people, systems, containers and relationships as a Structurizr DSL
+workspace and a LikeC4 model, and the `plantuml` generator writes the derived sequence and
+storm views as PlantUML beside the Mermaid ones; what the model lacks is written as comment
+lines ([ADR-0044](docs/adr/0044-interchange-exports.md)). The chat app and chapter 11 write
+them under `generated/exports/`. The
 runtime can also emit OpenTelemetry spans carrying element IRIs; tracing is off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set and the `seams_runtime` `otel` extra is installed
 (see [`seams_runtime/README.md`](seams_runtime/README.md)).

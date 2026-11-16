@@ -25,6 +25,9 @@ hash it was generated from.
 | `acceptance/test_notify.py` | `acceptance`: checks the hand-written notify handler against the model |
 | `contexts/*.jsonld` | `jsonld`: the JSON-LD context of each shape with a `sh:targetClass` (ADR-0024); `expense_api.py` serves the same text at `GET /contexts/<shape>.jsonld` |
 | `smoke/test_smoke.py` | `smoke`: one test per `hydra:Operation`, calling it on its `comm:path` against `SEAMS_SMOKE_BASE_URL` and checking the answer against `seam:returnsShape`; skipped when the variable is unset |
+| `exports/structurizr/workspace.dsl` | `structurizr`: a Structurizr DSL workspace of the model's people, systems, containers and relationships, with what the model lacks as comment lines (ADR-0044) |
+| `exports/likec4/model.c4` | `likec4`: the same C4 extract as a LikeC4 model (ADR-0044) |
+| `exports/plantuml/sequence/*.puml`, `exports/plantuml/storm/*.puml` | `plantuml`: one sequence file per path of the triggering event and one storm file per process, beside the Mermaid views, with gaps as `' gap:` comment lines (ADR-0044) |
 
 Regenerate from the repository root:
 

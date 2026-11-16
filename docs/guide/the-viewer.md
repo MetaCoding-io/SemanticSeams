@@ -213,6 +213,13 @@ templates. The heading and each row open the [generation view](#generation-view)
 a row on that file's first citing line. An element no generated line cites has no
 Generated section.
 
+**Why.** Below Generated, the decision records whose `dcterms:references` name the
+element ([ADR-0045](/adr/0045-rationale-links)), sorted by identifier. Each row shows
+the record's identifier, linked to its `rdfs:seeAlso` document when it has one, and
+its title. In the chat app, ConversationShape lists ADR-0011, and `:chat_api` lists
+ADR-0015 and ADR-0038. An element no record references has no Why section. To add
+records, see [Decision records](./authoring-a-model#decision-records).
+
 ## Generation view
 
 `/generation/{iri}` shows how one element became code, read from the

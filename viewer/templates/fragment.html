@@ -410,6 +410,19 @@
       </section>
     {% endif %}
 
+    {% if why %}
+      {# Why section (backlog X8, ADR-0045): the decision records whose
+         dcterms:references name this element, sorted by identifier. #}
+      <section id="why" class="why" aria-label="Why">
+        <h4>Why</h4>
+        <ul>
+          {% for w in why %}
+            <li class="why-row" data-record="{{ w.iri }}">{% if w.href %}<a href="{{ w.href }}"><code>{{ w.identifier }}</code></a>{% else %}<code>{{ w.identifier }}</code>{% endif %} {{ w.label }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
     {% if outgoing %}
       <h4>Outgoing seam edges</h4>
       <ul>

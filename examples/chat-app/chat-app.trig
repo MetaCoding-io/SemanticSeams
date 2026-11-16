@@ -16,6 +16,7 @@
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
 @prefix owl:    <http://www.w3.org/2002/07/owl#> .
 @prefix dash:   <http://datashapes.org/dash#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
 @prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
 @prefix seam:   <https://w3id.org/seams/seam#> .
@@ -163,6 +164,32 @@
         seam:inModel :chat_architecture .
     :db01  a arch:DeploymentNode ; rdfs:label "db01" ;
         seam:inModel :chat_architecture .
+
+    # Decision records (ADR-0045): the ADRs that decide elements of this model,
+    # so the viewer's inspector can say why each element is as it is.
+    :adr_0011 a arch:DecisionRecord ;
+        rdfs:label "Storage Resolution — the Runtime Stores Data Where the Model Says" ;
+        dcterms:identifier "ADR-0011" ;
+        rdfs:seeAlso <https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/adr/0011-storage-resolution.md> ;
+        dcterms:references :message_db , :MessageShape , :ConversationShape .
+
+    :adr_0012 a arch:DecisionRecord ;
+        rdfs:label "Operation Implementation — an Operation Says What Implements It" ;
+        dcterms:identifier "ADR-0012" ;
+        rdfs:seeAlso <https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/adr/0012-operation-implementation.md> ;
+        dcterms:references :completion_op , :completion_impl .
+
+    :adr_0015 a arch:DecisionRecord ;
+        rdfs:label "Environments — Development and Production Are Facts in the Model" ;
+        dcterms:identifier "ADR-0015" ;
+        rdfs:seeAlso <https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/adr/0015-environments.md> ;
+        dcterms:references :development , :production , :chat_api .
+
+    :adr_0038 a arch:DecisionRecord ;
+        rdfs:label "Shared Stream Channel and Replicas" ;
+        dcterms:identifier "ADR-0038" ;
+        rdfs:seeAlso <https://github.com/MetaCoding-io/SemanticSeams/blob/main/docs/adr/0038-shared-stream-channel.md> ;
+        dcterms:references :chat_api , :message_db , :stream_events .
 }
 
 #################################################################
@@ -508,7 +535,7 @@
 
     # One owl:imports per vocabulary the model uses (ADR-0021).
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.3> ,
+        owl:imports <https://w3id.org/seams/arch/1.4> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,

@@ -37,7 +37,19 @@ import seams_edit
 from seams_edit.patch import term_text
 from seams_gen import GeneratorError, storm
 from seams_gen.sequence import derive, read_trace, render
-from viewer import editing, generation, ifml, ifml_edit, layers, legend, preview, structural, validation, writeback
+from viewer import (
+    editing,
+    generation,
+    ifml,
+    ifml_edit,
+    layers,
+    legend,
+    preview,
+    rationale,
+    structural,
+    validation,
+    writeback,
+)
 from viewer import queries as canned_queries
 from viewer.levels import C4_LEVELS, DEFAULT_LEVEL, load_rollup
 from viewer.ontologygraph import ontology_graph_data, ontology_health, superclass_warnings
@@ -1413,6 +1425,9 @@ def view_endpoint(request: Request, iri: str, path: str = "", level: str = "", h
             generation.get_index(MODEL_DIR), focus, lambda out, n: generation_href(focus, out, n)
         ),
         "generation_href": generation_href(focus),
+        # Why section (backlog X8, ADR-0045): the decision records referencing
+        # the focus. Template-only.
+        "why": rationale.why(get_graph(), focus),
     }
 
     if render_kind == "c4":

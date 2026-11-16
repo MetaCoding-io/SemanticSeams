@@ -1,0 +1,11 @@
+@startuml
+' Event storm, written by the seams_gen plantuml generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+' derived from https://example.org/expenses/vendor_review_process
+title Event storm: Vendor Review
+start
+:1. Vendor Changed (vendor_changed);
+note right
+  command: Vendor Changed (vendor_changed) on channel vendor_changes
+end note
+stop
+@enduml

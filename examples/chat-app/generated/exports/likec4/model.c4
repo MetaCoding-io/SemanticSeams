@@ -1,0 +1,37 @@
+// LikeC4 model of the model's C4 layer, written by the seams_gen likec4 generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+// gap: select_conversation has no seam:governedBy policy with an odrl:assignee (on it, its operation or the user task its form completes), so no person uses it
+specification {
+  element person
+  element system
+  element container
+  tag external
+}
+model {
+  authenticated_user = person 'Authenticated users'
+  chat_system = system 'LLM Chat App' {
+    chat_api = container 'Chat API' {
+      technology 'FastAPI, SSE streaming'
+    }
+    chat_ui = container 'Chat Web Interface' {
+      technology 'htmx + server-rendered fragments'
+    }
+    llm_gateway = container 'LLM Provider Gateway' {
+      technology 'OpenAI-compatible API proxy'
+    }
+    message_db = container 'Message Store' {
+      technology 'PostgreSQL'
+    }
+  }
+  authenticated_user -> chat_system.chat_ui 'send_message'
+  chat_system.chat_api -> chat_system.llm_gateway 'depends on'
+  chat_system.chat_api -> chat_system.message_db 'depends on'
+  chat_system.chat_ui -> chat_system.chat_api 'list_conversations_op, message_thread_op, send_message_op, stream_events'
+}
+views {
+  view index {
+    include *
+  }
+  view chat_system_view of chat_system {
+    include *
+  }
+}

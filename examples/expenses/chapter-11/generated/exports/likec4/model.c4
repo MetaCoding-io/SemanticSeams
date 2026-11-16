@@ -1,0 +1,50 @@
+// LikeC4 model of the model's C4 layer, written by the seams_gen likec4 generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+specification {
+  element person
+  element system
+  element container
+  tag external
+}
+model {
+  employee = person 'Employee'
+  finance = person 'Finance'
+  manager = person 'Manager'
+  expense_system = system 'Expense Approval' {
+    employee_portal = container 'Employee Portal' {
+      technology 'htmx + server-rendered fragments'
+    }
+    expense_api = container 'Expense API' {
+      technology 'FastAPI'
+    }
+    expense_db = container 'Expense Store' {
+      technology 'PostgreSQL'
+    }
+  }
+  sempkm = system 'SemPKM' {
+    #external
+    expense_pkm = container 'Expense Knowledge Store' {
+      technology 'SemPKM'
+    }
+    expense_triplestore = container 'Expense Triplestore' {
+      technology 'RDF4J'
+    }
+  }
+  employee -> expense_system.employee_portal 'submit_expense'
+  expense_system.employee_portal -> expense_system.expense_api 'approve_expense_op, awaiting_approval_op, expense_details_op, finance_approve_expense_op, list_expenses_op, list_payments_op, paid_expenses_op, pay_expense_op, submit_expense_op'
+  expense_system.expense_api -> expense_system.expense_db 'depends on'
+  expense_system.expense_api -> sempkm.expense_pkm 'depends on'
+  sempkm.expense_pkm -> sempkm.expense_triplestore 'depends on'
+  finance -> expense_system.employee_portal 'submit_finance_approval, submit_payment'
+  manager -> expense_system.employee_portal 'submit_approval'
+}
+views {
+  view index {
+    include *
+  }
+  view expense_system_view of expense_system {
+    include *
+  }
+  view sempkm_view of sempkm {
+    include *
+  }
+}

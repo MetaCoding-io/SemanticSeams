@@ -1,0 +1,39 @@
+@startuml
+' Event storm, written by the seams_gen plantuml generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+' derived from https://example.org/chat/send_message_process
+title Event storm: Send Message Process
+start
+:1. Send Message (send_message);
+note right
+  actor: Authenticated users (policy user_send_policy)
+  command: Send Message (send_message) → POST send_message_op [MessageShape]
+end note
+:2. Persist User Message (persist_user_msg);
+note right
+  aggregate: Message (MessageShape), stored in message_db, lifecycle message_lifecycle
+  domain event: sending (t_send: composing → sending, Message Lifecycle)
+end note
+:3. Route to Provider (route_to_provider);
+note right
+  decision: Route to Provider (routing_decision)
+end note
+:4. Invoke LLM (invoke_llm);
+note right
+  domain event: streaming (t_stream: sending → streaming, Message Lifecycle)
+  channel: stream.events (stream_events)
+end note
+:5. Persist Assistant Response (persist_response);
+note right
+  aggregate: Message (MessageShape), stored in message_db, lifecycle message_lifecycle
+  domain event: complete (t_finish: streaming → complete, Message Lifecycle)
+end note
+:6. Stream Complete (stream_complete_event);
+note right
+  channel: stream.events (stream_events)
+end note
+stop
+legend right
+  Read models
+  - Message Thread (message_thread) reads MessageShape, served by GET message_thread_op
+endlegend
+@enduml

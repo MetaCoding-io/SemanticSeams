@@ -1,0 +1,59 @@
+@startuml
+' Event storm, written by the seams_gen plantuml generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+' derived from https://example.org/expenses/approval_process
+' gap: ApprovalShape has no read model: no ifml page or component seam:reads it
+' gap: NotificationShape has no read model: no ifml page or component seam:reads it
+title Event storm: Expense Approval
+start
+:1. Submit Expense (submit_expense);
+note right
+  actor: Employee (policy employee_submit_policy)
+  command: Submit Expense (submit_expense) → POST submit_expense_op [ExpenseShape]
+end note
+:2. Persist Expense (persist_expense);
+note right
+  aggregate: Expense (ExpenseShape), class Expense, stored in expense_pkm, lifecycle expense_lifecycle
+  domain event: submitted (t_submit: draft → submitted, Expense Lifecycle)
+end note
+:3. Route Expense (route_expense);
+note right
+  decision: Route Approval (approval_routing)
+end note
+:4. Notify Manager (notify_manager);
+note right
+  aggregate: Notification (NotificationShape), stored in expense_db
+end note
+:5. Approve Expense (approve_expense);
+note right
+  actor: Manager (policy manager_approval_policy)
+  command: Approve Expense (approve_expense) on approve_form → POST approve_expense_op [ApprovalShape]
+  aggregate: Approval (ApprovalShape), class Approval, stored in expense_db
+end note
+:6. Finance Approve Expense (finance_approve_expense);
+note right
+  actor: Finance (policy finance_approval_policy)
+  command: Finance Approve Expense (finance_approve_expense) on finance_approve_form → POST finance_approve_expense_op [ApprovalShape]
+  aggregate: Approval (ApprovalShape), class Approval, stored in expense_db
+end note
+:7. Record Approval (record_approval);
+note right
+  domain event: approved (t_approve: submitted → approved, Expense Lifecycle)
+end note
+:8. Record Rejection (record_rejection);
+note right
+  domain event: rejected (t_reject: submitted → rejected, Expense Lifecycle)
+end note
+:9. Approved (approved_end);
+note right
+  channel: payout requested (payouts)
+  process started: Expense Payout (payout_process) via payouts
+end note
+stop
+legend right
+  Read models
+  - Awaiting approval (awaiting_approval) reads ExpenseShape, served by GET awaiting_approval_op
+  - Expense (expense_details) reads ExpenseShape, served by GET expense_details_op
+  - My Expenses (expense_list) reads ExpenseShape, served by GET list_expenses_op
+  - Expenses (paid_expenses) reads ExpenseShape, served by GET paid_expenses_op
+endlegend
+@enduml

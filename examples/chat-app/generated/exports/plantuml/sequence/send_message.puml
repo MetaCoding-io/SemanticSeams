@@ -1,0 +1,24 @@
+@startuml
+' Sequence diagram, written by the seams_gen plantuml generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+' derived from https://example.org/chat/send_message
+' path: single
+actor "Authenticated users" as authenticated_user
+participant "Chat Web Interface" as chat_ui
+participant "Chat API" as chat_api
+participant "Message Store" as message_db
+participant "LLM Provider Gateway" as llm_gateway
+authenticated_user -> chat_ui : send_message (policy: user_send_policy)
+chat_ui -> chat_api : POST send_message_op [MessageShape]
+note over chat_api : start send_message_process
+chat_api -> message_db : persist_user_msg writes MessageShape
+note over chat_api : t_send
+chat_api --> chat_ui : message_thread fragment
+chat_api -> chat_api : route_to_provider (DMN routing_decision)
+note over chat_api : t_stream
+chat_api -> llm_gateway : invoke_llm, completion_op [MessageShape]
+llm_gateway --> chat_api : completion_op returns [MessageShape]
+chat_api --> chat_ui : stream_events (token deltas)
+chat_api -> message_db : persist_response writes MessageShape
+note over chat_api : t_finish
+chat_api --> chat_ui : stream_events (stream.events event)
+@enduml

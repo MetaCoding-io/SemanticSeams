@@ -26,7 +26,7 @@ course/     the course site (VitePress): twelve lessons from the history of mode
             engineering and code generation to what SemanticSeams does about their failures
   queries/  canned cross-layer queries (*.rq) — the query catalog the viewer's buttons and CI both drive
 ontology/   seam.ttl        — the bridging ontology (the load-bearing part)
-            arch.ttl        — minimal C4-style architecture vocabulary
+            arch.ttl        — minimal C4-style architecture vocabulary, plus decision records (ADR-0045)
             ifml.ttl        — IFML-inspired interaction vocabulary (documented correspondence + deviations vs OMG IFML)
             proc.ttl        — process/decision index types (NOT a BPMN ontology; see file header), including the lifted timer events (ADR-0037)
             state.ttl       — statechart lifecycle vocabulary
@@ -117,7 +117,7 @@ with `seam:conformsTo` is also validated against the profile's shapes: check nam
 profile and fails on its `sh:Violation` results
 ([ADR-0033](docs/adr/0033-ddd-profile.md)). CI runs it for every example through the composite action in
 `.github/actions/seams-check`, and `.pre-commit-hooks.yaml` offers it as a pre-commit hook.
-Each vocabulary carries an `owl:versionIRI` (`MAJOR.MINOR`; `seam` 1.6, `arch` 1.2, `proc` 1.1,
+Each vocabulary carries an `owl:versionIRI` (`MAJOR.MINOR`; `seam` 1.6, `arch` 1.4, `proc` 1.1, `obs` 1.1,
 `verify` 1.1 and the rest 1.0 today), and a model
 `owl:imports` the versions it is written for in its manifest graph, as every example does
 ([ADR-0021](docs/adr/0021-vocabulary-versions.md)). `seams.load` loads a model on the

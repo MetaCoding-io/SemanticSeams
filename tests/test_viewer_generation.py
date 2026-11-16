@@ -1,9 +1,10 @@
 """The generation view's trace index (backlog T3, M020/S02, ADR-0019).
 
 viewer.generation joins seams.lock, the <output>.trace.json sidecars and the
-templates they cite. On the committed chat app every traced output loads with
-no notice; IRIs are read from the committed sidecars, never named here. Broken
-projects are built in tmp_path: each bad file is one notice naming it.
+templates they cite. On the committed chat app every output loads with no
+notice, traced exactly when its generator has a trace hook; IRIs are read from
+the committed sidecars, never named here. Broken projects are built in
+tmp_path: each bad file is one notice naming it.
 """
 
 import json
@@ -59,10 +60,13 @@ def test_chat_app_outputs_load_without_notices():
     index = generation.get_index(CHAT)
     assert index.notices == ()
     assert [o.path for o in index.outputs] == _locked_paths(CHAT)
+    registered = discover()
     for out in index.outputs:
-        assert out.traced
+        # A generator with no trace hook (the interchange exports, ADR-0044) writes no
+        # sidecar by design: its output is untraced and has no lines.
+        assert out.traced == (registered[out.generator].trace is not None), out.path
         assert out.text == (CHAT / out.path).read_text(encoding="utf-8")
-        assert out.lines, out.path
+        assert bool(out.lines) == out.traced, out.path
         assert [tl.line for tl in out.lines] == sorted(tl.line for tl in out.lines)
 
 

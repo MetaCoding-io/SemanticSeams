@@ -5,8 +5,8 @@
 @prefix arch:  <https://w3id.org/seams/arch#> .
 
 <https://w3id.org/seams/arch> a owl:Ontology ;
-    owl:versionIRI <https://w3id.org/seams/arch/1.3> ;
-    owl:versionInfo "1.3" ;
+    owl:versionIRI <https://w3id.org/seams/arch/1.4> ;
+    owl:versionInfo "1.4" ;
     rdfs:label "SemanticSeams Architecture Vocabulary" ;
     rdfs:comment """A deliberately small C4-inspired vocabulary. Unlike C4 proper,
 the containment hierarchy is user-definable (LikeC4-style): arch:contains nests
@@ -52,6 +52,10 @@ arch:Generic    a arch:DomainClassification ; rdfs:label "generic" .
 
 arch:ContextRelationship a rdfs:Class ;
     rdfs:comment "A context-map relationship (ADR-0032): one arch:upstream context, one arch:downstream context and one arch:relationshipType. At most one per pair of contexts." .
+
+arch:DecisionRecord a rdfs:Class ;
+    rdfs:label "decision record" ;
+    rdfs:comment "A recorded decision, such as an ADR, stated in the architecture model (ADR-0045): one rdfs:label, one dcterms:identifier (\"ADR-0012\"), at most one rdfs:seeAlso naming its document, and one or more dcterms:references naming the model elements it decides. Not an arch:Element: it explains the architecture and is not part of it. Generators never read it; the viewer's inspector lists the records that reference the focused element." .
 
 arch:RelationshipType a rdfs:Class ;
     rdfs:comment "How the downstream context of an arch:ContextRelationship uses the upstream context's language." .

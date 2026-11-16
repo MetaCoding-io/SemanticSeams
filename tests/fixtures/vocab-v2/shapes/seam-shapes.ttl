@@ -17,6 +17,7 @@
 @prefix nfr:    <https://w3id.org/seams/nfr#> .
 @prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
 @prefix dpv:    <https://w3id.org/dpv#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix seamsh: <https://w3id.org/seams/shapes#> .
 
 <https://w3id.org/seams/shapes> a owl:Ontology ;
@@ -45,6 +46,7 @@ subclass closure (e.g. proc:ServiceTask -> proc:Task) from triples in the data."
                [ sh:prefix "deploy" ; sh:namespace "https://w3id.org/seams/deploy#"^^xsd:anyURI ] ,
                [ sh:prefix "arch" ; sh:namespace "https://w3id.org/seams/arch#"^^xsd:anyURI ] ,
                [ sh:prefix "dpv" ; sh:namespace "https://w3id.org/dpv#"^^xsd:anyURI ] ,
+               [ sh:prefix "dcterms" ; sh:namespace "http://purl.org/dc/terms/"^^xsd:anyURI ] ,
                [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ] .
 
 #################################################################
@@ -2185,6 +2187,42 @@ seamsh:LatencyBudgetShape a sh:NodeShape ;
             }""" ;
     ] ;
     sh:message "Only a nfr:LatencyBudget carries nfr:budgetOf, nfr:maxMilliseconds or nfr:percentile, and a budget is an IRI (ADR-0043)." .
+
+
+#################################################################
+# Decision records (ADR-0045)
+#################################################################
+
+# A decision record names the elements it decides with dcterms:references. The
+# referenced IRIs are not checked against the graph: a BPMN flow node no seam names
+# has no triples (ADR-0043 has the same rule for nfr:budgetOf).
+seamsh:DecisionRecordShape a sh:NodeShape ;
+    sh:targetClass arch:DecisionRecord ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:Literal ;
+        sh:message "An arch:DecisionRecord has exactly one rdfs:label, a literal (ADR-0045)." ] ;
+    sh:property [ sh:path dcterms:identifier ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "An arch:DecisionRecord has exactly one dcterms:identifier, a string such as \"ADR-0012\" (ADR-0045)." ] ;
+    sh:property [ sh:path dcterms:references ; sh:minCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "An arch:DecisionRecord dcterms:references at least one model element, each an IRI (ADR-0045)." ] ;
+    sh:property [ sh:path rdfs:seeAlso ; sh:maxCount 1 ; sh:nodeKind sh:IRI ;
+        sh:message "An arch:DecisionRecord has at most one rdfs:seeAlso, the IRI of its document (ADR-0045)." ] ;
+    sh:sparql [
+        sh:message "{$this}: another arch:DecisionRecord has the dcterms:identifier {?value}; a record's identifier is its own (ADR-0045)." ;
+        sh:prefixes <https://w3id.org/seams/shapes> ;
+        sh:select """
+            SELECT $this ?path ?value WHERE {
+                $this dcterms:identifier ?value .
+                ?other a arch:DecisionRecord ; dcterms:identifier ?value .
+                FILTER (?other != $this)
+                BIND (dcterms:identifier AS ?path)
+            }""" ;
+    ] .
+
+# Its own shape, so its message is not attached to the constraints above.
+seamsh:DecisionRecordIriShape a sh:NodeShape ;
+    sh:targetClass arch:DecisionRecord ;
+    sh:nodeKind sh:IRI ;
+    sh:message "An arch:DecisionRecord is an IRI, so the viewer can name and link it (ADR-0045)." .
 
 #################################################################
 # Deprecated terms (ADR-0021 section 6). Test fixture

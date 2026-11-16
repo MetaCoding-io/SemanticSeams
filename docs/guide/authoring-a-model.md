@@ -1027,6 +1027,39 @@ A system someone else builds and runs, such as a third-party API, is still an
 `ExternalMarkerShape`, `ExternalContainmentShape`, `ExternalContainerShape` and
 `ExternalReachShape` name the element and the predicate for each break.
 
+### Decision records
+
+An ADR that decides model elements can say so in the model, so the viewer's inspector
+lists it under the element ([ADR-0045](/adr/0045-rationale-links)). Write an
+`arch:DecisionRecord` in the architecture model's graph; it needs `arch` 1.4 and the
+`dcterms:` prefix (`http://purl.org/dc/terms/`):
+
+```trig
+<urn:seams:graph:model:expense_architecture> {
+    :adr_0012 a arch:DecisionRecord ;
+        rdfs:label "Store expenses in SQLite" ;
+        dcterms:identifier "ADR-0012" ;
+        rdfs:seeAlso <https://example.org/docs/adr/0012-sqlite-store.md> ;
+        dcterms:references :expense_db , :submit_expense .
+}
+```
+
+- **One label and one identifier.** `rdfs:label` is the decision's title and
+  `dcterms:identifier` a string such as `"ADR-0012"`, unique among the records. The
+  inspector sorts records by identifier.
+- **At most one document.** `rdfs:seeAlso` is the IRI of the ADR; the inspector links
+  to it. Leave it out when the decision has no document.
+- **One or more references.** `dcterms:references` names each element the decision
+  decides by its IRI: a container, an operation, a shape, a screen, or the IRI of a
+  BPMN or DMN element. The IRIs are not checked against the graph, so check the
+  spelling.
+- **Architecture graph only, and not a seam.** A record joins no two layers and nothing
+  generates from it, so it never goes in the seams graph. It is not an `arch:Element`
+  and appears in no C4 view or export.
+
+`DecisionRecordShape` names the record and the predicate for each break, and
+`DecisionRecordIriShape` flags a record written as a blank node.
+
 ## Vocabulary versions
 
 Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.MINOR`
@@ -1036,7 +1069,8 @@ Each vocabulary in `ontology/` has a version IRI, its ontology IRI plus `MAJOR.M
 added context-map relationships (`arch:ContextRelationship`, ADR-0032); `seam` 1.5 adds
 `seam:aggregateMember`, the shapes an aggregate commits together (ADR-0035); `seam` 1.6
 adds `seam:schedules` and `proc` 1.1 adds `proc:TimerStartEvent` and `proc:TimerCatchEvent`
-(ADR-0037); `arch` 1.3 adds `arch:external` (ADR-0040). All are compatible widenings, so a model that declares an older `arch`,
+(ADR-0037); `arch` 1.3 adds `arch:external` (ADR-0040); `arch` 1.4 adds
+`arch:DecisionRecord` (ADR-0045). All are compatible widenings, so a model that declares an older `arch`,
 `proc` or `seam` loads unchanged. A model says which versions it is written for in
 the manifest graph: the graph's own IRI is an `owl:Ontology` that `owl:imports` the
 version IRI of each SemanticSeams vocabulary the model uses
@@ -1047,7 +1081,7 @@ version IRI of each SemanticSeams vocabulary the model uses
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.3> ,
+        owl:imports <https://w3id.org/seams/arch/1.4> ,
                     <https://w3id.org/seams/seam/1.6> .
 }
 ```
@@ -1120,7 +1154,7 @@ versions:
 
 <urn:seams:graph:manifest> {
     <urn:seams:graph:manifest> a owl:Ontology ;
-        owl:imports <https://w3id.org/seams/arch/1.3> ,
+        owl:imports <https://w3id.org/seams/arch/1.4> ,
                     <https://w3id.org/seams/ifml/1.0> ,
                     <https://w3id.org/seams/seam/1.6> .
 }

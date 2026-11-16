@@ -163,12 +163,12 @@ def test_a_model_with_no_external_system_conforms() -> None:
     assert violations(dataset(external=EXTERNAL.replace("arch:external true ;", ""))) == set()
 
 
-def test_the_shipped_vocabulary_declares_the_marker_at_arch_1_3() -> None:
+def test_the_shipped_vocabulary_declares_the_marker_since_arch_1_3() -> None:
     vocabulary = Graph().parse(ONTOLOGY / "arch.ttl")
     assert (ARCH.external, RDF.type, RDF.Property) in vocabulary
     assert (ARCH.external, RDFS.domain, ARCH.System) in vocabulary
     assert (ARCH.external, RDFS.range, Literal(True).datatype) in vocabulary
-    assert seams.shipped_versions(ONTOLOGY)["arch"] == (1, 3)
+    assert seams.shipped_versions(ONTOLOGY)["arch"] >= (1, 3)
 
 
 @pytest.mark.parametrize("value", ["false", '"true"', '"yes"', "1"])

@@ -71,6 +71,7 @@ const decisions = [
   ["0042", "The as-observed graph", "0042-as-observed-graph"],
   ["0043", "Latency budgets", "0043-latency-budgets"],
   ["0044", "Interchange exports", "0044-interchange-exports"],
+  ["0045", "Rationale links", "0045-rationale-links"],
 ] as const;
 
 export default defineConfig({

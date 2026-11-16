@@ -1,0 +1,21 @@
+@startuml
+' Sequence diagram, written by the seams_gen plantuml generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+' derived from https://example.org/expenses/submit_expense
+' path: manager, overdue_reminder
+actor "Employee" as employee
+participant "Employee Portal" as employee_portal
+participant "Expense API" as expense_api
+participant "Expense Knowledge Store" as expense_pkm
+participant "Expense Store" as expense_db
+employee -> employee_portal : submit_expense (policy: employee_submit_policy)
+employee_portal -> expense_api : POST submit_expense_op [ExpenseShape]
+note over expense_api : start approval_process
+expense_api -> expense_pkm : persist_expense writes ExpenseShape
+note over expense_api : t_submit
+expense_api --> employee_portal : expense_list fragment
+expense_api -> expense_api : route_expense (DMN approval_routing)
+note over expense_api : Route?: manager
+expense_api -> expense_db : notify_manager writes NotificationShape
+expense_api -> expense_api : notify_manager, notify_manager_op [ExpenseShape]
+note over expense_api : Approve Expense: Approval overdue fires, Approve Expense stays open
+@enduml

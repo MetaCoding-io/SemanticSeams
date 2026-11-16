@@ -1,0 +1,41 @@
+@startuml
+' Event storm, written by the seams_gen plantuml generator (ADR-0044). Regenerate it with `seams generate`; do not edit it.
+' derived from https://example.org/expenses/payout_process
+title Event storm: Expense Payout
+start
+:1. Payout Requested (payout_requested);
+note right
+  command: Payout Requested (payout_requested) on channel payouts, published by approved_end (Expense Approval)
+end note
+:2. Pay Expense (pay_expense);
+note right
+  actor: Finance (policy finance_payment_policy)
+  command: Pay Expense (pay_expense) on payment_form → POST pay_expense_op [PaymentShape]
+  aggregate: Payment (PaymentShape), class Payment, stored in expense_db, lifecycle payment_lifecycle
+end note
+:3. Schedule Payout (schedule_payout);
+note right
+  aggregate: Payment (PaymentShape), class Payment, stored in expense_db, lifecycle payment_lifecycle
+  domain event: scheduled (t_schedule: recorded → scheduled, Payment Lifecycle)
+end note
+:4. Choose Payout (choose_payout);
+note right
+  decision: Choose Payout Method (payout_method)
+end note
+:5. Add to Batch (add_to_batch);
+note right
+  aggregate: Payment (PaymentShape), class Payment, stored in expense_db, lifecycle payment_lifecycle
+  domain event: batched (t_batch: scheduled → batched, Payment Lifecycle)
+end note
+:6. Send Now (send_now);
+note right
+  aggregate: Payment (PaymentShape), class Payment, stored in expense_db, lifecycle payment_lifecycle
+  domain event: sent (t_send: scheduled → sent, Payment Lifecycle)
+end note
+stop
+legend right
+  Read models
+  - Payment (payment_details) reads PaymentShape
+  - Payments (payment_list) reads PaymentShape, served by GET list_payments_op
+endlegend
+@enduml

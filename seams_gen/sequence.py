@@ -101,10 +101,18 @@ class Participant:
 
 @dataclass(frozen=True)
 class Message:
-    """One Mermaid statement (arrow or note) and the graph terms it was built from."""
+    """One Mermaid statement (arrow or note) and the graph terms it was built from.
+
+    ``kind`` (``call``, ``reply`` or ``note``), ``sender``, ``receiver`` (the
+    lifeline ids; a note's receiver is its sender) and ``text`` are the same
+    statement without Mermaid syntax, for other renderers (``seams_gen.plantuml``)."""
 
     line: str
     terms: tuple[URIRef, ...]
+    kind: str
+    sender: str
+    receiver: str
+    text: str
 
 
 @dataclass(frozen=True)
@@ -140,10 +148,13 @@ class _Builder:
 
     def arrow(self, sender: URIRef, receiver: URIRef, text: str, *terms: URIRef, reply: bool = False) -> None:
         a, b = self.lifeline(sender), self.lifeline(receiver)
-        self.messages.append(Message(f"{a}{'-->>' if reply else '->>'}{b}: {text}", (sender, receiver, *terms)))
+        line = f"{a}{'-->>' if reply else '->>'}{b}: {text}"
+        kind = "reply" if reply else "call"
+        self.messages.append(Message(line, (sender, receiver, *terms), kind, a, b, text))
 
     def note(self, over: URIRef, text: str, *terms: URIRef) -> None:
-        self.messages.append(Message(f"Note over {self.lifeline(over)}: {text}", (over, *terms)))
+        a = self.lifeline(over)
+        self.messages.append(Message(f"Note over {a}: {text}", (over, *terms), "note", a, a, text))
 
     def gap(self, detail: str) -> None:
         if detail not in self.gaps:

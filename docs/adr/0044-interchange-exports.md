@@ -91,6 +91,14 @@ Each export writes into its generator's `out` directory. The examples list them 
 path, and the workspace and model are unnamed (the model's subject is a file IRI);
 `seams.lock` records where each file came from.
 
+The PlantUML files are named after local names, as the Mermaid sequence files are: a
+diagram per path of each ifml:Event that `seam:triggers` a process, and a storm per
+process. The renderer reads the derivations' Mermaid-free fields (a
+`seams_gen.sequence.Message`'s kind, sender, receiver and text; a storm's steps and
+entries). Two diagrams with one file name, an event or process local name shared across
+namespaces, are a `GeneratorError` on the second one's IRI and `rdf:type`, which the
+shapes cannot state for the reason of section 4.
+
 ### 6. Gaps are comments
 
 A fact an export expects and cannot find is a gap, written as a comment line at the top

@@ -36,6 +36,9 @@ ambiguous fact raises the same ``GeneratorError``:
   events, policies and endpoints its relationships are drawn from
   (``seams_gen.c4``, ADR-0044).
 - ``likec4``: the same C4 sources as ``structurizr``, for its one file.
+- ``plantuml``: per sequence diagram, its event, lifelines and the terms of
+  its messages; per storm, its process, steps, entries and read models
+  (``seams_gen.plantuml``, ADR-0044).
 - ``acceptance``: per handlers module's test file, each function's
   implementations, operations and shapes, and the examples, transitions,
   states, tasks, decisions and gateway flows its tests read.
@@ -60,6 +63,7 @@ from .ifmledit import ifmledit_sources
 from .jsonld import jsonld_sources
 from .likec4 import FILE as LIKEC4_FILE
 from .mentalmodel import mentalmodel_sources
+from .plantuml import plantuml_sources
 from .protocol import Sources
 from .registry import discover
 from .smoke import smoke_sources
@@ -146,6 +150,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "mentalmodel": lambda trig, out: mentalmodel_sources(load(trig)),
     "structurizr": lambda trig, out: {STRUCTURIZR_FILE: c4_sources(load(trig))},
     "likec4": lambda trig, out: {LIKEC4_FILE: c4_sources(load(trig))},
+    "plantuml": lambda trig, out: plantuml_sources(load(trig)),
 }
 
 

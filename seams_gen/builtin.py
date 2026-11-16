@@ -30,6 +30,7 @@ from .ifmledit import IfmlEditDocument, extract_ifmledit, render_ifmledit, unmap
 from .jsonld import JsonLdModel, extract_jsonld, render_jsonld
 from .likec4 import render_likec4
 from .mentalmodel import MentalModel, extract_mentalmodel, render_mentalmodel
+from .plantuml import PlantUmlModel, extract_plantuml, render_plantuml
 from .protocol import Files, Generator
 from .smoke import SmokeModel, extract_smoke, render_smoke
 from .sources import SOURCES
@@ -98,6 +99,11 @@ def _mentalmodel_extract(trig: Path, out: Path) -> MentalModel:
 def _c4_extract(trig: Path, out: Path) -> C4Model:
     """The people, systems, containers and relationships of the C4 layer (ADR-0044)."""
     return extract_c4(load(trig))
+
+
+def _plantuml_extract(trig: Path, out: Path) -> PlantUmlModel:
+    """The derived sequence diagrams of each triggering event and the storm of each process (ADR-0044)."""
+    return extract_plantuml(load(trig))
 
 
 def _ifmledit_render(doc: IfmlEditDocument) -> Files:
@@ -219,6 +225,15 @@ likec4 = Generator(
     sources=SOURCES["likec4"],
 )
 
+plantuml = Generator(
+    name="plantuml",
+    version=__version__,
+    help="the derived sequence diagrams and event storms as PlantUML, beside the Mermaid and Markdown ones",
+    extract=_plantuml_extract,
+    render=render_plantuml,
+    sources=SOURCES["plantuml"],
+)
+
 BUILTINS: tuple[Generator, ...] = (
     htmx,
     fastapi,
@@ -232,6 +247,7 @@ BUILTINS: tuple[Generator, ...] = (
     mentalmodel,
     structurizr,
     likec4,
+    plantuml,
 )
 
 __all__ = [
@@ -245,6 +261,7 @@ __all__ = [
     "jsonld",
     "likec4",
     "mentalmodel",
+    "plantuml",
     "smoke",
     "structurizr",
     "tests",

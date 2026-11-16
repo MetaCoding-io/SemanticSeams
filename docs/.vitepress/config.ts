@@ -72,6 +72,7 @@ const decisions = [
   ["0043", "Latency budgets", "0043-latency-budgets"],
   ["0044", "Interchange exports", "0044-interchange-exports"],
   ["0045", "Rationale links", "0045-rationale-links"],
+  ["0046", "Event-storm import", "0046-event-storm-import"],
 ] as const;
 
 export default defineConfig({

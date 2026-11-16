@@ -28,6 +28,7 @@ from .htmx import ServedPage, extract_pages, render_pages, trace_pages
 from .ifmledit import FILE as IFMLEDIT_FILE
 from .ifmledit import IfmlEditDocument, extract_ifmledit, render_ifmledit, unmapped_summary
 from .jsonld import JsonLdModel, extract_jsonld, render_jsonld
+from .likec4 import render_likec4
 from .mentalmodel import MentalModel, extract_mentalmodel, render_mentalmodel
 from .protocol import Files, Generator
 from .smoke import SmokeModel, extract_smoke, render_smoke
@@ -209,6 +210,15 @@ structurizr = Generator(
     sources=SOURCES["structurizr"],
 )
 
+likec4 = Generator(
+    name="likec4",
+    version=__version__,
+    help="the C4 layer as a LikeC4 model: people, systems nesting their containers, relationships and views",
+    extract=_c4_extract,
+    render=render_likec4,
+    sources=SOURCES["likec4"],
+)
+
 BUILTINS: tuple[Generator, ...] = (
     htmx,
     fastapi,
@@ -221,6 +231,7 @@ BUILTINS: tuple[Generator, ...] = (
     jsonld,
     mentalmodel,
     structurizr,
+    likec4,
 )
 
 __all__ = [
@@ -232,6 +243,7 @@ __all__ = [
     "htmx",
     "ifmledit",
     "jsonld",
+    "likec4",
     "mentalmodel",
     "smoke",
     "structurizr",

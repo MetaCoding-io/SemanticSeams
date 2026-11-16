@@ -77,7 +77,10 @@ tools derive them from the container arrows.
 
 An element's identifier is its IRI's local name, with every character outside
 `[A-Za-z0-9_]` replaced by `_` and `_` before a leading digit, which both C4 formats
-accept. Both use one flat identifier scope, so two elements with one identifier are a
+accept. Structurizr DSL uses one flat identifier scope; LikeC4 scopes names by their
+parent, so its relationships name a container `<system>.<container>`. The extract keeps
+the stricter, flat rule for both, so the two exports name every element alike: two
+elements with one identifier are a
 `GeneratorError` on the second element's IRI and `rdf:type`. The seam shapes cannot
 state it: two IRIs in different namespaces may share a local name in a valid model.
 

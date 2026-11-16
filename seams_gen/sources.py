@@ -35,6 +35,7 @@ ambiguous fact raises the same ``GeneratorError``:
 - ``structurizr``: the C4 export's people, systems and containers, and the
   events, policies and endpoints its relationships are drawn from
   (``seams_gen.c4``, ADR-0044).
+- ``likec4``: the same C4 sources as ``structurizr``, for its one file.
 - ``acceptance``: per handlers module's test file, each function's
   implementations, operations and shapes, and the examples, transitions,
   states, tasks, decisions and gateway flows its tests read.
@@ -57,6 +58,7 @@ from .fastapi import extract_routes, route_module
 from .htmx import extract_page, generate_pages
 from .ifmledit import ifmledit_sources
 from .jsonld import jsonld_sources
+from .likec4 import FILE as LIKEC4_FILE
 from .mentalmodel import mentalmodel_sources
 from .protocol import Sources
 from .registry import discover
@@ -143,6 +145,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "jsonld": lambda trig, out: jsonld_sources(load(trig)),
     "mentalmodel": lambda trig, out: mentalmodel_sources(load(trig)),
     "structurizr": lambda trig, out: {STRUCTURIZR_FILE: c4_sources(load(trig))},
+    "likec4": lambda trig, out: {LIKEC4_FILE: c4_sources(load(trig))},
 }
 
 

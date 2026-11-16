@@ -28,6 +28,7 @@ from seams_gen.htmx import generate_pages
 from seams_gen.ifmledit import generate as generate_ifmledit
 from seams_gen.ifmledit import unmapped_summary
 from seams_gen.jsonld import extract_jsonld, render_jsonld
+from seams_gen.likec4 import render_likec4
 from seams_gen.mentalmodel import extract_mentalmodel, render_mentalmodel
 from seams_gen.protocol import Generator
 from seams_gen.smoke import generate_smoke
@@ -52,7 +53,7 @@ def _legacy_ifmledit(trig: Path, out: Path) -> dict[str, str]:
 
 
 # generator name -> its generate(trig, out) before the protocol (M018/S01); jsonld,
-# mentalmodel and structurizr, newer than the protocol, are their module's own
+# mentalmodel, structurizr and likec4, newer than the protocol, are their module's own
 # render(extract(model))
 LEGACY = {
     "htmx": lambda trig, out: generate_pages(load(trig)),
@@ -66,6 +67,7 @@ LEGACY = {
     "jsonld": lambda trig, out: render_jsonld(extract_jsonld(load(trig))),
     "mentalmodel": lambda trig, out: render_mentalmodel(extract_mentalmodel(load(trig))),
     "structurizr": lambda trig, out: render_structurizr(extract_c4(load(trig))),
+    "likec4": lambda trig, out: render_likec4(extract_c4(load(trig))),
 }
 
 

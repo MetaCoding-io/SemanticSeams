@@ -291,6 +291,22 @@ prints to stderr as `seams storm: gap <process>: <detail>` and the exit code
 stays 0. A project error, an unloadable model or an unknown name exits 2. See
 [docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-storm).
 
+## seams import-storm
+
+```sh
+seams import-storm tests/fixtures/storm_import/approval.md --out build/approval.trig
+```
+
+It reads a big-picture event storm (the Markdown subset of the `seams storm`
+timeline, ADR-0046) into a skeleton model (backlog X12, `import_storm.py`,
+`run_import_storm`, over `seams_gen.storm_import`). PATH and the BPMN payload
+beside it are written through the `seams_edit` create path and printed;
+`--base IRI` replaces the storm's base. Each gap prints to stderr as
+`seams import-storm: gap <detail>` and the exit code stays 0. An unreadable line
+exits 2 naming the line; an existing PATH or payload exits 2; neither writes
+anything. See
+[docs/reference/seams-cli.md](../../docs/reference/seams-cli.md#seams-import-storm).
+
 ## seams diff
 
 ```sh

@@ -1165,6 +1165,51 @@ Adding a process means a third model graph with `seam:notation seam:BPMN` and a
 `seam:triggers` edge from the event to the process in the seams graph. The chat app does
 exactly that.
 
+## Start from an event storm
+
+A big-picture event-storming workshop can seed the skeleton. Write the storm in the
+Markdown `seams storm` prints, cut down to the stickies
+([ADR-0046](/adr/0046-event-storm-import)):
+
+```markdown
+# Event storm: Expense Approval (`approval_process`)
+
+<!-- base: https://example.org/expenses/ -->
+
+## Timeline
+
+1. **Submit Expense** (`submit_expense`)
+   - actor: Employee (`employee`)
+   - command: Submit Expense (`submit_expense`)
+2. **Persist Expense** (`persist_expense`)
+   - aggregate: Expense (`ExpenseShape`)
+   - domain event: submitted (`t_submit`)
+3. **Route Expense** (`route_expense`)
+   - policy: Route Approval (`approval_routing`)
+4. **Approve Expense** (`approve_expense`)
+   - actor: Manager (`manager`)
+   - command: Approve Expense (`approve_expense`) on `approve_form`
+```
+
+A command with no form is the trigger: an `ifml:Event` that `seam:triggers` the process.
+A command `on` a form is a user task completed on that form, a step with a policy is a
+business-rule task decided by that decision, and any other step is a service task. Actors
+become ODRL parties permitted on the step, aggregates the shapes it `seam:writes`, and
+domain events the lifecycle transitions it `seam:fires`. Then:
+
+```sh
+seams import-storm storm.md --out expenses.trig
+```
+
+writes `expenses.trig` and `approval_process.bpmn` beside it, the BPMN steps in step
+order with no sequence flows, and prints each gap to stderr (`seams import-storm: gap
+...`). A line it cannot read exits 2 naming the line; an existing file is never
+overwritten. The skeleton loads and `seams storm approval_process --model expenses.trig`
+gives the storm back, but the shapes and the viewer's health panel flag it and `seams
+generate` refuses it: the operations the commands submit to, the containers, stores and
+routes, and the BPMN sequence flows with a start and end event are yours to add, in the
+viewer's edit mode or in the text. See [seams import-storm](/reference/seams-cli#seams-import-storm).
+
 ## Validate it
 
 The shapes need the ontology files merged into the data, because `sh:class` checks

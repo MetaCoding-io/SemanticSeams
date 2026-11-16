@@ -1,5 +1,5 @@
 """Command line: ``seams generate|check|migrate|status|sequence|storm|secrets|context [--project PATH] [--model PATH]``, ``seams diff|plan OLD NEW``,
-``seams observed [PATH] RUN... [--spans FILE]``,
+``seams observed [PATH] RUN... [--spans FILE]``, ``seams import-storm FILE --out PATH [--base IRI]``,
 ``seams generate|check|migrate|status|secrets|cml export PATH``, ``seams cml import FILE [PATH]`` (PATH: a project or a model, see ``_fold_path``),
 ``seams propose TASK [--provider CMD] [--llm-model NAME] [--force]``,
 ``seams suggest [--provider CMD] [--llm-model NAME] [--list | --accept ID]``,
@@ -97,6 +97,17 @@ or an ifml:Event that seam:triggers one (a CURIE, local name or IRI). With
 deriver could not place prints to stderr as ``seams storm: gap <name>:
 <detail>``; gaps are an audit, and the exit code stays 0. An unknown name
 exits 2 and writes nothing.
+
+``seams import-storm FILE --out PATH [--base IRI]`` (M033/S03, backlog X12,
+ADR-0046) reads a big-picture event storm, the Markdown subset of the
+``seams storm`` timeline, into a skeleton model: PATH and the BPMN payload
+beside it are written through the seams_edit create path and printed. With
+``--base`` names are minted under IRI instead of the storm's base. What the
+skeleton lacks (operations, routes, sequence flows, start and end events)
+prints to stderr as ``seams import-storm: gap <detail>`` and the exit code
+stays 0; the seam shapes flag it and ``seams generate`` refuses it. A line it
+cannot read exits 2 naming the line; an existing PATH or payload exits 2;
+both write nothing.
 
 ``seams cml export [PATH] [--out FILE]`` (M029/S03, backlog B5, ADR-0034)
 prints the context map as Context Mapper DSL: a ``ContextMap`` that
@@ -266,6 +277,7 @@ from .coverage import to_json as coverage_json
 from .diff import BREAKING, COMPATIBLE, diff_loaded, downstream, load_model, shorten, to_json
 from .draft_generator import DraftGeneratorError, draft_generator
 from .generate import apply, generate_project
+from .import_storm import run_import_storm
 from .lockfile import locate
 from .migrate import migrate
 from .migrations import Refusal, migrations
@@ -404,6 +416,17 @@ def build_parser() -> argparse.ArgumentParser:
     _project_arguments(storm)
     storm.add_argument("--out", type=Path, metavar="FILE", help="write the timeline to FILE instead of stdout")
     storm.set_defaults(run=_storm)
+    import_storm = sub.add_parser(
+        "import-storm",
+        help="read a big-picture event storm (Markdown) into a skeleton model, reporting its gaps",
+        description="Write the skeleton TriG model and BPMN payload of an event storm (ADR-0046).",
+    )
+    import_storm.add_argument("file", type=Path, metavar="FILE", help="the storm: the seams storm timeline subset")
+    import_storm.add_argument(
+        "--out", type=Path, required=True, metavar="PATH", help="the new model (.trig); refused if it exists"
+    )
+    import_storm.add_argument("--base", metavar="IRI", help="mint names under IRI instead of the storm's base")
+    import_storm.set_defaults(run=_import_storm)
     cml = sub.add_parser(
         "cml",
         help="export the context map as Context Mapper DSL (CML)",
@@ -728,6 +751,15 @@ def _storm(args: argparse.Namespace) -> int:
         sys.stdout.write(text)
     else:
         print(_display(args.out.resolve()))
+    return 0
+
+
+def _import_storm(args: argparse.Namespace) -> int:
+    paths, gaps = run_import_storm(args.file, args.out, args.base)
+    for gap in gaps:
+        print(f"seams import-storm: gap {gap}", file=sys.stderr)
+    for path in paths:
+        print(_display(path))
     return 0
 
 

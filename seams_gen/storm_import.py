@@ -166,6 +166,11 @@ class StormDraft:
         return f"{self.name}.bpmn"
 
 
+def is_base(iri: str) -> bool:
+    """Whether ``iri`` can be a storm's base: an absolute IRI ending in ``/`` or ``#``."""
+    return _IRI.fullmatch(iri) is not None
+
+
 def _fail(number: int, line: str, detail: str) -> NoReturn:
     """The one parse error: the line number, the line quoted, and what is wrong."""
     raise GeneratorError(f"line {number}", f'"{line.strip()}"', detail)
@@ -209,7 +214,7 @@ def parse(text: str) -> StormDraft:
             match = _BASE.fullmatch(stripped)
             if match is None:
                 _fail(number, line, "expected <!-- base: <IRI> --> after the heading")
-            if not _IRI.fullmatch(match["iri"]):
+            if not is_base(match["iri"]):
                 _fail(number, line, f"base <{match['iri']}> is not an absolute IRI ending in / or #")
             base = match["iri"]
             continue

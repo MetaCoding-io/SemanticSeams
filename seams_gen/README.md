@@ -876,6 +876,26 @@ nothing starts) is a gap, never dropped. The golden is
 `tests/golden/storm/approval_process.md`. The `plantuml` generator writes every
 process's storm as a PlantUML activity diagram ([PlantUML export](#plantuml-export)).
 
+### Event-storm import
+
+```python
+from seams_gen.storm_import import parse, write
+draft = parse(open("tests/fixtures/storm_import/approval.md").read())
+gaps = write(draft, "build/approval.trig")   # and build/approval_process.bpmn
+```
+
+`seams_gen.storm_import` (backlog X12, [ADR-0046](../docs/adr/0046-event-storm-import.md))
+is the inverse: `parse` reads the Markdown subset of the timeline into a `StormDraft`
+(a `GeneratorError` naming the line number and quoting the line on anything else),
+`to_patch` turns it into one `seams_edit.Patch` of the facts `storm.derive` reads, under
+IRIs minted from the storm's base with seam edges only in the seams graph, and `write`
+writes the TriG file and a BPMN payload of the steps in step order through
+`seams_edit.create`, both or neither, refusing a path that exists. It returns the gaps:
+those of `derive` on the skeleton, then the missing sequence flows and start and end
+events. The skeleton is flagged by the shapes, not refused by `seams.load`. Not a
+`GENERATORS` entry: `seams import-storm` runs it. Golden:
+`tests/golden/storm_import/approval_skeleton.trig`.
+
 ## Handler stubs
 
 ```

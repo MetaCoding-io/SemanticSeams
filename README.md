@@ -137,6 +137,10 @@ the docs embed the golden diagrams, rendered with Mermaid.
 `seams storm <process>` derives an event-storm timeline for one process from the facts the
 model already holds (actors, commands, aggregates, domain events, decisions, channels, read
 models), with each fact the view expects and cannot find listed as a gap.
+`seams import-storm STORM.md --out model.trig` goes the other way: a workshop's
+big-picture storm, in the same Markdown, becomes a skeleton model and BPMN payload that
+`seams storm` reads back, with what it lacks (operations, routes, flows) listed as gaps
+and flagged by the shapes until it generates.
 `seams sequence <event> --trace RUN` draws the as-executed counterpart from a recorded
 run's trace rows (a trace JSON file or an instance id in the runtime's SQLite store), on
 the same lifelines, with a `%% gap:` line for every row the model cannot place.

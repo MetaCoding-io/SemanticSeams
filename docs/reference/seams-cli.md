@@ -6,7 +6,8 @@ generator the file names; `seams check` fails when the model, its gate queries
 or the generated outputs are not in order, and writes nothing; `seams migrate`
 writes the vocabulary migrations a model needs into its files; `seams sequence`
 derives an event's sequence diagrams; `seams storm` prints a process's derived
-event-storm timeline; `seams observed` lists what recorded runs never reached and
+event-storm timeline; `seams import-storm` reads an event storm into a skeleton
+model; `seams observed` lists what recorded runs never reached and
 the steps the model does not explain; `seams cml` moves the context map to and from Context
 Mapper DSL; `seams diff` classifies the shape and
 operation-contract changes between two model versions as compatible or breaking;
@@ -893,6 +894,57 @@ Gaps are an audit of the model, not a failure, so the exit code stays 0.
 | 2 | The project file is missing or malformed, no model was given, the model cannot be loaded, or NAME is no process and no event that triggers exactly one. |
 
 Errors print to stderr as `seams storm: <message>`, naming the argument.
+
+## seams import-storm
+
+```sh
+seams import-storm workshop/storm.md --out model/expenses.trig
+seams import-storm workshop/storm.md --out model/expenses.trig --base https://example.org/expenses/
+```
+
+`seams import-storm` reads a big-picture event storm into a skeleton model
+(backlog X12, [ADR-0046](/adr/0046-event-storm-import), `seams_gen.storm_import`).
+FILE is the Markdown subset of the `seams storm` timeline: the heading
+``# Event storm: <label> (`<name>`)``, `<!-- base: <IRI> -->`, `## Timeline`, then
+numbered steps ``<n>. **<label>** (`<name>`)`` with `actor`, `command`, `aggregate`,
+`domain event` and `policy` entries; a command may end ``on `<form>` ``. A trailing
+`## Read models` or `## Gaps` section is skipped, so a `seams storm` timeline cut
+down to its stickies imports as it is. `--base IRI` mints every name under IRI
+instead of the storm's base.
+
+It writes PATH and `<process>.bpmn` beside it, the BPMN steps in step order with no
+sequence flows, through the `seams_edit` create path, and prints both paths. An
+existing PATH or payload is refused: the import is a one-time draft, never merged
+into an edited model.
+
+### Gaps
+
+The skeleton holds only what the storm says, so the seam shapes and the viewer's
+health panel flag it and `seams generate` refuses it until the operations,
+routes, stores and flows are added. Each fact it lacks prints to stderr:
+
+```
+$ seams import-storm tests/fixtures/storm_import/approval.md --out build/approval.trig > /dev/null
+seams import-storm: gap submit_expense has no seam:submitsTo operation
+seams import-storm: gap ApprovalShape has no read model: no ifml page or component seam:reads it
+...
+seams import-storm: gap approval_process has no sequence flows: approval_process.bpmn lists its BPMN steps in step order, unjoined
+seams import-storm: gap approval_process has no start event in approval_process.bpmn
+seams import-storm: gap approval_process has no end event in approval_process.bpmn
+```
+
+`seams storm approval_process --model build/approval.trig` gives the imported
+steps back.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The skeleton and its payload were written, with or without gaps. |
+| 1 | FILE could not be read, or a file could not be written. |
+| 2 | A line of FILE cannot be read (the message names the line number and quotes it), `--base` is not an absolute IRI ending in `/` or `#`, or PATH or the payload exists. Nothing is written. |
+
+Errors print to stderr as `seams import-storm: <message>`.
 
 ## seams observed
 

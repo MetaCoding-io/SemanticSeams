@@ -1110,6 +1110,10 @@ GENERATOR_ONLY: dict[Site, str] = {
         "The argument names an ifml:Event that triggers no process; a valid model has events that start "
         "nothing, so naming one is a fault of the argument."
     ),
+    Site("storm_import", "_fail", "f'\"{line.strip()}\"'"): (
+        "The event-storm import reads a Markdown storm, not a model: every error names a line of the "
+        "storm file that is not in the ADR-0046 format, before any model exists for the shapes to check."
+    ),
     Site("sequence", "add", "'proc:Process'"): (
         "The number of paths through a process is a property of its BPMN flow graph; MAX_PATHS bounds the "
         "diagrams derived, and a valid process may exceed it."

@@ -6,9 +6,11 @@ one-triple edit gives a one-line diff. ``apply`` routes a patch to the model fil
 that hold its graphs and writes them all or none; ``undo`` reverses it. The XML payload
 writer saves a BPMN or DMN file (``save_payload``) and renames an element id with every
 quad that names its lifted IRI (``rename_id``, ADR-0002); ``combine`` makes successive
-edits one undoable record. No other code writes model files.
+edits one undoable record. ``create`` writes a new model file and its payloads from
+a patch (ADR-0046). No other code writes model files.
 """
 
+from .create import create
 from .files import EditRecord, FileEdit, apply, combine, undo
 from .patch import Patch, PatchError, Quad
 from .trig import apply_text, declared_graphs, text_quads
@@ -23,6 +25,7 @@ __all__ = [
     "apply",
     "apply_text",
     "combine",
+    "create",
     "declared_graphs",
     "rename_id",
     "save_payload",

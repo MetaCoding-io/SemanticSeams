@@ -12,6 +12,8 @@ dependencies = [
     "pyyaml>=6.0",
     # seams_gen.testing validates against the shapes (backlog K1)
     "pyshacl>=0.30",
+    # the event-storm import writes its skeleton through the one write path (ADR-0046)
+    "semanticseams-edit",
 ]
 
 [tool.uv]
@@ -19,3 +21,4 @@ package = false
 
 [tool.uv.sources]
 semanticseams = { workspace = true }
+semanticseams-edit = { workspace = true }

@@ -1,0 +1,164 @@
+@prefix dec: <https://w3id.org/seams/dec#> .
+@prefix ifml: <https://w3id.org/seams/ifml#> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix proc: <https://w3id.org/seams/proc#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix seam: <https://w3id.org/seams/seam#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix state: <https://w3id.org/seams/state#> .
+@prefix : <https://example.org/expenses/> .
+
+<urn:seams:graph:manifest> {
+    <urn:seams:graph:manifest> a owl:Ontology ;
+        owl:imports <https://w3id.org/seams/ifml/1.0> ;
+        owl:imports <https://w3id.org/seams/proc/1.1> ;
+        owl:imports <https://w3id.org/seams/seam/1.6> ;
+        owl:imports <https://w3id.org/seams/state/1.0> .
+}
+
+<urn:seams:graph:model:approval_process_bpmn> {
+    :approval_process a proc:Process ;
+        rdfs:label "Expense Approval" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#approve_expense> a proc:UserTask ;
+        rdfs:label "Approve Expense" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#finance_approve_expense> a proc:UserTask ;
+        rdfs:label "Finance Approve Expense" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#notify_manager> a proc:ServiceTask ;
+        rdfs:label "Notify Manager" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#pay_expense> a proc:UserTask ;
+        rdfs:label "Pay Expense" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#persist_expense> a proc:ServiceTask ;
+        rdfs:label "Persist Expense" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#record_approval> a proc:ServiceTask ;
+        rdfs:label "Record Approval" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#record_rejection> a proc:ServiceTask ;
+        rdfs:label "Record Rejection" ;
+        seam:inModel :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#route_expense> a proc:BusinessRuleTask ;
+        rdfs:label "Route Expense" ;
+        seam:inModel :approval_process_bpmn .
+    :approval_process_bpmn a seam:Model ;
+        rdfs:label "Expense Approval (BPMN)" .
+}
+
+<urn:seams:graph:model:approval_process_data> {
+    :ApprovalShape a sh:NodeShape ;
+        rdfs:label "Approval" ;
+        seam:inModel :approval_process_data .
+    :ExpenseShape a sh:NodeShape ;
+        rdfs:label "Expense" ;
+        seam:inModel :approval_process_data .
+    :NotificationShape a sh:NodeShape ;
+        rdfs:label "Notification" ;
+        seam:inModel :approval_process_data .
+    :PaymentShape a sh:NodeShape ;
+        rdfs:label "Payment" ;
+        seam:inModel :approval_process_data .
+    :approval_process_data a seam:Model ;
+        rdfs:label "Expense Approval (ShapeGraph)" .
+}
+
+<urn:seams:graph:model:approval_process_dmn> {
+    :approval_process_dmn a seam:Model ;
+        rdfs:label "Expense Approval (DMN)" .
+    :approval_routing a dec:Decision ;
+        rdfs:label "Route Approval" ;
+        seam:inModel :approval_process_dmn .
+}
+
+<urn:seams:graph:model:approval_process_ifml> {
+    :approval_process_ifml a seam:Model ;
+        rdfs:label "Expense Approval (IFML)" .
+    :approve_form a ifml:Form ;
+        seam:inModel :approval_process_ifml .
+    :finance_approve_form a ifml:Form ;
+        seam:inModel :approval_process_ifml .
+    :payment_form a ifml:Form ;
+        seam:inModel :approval_process_ifml .
+    :submit_expense a ifml:Event ;
+        rdfs:label "Submit Expense" ;
+        seam:inModel :approval_process_ifml .
+}
+
+<urn:seams:graph:model:approval_process_lifecycle> {
+    :approval_process_lifecycle a seam:Model ;
+        rdfs:label "Expense Approval (Statechart)" .
+    :t_approve a state:Transition ;
+        rdfs:label "approved" ;
+        seam:inModel :approval_process_lifecycle ;
+        state:to :t_approve_state .
+    :t_approve_state a state:State ;
+        rdfs:label "approved" ;
+        seam:inModel :approval_process_lifecycle .
+    :t_pay a state:Transition ;
+        rdfs:label "paid" ;
+        seam:inModel :approval_process_lifecycle ;
+        state:to :t_pay_state .
+    :t_pay_state a state:State ;
+        rdfs:label "paid" ;
+        seam:inModel :approval_process_lifecycle .
+    :t_reject a state:Transition ;
+        rdfs:label "rejected" ;
+        seam:inModel :approval_process_lifecycle ;
+        state:to :t_reject_state .
+    :t_reject_state a state:State ;
+        rdfs:label "rejected" ;
+        seam:inModel :approval_process_lifecycle .
+    :t_submit a state:Transition ;
+        rdfs:label "submitted" ;
+        seam:inModel :approval_process_lifecycle ;
+        state:to :t_submit_state .
+    :t_submit_state a state:State ;
+        rdfs:label "submitted" ;
+        seam:inModel :approval_process_lifecycle .
+}
+
+<urn:seams:graph:seams> {
+    :approval_process seam:detailedBy :approval_process_bpmn .
+    <https://example.org/expenses/approval_process_bpmn#approve_expense> seam:completedOn :approve_form ;
+        seam:governedBy :approve_expense_policy ;
+        seam:writes :ApprovalShape .
+    <https://example.org/expenses/approval_process_bpmn#finance_approve_expense> seam:completedOn :finance_approve_form ;
+        seam:governedBy :finance_approve_expense_policy ;
+        seam:writes :ApprovalShape .
+    <https://example.org/expenses/approval_process_bpmn#notify_manager> seam:writes :NotificationShape .
+    <https://example.org/expenses/approval_process_bpmn#pay_expense> seam:completedOn :payment_form ;
+        seam:fires :t_pay ;
+        seam:governedBy :pay_expense_policy ;
+        seam:writes :PaymentShape .
+    <https://example.org/expenses/approval_process_bpmn#persist_expense> seam:fires :t_submit ;
+        seam:writes :ExpenseShape .
+    <https://example.org/expenses/approval_process_bpmn#record_approval> seam:fires :t_approve .
+    <https://example.org/expenses/approval_process_bpmn#record_rejection> seam:fires :t_reject .
+    <https://example.org/expenses/approval_process_bpmn#route_expense> seam:decidedBy :approval_routing .
+    :approval_process_bpmn seam:notation seam:BPMN ;
+        seam:renderPayload <approval_process.bpmn> .
+    :approval_process_data seam:notation seam:ShapeGraph .
+    :approval_process_dmn seam:notation seam:DMN .
+    :approval_process_ifml seam:notation seam:IFML .
+    :approval_process_lifecycle seam:notation seam:Statechart .
+    :approve_expense_policy a odrl:Policy ;
+        odrl:permission [ a odrl:Permission ; odrl:action odrl:use ; odrl:assignee :manager ; odrl:target <https://example.org/expenses/approval_process_bpmn#approve_expense> ] .
+    :employee a odrl:Party ;
+        rdfs:label "Employee" .
+    :finance a odrl:Party ;
+        rdfs:label "Finance" .
+    :finance_approve_expense_policy a odrl:Policy ;
+        odrl:permission [ a odrl:Permission ; odrl:action odrl:use ; odrl:assignee :finance ; odrl:target <https://example.org/expenses/approval_process_bpmn#finance_approve_expense> ] .
+    :manager a odrl:Party ;
+        rdfs:label "Manager" .
+    :pay_expense_policy a odrl:Policy ;
+        odrl:permission [ a odrl:Permission ; odrl:action odrl:use ; odrl:assignee :finance ; odrl:target <https://example.org/expenses/approval_process_bpmn#pay_expense> ] .
+    :submit_expense seam:governedBy :submit_expense_policy ;
+        seam:triggers :approval_process .
+    :submit_expense_policy a odrl:Policy ;
+        odrl:permission [ a odrl:Permission ; odrl:action odrl:use ; odrl:assignee :employee ; odrl:target :submit_expense ] .
+}

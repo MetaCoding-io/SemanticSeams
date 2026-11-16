@@ -89,6 +89,11 @@ def _parse(path: Path, data: bytes) -> etree._Element:  # pyright: ignore[report
         raise PatchError(path, f"line {exc.lineno}", f"the payload is not well-formed XML: {exc.msg}") from None
 
 
+def check_payload(path: Path, data: bytes) -> None:
+    """PatchError naming the line when ``data`` is not well-formed XML."""
+    _parse(path, data)
+
+
 def _ids(root: etree._Element) -> set[str]:  # pyright: ignore[reportPrivateUsage]
     return {
         str(value)

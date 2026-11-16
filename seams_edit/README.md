@@ -9,8 +9,9 @@ read-only; the viewer, the CLI and any later tool that edits the model call
 
 ## Boundary
 
-- Owns the patch value, the TriG text writer, file apply and undo, and the XML payload
-  writer for BPMN and DMN (backlog I4): saving a payload and renaming an element id.
+- Owns the patch value, the TriG text writer, file apply and undo, the XML payload
+  writer for BPMN and DMN (backlog I4): saving a payload and renaming an element id,
+  and creating a new model file with its payloads (ADR-0046).
 - Writes model files only through the writer below; nothing else in the repository
   writes them.
 - Depends on `semanticseams`, rdflib and lxml, and imports only public `seams` names.
@@ -154,6 +155,26 @@ must be the model that renders it.
 The renamed subject's statement is removed and added through the TriG writer, so it
 moves to the end of its graph block, laid out canonically; comments stay where they were.
 
+## Creating a model
+
+```python
+from seams_edit import Patch, create
+
+written = create("model.trig", patch, prefixes={"seam": str(SEAM), "": base},
+                 payloads={"process.bpmn": bpmn_xml})
+```
+
+`create(path, patch, *, prefixes, payloads=None)` writes a model that does not exist
+yet ([ADR-0046](../docs/adr/0046-event-storm-import.md) section 5; the event-storm
+import is its first caller). It renders the quads the patch adds with `apply_text` over
+a header of one `@prefix` line per entry of `prefixes` (`""` is the default `:`), in the
+given order, so the new file is laid out and re-parse-checked like any added text, and
+an IRI under the file's folder (a payload beside it) is written relative. Each payload
+must be well-formed XML. The TriG file and the payloads are written together through
+`write_all`, or none of them, and the sorted paths written are returned. It refuses,
+writing nothing, a path or payload that exists (it never overwrites), a payload that is
+the TriG path, and a patch that removes quads.
+
 ## Errors
 
 `PatchError(subject, predicate, detail)` names the quad and the reason, and the writer
@@ -174,6 +195,8 @@ returns nothing:
   an `old` id the payload lacks, a `new` id it already has or that is not an XML name,
   an edit that does not parse to the renamed payload; from `undo`, a payload changed
   after the edit. Nothing is written.
+- from `create`: a TriG or payload path that exists, a payload that is the TriG path or
+  not well-formed XML, a patch with removes. Nothing is written.
 
 These are writer faults, not shape faults. An edit that only breaks the shapes is
 applied and flagged (principle 5).

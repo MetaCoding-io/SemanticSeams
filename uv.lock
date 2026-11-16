@@ -1316,6 +1316,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rdflib" },
     { name = "semanticseams" },
+    { name = "semanticseams-edit" },
 ]
 
 [package.metadata]
@@ -1325,6 +1326,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rdflib", specifier = ">=7.0" },
     { name = "semanticseams", editable = "packages/seams" },
+    { name = "semanticseams-edit", virtual = "seams_edit" },
 ]
 
 [[package]]

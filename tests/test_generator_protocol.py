@@ -20,6 +20,7 @@ from seams_gen import GeneratorError
 from seams_gen.__main__ import GENERATORS
 from seams_gen.acceptance import generate_acceptance
 from seams_gen.builtin import BUILTINS
+from seams_gen.c4 import extract_c4
 from seams_gen.compose import generate_compose_environments
 from seams_gen.dockerfile import generate_dockerfiles
 from seams_gen.fastapi import route_module
@@ -31,6 +32,7 @@ from seams_gen.mentalmodel import extract_mentalmodel, render_mentalmodel
 from seams_gen.protocol import Generator
 from seams_gen.smoke import generate_smoke
 from seams_gen.sources import SOURCES
+from seams_gen.structurizr import render_structurizr
 from seams_gen.tests import generate_tests
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,8 +51,9 @@ def _legacy_ifmledit(trig: Path, out: Path) -> dict[str, str]:
     return files
 
 
-# generator name -> its generate(trig, out) before the protocol (M018/S01); jsonld
-# and mentalmodel, newer than the protocol, are their module's own render(extract(model))
+# generator name -> its generate(trig, out) before the protocol (M018/S01); jsonld,
+# mentalmodel and structurizr, newer than the protocol, are their module's own
+# render(extract(model))
 LEGACY = {
     "htmx": lambda trig, out: generate_pages(load(trig)),
     "fastapi": lambda trig, out: dict([route_module(trig)]),
@@ -62,6 +65,7 @@ LEGACY = {
     "acceptance": lambda trig, out: generate_acceptance(trig),
     "jsonld": lambda trig, out: render_jsonld(extract_jsonld(load(trig))),
     "mentalmodel": lambda trig, out: render_mentalmodel(extract_mentalmodel(load(trig))),
+    "structurizr": lambda trig, out: render_structurizr(extract_c4(load(trig))),
 }
 
 

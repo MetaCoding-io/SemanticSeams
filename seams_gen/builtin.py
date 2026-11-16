@@ -20,6 +20,7 @@ from seams import ModelGraph, load
 
 from . import __version__
 from .acceptance import AcceptanceModel, extract_acceptance, render_acceptance, trace_acceptance
+from .c4 import C4Model, extract_c4
 from .compose import ComposeFile, extract_compose_environments, render_compose_environments, trace_compose_environments
 from .dockerfile import DockerfileModel, dockerfile_inputs, extract_dockerfile, render_dockerfile, trace_dockerfile
 from .fastapi import RoutesModel, extract_route_module, render_routes, trace_routes
@@ -31,6 +32,7 @@ from .mentalmodel import MentalModel, extract_mentalmodel, render_mentalmodel
 from .protocol import Files, Generator
 from .smoke import SmokeModel, extract_smoke, render_smoke
 from .sources import SOURCES
+from .structurizr import render_structurizr
 from .tests import TestsModel, extract_tests, render_tests
 
 
@@ -90,6 +92,11 @@ def _jsonld_extract(trig: Path, out: Path) -> JsonLdModel:
 def _mentalmodel_extract(trig: Path, out: Path) -> MentalModel:
     """The SemPKM Mental Model of the model's ontology model (ADR-0026)."""
     return extract_mentalmodel(load(trig))
+
+
+def _c4_extract(trig: Path, out: Path) -> C4Model:
+    """The people, systems, containers and relationships of the C4 layer (ADR-0044)."""
+    return extract_c4(load(trig))
 
 
 def _ifmledit_render(doc: IfmlEditDocument) -> Files:
@@ -193,6 +200,15 @@ mentalmodel = Generator(
     sources=SOURCES["mentalmodel"],
 )
 
+structurizr = Generator(
+    name="structurizr",
+    version=__version__,
+    help="the C4 layer as a Structurizr DSL workspace: people, systems, containers, relationships and views",
+    extract=_c4_extract,
+    render=render_structurizr,
+    sources=SOURCES["structurizr"],
+)
+
 BUILTINS: tuple[Generator, ...] = (
     htmx,
     fastapi,
@@ -204,6 +220,7 @@ BUILTINS: tuple[Generator, ...] = (
     acceptance,
     jsonld,
     mentalmodel,
+    structurizr,
 )
 
 __all__ = [
@@ -217,5 +234,6 @@ __all__ = [
     "jsonld",
     "mentalmodel",
     "smoke",
+    "structurizr",
     "tests",
 ]

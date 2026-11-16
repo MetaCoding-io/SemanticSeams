@@ -5,8 +5,9 @@ Each generator of the ``seams.generators`` entry-point group (D056,
 ``htmx`` (S04), ``fastapi`` (S05), ``compose`` (S06), ``tests`` (M015,
 ADR-0014), ``smoke`` (M015/S05, backlog A9), ``dockerfile`` (M016/S03),
 ``ifmledit`` (M008/S01, backlog 12), ``acceptance`` (M022/S03, backlog C2),
-``jsonld`` (M023/S05, backlog O3, ADR-0024) and ``mentalmodel`` (M024/S03,
-backlog O5, ADR-0026), the objects of ``seams_gen.builtin``. A
+``jsonld`` (M023/S05, backlog O3, ADR-0024), ``mentalmodel`` (M024/S03,
+backlog O5, ADR-0026) and ``structurizr`` (M033/S01, backlog X9, ADR-0044),
+the objects of ``seams_gen.builtin``. A
 generator is called as ``generate(trig, out)`` and returns ``{relative file
 name: text}``; only ``compose`` uses ``out``, as the base directory its
 bind-mount sources, build contexts and secret files are relative to (D018).

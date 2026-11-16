@@ -1202,6 +1202,11 @@ GENERATOR_ONLY: dict[Site, str] = {
         "A category member's rdfs:label is free text for every other generator; only a JSON-LD term must be "
         "non-empty, not start with @ and contain no colon (ADR-0024 section 3)."
     ),
+    Site("c4", "_unique", "RDF.type"): (
+        "A person, system or container in another namespace may share a local name with one of the model's in "
+        "a valid model; only a Structurizr or LikeC4 export names each element by one flat identifier made "
+        f"from it (ADR-0044 section 4): {_NAMES}."
+    ),
     Site("mentalmodel", "_ontology", "SEAM.notation", "none"): (
         "A model with no seam:Ontology model is valid (the chat app has none); only a Mental Model is "
         "written for one (ADR-0026 section 2)."

@@ -84,6 +84,7 @@ dev_yaml = generate_compose("examples/chat-app/chat-app.trig", "development", ba
 | `compose` | `<out>/compose.<environment local name>.yaml`, one docker compose file per `arch:Environment` (ADR-0015), with paths relative to `<out>` | the `arch:Container`s of the one `arch:System` that is not `arch:external` (ADR-0040), their `deploy:` facts under the override rule for that environment, `seam:deployedTo` and the serving-container rule |
 | `jsonld` | `<out>/<shape local name>.jsonld`, one JSON-LD 1.1 context document per `sh:NodeShape` with a `sh:targetClass` (ADR-0024, backlog O3), sorted JSON with a trailing newline; nothing for a model without target-classed shapes | `model.shapes`: `Shape.target_class` and `Shape.fields()`; [JSON-LD rendering rules](#json-ld-rendering-rules) |
 | `mentalmodel` | `<out>/manifest.yaml` and `<out>/ontology/<modelId>.jsonld`, `<out>/shapes/<modelId>.jsonld`, `<out>/views/<modelId>.jsonld`: a SemPKM Mental Model that `POST /api/models/install` installs (ADR-0026, backlog O5), JSON-LD without a context, sorted, with a trailing newline | the one `seam:Ontology` model (its IRI, `owl:versionInfo`, `rdfs:label`, `rdfs:comment`, `owl:imports`), `model.shapes` with a `sh:targetClass` and the shapes they reach by `sh:node`, and each `ifml:List` / `ifml:Details` of `model.interfaces` that `seam:reads` a shape; [Mental Model rendering rules](#mental-model-rendering-rules) |
+| `structurizr` | `<out>/workspace.dsl`, a Structurizr DSL workspace of the C4 layer (ADR-0044, backlog X9), with each gap as a `# gap:` comment line | `model.architecture` (systems, containers, `seam:consumes` / `seam:exposes`, `arch:dependsOn`), the events a container `seam:presents` and the `odrl:assignee`s of the policies governing them; [C4 exports](#c4-exports) |
 | `dockerfile` | `<out>/<route module stem>.Dockerfile` (`chat_api.Dockerfile`), the runtime image build file, with every path literal and relative to the build context; header and `io.semanticseams.model-hash` / `io.semanticseams.container` labels name the model hash and the container; one `COPY` per uv workspace member, sorted by path, copies its `pyproject.toml` and its `[project].readme` | the serving `arch:Container` and the `deploy:build` of its `deploy:artifact` in the `development` `arch:Environment` (ADR-0015); no serving container, or no development build, is a `GeneratorError` naming `seam:executes` or `deploy:build`; a development `deploy:dockerfile` that is missing or does not name the file this generator writes (`<app dir>/generated/<route module>.Dockerfile`, relative to `deploy:context`) is a `GeneratorError` on the container and `deploy:dockerfile`; the members come from `[tool.uv.workspace].members` of the `pyproject.toml` at the root of the build context (backlog A12), and a missing or unreadable root or member `pyproject.toml`, an empty member list or a glob member is a `GeneratorError` on the container and `deploy:context` naming the file |
 | `tests` | `<out>/test_scenarios.py`, `<out>/test_decisions.py`, `<out>/test_shape_examples.py` and `<out>/test_policies.py`, pytest files (ADR-0014) | each `verify:Scenario`, `verify:DecisionExample` and `verify:validExample` / `verify:invalidExample`, read through `model.scenarios`, `model.decision_examples` and `Shape.valid_examples` / `Shape.invalid_examples`, and each `odrl:permission` of `model.policies` with every `odrl:Party`; [Tests rendering rules](#tests-rendering-rules) |
 | `ifmledit` | `<out>/ifmledit.json`, the model's IFML layer as [IFMLEdit.org](https://github.com/B3rn475/IFMLEdit.org) JSON (backlog 12, a conformance check of the `ifml:` vocabulary): `elements` (`ifml.ViewContainer`, `ifml.ViewComponent` with stereotype `list` / `details` / `form`, `ifml.Event`, `ifml.NavigationFlow`, `ifml.DataFlow`) and `hierarchy` / `source` / `target` `relations`, ids the IRI local names, everything sorted, with a deterministic `metadata.graphics` layout the IFMLEdit loader requires. The `ifml:` terms with no IFMLEdit counterpart (`ifmledit.UNMAPPED`: `ifml:swap` and its strategies, `trigger`, `path`, `title`, `boundTo`, `order`, `InteractionModel`) are left out, printed on stderr and listed in [gaps.md](../docs/generation/golden/gaps.md) (GAP-29 to GAP-35) | `model.interfaces`; no `ifml:InteractionModel`, a component that is not exactly one of List, Details and Form, an element in several containers, an event without one exported owner, a flow with an unexported end or two elements with one local name is a `GeneratorError` |
@@ -127,7 +128,7 @@ and each `GeneratorError` a generator raises, in the `faults` key of `seams.lock
 of stopping, and `seams check` reports that lock as `flagged`.
 
 The built-ins `htmx`, `fastapi`, `compose` (S06), `tests` (M015), `smoke` (M015/S05),
-`acceptance` (M022/S03), `dockerfile` (M016/S03), `ifmledit` (M008/S01), `jsonld` (M023/S05) and `mentalmodel` (M024/S03) are the objects of `builtin.py`. Each
+`acceptance` (M022/S03), `dockerfile` (M016/S03), `ifmledit` (M008/S01), `jsonld` (M023/S05), `mentalmodel` (M024/S03) and `structurizr` (M033/S01) are the objects of `builtin.py`. Each
 has a real extract and render step built on its `extract_*` and `render_*` functions
 (htmx extracts every `PageModel`, then renders each), takes its sources from
 `sources.py` and declares no preconditions; `ifmledit` keeps its stderr summary of
@@ -390,6 +391,43 @@ indent, trailing newline; no header or model hash). The rules are
 | Literals | `xsd:string` as a plain string, a language-tagged literal as `{"@value", "@language"}`, any other as `{"@value", "@type"}`; IRI objects as `{"@id": …}`. |
 
 A view `ResolutionError` is passed on as the `GeneratorError` on the same fact.
+
+## C4 exports
+
+`c4.py` is the extract the C4 interchange exports share (ADR-0044, backlog X9).
+`extract_c4(model)` builds a frozen `C4Model`, every collection sorted by IRI:
+
+- `systems`: every `arch:System`, `external` when it states `arch:external true`
+  (ADR-0040), each with the `arch:Container`s it `arch:contains` and their
+  `arch:technology`;
+- `people`: the `odrl:assignee`s of the policies `seam:governedBy` an `ifml:Event` a
+  container presents (the container that `seam:presents` the interaction model holding
+  the event's owner, found as the sequence view finds it), the operation the event
+  `seam:submitsTo`, or a user task `seam:completedOn` its form: the sequence and storm
+  views' actors;
+- `relationships`: one per (source, destination) pair, a person to the presenting
+  container (labelled with the events), a container to each container exposing what it
+  `seam:consumes` (labelled with the operations and channels) and a container to each
+  it `arch:dependsOn` (`depends on` when it consumes nothing from it);
+- `gaps`: an event no container presents, an event no assignee's policy governs, a
+  container with no `arch:technology`, a container in no system or several (left
+  out), a system with no containers and a consumed endpoint nobody exposes;
+- `sources`: every IRI the export comes from, which `c4_sources(model)` returns for
+  `seams.lock`.
+
+An identifier is the local name with every character outside `[A-Za-z0-9_]` replaced
+by `_` (and `_` before a leading digit). Two elements with one identifier raise
+`GeneratorError(second element, rdf:type)`.
+
+`structurizr.py`: `render_structurizr(view)` returns `{"workspace.dsl": text}`. The text
+is a header comment, a `# gap:` line per gap, then `workspace { model { … } views { … } }`:
+the people, the systems (with `tags "External"` when external) holding their
+containers (`container "<label>" "" "<technology>"`), the relationships, then a
+`systemContext` view of each own system and a `container` view of each system with
+containers, keyed `<system>-context` and `<system>-containers`, each `include *` and
+`autoLayout`. The workspace is unnamed and carries no hash, timestamp or path.
+Goldens: `tests/golden/structurizr/` (`uv run python tests/test_structurizr_export.py`
+rewrites them).
 
 ## Compose rendering rules
 

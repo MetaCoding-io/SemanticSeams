@@ -32,6 +32,9 @@ ambiguous fact raises the same ``GeneratorError``:
 - ``mentalmodel``: the ontology model for the manifest and the ontology
   file, the written shapes and their target classes for the shapes file, and
   each view's IFML component, shape and target class for the views file.
+- ``structurizr``: the C4 export's people, systems and containers, and the
+  events, policies and endpoints its relationships are drawn from
+  (``seams_gen.c4``, ADR-0044).
 - ``acceptance``: per handlers module's test file, each function's
   implementations, operations and shapes, and the examples, transitions,
   states, tasks, decisions and gateway flows its tests read.
@@ -47,6 +50,7 @@ from seams import Component as ComponentView
 
 from ._views import only, optional, view_errors
 from .acceptance import acceptance_sources
+from .c4 import c4_sources
 from .compose import DEVELOPMENT, _resolve_environment, compose_file_name, environments, extract_compose
 from .dockerfile import dockerfile_name, extract_dockerfile
 from .fastapi import extract_routes, route_module
@@ -57,6 +61,7 @@ from .mentalmodel import mentalmodel_sources
 from .protocol import Sources
 from .registry import discover
 from .smoke import smoke_sources
+from .structurizr import FILE as STRUCTURIZR_FILE
 from .tests import tests_sources
 
 
@@ -137,6 +142,7 @@ SOURCES: dict[str, Callable[[Path, Path], Sources]] = {
     "acceptance": lambda trig, out: acceptance_sources(trig),
     "jsonld": lambda trig, out: jsonld_sources(load(trig)),
     "mentalmodel": lambda trig, out: mentalmodel_sources(load(trig)),
+    "structurizr": lambda trig, out: {STRUCTURIZR_FILE: c4_sources(load(trig))},
 }
 
 

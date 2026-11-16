@@ -28,8 +28,9 @@ out = "generated/templates"
 - `generators` (array of tables): each entry has a `name` and an `out`
   directory. The name is one registered in the `seams.generators` entry-point
   group (D056, [ADR-0016](../../docs/adr/0016-generator-protocol.md)): a
-  built-in (`compose`, `dockerfile`, `fastapi`, `htmx`, `ifmledit`, `smoke`,
-  `tests`, declared in this package's `pyproject.toml`) or one from any
+  built-in (`acceptance`, `compose`, `dockerfile`, `fastapi`, `htmx`,
+  `ifmledit`, `jsonld`, `likec4`, `mentalmodel`, `plantuml`, `smoke`,
+  `structurizr`, `tests`, declared in this package's `pyproject.toml`) or one from any
   installed distribution. An unknown name is a project error listing the known
   ones.
 - `gates` (array of strings, optional): SPARQL SELECT files, relative to the

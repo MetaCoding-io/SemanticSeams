@@ -56,6 +56,11 @@ that reaches it (`deploy:connectsTo`) and, for a SemPKM store, the binding that 
 its token (`deploy:authenticatesTo`, [ADR-0025](/adr/0025-sempkm-store)) are deployment
 facts, so they live in `deploy:`, not among the seams.
 
+Why an element exists is not a seam either. An `arch:DecisionRecord` names the elements
+its decision covers with `dcterms:references` and lives in the architecture graph
+([ADR-0045](/adr/0045-rationale-links)); it explains the elements and connects no layers,
+and the viewer's Why section lists the records that reference the element in focus.
+
 `catches` is how a failure path crosses layers. An operation declares each error it can
 raise as a `hydra:Status` with a `comm:errorCode`, and the status's `returnsShape` is the
 problem+json body. A BPMN error boundary event on a task that invokes the operation is

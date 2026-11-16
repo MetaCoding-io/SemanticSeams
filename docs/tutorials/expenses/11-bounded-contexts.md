@@ -95,7 +95,7 @@ The new terms need the vocabulary versions that declare them. In the manifest gr
 import `arch` 1.2 and `seam` 1.6:
 
 ```trig
-        owl:imports <https://w3id.org/seams/arch/1.3> ,
+        owl:imports <https://w3id.org/seams/arch/1.4> ,
                     <https://w3id.org/seams/comm/1.0> ,
                     <https://w3id.org/seams/deploy/1.0> ,
                     <https://w3id.org/seams/ifml/1.0> ,

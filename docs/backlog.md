@@ -232,6 +232,48 @@ computes the list or shows it to a caller.*
 | H4 | **Process paths walked against the lifecycle at check time**: for each BPMN path, track the state the fired transitions leave the entity in and report a path that fires a transition from a state it cannot be in, so the fault is found by `seams check` and not by a failed instance. The finding states its limits (channel-started processes, error boundaries). Per-state handler types are not planned while this check exists | M | U5, U7 | none | proposed |
 | H5 | **Tool surface for agents, derived from the model**: an MCP server over a running application, one tool per operation with its input schema from `seam:acceptsShape`, the tools offered for an entity taken from H1, calls dispatched through the runtime so the lifecycle guard and policies apply. The ADR decides an agent's identity in ODRL terms and generated server or generic one | L | H1, H2; ADR first | none expected | proposed |
 
+*Added 2026-11-17 from a review of the project for completeness and usefulness, read as
+a coding agent would use it. The loop from model to shapes, generation, lock and check is
+complete and fast. What is missing is a way to read and change the model without the
+viewer, a second target to test the vocabularies against, and a simpler generator
+protocol. The review also backs W2, W3 and H1 as they stand, H1 first, since H2 to H5
+build on it. None of the J, F and Y rows is scheduled yet.*
+
+**Agent surface (J).** Working on a model from the command line.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| J1 | **A command-line write path**: `seams apply PATCH` applies a quad patch through `seams_edit`, and `--dry-run` prints the shape results and the diff of every generated output without writing. Today `seams_edit` is reached only from the viewer and from `migrate`, `cml import`, `import-storm` and `suggest --accept`, so any other change is a hand edit of the TriG text | M | I1, I3 | none | proposed |
+| J2 | **`seams query` and `seams explain`**: `seams query` runs a catalog query by name or a SPARQL file and prints rows; `seams explain IRI` prints one element's type and label, its seams in and out, the shapes that target it, the scenarios that cover it, the output lines that cite it (from the trace sidecars) and the decision records that reference it. The parts exist in `seams.context_for`, the traces and the inspector's Why section, per task or in the viewer only | S | T1, X8 | none | proposed |
+| J3 | **JSON output on every command**: `--json` on `check`, `generate`, `coverage`, `diff`, `observed` and the rest, as `context` has it; each finding carries its subject, predicate, detail and, for a shape result, the expected class or datatype | S | none | none | proposed |
+| J4 | **An MCP server over the model**: query, explain, apply and check as tools, over a project directory. H5 is the server over a running application; this one is over the model | M | J1, J2, J3 | none | proposed |
+| J5 | **Run the tests a change affects**: the full suite takes about 18 minutes. Map changed files to tests, using the lock and the trace sidecars for model elements and outputs, and offer it as one command | S | A2, T1 | none | proposed |
+| J6 | **Commands for the mechanical chores**: a vocabulary minor bump that updates every example manifest, the test pins and the fixtures in one step, and a parity case scaffolded for each new `GeneratorError` | S | K1, K6 | none | proposed |
+
+**Generator protocol (F).** Each item amends [ADR-0016](adr/0016-generator-protocol.md)
+or [ADR-0019](adr/0019-generation-trace.md); F1 to F3 are one amendment.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| F1 | **`extract` takes a loaded model**: `extract(trig, out)` makes every generator load the model itself, so `seams_gen/builtin.py` is thirteen wrappers that call `load`, a preview has to regenerate in a scratch copy, and the `inputs` hook exists to fill that copy. Pass the model and a small context (the output directory, the project) instead | M | K3; ADR-0016 amendment | none | proposed |
+| F2 | **No separate `sources` function**: `seams_gen/sources.py` runs each generator's extract a second time and reads generator internals to list the model elements per file. A generator with a `trace` hook already has its lock sources taken from the trace terms. Take them from the trace for every generator, and remove `sources` from the protocol | S | F3 | none | proposed |
+| F3 | **A trace for generators that do not use Jinja2**: five of the thirteen built-ins write trace sidecars. Give the rest (JSON, YAML and DSL output) a line builder whose lines carry their origins, so every output has a trace | M | T1 | none | proposed |
+| F4 | **Publish the kit**: a third-party generator imports `seams_gen.protocol`, `GeneratorError` and `seams_gen.testing` from a package that is never installed (D033), and `only`, `optional`, `required` and `view_errors` are in the private `seams_gen._views`. Put the protocol, the error, those helpers, the trace and the test kit in one installable package | M | K4; revisits D033 | none | proposed |
+| F5 | **One run per element**: `fastapi`, `dockerfile` and `compose` expect one serving container, `htmx` one landmark, and `mentalmodel` one ontology, which is why chapter 11 does not list it. Let a `seams.toml` entry bind a generator to an element IRI, and let a generator name the elements it runs for | M | ADR first | none expected | proposed |
+| F6 | **Golden markers from the trace**: the `# [graph: ...]` and `# [fixed]` markers in goldens are written by hand. Write or check them from the trace | S | F3 | none | proposed |
+| F7 | **Register a built-in in one place**: a new built-in generator is named in `builtin.py`, `sources.py`, `seams_gen/__main__.py`, the entry points and the README. One module per generator that exports its `Generator` object, found by the registry | S | F1, F2 | none | proposed |
+
+**Modelling (Y).** Facts and targets the model does not yet have.
+
+| # | Item | Size | Depends on | Vocabulary impact | Status |
+|---|---|---|---|---|---|
+| Y1 | **A second target for one layer**: a user interface that is not htmx, or a deployment that is not compose (Kubernetes manifests), generated from the same model. Until a second target exists, nothing shows which `ifml:` and `deploy:` terms are neutral and which were shaped by the first target. The ADR picks the target and records each term that turns out to be target-specific | L | F1, F5; ADR first | whatever the second target shows to be target-specific | proposed |
+| Y2 | **Contract exports**: OpenAPI from the operations and their shapes, AsyncAPI from the channels, and JSON Schema per shape, as generators under `generated/exports/` in the manner of ADR-0044. No built-in writes any of them today | M | X9 | none | proposed |
+| Y3 | **Imports from OpenAPI and SQL DDL**: X10, scoped to those two sources and unparked. Each import gives a skeleton that the shapes flag and `seams generate` refuses, as `import-storm` does, so a team with an existing system has a way in | M | X12, J1 | none | proposed; replaces X10's parked scope if taken up |
+| Y4 | **Derived threat and data-flow view**: the paths on which personal data (ADR-0039) crosses a container, an external system (ADR-0040) or an environment boundary, with the policy that governs each crossing or a gap where none does; a query, a viewer Question and a derived diagram | S | X3, X4 | none expected | proposed |
+| Y5 | **Resilience facts**: retries, timeouts, idempotency and rate limits on an invocation or an operation, beside the latency budgets of ADR-0043 and the error boundaries of ADR-0013, read by the worker and checked against observations | M | X2; ADR first | new terms in `nfr:` or `comm:` | proposed |
+| Y6 | **The identity provider as a fact**: the runtime trusts `X-Forwarded-User` and `X-Forwarded-Groups` from a fronting proxy. First check whether the model names that proxy and its provider; if it does not, model them, so that compose can generate the proxy and a query can ask which containers accept an unauthenticated request | M | ADR first | a term in `deploy:` or `arch:` | proposed |
+
 ## From the research notes, triaged 2026-11-05
 
 *Added after M026. Each row is a gap one of the research notes names that had no

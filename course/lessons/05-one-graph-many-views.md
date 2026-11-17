@@ -120,6 +120,12 @@ being teleported across three layers is disorienting. When an element is detaile
 models, which is what happened at the Route to Provider task in lesson 1, the viewer asks
 rather than picking silently. Every state is a URL, so every view is a link.
 
+![Layer mode in the viewer on the chat app: the architecture plane above the interaction plane, each tilted, with the layer seams drawn as lines running down between them](./img/viewer-layers.webp)
+
+*Layer mode on the chat app. The seams that no flat view draws are the lines between
+planes; the viewer guide's [layer mode](../../docs/guide/the-viewer.md#layer-mode) section
+explains the page.*
+
 The point to carry forward is the last clause of that ADR: making a predicate navigable, or
 not, is an ontology change and nothing else. No viewer code knows the names of the seams.
 That is the shape of the whole design, applied to one small decision.

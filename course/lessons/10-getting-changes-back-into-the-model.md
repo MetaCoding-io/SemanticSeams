@@ -96,6 +96,11 @@ check, and the trace note points out that it is the property one bidirectional-t
 system, FuseDM, guaranteed by construction; here it is guaranteed by running the
 generator.
 
+![The viewer's generation view of Send Message on the chat app: the model terms the chat page cites, the htmx template and the generated page, with the line citing send_message selected in both](./img/viewer-generation.webp)
+
+*The generation view the write-back starts from: model, template and output joined line
+by line by the trace. In edit mode the output pane gains the one-line editor.*
+
 Before anything is applied, the viewer shows the effects: the triple, the files it
 touches, and every other output line the same patch changes, as before-and-after pairs,
 because a literal often has reach beyond the line you edited. Renaming a list in the chat

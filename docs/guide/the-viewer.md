@@ -6,17 +6,19 @@ The viewer is a browser over one model, read-only unless you switch on
 element belongs to. This page walks the canonical descent through the chat-app example,
 then explains the parts of the page and the URLs behind them.
 
-The screenshots were taken from the running viewer in October 2026.
+The screenshots were taken from the running viewer in November 2026. To retake them, run
+`docs/scripts/screenshots.py`; its docstring says which viewers to start first.
 
 ## The descent
 
 ### Architecture
 
-![The chat app's architecture view: a system containing four containers, and a production environment containing three deployment nodes](./img/viewer-architecture.webp)
+![The chat app's architecture view at L2: the LLM Chat App system with its four containers nested inside, the depends-on edges between them, and the Development and Production environments, under the level toggle and a Conforms badge with its warnings](./img/viewer-architecture.webp)
 
 The root of the chat app is its C4 architecture model: a system with four containers,
-and the production environment with the nodes they are deployed to. The green bar above
-the breadcrumbs is the model-health badge.
+the production environment with the nodes they are deployed to, and the development
+environment. The green bar above the breadcrumbs is the model-health badge; the chat app
+conforms, with warnings you can open.
 
 The architecture view has four zoom levels, chosen with the level toggle above the
 canvas or `?level=` in the URL (default L2). Each level adds to the one before:
@@ -35,6 +37,12 @@ The nested models' own edges are not drawn. Clicking a nested model still opens 
 A model that declares no `arch:Domain` draws L1 as systems, people and environments
 only. Domains and contexts, once declared, stay visible at every level, since levels
 are cumulative.
+
+![Expense chapter 11's architecture at L1: the Finance domain (party, core) framing the Payouts bounded context and the Expense Management domain (supporting) framing the Expenses context and the Expense Approval system, with runs edges from each context to the system, and the environments and SemPKM outside](./img/viewer-context-map.webp)
+
+Expense chapter 11 at L1: two domains, each labelled with its classification, frame
+their bounded contexts, and each context's `runs` edge points at the system that
+presents or executes its models.
 
 ### Interface
 
@@ -182,6 +190,8 @@ Details. A link draws one Mermaid diagram per path through the process's exclusi
 gateways, headed by the flows it takes (*single* when there is no choice). Each
 diagram's gaps, the seams the model does not declare yet, are listed under it.
 
+![The Send Message sequence drawn under the Message Processing view: the user, the web interface, the chat API, the message store and the LLM gateway, with the POST, the process start, each task's write, the lifecycle transitions and the streamed events](./img/viewer-sequence.webp)
+
 **Storm.** Beside Sequences, links to the
 [derived event storm](/concepts/diagrams-are-views#derived-event-storm) of the
 processes the view is about: a process's own BPMN view, the BPMN view that a click on
@@ -190,6 +200,8 @@ Approval from Submit Expense in chapter 10. A process started only through a cha
 such as Expense Payout, links from its own view. A link draws the timeline the
 `seams storm` command prints: each step with its actor, command, aggregate, domain
 event, decision, channel and started-process notes, then the read models and the gaps.
+
+![The Send Message Process storm: six steps, each with its actor, command, aggregate, domain event, decision or channel, then the Message Thread read model and no gaps](./img/viewer-storm.webp)
 
 **Details.** The inspector: the element's IRI, its types, its native element ID and
 payload where it has them, and its outgoing and incoming seam edges with readable
@@ -240,6 +252,8 @@ every generated line, in every output, that cites the element, grouped by file w
 its generator. Each entry opens the view on that file and line
 (`?output=…&line=…`); with no query the view opens the first citing line.
 
+![The generation view of Send Message: the model pane listing the terms the chat page cites with their line counts, the htmx template pane and the generated chat_page.html pane, with the line citing send_message selected in both, and the fan-out below](./img/viewer-generation.webp)
+
 Nothing here fails on a bad file. A missing `seams.lock`, a missing or malformed
 sidecar, an output that cannot be read and a template that cannot be found are each
 one notice above the panes naming the file, and the rest of the view is built
@@ -263,6 +277,8 @@ once as six stacked planes, one per layer, top to bottom: architecture, interact
 process, decision, data and lifecycle. Each plane holds its layer's elements, laid out
 by ELK, with the edges between them, and is tilted by a simple oblique projection so the
 planes read as a stack. The cards stay upright so their labels stay readable.
+
+![Layer mode on the chat app: the architecture plane above the interaction plane, each tilted, with their elements and edges, the Seams shown checkboxes with Layer on, and seam lines running down between the planes](./img/viewer-layers.webp)
 
 **Seams.** The lines between planes are the seams that cross layers, coloured by the
 layer they start in. Which ones show is set by the **Seams shown** checkboxes, one per
@@ -389,6 +405,8 @@ SEAMS_MODEL=/tmp/chapter-08 SEAMS_EDIT=1 uv run uvicorn viewer.app:app --port 80
 ```
 
 Any other value, or none, leaves the viewer read-only and the edit routes do not exist.
+
+![Edit mode on expense chapter 8's My Expenses list: the inspector's Edit form with its order and reads fields and their shape messages, and the live preview pane listing the thirty outputs the project's generators produce](./img/viewer-edit-form.webp)
 
 **Forms come from the shapes.** When some shape targets the element in view, its
 inspector shows an **Edit** button. The form it opens has one field per property the
@@ -624,6 +642,8 @@ and lists them by label then shape IRI. In chapter 11 `ExpenseShape` and the `Ex
 class show *Aggregate*, the operations a UI event submits to show *Command*, and the
 lifecycle transitions and `vendor_changes` channel show *Domain event*: the words are the
 DDD profile's, not the viewer's. A model with no profile shows no pills.
+
+![The Expense shape in chapter 11 with an Aggregate pill beside its heading, and the health panel naming the attached DDD profile and the imports](./img/viewer-type-pills.webp)
 
 The health panel names the attached profile with its class and generator counts, and the
 server log records one line when the model loads, naming the profile IRI and the same

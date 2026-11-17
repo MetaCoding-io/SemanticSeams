@@ -10,7 +10,8 @@ chapter 8), then this script:
     uv run uvicorn viewer.app:app --port 8791 &
     SEAMS_MODEL=examples/expenses/chapter-11 uv run uvicorn viewer.app:app --port 8792 &
     SEAMS_MODEL=/tmp/shots/examples/expenses/chapter-08 SEAMS_EDIT=1 uv run uvicorn viewer.app:app --port 8793 &
-    uv run --with playwright python docs/scripts/screenshots.py [NAME...]
+    uv run playwright install chromium   # once
+    uv run python docs/scripts/screenshots.py [NAME...]
 
 It writes docs/guide/img/<name>.webp (cwebp must be on PATH) and copies the
 descent shots to site/img/. The edit-mode copy keeps the repository's

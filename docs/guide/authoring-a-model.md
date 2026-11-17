@@ -1440,6 +1440,43 @@ the TriG files and the payloads together or not at all. Nothing in the model cha
 before that step, and `seams suggest` never runs in CI. The output lines and exit codes
 are in the [seams CLI reference](/reference/seams-cli#seams-suggest).
 
+## Export to other tools
+
+Three generators write the model in formats other tools read
+([ADR-0044](/adr/0044-interchange-exports)). Add the ones you want to `seams.toml`:
+
+```toml
+[[generators]]
+name = "structurizr"   # workspace.dsl
+out = "generated/exports/structurizr"
+
+[[generators]]
+name = "likec4"        # model.c4
+out = "generated/exports/likec4"
+
+[[generators]]
+name = "plantuml"      # sequence/<stem>.puml and storm/<process>.puml
+out = "generated/exports/plantuml"
+```
+
+`seams generate` then writes them with the other outputs:
+
+- **`structurizr`** and **`likec4`** read one shared C4 extract: the people (the
+  assignees of the policies governing the events a container presents), each
+  `arch:System` with its containers and `arch:technology`, and the relationships from
+  `seam:consumes`/`seam:exposes`, `arch:dependsOn` and person-to-UI use. Open
+  `workspace.dsl` in Structurizr, or point LikeC4 at the directory holding `model.c4`.
+- **`plantuml`** writes the derived views beside the Mermaid ones: a sequence diagram per
+  path of each triggering `ifml:Event` (as `seams sequence` draws it) and an activity
+  diagram of each process's event storm (as `seams storm` reads it).
+
+The exports are generated files like any other: regenerate them, never edit them. When
+the model lacks a fact an export needs, such as a policy with no `odrl:assignee`, the
+export writes a `gap:` comment line naming it rather than guessing. Read those lines as
+a to-do list for the model. The chat app commits all three under
+`examples/chat-app/generated/exports/`; the full output lists are in the
+[seams CLI reference](/reference/seams-cli).
+
 ## View it
 
 The viewer loads one model, chosen by `SEAMS_MODEL`. Keep the BPMN and DMN files your

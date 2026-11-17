@@ -116,7 +116,9 @@ of the parameter and the form's `ifml:hasParameter` to it, each in its own graph
 addition, a new parameter bound to the field. The same acceptance rule applies: regenerate
 with the patch, and the result must be what you typed. Everything beyond that case is
 refused with a reason, and the backlog records the next tiers as proposals, sentence
-editing for the rest of the model and the storm board as a capture tool.
+editing for the rest of the model and the storm board as a capture tool. A first capture
+path exists already: `seams import-storm` reads a storm timeline in Markdown into a
+skeleton model, gaps flagged ([ADR-0046](../../docs/adr/0046-event-storm-import.md)).
 
 ### The one write path
 

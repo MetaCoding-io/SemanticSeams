@@ -14,7 +14,7 @@ git clone https://github.com/MetaCoding-io/SemanticSeams.git
 cd SemanticSeams
 uv sync --all-packages
 source .venv/bin/activate
-pytest -q
+pytest -q -n auto   # parallel; a serial `pytest -q` gives the same result
 ```
 
 A green suite means every Turtle and TriG file parses, every example passes the SHACL

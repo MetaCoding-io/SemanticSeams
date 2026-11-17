@@ -33,7 +33,9 @@ what does it force the vocabulary to decide.
 That matters for a course, because the frontier moves while the course stands still. When
 the first draft of this lesson was written, the strategic layer of domain-driven design,
 timers and more than one replica were all open. By the time the lesson was finished, all
-three had landed, with nine new decision records behind them. So read this lesson as a
+three had landed, with nine new decision records behind them. Since then data care,
+observed behaviour and interchange have landed too, with eight more (ADR-0039 to
+ADR-0046). So read this lesson as a
 snapshot with its date on it, check the backlog's status cells against what it says, and
 treat every disagreement as the repository being right.
 
@@ -203,23 +205,32 @@ only terms the model declares, are proposed too.
 
 ### The honest list
 
-What the graph still cannot hold is listed in the backlog's final section, and it is short
-enough to read in full. Observed behaviour as its own named graph, so that timing and dead
-elements become queries. Service-level objectives checked against those observations. Data
-classification, so that "which screens show personal data to which roles" is a question.
-A convention for external systems and inbound webhooks beyond the one SemPKM case.
-Migrations of stored data generated from the shape diff. Rationale links from a decision
-record to the elements it decides. Interchange exports to the C4 and sequence tools people
-already use. An event-storm import. Imports from existing API, schema and compose files,
-parked as a non-goal until the exports show what an import must carry. And a model-level
-merge, which the project does not list because its answer today is text and git, and that
-answer is honest about its limits. Three milestones carry most of these, data care,
-observed behaviour and interchange, and all three are planned and unstarted.
+The backlog's final section once listed what the graph could not hold, and the three
+milestones that followed this lesson's first draft, data care, observed behaviour and
+interchange, built almost all of it. Data classification, so that "which screens show
+personal data to which roles" is a question ([ADR-0039](../../docs/adr/0039-data-classification.md)).
+A convention for external systems and inbound webhooks ([ADR-0040](../../docs/adr/0040-external-systems-and-webhooks.md)).
+Migrations of stored data that `seams plan` writes from the shape diff, or refuses with a
+reason ([ADR-0041](../../docs/adr/0041-stored-data-migrations.md)). Observed behaviour as
+its own named graph, so that timing and dead elements become queries
+([ADR-0042](../../docs/adr/0042-as-observed-graph.md)), with latency budgets reported
+against those observations ([ADR-0043](../../docs/adr/0043-latency-budgets.md)).
+Structurizr, LikeC4 and PlantUML exports ([ADR-0044](../../docs/adr/0044-interchange-exports.md)).
+Decision records that name the elements they decide
+([ADR-0045](../../docs/adr/0045-rationale-links.md)). And `seams import-storm`, which reads
+a storm into a skeleton model with its gaps flagged
+([ADR-0046](../../docs/adr/0046-event-storm-import.md)).
 
-None of these reopens a scorecard row. Each is a kind of fact the graph does not yet hold,
-and the pattern of the last month says how it will be added: a research note that asks
-what the question is, a vocabulary term that earns it, shapes that check it, a view that
-derives from it, and a chapter that makes you write it.
+What is left is short. Imports from existing API, schema and compose files stay parked as
+a non-goal until the exports show what an import must carry. Each of those decision
+records names its own open edges, such as renamed fields in a migration. And a
+model-level merge, which the project does not list because its answer today is text and
+git, and that answer is honest about its limits.
+
+None of these reopened a scorecard row. Each was a kind of fact the graph did not yet
+hold, and the pattern of the last months shows how each was added: a research note that
+asks what the question is, a vocabulary term that earns it, shapes that check it, a view
+that derives from it, and a chapter or guide section that makes you write it.
 
 ### The scorecard, filled in
 
@@ -245,7 +256,8 @@ answer is given.
 ## Read in the repo
 
 - [`docs/backlog.md`](../../docs/backlog.md), the "Not yet scheduled" section and the
-  suggested sequence at the end, where M031 to M033 are planned and unstarted.
+  suggested sequence at the end, where M031 to M033 record what landed after this lesson
+  was drafted.
 - [Chapter 11, A second bounded context](../../docs/tutorials/expenses/11-bounded-contexts.md),
   and [ADR-0033](../../docs/adr/0033-ddd-profile.md), the DDD profile's five rules.
 - [Product review and UI ideas](../../docs/research/2026-11-03-product-review-and-ui-ideas.md),
